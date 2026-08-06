@@ -36,8 +36,9 @@ header{background:var(--panel);border:1px solid var(--line);border-radius:12px;p
 .sumchip b{font-size:14px;margin-left:4px}
 .sumchip.g5 b{color:var(--sbuy)} .sumchip.g4 b{color:var(--buy)}
 .sumchip.g2 b{color:var(--sell)} .sumchip.g1 b{color:var(--ssell)}
-.notice{margin-top:10px;font-size:11.5px;color:var(--faint);line-height:1.6}
-.notice em{font-style:normal;color:var(--dim)}
+.notice{margin-top:10px;font-size:11.5px;color:var(--faint);line-height:1.6}.notice em{font-style:normal;color:var(--dim)}
+.autoline{margin-top:9px;font-size:12px;color:var(--accent);background:#111a2b;border:1px solid #22344f;border-radius:7px;padding:6px 10px;line-height:1.5}
+.autoline b{color:#cfe1ff}
 
 /* ── 툴바 ── */
 .toolbar{display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin-bottom:12px}
@@ -132,18 +133,19 @@ section.cat>h3 .cnt{color:var(--faint);font-weight:normal}
 /* 모아보기(compact) */
 .compact{display:flex;flex-direction:column;gap:3px}
 .crow{background:var(--card);border:1px solid var(--line);border-left-width:3px;border-radius:7px;padding:6px 9px}
-.crmain{display:grid;grid-template-columns:1.5fr 1fr 1.5fr 1fr;gap:6px;align-items:center;font-size:12px}
+.crmain{display:grid;grid-template-columns:minmax(0,1fr) 66px 96px 74px;gap:8px;align-items:center;font-size:12px}
 .crow.g5{border-left-color:var(--sbuy)} .crow.g4{border-left-color:var(--buy)} .crow.g3{border-left-color:#3a4356} .crow.g2{border-left-color:var(--sell)} .crow.g1{border-left-color:var(--ssell)}
 .crow.chead{background:transparent;border:none;color:var(--faint);font-size:10.5px;padding:2px 9px}
 .crow.chead .crmain{font-size:10.5px}
-.crtk{font-weight:bold;font-size:12.5px;display:flex;flex-direction:column;line-height:1.25;overflow:hidden}
+.crow.chead .crmain span:nth-child(3),.crow.chead .crmain span:nth-child(4){text-align:right}
+.crtk{font-weight:bold;font-size:12.5px;display:flex;flex-direction:column;line-height:1.25;min-width:0;overflow:hidden}
 .crnm{font-weight:normal;font-size:9.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.crgrade{font-size:11px;font-weight:bold}
+.crgrade{font-size:11px;font-weight:bold;white-space:nowrap}
 .crgrade.g5{color:var(--sbuy)} .crgrade.g4{color:var(--buy)} .crgrade.g3{color:var(--neu)} .crgrade.g2{color:var(--sell)} .crgrade.g1{color:var(--ssell)}
-.crprice{font-size:11.5px;text-align:right} .crprice .chg{font-size:10.5px;margin-left:3px}
-.crmeta{font-size:10.5px;color:var(--dim);text-align:right}
+.crprice{font-size:11px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .crprice .chg{font-size:10px;margin-left:3px}
+.crmeta{font-size:10.5px;color:var(--dim);text-align:right;white-space:nowrap}
 .crreason{font-size:10.5px;color:var(--dim);margin-top:4px;line-height:1.4;border-top:1px solid #1b2230;padding-top:4px}
-@media (max-width:480px){ .crmain{grid-template-columns:1.3fr 0.9fr 1.4fr 0.8fr;gap:4px;font-size:11px} .crmeta{font-size:9.5px} .crreason{font-size:10px} }
+@media (max-width:480px){ .crmain{grid-template-columns:minmax(0,1fr) 56px 82px 58px;gap:5px;font-size:11px} .crprice{font-size:10px} .crmeta{font-size:9.5px} .crreason{font-size:10px} }
 
 /* 숨긴 종목/푸터 */
 .hidden-list{font-size:12px;color:var(--dim);margin-top:8px}
@@ -177,9 +179,10 @@ dialog .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
     <div class="stamp">오늘 <b id="todayStr"></b> · 데이터 기준 <b id="dataStamp">—</b></div>
   </div>
   <div class="sumline" id="sumLine"></div>
+  <div class="autoline">🕘 데이터는 <b>매일 09:00 · 16:00 (한국시간)</b>에 자동 갱신됩니다. <b>🔄 새로고침</b>은 "지금 실시간 가격"이 아니라 <b>마지막 갱신(9시 or 16시) 데이터</b>를 다시 받아오는 버튼이에요. 지금 보는 게 언제 것인지는 위 <b>"데이터 기준"</b> 시각을 보세요.</div>
   <div class="notice">
     <em>⚠ 모든 지표는 참고용</em>입니다. 박스권·강한 추세장에서는 같은 신호가 반대로 해석될 수 있어요.
-    yfinance는 <em>15~20분 지연</em>된 무료 데이터라 실시간이 아니며, 화면의 수치는 <em>"데이터를 붙여넣은 시점 기준"</em>입니다.
+    yfinance는 <em>15~20분 지연</em>된 무료 데이터라 실시간이 아니며, 수치는 <em>마지막 갱신 시점 기준</em>입니다.
     이 화면에는 계좌·잔고 등 <em>개인정보를 절대 넣지 마세요</em> — 종목과 지표만 다룹니다.
   </div>
 </header>
@@ -187,9 +190,7 @@ dialog .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
 <div class="toolbar">
   <button id="btnHelp" title="각 버튼이 뭔지 설명 보기">❔ 사용법</button>
   <button id="btnGuest" title="방명록 — 고마워요 하트 남기기">💖 방명록</button>
-  <button class="primary" id="btnPaste">📥 데이터 붙여넣기</button>
-  <button id="btnRefresh" title="연결된 데이터 URL에서 최신 JSON 다시 받기">🔄 새로고침</button>
-  <button id="btnAuto" title="5분마다 자동으로 최신 데이터 받기">자동갱신: 켜짐</button>
+  <button class="primary" id="btnRefresh" title="지금 실시간이 아니라, 마지막 자동갱신(9시/16시) 데이터를 다시 받아옵니다">🔄 새로고침</button>
   <label class="tl">정렬
     <select id="sortMode">
       <option value="category">카테고리순</option>
@@ -201,9 +202,6 @@ dialog .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
   <button id="btnLev2x" title="단일종목 2배 레버리지(NVDL·TSLL·APLX 등)를 숨기고 1배 원주만 보기">2배 숨김: 켜짐</button>
   <button id="btnHoldings" title="내가 ☆보유로 체크한 종목을 숨기거나 다시 보이기">보유 숨김: 켜짐</button>
   <span id="saveInd" class="save-ind"></span>
-  <span class="sp"></span>
-  <button id="btnExport" title="지금 관심종목·설정을 파일 하나로 저장(백업)">⤓ 백업 저장</button>
-  <button id="btnImport" title="저장해둔 백업 파일을 불러와 그대로 복원">⤒ 백업 열기</button>
   <input type="file" id="fileImport" accept=".json,application/json" class="hidden">
 </div>
 
@@ -211,14 +209,14 @@ dialog .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
   <div class="help-close"><button id="btnHelpClose">✕ 닫기</button></div>
   <h2>이 화면 사용법</h2>
   <div class="help-grid">
-    <div><b>🔄 새로고침</b><br>깃허브에 올라간 최신 데이터를 다시 받아옵니다. 새 숫자를 보려면 먼저 Colab을 돌려야 해요.</div>
-    <div><b>자동갱신</b><br>켜두면 5분마다 알아서 최신 데이터를 받아옵니다. (이것도 Colab을 돌려야 새 값이 생겨요)</div>
-    <div><b>📥 데이터 붙여넣기</b><br>URL 연동을 안 쓸 때 쓰는 칸이에요. Colab이 출력한 JSON을 여기 붙여넣고 [적용]하면 화면이 갱신됩니다. URL을 이미 저장했다면 안 써도 돼요.</div>
-    <div><b>데이터 URL</b><br>폰↔컴을 연동하는 링크. 붙여넣기 패널 아래에서 한 번 저장해두면, 이후엔 새로고침만으로 최신 데이터가 옵니다.</div>
-    <div><b>2배 숨김</b><br>단일종목 2배 레버리지(NVDL·TSLL·APLX)를 숨기고 1배 원주만 봅니다. 움직임이 겹쳐서 헷갈리지 않게요.</div>
+    <div><b>🕘 데이터 자동 갱신</b><br>매일 <b>09:00·16:00(한국시간)</b>에 깃허브가 알아서 시세·지표를 계산해 갱신해요. 마님이 할 일은 없어요.</div>
+    <div><b>🔄 새로고침</b><br>마지막 자동갱신(9시 or 16시) 데이터를 다시 받아옵니다. <b>지금 실시간 가격이 아니에요</b> — 위 '데이터 기준' 시각이 지금 보는 시점이에요.</div>
+    <div><b>📋 모아보기</b><br>신호 강한 순으로 한 줄씩 빽빽하게 — 폰 한 화면에 근거까지 훑기 좋아요. 다시 누르면 카드보기.</div>
+    <div><b>2배 숨김</b><br>단일종목 2배 레버리지(NVDL·TSLL·APLX)를 숨기고 1배 원주만 봅니다. 움직임이 겹쳐 헷갈리지 않게요.</div>
     <div><b>☆ 보유 (카드마다)</b><br>내가 실제로 가진 종목을 ★로 표시. [보유 숨김]을 켜면 표시한 종목이 화면에서 빠져요.</div>
     <div><b>✕ (카드마다)</b><br>그 종목만 잠깐 숨기기. 화면 맨 아래 '숨긴 종목'에서 다시 켤 수 있어요.</div>
-    <div><b>⤓ 백업 저장 / ⤒ 백업 열기</b><br>관심종목·설정을 파일로 저장하거나 되돌리는 기능. 폰 바꿀 때나 실수로 지웠을 때만 쓰면 됩니다. 평소엔 자동 저장되니 안 써도 돼요.</div>
+    <div><b>＋ 종목 추가 / 편집</b><br>이 화면에서 누른 건 <b>내 기기에만</b> 임시로 보여요. 진짜 관심종목은 저장소의 <b>main.py</b>에서 정합니다.</div>
+    <div><b>📥 수동으로 데이터 넣기</b><br>자동 연결이 안 될 때만 쓰는 백업 기능.<br><button id="btnManualInput" style="margin-top:5px">📥 수동 입력 열기</button></div>
   </div>
 </div>
 
@@ -569,6 +567,7 @@ const NAME_MAP = {
   NVDA:"엔비디아", TSLA:"테슬라", APLD:"어플라이드디지털", SOXL:"반도체 3x",
   GDXU:"금광주 3x", AAOI:"어플라이드옵토", GLW:"코닝", LITE:"루멘텀", CIEN:"시에나",
   IONQ:"아이온큐", QBTS:"디웨이브", INFQ:"인플렉션", RKLB:"로켓랩", CAT:"캐터필러",
+  SPCX:"스페이스X",
   LLY:"일라이릴리", JPM:"JP모건", MSFT:"마이크로소프트", MU:"마이크론", AEM:"아그니코이글"
 };
 
@@ -850,10 +849,6 @@ document.getElementById("btnGuest").onclick = () => {
 document.getElementById("btnGuestClose").onclick = () => document.getElementById("guestPanel").classList.add("hidden");
 document.getElementById("btnThank").onclick = addHeart;
 document.getElementById("btnPasteClose").onclick = () => document.getElementById("pastePanel").classList.add("hidden");
-document.getElementById("btnPaste").onclick = () => {
-  document.getElementById("pastePanel").classList.toggle("hidden");
-  document.getElementById("pasteBox").focus();
-};
 document.getElementById("btnApply").onclick = applyPaste;
 document.getElementById("btnClearPaste").onclick = () => { document.getElementById("pasteBox").value = ""; document.getElementById("pasteStatus").textContent = ""; };
 document.getElementById("sortMode").onchange = e => { state.sort = e.target.value; render(); saveState(); };
@@ -876,20 +871,13 @@ document.getElementById("btnHoldings").onclick = () => {
   if (state.hideHoldings && state.holdings.length === 0) toast("★보유로 표시한 종목이 아직 없어요 — 카드의 ☆보유를 눌러 표시하세요");
 };
 document.getElementById("btnRefresh").onclick = () => {
-  if (state.dataUrl){ fetchFromUrl(state.dataUrl); }   // 성공 시 토스트로 알림, 패널은 열지 않음
-  else {
-    document.getElementById("pastePanel").classList.remove("hidden");
-    const st = document.getElementById("urlStatus");
-    st.textContent = "연결된 데이터 URL이 없어요 — 아래에 URL을 저장하거나, 위 «데이터 붙여넣기»로 최신 JSON을 넣어주세요";
-    st.className = "err";
-    toast("연결된 URL이 없어요 — 아래에서 설정하세요", true);
-  }
+  if (state.dataUrl){ fetchFromUrl(state.dataUrl); toast("마지막 갱신 데이터 받는 중… (실시간 아님)"); }
+  else { trySameOrigin(); toast("최신 데이터 확인 중…"); }
 };
-document.getElementById("btnAuto").onclick = () => {
-  state.autoRefresh = !state.autoRefresh;
-  document.getElementById("btnAuto").textContent = "자동갱신: " + (state.autoRefresh ? "켜짐" : "꺼짐");
-  setupAutoRefresh(); saveState();
-  toast(state.autoRefresh ? "자동갱신 켜짐 — 5분마다 최신 데이터를 받아와요" : "자동갱신 꺼짐");
+document.getElementById("btnManualInput").onclick = () => {
+  document.getElementById("helpPanel").classList.add("hidden");
+  document.getElementById("pastePanel").classList.remove("hidden");
+  document.getElementById("pasteBox").focus();
 };
 document.getElementById("btnSaveUrl").onclick = () => {
   state.dataUrl = document.getElementById("dataUrl").value.trim();
@@ -904,8 +892,6 @@ document.getElementById("btnFetchUrl").onclick = () => {
   if (!url){ const st=document.getElementById("urlStatus"); st.textContent="URL을 먼저 입력하세요"; st.className="err"; return; }
   state.dataUrl = url; saveState(); fetchFromUrl(url); setupAutoRefresh();
 };
-document.getElementById("btnExport").onclick = exportAll;
-document.getElementById("btnImport").onclick = () => document.getElementById("fileImport").click();
 document.getElementById("fileImport").onchange = e => { if (e.target.files[0]) importFile(e.target.files[0]); e.target.value = ""; };
 
 document.getElementById("board").addEventListener("click", e => {
@@ -936,7 +922,6 @@ if (restored){
   document.getElementById("dataUrl").value = state.dataUrl || "";
 }
 document.getElementById("btnHoldings").textContent = "보유 숨김: " + (state.hideHoldings ? "켜짐" : "꺼짐");
-document.getElementById("btnAuto").textContent = "자동갱신: " + (state.autoRefresh ? "켜짐" : "꺼짐");
 document.getElementById("btnLev2x").textContent = "2배 숨김: " + (state.hideLev2x ? "켜짐" : "꺼짐");
 document.getElementById("btnCompact").textContent = state.compact ? "🗂 카드보기" : "📋 모아보기";
 render();
