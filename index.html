@@ -179,7 +179,7 @@ dialog .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
     <div class="stamp">오늘 <b id="todayStr"></b> · 데이터 기준 <b id="dataStamp">—</b></div>
   </div>
   <div class="sumline" id="sumLine"></div>
-  <div class="autoline">🕘 데이터는 <b>매일 09:00 · 16:00 (한국시간)</b>에 자동 갱신됩니다. <b>🔄 새로고침</b>은 "지금 실시간 가격"이 아니라 <b>마지막 갱신(9시 or 16시) 데이터</b>를 다시 받아오는 버튼이에요. 지금 보는 게 언제 것인지는 위 <b>"데이터 기준"</b> 시각을 보세요.</div>
+  <div class="autoline">🕘 데이터 자동 갱신: <b>한국장중(09:00~15:30)·미국장중(밤 22:30~새벽 05:00) 30분마다</b>, 그 외엔 갱신 안 함. 🔄 새로고침은 "지금 실시간"이 아니라 <b>마지막 갱신(최대 30분 지연) 데이터</b>를 받아오는 버튼이에요. 지금 보는 시점은 위 <b>"데이터 기준"</b> 시각을 보세요.</div>
   <div class="notice">
     <em>⚠ 모든 지표는 참고용</em>입니다. 박스권·강한 추세장에서는 같은 신호가 반대로 해석될 수 있어요.
     yfinance는 <em>15~20분 지연</em>된 무료 데이터라 실시간이 아니며, 수치는 <em>마지막 갱신 시점 기준</em>입니다.
@@ -209,7 +209,7 @@ dialog .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
   <div class="help-close"><button id="btnHelpClose">✕ 닫기</button></div>
   <h2>이 화면 사용법</h2>
   <div class="help-grid">
-    <div><b>🕘 데이터 자동 갱신</b><br>매일 <b>09:00·16:00(한국시간)</b>에 깃허브가 알아서 시세·지표를 계산해 갱신해요. 마님이 할 일은 없어요.</div>
+    <div><b>🕘 데이터 자동 갱신</b><br>한국장중·미국장중에 <b>30분마다</b> 깃허브가 시세·지표를 새로 계산해 올려요. 그 외 시간엔 갱신 안 해요.</div>
     <div><b>🔄 새로고침</b><br>마지막 자동갱신(9시 or 16시) 데이터를 다시 받아옵니다. <b>지금 실시간 가격이 아니에요</b> — 위 '데이터 기준' 시각이 지금 보는 시점이에요.</div>
     <div><b>📋 모아보기</b><br>신호 강한 순으로 한 줄씩 빽빽하게 — 폰 한 화면에 근거까지 훑기 좋아요. 다시 누르면 카드보기.</div>
     <div><b>2배 숨김</b><br>단일종목 2배 레버리지(NVDL·TSLL·APLX)를 숨기고 1배 원주만 봅니다. 움직임이 겹쳐 헷갈리지 않게요.</div>
