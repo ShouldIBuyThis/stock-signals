@@ -60,6 +60,16 @@ label.tl{font-size:12px;color:var(--dim)}
 .help-close button{padding:3px 10px;font-size:11.5px}
 .help-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;font-size:11.8px;line-height:1.55;color:var(--dim)}
 .help-grid b{color:var(--txt)}
+.guest-box{text-align:center;padding:14px 8px}
+.heart-num{font-size:34px;font-weight:bold;color:var(--ssell);line-height:1.1}
+.heart-num .heart-ico{font-size:26px}
+.guest-msg{margin:10px 0 14px;color:var(--dim);font-size:12.5px}
+.thank-btn{background:linear-gradient(135deg,#f05252,#f0728c);color:#fff;border:none;border-radius:24px;padding:11px 26px;font-size:15px;font-weight:bold;cursor:pointer}
+.thank-btn:hover{filter:brightness(1.08)}
+.thank-btn:active{transform:scale(0.96)}
+.guest-note{margin-top:12px;font-size:10.5px;color:var(--faint)}
+.heartfx{position:fixed;pointer-events:none;font-size:22px;z-index:70;animation:floatUp 1s ease-out forwards}
+@keyframes floatUp{from{opacity:1;transform:translateY(0) scale(1)}to{opacity:0;transform:translateY(-60px) scale(1.5)}}
 .panel .hint{font-size:11.5px;color:var(--faint);margin-bottom:8px;line-height:1.6}
 .panel-actions{display:flex;gap:7px;margin-top:8px;flex-wrap:wrap;align-items:center}
 #pasteStatus{font-size:12px}
@@ -121,16 +131,19 @@ section.cat>h3 .cnt{color:var(--faint);font-weight:normal}
 .placeholder-card{border-style:dashed;color:var(--dim)}.placeholder-card .msg{font-size:11.5px;line-height:1.6;margin-top:6px;color:var(--faint)}
 /* 모아보기(compact) */
 .compact{display:flex;flex-direction:column;gap:3px}
-.crow{display:grid;grid-template-columns:1.5fr 1fr 1.5fr 1fr;gap:6px;align-items:center;background:var(--card);border:1px solid var(--line);border-left-width:3px;border-radius:7px;padding:6px 9px;font-size:12px}
+.crow{background:var(--card);border:1px solid var(--line);border-left-width:3px;border-radius:7px;padding:6px 9px}
+.crmain{display:grid;grid-template-columns:1.5fr 1fr 1.5fr 1fr;gap:6px;align-items:center;font-size:12px}
 .crow.g5{border-left-color:var(--sbuy)} .crow.g4{border-left-color:var(--buy)} .crow.g3{border-left-color:#3a4356} .crow.g2{border-left-color:var(--sell)} .crow.g1{border-left-color:var(--ssell)}
 .crow.chead{background:transparent;border:none;color:var(--faint);font-size:10.5px;padding:2px 9px}
+.crow.chead .crmain{font-size:10.5px}
 .crtk{font-weight:bold;font-size:12.5px;display:flex;flex-direction:column;line-height:1.25;overflow:hidden}
 .crnm{font-weight:normal;font-size:9.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .crgrade{font-size:11px;font-weight:bold}
 .crgrade.g5{color:var(--sbuy)} .crgrade.g4{color:var(--buy)} .crgrade.g3{color:var(--neu)} .crgrade.g2{color:var(--sell)} .crgrade.g1{color:var(--ssell)}
 .crprice{font-size:11.5px;text-align:right} .crprice .chg{font-size:10.5px;margin-left:3px}
 .crmeta{font-size:10.5px;color:var(--dim);text-align:right}
-@media (max-width:480px){ .crow{grid-template-columns:1.3fr 0.9fr 1.4fr 0.8fr;gap:4px;padding:5px 7px;font-size:11px} .crmeta{font-size:9.5px} }
+.crreason{font-size:10.5px;color:var(--dim);margin-top:4px;line-height:1.4;border-top:1px solid #1b2230;padding-top:4px}
+@media (max-width:480px){ .crmain{grid-template-columns:1.3fr 0.9fr 1.4fr 0.8fr;gap:4px;font-size:11px} .crmeta{font-size:9.5px} .crreason{font-size:10px} }
 
 /* 숨긴 종목/푸터 */
 .hidden-list{font-size:12px;color:var(--dim);margin-top:8px}
@@ -173,6 +186,7 @@ dialog .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
 
 <div class="toolbar">
   <button id="btnHelp" title="각 버튼이 뭔지 설명 보기">❔ 사용법</button>
+  <button id="btnGuest" title="방명록 — 고마워요 하트 남기기">💖 방명록</button>
   <button class="primary" id="btnPaste">📥 데이터 붙여넣기</button>
   <button id="btnRefresh" title="연결된 데이터 URL에서 최신 JSON 다시 받기">🔄 새로고침</button>
   <button id="btnAuto" title="5분마다 자동으로 최신 데이터 받기">자동갱신: 켜짐</button>
@@ -205,6 +219,17 @@ dialog .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
     <div><b>☆ 보유 (카드마다)</b><br>내가 실제로 가진 종목을 ★로 표시. [보유 숨김]을 켜면 표시한 종목이 화면에서 빠져요.</div>
     <div><b>✕ (카드마다)</b><br>그 종목만 잠깐 숨기기. 화면 맨 아래 '숨긴 종목'에서 다시 켤 수 있어요.</div>
     <div><b>⤓ 백업 저장 / ⤒ 백업 열기</b><br>관심종목·설정을 파일로 저장하거나 되돌리는 기능. 폰 바꿀 때나 실수로 지웠을 때만 쓰면 됩니다. 평소엔 자동 저장되니 안 써도 돼요.</div>
+  </div>
+</div>
+
+<div class="panel hidden" id="guestPanel">
+  <div class="help-close"><button id="btnGuestClose">✕ 닫기</button></div>
+  <h2>💖 방명록</h2>
+  <div class="guest-box">
+    <div class="heart-num"><span id="heartCount">…</span> <span class="heart-ico">💗</span></div>
+    <div class="guest-msg">이 대시보드가 도움이 됐다면 하트를 남겨주세요!</div>
+    <button id="btnThank" class="thank-btn">Thank you 💗</button>
+    <div class="guest-note">누구나 누를 수 있고, 숫자는 모두에게 공유돼요. (무료 카운터 사용)</div>
   </div>
 </div>
 
@@ -608,10 +633,13 @@ function compactRow(s){
   const chgCls = has(s.change_1d) ? (s.change_1d > 0 ? "up" : s.change_1d < 0 ? "dn" : "") : "";
   const nm = s.name && s.name !== s.ticker ? `<span class="crnm">${esc(s.name)}</span>` : "";
   return `<div class="crow g${g}">
-    <span class="crtk">${esc(s.ticker)}${nm}</span>
-    <span class="crgrade g${g}">${GRADES[g]}</span>
-    <span class="crprice">${fmtPrice(s)} <span class="chg ${chgCls}">${fmtChg(s.change_1d)}</span></span>
-    <span class="crmeta">R ${r1(s.rsi)} · B ${r1(s.bb_pos)}</span>
+    <div class="crmain">
+      <span class="crtk">${esc(s.ticker)}${nm}</span>
+      <span class="crgrade g${g}">${GRADES[g]}</span>
+      <span class="crprice">${fmtPrice(s)} <span class="chg ${chgCls}">${fmtChg(s.change_1d)}</span></span>
+      <span class="crmeta">R ${r1(s.rsi)} · B ${r1(s.bb_pos)}</span>
+    </div>
+    <div class="crreason">${esc(s.sig.line)}</div>
   </div>`;
 }
 
@@ -647,7 +675,7 @@ function render(){
   if (state.compact){
     // 모아보기: 신호 강한 순으로 한 줄씩 빽빽하게 (폰 한 화면에)
     const sorted = stocks.slice().sort((a,b)=> b.sig.score - a.sig.score || Math.abs(b.change_1d||0) - Math.abs(a.change_1d||0));
-    html += `<div class="compact"><div class="crow chead"><span>종목</span><span>신호</span><span>현재가 / 등락</span><span>RSI·볼밴</span></div>`;
+    html += `<div class="compact"><div class="crow chead"><div class="crmain"><span>종목</span><span>신호</span><span>현재가 / 등락</span><span>RSI·볼밴</span></div></div>`;
     html += sorted.map(compactRow).join("");
     html += `</div>`;
   } else if (state.sort === "signal"){
@@ -777,6 +805,50 @@ document.getElementById("dlgSave").onclick = () => {
 /* ══════════════ 이벤트 ══════════════ */
 document.getElementById("btnHelp").onclick = () => document.getElementById("helpPanel").classList.toggle("hidden");
 document.getElementById("btnHelpClose").onclick = () => document.getElementById("helpPanel").classList.add("hidden");
+/* ── 방명록(하트 카운터) ── */
+const HEART_NS = "naeui-jeongwon-stock-monitor";   // 고정 네임스페이스(주소 바꿔도 숫자 유지)
+const HEART_KEY = "thankyou";
+const HEART_BASE = "https://abacus.jasoncameron.dev";
+function localHearts(){ return parseInt(localStorage.getItem("hearts-local") || "0", 10); }
+async function loadHearts(){
+  const el = document.getElementById("heartCount");
+  try{
+    const r = await fetch(`${HEART_BASE}/get/${HEART_NS}/${HEART_KEY}`, { cache:"no-store" });
+    const j = await r.json();
+    el.textContent = (j.value ?? 0).toLocaleString();
+  }catch(e){ el.textContent = localHearts().toLocaleString(); }
+}
+function heartBurst(){
+  const b = document.getElementById("btnThank");
+  const rect = b.getBoundingClientRect();
+  for (let i=0;i<5;i++){
+    const s = document.createElement("span");
+    s.className = "heartfx"; s.textContent = "💗";
+    s.style.left = (rect.left + rect.width/2 + (Math.random()*60-30)) + "px";
+    s.style.top  = (rect.top - 6) + "px";
+    document.body.appendChild(s);
+    setTimeout(()=>s.remove(), 1000);
+  }
+}
+async function addHeart(){
+  const el = document.getElementById("heartCount");
+  heartBurst();
+  try{
+    const r = await fetch(`${HEART_BASE}/hit/${HEART_NS}/${HEART_KEY}`, { cache:"no-store" });
+    const j = await r.json();
+    el.textContent = (j.value ?? 0).toLocaleString();
+  }catch(e){
+    const n = localHearts() + 1; localStorage.setItem("hearts-local", n);
+    el.textContent = n.toLocaleString();
+  }
+}
+document.getElementById("btnGuest").onclick = () => {
+  const p = document.getElementById("guestPanel");
+  p.classList.toggle("hidden");
+  if (!p.classList.contains("hidden")) loadHearts();
+};
+document.getElementById("btnGuestClose").onclick = () => document.getElementById("guestPanel").classList.add("hidden");
+document.getElementById("btnThank").onclick = addHeart;
 document.getElementById("btnPasteClose").onclick = () => document.getElementById("pastePanel").classList.add("hidden");
 document.getElementById("btnPaste").onclick = () => {
   document.getElementById("pastePanel").classList.toggle("hidden");
