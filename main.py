@@ -15,7 +15,7 @@ import numpy as np
 import json
 from datetime import datetime, timedelta
 
-PERIOD = "6mo"   # 볼밴·MA60 여유 있게
+PERIOD = "1y"    # 52주 신고가 계산 위해 1년
 
 # ── 관심종목 (카테고리: {티커: 이름}) ──────────────────────
 WATCHLIST = {
@@ -88,6 +88,10 @@ def analyze(ticker, name, category):
     tr = pd.concat([(high-low), (high-close.shift()).abs(), (low-close.shift()).abs()], axis=1).max(axis=1)
     atr = tr.rolling(14).mean().iloc[-1]
     atr_pct = (atr / close.iloc[-1] * 100) if close.iloc[-1] else None
+    # 52주(1년) 신고가 근접
+    high_52w = high.max()
+    pct_from_high = (close.iloc[-1] / high_52w - 1) * 100 if high_52w else None
+    near_high = bool(pct_from_high is not None and pct_from_high >= -5)
     is_kr = ticker.endswith(".KS") or ticker.endswith(".KQ")
     nd = 0 if is_kr else 2
     return {
@@ -105,6 +109,8 @@ def analyze(ticker, name, category):
         "stoch_k": safe(k.iloc[-1]), "stoch_d": safe(d.iloc[-1]),
         "stoch_cross": cross_state(k, d),
         "atr_pct": safe(atr_pct),
+        "pct_from_high": safe(pct_from_high),
+        "near_high": near_high,
         "last_date": df.index[-1].strftime("%Y-%m-%d"),
     }
 
