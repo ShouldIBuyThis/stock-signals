@@ -19,21 +19,24 @@ PERIOD = "1y"    # 52주 신고가 계산 위해 1년
 
 # ── 관심종목 (카테고리: {티커: 이름}) ──────────────────────
 WATCHLIST = {
-    "반도체":      {"NVDA":"엔비디아", "SOXL":"반도체 3x", "MU":"마이크론", "SNDK":"샌디스크",
-                    "AMAT":"어플라이드머티어리얼즈", "ALAB":"아스테라랩스"},
-    "데이터센터":  {"APLD":"어플라이드디지털", "NBIS":"네비우스", "CRWV":"코어위브", "IREN":"아이렌"},
-    "소프트웨어":  {"MSFT":"마이크로소프트", "NOW":"서비스나우", "PLTR":"팔란티어", "CRWD":"크라우드스트라이크"},
-    "전기차·자동차":{"TSLA":"테슬라", "PONY":"포니AI"},
-    "광통신":      {"AAOI":"어플라이드옵토", "GLW":"코닝", "LITE":"루멘텀", "CIEN":"시에나"},
-    "양자":        {"IONQ":"아이온큐", "QBTS":"디웨이브", "INFQ":"인플렉션", "RGTI":"리게티컴퓨팅"},
-    "우주":        {"RKLB":"로켓랩", "SPCX":"스페이스X", "PL":"플래닛랩스", "JOBY":"조비에비에이션"},
-    "방산·드론":   {"RCAT":"레드캣홀딩스", "LMT":"록히드마틴", "LHX":"L3해리스"},
-    "주택":        {"ITB":"미국주택건설 ETF", "NAIL":"주택건설 3x"},
-    "금광":        {"GDXU":"금광주 3x"},
-    "헬스케어":    {"LLY":"일라이릴리", "HIMS":"힘스앤허스", "UNH":"유나이티드헬스"},
-    "금융":        {"JPM":"JP모건"},
-    "산업재":      {"CAT":"캐터필러"},
-    "국장":        {"233740.KS":"KODEX 코스닥150레버리지"},
+    "경기방어·헬스케어·금융·산업재": {
+        "KO":"코카콜라", "MCD":"맥도날드", "LLY":"일라이릴리",
+        "UNH":"유나이티드헬스", "HIMS":"힘스앤허스", "JPM":"JP모건", "CAT":"캐터필러"},
+    "반도체":        {"NVDA":"엔비디아", "SOXL":"반도체 3x", "MU":"마이크론",
+                      "SNDK":"샌디스크", "AMAT":"어플라이드머티어리얼즈", "ALAB":"아스테라랩스"},
+    "데이터센터":    {"APLD":"어플라이드디지털", "NBIS":"네비우스", "CRWV":"코어위브", "IREN":"아이렌"},
+    "소프트웨어":    {"MSFT":"마이크로소프트", "NOW":"서비스나우", "PLTR":"팔란티어", "CRWD":"크라우드스트라이크"},
+    "광통신":        {"AAOI":"어플라이드옵토", "GLW":"코닝", "LITE":"루멘텀", "CIEN":"시에나", "POET":"포엣테크놀로지"},
+    "전기차·자율주행":{"TSLA":"테슬라", "PONY":"포니AI"},
+    "에너지·원전":   {"CEG":"컨스텔레이션에너지", "VST":"비스트라", "BE":"블룸에너지",
+                      "SMR":"뉴스케일파워", "OKLO":"오클로"},
+    "원자재·금광":   {"XOM":"엑슨모빌", "GDXU":"금광주 3x"},
+    "암호화폐":      {"MSTR":"마이크로스트래티지", "BMNR":"비트마인", "COIN":"코인베이스"},
+    "양자컴퓨팅":    {"IONQ":"아이온큐", "QBTS":"디웨이브", "INFQ":"인플렉션", "RGTI":"리게티컴퓨팅"},
+    "우주·UAM":      {"RKLB":"로켓랩", "SPCX":"스페이스X", "PL":"플래닛랩스", "JOBY":"조비에비에이션"},
+    "방산·드론":     {"RCAT":"레드캣홀딩스", "LMT":"록히드마틴", "LHX":"L3해리스"},
+    "주택":          {"ITB":"미국주택건설 ETF", "NAIL":"주택건설 3x"},
+    "국장":          {"069500.KS":"코스피", "229200.KS":"코스닥"},
 }
 
 # ── 시장 필터 기준 지수 (QQQ만) ────────────────────────────
@@ -132,10 +135,23 @@ def main():
             except Exception as e:
                 failed.append(f"{tk} ({nm}) — {e}"); print("SKIP", tk, e)
     now_kst = datetime.utcnow() + timedelta(hours=9)
+
+    # ── 섹터별 평균 등락률 (핫/약세 섹터 표시용) ──
+    sector_moves = {}
+    for r in results:
+        c = r.get("category") or "기타"
+        v = r.get("change_1d")
+        if v is None: continue
+        sector_moves.setdefault(c, []).append(v)
+    sectors = [{"name": k, "avg_change": safe(sum(v)/len(v)), "count": len(v)}
+               for k, v in sector_moves.items() if v]
+    sectors.sort(key=lambda x: (x["avg_change"] if x["avg_change"] is not None else -999), reverse=True)
+
     payload = {
         "generated_at": now_kst.strftime("%Y-%m-%d %H:%M") + " KST",
         "note": "yfinance 무료 데이터 · 15~20분 지연 · 참고용",
         "market": {"ticker": MARKET_TICKER, "below_ma20": bool(mkt_weak)},
+        "sectors": sectors,
         "stocks": results, "failed": failed,
     }
     with open("signals.json", "w", encoding="utf-8") as f:
