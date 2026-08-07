@@ -140,6 +140,17 @@ def main():
     }
     with open("signals.json", "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False)
+
+    # ── 신호 이력 보관 (나중에 백테스트/승률 분석용) ──────────────
+    # 갱신될 때마다 history/ 폴더에 날짜·시각별로 한 부 남겨둡니다.
+    # 아무것도 안 해도 자동으로 쌓이고, 파일 하나가 작아서 부담 없습니다.
+    import os
+    os.makedirs("history", exist_ok=True)
+    stamp = now_kst.strftime("%Y-%m-%d_%H%M")
+    with open(f"history/{stamp}.json", "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False)
+    print(f"이력 저장: history/{stamp}.json")
+
     print(f"저장 완료: 성공 {len(results)} / 실패 {len(failed)}")
 
 if __name__ == "__main__":
