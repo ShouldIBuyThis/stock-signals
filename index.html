@@ -204,7 +204,7 @@ dialog .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
     <div class="stamp">오늘 <b id="todayStr"></b> · 데이터 기준 <b id="dataStamp">—</b></div>
   </div>
   <div class="sumline" id="sumLine"></div>
-  <div class="autoline">🕘 자동 갱신(한국시간): <b>09:00 — 미국장 마감 종가 반영</b> · <b>16:00 — 한국장 마감 종가 반영</b></div>
+  <div class="autoline">🕘 자동 갱신(한국시간): <b>09:00 — 미국장 마감 종가</b> · <b>16:00 — 한국장 마감 종가</b><br>※ 프리장·장중 실시간 미반영. <b>일봉 종가만</b> 씁니다 — 시간봉은 단타용이라 속임수 신호에 걸리기 쉬워요.</div>
   <div class="notice">
     <em>⚠ 모든 지표는 참고용</em>입니다. <em>일봉 종가 기준 · 3일~2주 스윙 관점</em>(당일매매 관점 아님). 박스권·강한 추세장에서는 같은 신호가 반대로 해석될 수 있어요.
   </div>
@@ -240,7 +240,7 @@ dialog .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
   <div class="help-close"><button id="btnHelpClose">✕ 닫기</button></div>
   <h2>이 화면 사용법</h2>
   <div class="help-grid">
-    <div><b>🕘 데이터 자동 갱신</b><br>한국시간 <b>09:00</b>에는 <b>미국장 마감 종가</b>가, <b>16:00</b>에는 <b>한국장 마감 종가</b>가 반영돼요. 각 시장의 종가가 확정된 뒤 계산합니다.</div>
+    <div><b>🕘 데이터 자동 갱신</b><br>한국시간 <b>09:00</b>에는 <b>미국장 마감 종가</b>, <b>16:00</b>에는 <b>한국장 마감 종가</b>가 반영돼요.<br>프리장·장중 실시간은 반영되지 않습니다. <b>일봉 종가만 사용</b>하는 이유는, 시간봉·분봉이 단타용이라 장중 흔들림(속임수 신호)에 걸리기 쉽기 때문이에요. 스윙 관점에선 종가가 확정된 뒤 판단하는 게 안전합니다.</div>
     <div><b>🔄 새로고침</b><br>마지막 자동갱신(9시 or 16시) 데이터를 다시 받아옵니다. <b>지금 실시간 가격이 아니에요</b> — 위 '데이터 기준' 시각이 지금 보는 시점이에요.</div>
     <div><b>🌐 시장 전환</b><br>버튼을 누를 때마다 <b>전체 → 미국장 → 한국장</b>으로 바뀌어요. 보고 싶은 시장만 골라 볼 수 있어요.</div>
     <div><b>📋 모아보기</b><br>신호 강한 순으로 한 줄씩 빽빽하게 — 폰 한 화면에 근거까지 훑기 좋아요. 다시 누르면 카드보기.</div>
