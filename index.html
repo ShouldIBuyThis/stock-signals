@@ -58,23 +58,35 @@ header{background:var(--panel);border:1px solid var(--line);border-radius:12px;p
 .principle .p1,.principle .p2,.principle .p3{color:var(--dim)}
 .principle .parrow{color:#3a4356;margin:0 3px}
 @media (max-width:480px){ .principle{font-size:11px} }
-.sortbar{background:var(--panel);border:1px solid #2b3a56;border-radius:10px;padding:9px 11px;margin-bottom:10px}
-.sortlabel{display:block;font-size:11px;color:var(--accent);margin-bottom:7px;letter-spacing:.3px}
+.sortbar{background:var(--panel);border:1px solid #2b3a56;border-radius:9px;padding:7px 9px;margin-bottom:9px}
+.sortlabel{display:block;font-size:10px;color:var(--faint);margin-bottom:5px;letter-spacing:.3px}
 .sorttabs{display:flex;flex-wrap:wrap;gap:6px}
 .viewtabs{display:flex;gap:6px}
-.viewtabs button{flex:1;padding:11px 10px;font-size:13px;font-weight:bold;border-radius:8px;background:#141c2b;border:1px solid var(--line);color:var(--dim);display:flex;flex-direction:column;gap:2px;line-height:1.25}
-.viewtabs button em{font-style:normal;font-size:10px;font-weight:normal;color:var(--faint)}
+.viewtabs button{flex:1;padding:7px 8px;font-size:11.5px;font-weight:bold;border-radius:7px;background:#141c2b;border:1px solid var(--line);color:var(--dim);display:flex;flex-direction:column;gap:1px;line-height:1.2}
+.viewtabs button em{font-style:normal;font-size:9px;font-weight:normal;color:var(--faint)}
 .viewtabs button:hover{border-color:var(--accent);color:var(--accent)}
 .viewtabs button.active{background:#1d3a2c;border-color:var(--sbuy);color:#a8f0c4}
 .viewtabs button.active em{color:#6fd39a}
-.sorttabs button{flex:1 1 auto;min-width:118px;padding:9px 10px;font-size:12.5px;border-radius:8px;background:#141c2b;border:1px solid var(--line);color:var(--dim);font-weight:bold}
+.sorttabs button{flex:1 1 auto;min-width:96px;padding:6px 8px;font-size:11px;border-radius:7px;background:#141c2b;border:1px solid var(--line);color:var(--dim);font-weight:bold}
 .sorttabs button:hover{border-color:var(--accent);color:var(--accent)}
 .sorttabs button.active{background:#20304d;border-color:var(--accent);color:#cfe1ff;box-shadow:0 0 0 1px rgba(138,180,248,.35)}
-@media (max-width:480px){ .sorttabs button{min-width:0;flex:1 1 45%;font-size:11.5px;padding:8px 6px} }
+@media (max-width:480px){ .sorttabs button{min-width:0;flex:1 1 45%;font-size:10.5px;padding:6px 4px} .viewtabs button{font-size:11px;padding:6px 4px} }
 .toolbar .sp{flex:1}
 label.tl{font-size:12px;color:var(--dim)}
 .save-ind{font-size:11.5px;color:var(--faint)}
 .save-ind.saved{color:var(--buy)}
+/* 모바일 플로팅 메뉴 */
+.fab{display:none;position:fixed;right:16px;bottom:18px;width:52px;height:52px;border-radius:50%;font-size:21px;background:#20304d;border:1px solid #4a6a9c;color:#cfe1ff;box-shadow:0 4px 14px rgba(0,0,0,.5);z-index:55}
+.fab:active{transform:scale(.94)}
+.fabsheet{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:56;display:flex;align-items:flex-end}
+.fabsheet-inner{width:100%;max-height:82vh;overflow:auto;background:var(--panel);border-top:1px solid var(--line);border-radius:16px 16px 0 0;padding:10px 14px 20px}
+.fabsheet-handle{width:38px;height:4px;border-radius:3px;background:#39445a;margin:0 auto 10px}
+.fabsheet-title{font-size:12px;color:var(--accent);margin-bottom:9px}
+.fabclose{width:100%;margin-top:12px;padding:11px;font-size:13px;border-radius:9px;background:#1a2130}
+@media (max-width:640px){
+  .fab{display:block}
+  body.has-fab .toolbar,body.has-fab .sortbar{display:none}
+}
 .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(20px);background:#171d2b;border:1px solid var(--line);border-radius:9px;padding:10px 16px;font-size:12.5px;color:var(--txt);opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:60;max-width:90%;text-align:center}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .toast.err{border-color:var(--ssell);color:#ffd6d6}
@@ -180,6 +192,16 @@ section.cat>h3 .cnt{color:var(--faint);font-weight:normal}
 .crow.chead{background:transparent;border:none;color:var(--faint);font-size:10.5px;padding:2px 9px}
 .crow.chead .crmain{font-size:10.5px}
 .crow.chead .crmain span:nth-child(3),.crow.chead .crmain span:nth-child(4){text-align:right}
+.rank{display:inline-block;margin-right:5px;font-weight:bold;vertical-align:baseline}
+.rank i{font-style:normal}
+.rank .medal{font-size:13px}
+.rank .num{display:inline-block;font-size:10.5px;color:var(--faint);min-width:14px;text-align:right}
+.rank.r1 .num,.rank.r2 .num,.rank.r3 .num{display:none}   /* 1~3위는 메달로 대체 */
+@media (max-width:640px){
+  .rank .medal{font-size:12px}
+  .rank .num{font-size:10px}
+  .rank{margin-right:3px}
+}
 .crtk{font-weight:bold;font-size:12.5px;display:flex;flex-direction:column;line-height:1.25;min-width:0;overflow:hidden}
 .crnm{font-weight:normal;font-size:9.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .crgrade{font-size:11px;font-weight:bold;white-space:nowrap}
@@ -246,7 +268,7 @@ dialog .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
     <button data-view="compact">📋 모아보기 <em>한눈에 훑기</em></button>
     <button data-view="card">🗂 카드보기 <em>종목별 상세</em></button>
   </div>
-  <span class="sortlabel" style="margin-top:11px">② 정렬 — 눌러서 바꾸기</span>
+  <span class="sortlabel" style="margin-top:8px">② 정렬</span>
   <div class="sorttabs" id="sortTabs">
     <button data-sort="category">카테고리순</button>
     <button data-sort="signal">📊 (종합) 신호 강한 순</button>
@@ -368,6 +390,17 @@ dialog .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
   <div class="fld"><label>카테고리</label><input type="text" id="inCat"></div>
   <div class="btns"><button id="dlgCancel">취소</button><button class="primary" id="dlgSave">저장</button></div>
 </dialog>
+
+<button id="fab" class="fab" title="메뉴">☰</button>
+<div id="fabSheet" class="fabsheet hidden">
+  <div class="fabsheet-inner">
+    <div class="fabsheet-handle"></div>
+    <div class="fabsheet-title">메뉴</div>
+    <div id="fabSlot"></div>
+    <button id="fabClose" class="fabclose">닫기</button>
+  </div>
+</div>
+<div id="toast" class="toast"></div>
 
 <script>
 "use strict";
@@ -515,6 +548,15 @@ function normalize(raw){
 const GRADES = {5:"강한매수",4:"매수관심",3:"중립",2:"매도관심",1:"강한매도"};
 const has = v => v !== null && v !== undefined && !Number.isNaN(v);
 const r1 = v => has(v) ? Math.round(v*10)/10 : "—";
+
+/* 순위 마크: PC=🥇🥈🥉(상위3) · 폰=1,2,3… 숫자 (신호순 정렬일 때만) */
+function rankMark(rank, s){
+  if (!rank || state.sort === "category") return "";
+  const top3 = rank <= 3 && s.sig.grade >= 4;
+  const pc = top3 ? `<span class="rk-pc">${["🥇","🥈","🥉"][rank-1]}</span>` : "";
+  const mo = `<span class="rk-mo${top3?" top":""}">${rank}</span>`;
+  return `<span class="rank r${Math.min(rank,4)}">${pc}${mo}</span>`;
+}
 
 function evaluate(s){
   let tPos = 0;   // 추세형 양(+)
@@ -733,8 +775,9 @@ function visibleStocks(){
     .map(s => Object.assign({}, s, { sig: evaluate(s) }));
 }
 
-function cardHTML(s){
+function cardHTML(s, rank){
   const g = s.sig.grade;
+  const rk = rankMark(rank, s);
   const ladder = [1,2,3,4,5].map(n => `<i class="${n===g?("on"+g):""}"></i>`).join("");
   const chgCls = has(s.change_1d) ? (s.change_1d > 0 ? "up" : s.change_1d < 0 ? "dn" : "") : "";
   const flags = s.sig.flags.map(f=>`<span class="flag ${f.c}">${f.t}</span>`).join("");
@@ -751,7 +794,7 @@ function cardHTML(s){
       <button data-act="edit" title="이름·카테고리 편집">✎</button>
       <button data-act="hide" title="이 카드 숨기기">✕</button>
     </div>
-    <div class="card-top"><span class="tk">${esc(s.ticker)}</span><span class="nm">${esc(s.name||"")}</span></div>
+    <div class="card-top">${rk}<span class="tk">${esc(s.ticker)}</span><span class="nm">${esc(s.name||"")}</span></div>
     <div class="price-row">
       <span class="price">${fmtPrice(s)}</span>
       <span class="chg ${chgCls}">${fmtChg(s.change_1d)}</span>
@@ -765,11 +808,22 @@ function cardHTML(s){
   </div>`;
 }
 
-function renderCard(s){ return state.expanded.includes(s.ticker) ? cardHTML(s) : simpleCardHTML(s); }
+/* 순위 표시: PC=금은동 메달, 모바일=숫자. 카테고리순에선 표시 안 함 */
+function rankMark(rank){
+  if (!rank || state.sort === "category") return "";
+  if (rank <= 3){
+    const medal = ["🥇","🥈","🥉"][rank-1];
+    return `<span class="rank r${rank}"><i class="medal">${medal}</i><i class="num">${rank}</i></span>`;
+  }
+  return `<span class="rank"><i class="num">${rank}</i></span>`;
+}
+
+function renderCard(s, rank){ return state.expanded.includes(s.ticker) ? cardHTML(s, rank) : simpleCardHTML(s, rank); }
 
 /* 🔰 간단 카드 — 초보자용: 등급·근거·핵심 딱지만 */
-function simpleCardHTML(s){
+function simpleCardHTML(s, rank){
   const g = s.sig.grade;
+  const rk = rankMark(rank, s);
   const chgCls = has(s.change_1d) ? (s.change_1d > 0 ? "up" : s.change_1d < 0 ? "dn" : "") : "";
   // 게이지 대신 한 줄 요약(과열/과매도/거래량만)
   const key = s.sig.flags.filter(f => /추격주의|추세형|반등형|과열|과매도|거래량|약세장|신고가/.test(f.t)).slice(0,3);
@@ -779,7 +833,7 @@ function simpleCardHTML(s){
       <button data-act="own" class="${s._holding?"on":""}" title="보유종목으로 표시/해제">${s._holding?"★":"☆"}</button>
       <button data-act="hide" title="이 카드 숨기기">✕</button>
     </div>
-    <div class="card-top"><span class="tk">${esc(s.ticker)}</span><span class="nm">${esc(s.name||"")}</span></div>
+    <div class="card-top">${rk}<span class="tk">${esc(s.ticker)}</span><span class="nm">${esc(s.name||"")}</span></div>
     <div class="price-row">
       <span class="price">${fmtPrice(s)}</span>
       <span class="chg ${chgCls}">${fmtChg(s.change_1d)}</span>
@@ -791,13 +845,14 @@ function simpleCardHTML(s){
   </div>`;
 }
 
-function compactRow(s){
+function compactRow(s, rank){
   const g = s.sig.grade;
+  const rk = rankMark(rank, s);
   const chgCls = has(s.change_1d) ? (s.change_1d > 0 ? "up" : s.change_1d < 0 ? "dn" : "") : "";
   const nm = s.name && s.name !== s.ticker ? `<span class="crnm">${esc(s.name)}</span>` : "";
   return `<div class="crow g${g}" data-tk="${esc(s.ticker)}" role="button" tabindex="0" title="눌러서 상세 카드 보기">
     <div class="crmain">
-      <span class="crtk">${esc(s.ticker)}${nm}</span>
+      <span class="crtk">${rk}${esc(s.ticker)}${nm}</span>
       <span class="crgrade g${g}">${GRADES[g]}</span>
       <span class="crprice">${fmtPrice(s)} <span class="chg ${chgCls}">${fmtChg(s.change_1d)}</span></span>
       <span class="crmeta">${state.sort==="trend" ? "추세 "+r1(s.sig.trendScore) : state.sort==="reversal" ? "반등 "+r1(s.sig.revScore) : "R "+r1(s.rsi)+" · B "+r1(s.bb_pos)}</span>
@@ -828,11 +883,7 @@ function render(){
   const mkChip = mk ? `<span class="sumchip ${mk.below_ma20?"g2":"g4"}">${esc(mk.ticker)} ${mk.below_ma20?"20일선 아래 ⚠":"20일선 위 ✅"}</span>` : "";
   document.getElementById("sumLine").innerHTML =
     `<span class="sumchip g5">강한매수<b>${cnt[5]}</b></span>
-     <span class="sumchip g4">매수관심<b>${cnt[4]}</b></span>
-     <span class="sumchip">중립<b>${cnt[3]}</b></span>
-     <span class="sumchip g2">매도관심<b>${cnt[2]}</b></span>
      <span class="sumchip g1">강한매도<b>${cnt[1]}</b></span>
-     <span class="sumchip">표시 종목<b>${stocks.length}</b></span>
      ${mkChip}`;
 
   /* 본문 */
@@ -846,7 +897,7 @@ function render(){
     html += `<div class="sortnote">${head}</div>`;
     const lastCol = state.sort==="trend" ? "추세점수" : state.sort==="reversal" ? "반등점수" : "RSI·볼밴";
     html += `<div class="compact"><div class="crow chead"><div class="crmain"><span>종목</span><span>신호</span><span>현재가 / 등락</span><span>${lastCol}</span></div></div>`;
-    html += sorted.map(compactRow).join("");
+    html += sorted.map((x,i)=>compactRow(x,i+1)).join("");
     html += `</div>`;
   } else if (state.sort === "signal" || state.sort === "trend" || state.sort === "reversal"){
     const sorted = stocks.slice().sort((a,b)=> sortKey(b) - sortKey(a) || Math.abs(b.change_1d||0) - Math.abs(a.change_1d||0));
@@ -856,7 +907,7 @@ function render(){
       ? `🟡 반등형 순 <span class="cnt">(바닥권 전환·과매도 반등 강한 순)</span>`
       : `(종합) 신호 강한 순 <span class="cnt">(매수 신호 → 매도 신호)</span>`;
     html += `<section class="cat"><h3>${title}</h3><div class="grid">`;
-    html += sorted.map(renderCard).join("");
+    html += sorted.map((x,i)=>renderCard(x,i+1)).join("");
     html += state.placeholders.map(placeholderHTML).join("");
     html += `</div></section>`;
   } else {
@@ -1151,6 +1202,32 @@ document.getElementById("btnHoldings").textContent = "보유 표시: " + (state.
 document.getElementById("btnMarket").textContent = MARKET_LABEL[state.market] || "🌐 전체";
 syncViewTabs();
 syncSortTabs();
+setupMobileMenu();
+
+/* ── 모바일: 보기/정렬 + 툴바를 플로팅 메뉴로 이동 ── */
+function setupMobileMenu(){
+  const isMobile = (window.matchMedia ? window.matchMedia("(max-width: 640px)").matches : window.innerWidth <= 640);
+  const slot = document.getElementById("fabSlot");
+  const bar = document.querySelector(".sortbar");
+  const tb = document.querySelector(".toolbar");
+  if (isMobile){
+    document.body.classList.add("has-fab");
+    if (bar && bar.parentElement !== slot) slot.appendChild(bar);
+    if (tb && tb.parentElement !== slot) slot.appendChild(tb);
+    bar && (bar.style.display = "");
+    tb && (tb.style.display = "");
+  }
+}
+const fabSheet = document.getElementById("fabSheet");
+document.getElementById("fab").onclick = () => fabSheet.classList.remove("hidden");
+document.getElementById("fabClose").onclick = () => fabSheet.classList.add("hidden");
+fabSheet.addEventListener("click", e => { if (e.target === fabSheet) fabSheet.classList.add("hidden"); });
+// 시트 안에서 보기/정렬을 고르면 자동으로 닫기
+document.getElementById("fabSlot").addEventListener("click", e => {
+  if (e.target.closest("#viewTabs button, #sortTabs button, #btnMarket")) {
+    setTimeout(()=>fabSheet.classList.add("hidden"), 180);
+  }
+});
 render();
 if (restored){ saveState(); }               // 저장됨 표시 갱신
 bootstrapData();
@@ -1188,6 +1265,5 @@ async function trySameOrigin(){
   return false;
 }
 </script>
-<div id="toast" class="toast"></div>
 </body>
 </html>
