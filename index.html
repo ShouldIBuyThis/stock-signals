@@ -151,9 +151,11 @@ header{background:var(--navy);color:#fff;padding:14px 0 0}
 
 /* ── 모아보기 한 줄 ── */
 .compactlist{display:flex;flex-direction:column;gap:4px}
-.crow2{display:grid;grid-template-columns:26px minmax(0,1fr) 64px 104px 76px;gap:8px;align-items:center;width:100%;
-  background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:10px;
-  padding:9px 11px;text-align:left;box-shadow:var(--shadow)}
+.crow2{display:block;width:100%;background:var(--surface);border:1px solid var(--line);
+  border-left:4px solid var(--line);border-radius:10px;padding:9px 11px;text-align:left;box-shadow:var(--shadow)}
+.c-main{display:grid;grid-template-columns:26px minmax(0,1fr) 64px 104px 76px;gap:8px;align-items:center}
+.c-reason{display:block;font-size:10.5px;color:var(--muted);line-height:1.4;margin-top:6px;padding-top:6px;
+  border-top:1px dashed var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .crow2:hover{border-color:var(--navy)}
 .crow2:active{transform:scale(.997)}
 .crow2.g5{border-left-color:var(--buy)} .crow2.g4{border-left-color:#5cc08c}
@@ -175,10 +177,12 @@ header{background:var(--navy);color:#fff;padding:14px 0 0}
 .c-flag{text-align:right;overflow:hidden}
 .c-flag .tag{font-size:9.5px;padding:2px 5px;white-space:nowrap}
 @media (max-width:640px){
-  .crow2{grid-template-columns:22px minmax(0,1fr) 54px 88px;gap:6px;padding:8px 9px}
+  .crow2{padding:8px 9px}
+  .c-main{grid-template-columns:22px minmax(0,1fr) 54px 88px;gap:6px}
   .c-flag{display:none}
   .c-name b{font-size:12.5px}
   .c-price{font-size:11.5px}
+  .c-reason{font-size:10px;margin-top:5px;padding-top:5px}
 }
 html[data-theme="dark"] .c-badge.g4{background:#16301f;color:#63d69a}
 html[data-theme="dark"] .c-badge.g1{background:#33191b;color:#ff8080}
@@ -717,11 +721,14 @@ function compactRow(s, i){
   const g = s.sig.grade;
   const key = s.sig.tags.find(t=>/추격주의|과열|과매도|거래량/.test(t.t));
   return `<button class="crow2 g${g}" data-goto="${esc(s.ticker)}">
-    <span class="c-rank">${state.sort==="category" ? "" : (i<3 ? ["🥇","🥈","🥉"][i] : `<span class="num">${i+1}</span>`)}</span>
-    <span class="c-name"><b>${esc(s.ticker)}</b><em>${esc(s.name||"")}</em></span>
-    <span class="c-badge g${g}">${GRADES[g]}</span>
-    <span class="c-price num">${fmtPrice(s)}<em class="${chgCls(s.change_1d)}">${fmtChg(s.change_1d)}</em></span>
-    <span class="c-flag">${key?`<span class="tag ${key.c}">${key.t.replace(/\(.*\)/,"")}</span>`:""}</span>
+    <span class="c-main">
+      <span class="c-rank">${state.sort==="category" ? "" : (i<3 ? ["🥇","🥈","🥉"][i] : `<span class="num">${i+1}</span>`)}</span>
+      <span class="c-name"><b>${esc(s.ticker)}</b><em>${esc(s.name||"")}</em></span>
+      <span class="c-badge g${g}">${GRADES[g]}</span>
+      <span class="c-price num">${fmtPrice(s)}<em class="${chgCls(s.change_1d)}">${fmtChg(s.change_1d)}</em></span>
+      <span class="c-flag">${key?`<span class="tag ${key.c}">${key.t.replace(/\(.*\)/,"")}</span>`:""}</span>
+    </span>
+    <span class="c-reason">${esc(s.sig.line)}</span>
   </button>`;
 }
 
@@ -893,7 +900,7 @@ function render(){
 function save(){
   try{
     localStorage.setItem(LS, JSON.stringify({
-      tab:state.tab, sort:state.sort, market:state.market, showHoldings:state.showHoldings,
+      sort:state.sort, market:state.market, showHoldings:state.showHoldings,
       holdings:state.holdings, hidden:state.hidden, expanded:state.expanded,
       overrides:state.overrides, placeholders:state.placeholders, dataUrl:state.dataUrl, theme:state.theme, view:state.view
     }));
@@ -903,7 +910,7 @@ function load(){
   try{
     const p = JSON.parse(localStorage.getItem(LS)||"null");
     if (!p) return;
-    ["tab","sort","market","dataUrl","theme","view"].forEach(k=>{ if(p[k]) state[k]=p[k]; });
+    ["sort","market","dataUrl","theme","view"].forEach(k=>{ if(p[k]) state[k]=p[k]; });
     state.showHoldings = !!p.showHoldings;
     ["holdings","hidden","expanded","placeholders"].forEach(k=>{ if(Array.isArray(p[k])) state[k]=p[k]; });
     if (p.overrides) state.overrides = p.overrides;
