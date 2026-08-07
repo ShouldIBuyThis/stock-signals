@@ -2,26 +2,39 @@ name: 관심종목 자동 갱신
 
 on:
   schedule:
-    # 한국시간(KST) = UTC+9.  주중(월~금)만.
-    - cron: '0 0 * * 1-5'   # 09:00 KST (= 00:00 UTC)
-    - cron: '0 7 * * 1-5'   # 16:00 KST (= 07:00 UTC)
-  workflow_dispatch:        # Actions 탭에서 수동 실행(장중에 지금 시세 보고 싶을 때)
+    # 한국시간(KST) = UTC+9, 주중만
+    - cron: '0 0 * * 1-5'   # 09:00 KST — 미국장 마감 종가
+    - cron: '0 7 * * 1-5'   # 16:00 KST — 한국장 마감 종가
+  workflow_dispatch:        # Actions 탭에서 수동 실행
 
 permissions:
-  contents: write
+  contents: write   # signals.json 커밋
+  pages: write      # Pages 배포
+  id-token: write   # Pages 배포 인증
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
 
 jobs:
   update:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
       - name: 라이브러리 설치
         run: pip install yfinance pandas numpy
+
       - name: 지표 계산
         run: python main.py
+
       - name: signals.json 커밋
         run: |
           git config user.name  "github-actions"
@@ -29,3 +42,16 @@ jobs:
           git add signals.json history/
           git commit -m "auto: signals 갱신" || echo "변경 없음"
           git push
+
+      # ── 여기서부터 사이트 재배포 (데이터 갱신과 같은 워크플로우에서 처리) ──
+      - name: Pages 설정
+        uses: actions/configure-pages@v5
+
+      - name: 사이트 파일 업로드
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'     # 저장소 전체(index.html + signals.json)
+
+      - name: Pages 배포
+        id: deploy
+        uses: actions/deploy-pages@v4
