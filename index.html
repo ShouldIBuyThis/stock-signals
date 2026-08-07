@@ -416,7 +416,7 @@ const DEMO = {
   ],
   failed: []
 };
-let state = { data: DEMO, isDemo: true, overrides: {}, hidden: [], placeholders: [], sort: "signal", dataUrl: "", showHoldings: false, autoRefresh: true, holdings: [], market: "all", view: "compact", expanded: [] };
+let state = { data: DEMO, isDemo: true, overrides: {}, hidden: [], placeholders: [], sort: "signal", dataUrl: "", showHoldings: false, autoRefresh: true, holdings: [], market: "all", view: (typeof window !== "undefined" && window.innerWidth <= 640) ? "compact" : "card", expanded: [] };
 
 /* ══════════════ 알림 토스트 + 자동갱신 ══════════════ */
 let toastTimer = null;
@@ -469,7 +469,7 @@ function loadState(){
     state.autoRefresh = p.autoRefresh !== undefined ? p.autoRefresh : true;
     state.holdings = p.holdings || [];
     state.market = p.market || "all";
-    state.view = (p.view === "card") ? "card" : "compact";
+    state.view = p.view || (window.innerWidth <= 640 ? "compact" : "card");
     state.expanded = p.expanded || [];
     return true;
   }catch(e){ return false; }
