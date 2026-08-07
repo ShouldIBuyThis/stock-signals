@@ -185,9 +185,9 @@ dialog .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
     <div class="stamp">오늘 <b id="todayStr"></b> · 데이터 기준 <b id="dataStamp">—</b></div>
   </div>
   <div class="sumline" id="sumLine"></div>
-  <div class="autoline">🕘 자동 갱신(한국시간): <b>09:00 — 미국장 마감 종가 반영</b> · <b>16:00 — 한국장 마감 종가 반영</b>. <b>🔄 새로고침</b>은 "지금 실시간"이 아니라 <b>마지막 갱신 데이터</b>를 받아오는 버튼이에요. 신호는 <b>QQQ(미장) 추세</b>도 반영합니다.<br>📈 <b>일봉 종가 기준</b>이라 <b>3일~2주 스윙 관점</b>의 참고 지표예요. 단타·당일 매매용은 아니에요.</div>
+  <div class="autoline">🕘 자동 갱신(한국시간): <b>09:00 — 미국장 마감 종가 반영</b> · <b>16:00 — 한국장 마감 종가 반영</b></div>
   <div class="notice">
-    <em>⚠ 모든 지표는 참고용</em>입니다. 박스권·강한 추세장에서는 같은 신호가 반대로 해석될 수 있어요.
+    <em>⚠ 모든 지표는 참고용</em>입니다. <em>일봉 종가 기준 · 3일~2주 스윙 관점</em>(당일매매 관점 아님). 박스권·강한 추세장에서는 같은 신호가 반대로 해석될 수 있어요.
   </div>
 </header>
 
@@ -205,7 +205,7 @@ dialog .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
   </label>
   <button id="btnAdd">＋ 종목 추가</button>
   <button id="btnCompact" title="폰 한 화면에 신호순으로 빽빽하게 모아보기">📋 모아보기</button>
-  <button id="btnLev2x" title="단일종목 2배 레버리지(NVDL·TSLL·APLX 등)를 숨기고 1배 원주만 보기">2배 숨김: 켜짐</button>
+  <button id="btnMarket" title="미국장 / 한국장 / 전체 전환">🌐 전체</button>
   <button id="btnHoldings" title="켜면 ★보유로 체크한 종목만 보기, 끄면 전체 보기">보유 표시: 꺼짐</button>
   <span id="saveInd" class="save-ind"></span>
   <input type="file" id="fileImport" accept=".json,application/json" class="hidden">
@@ -217,6 +217,7 @@ dialog .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
   <div class="help-grid">
     <div><b>🕘 데이터 자동 갱신</b><br>한국시간 <b>09:00</b>에는 <b>미국장 마감 종가</b>가, <b>16:00</b>에는 <b>한국장 마감 종가</b>가 반영돼요. 각 시장의 종가가 확정된 뒤 계산합니다.</div>
     <div><b>🔄 새로고침</b><br>마지막 자동갱신(9시 or 16시) 데이터를 다시 받아옵니다. <b>지금 실시간 가격이 아니에요</b> — 위 '데이터 기준' 시각이 지금 보는 시점이에요.</div>
+    <div><b>🌐 시장 전환</b><br>버튼을 누를 때마다 <b>전체 → 미국장 → 한국장</b>으로 바뀌어요. 보고 싶은 시장만 골라 볼 수 있어요.</div>
     <div><b>📋 모아보기</b><br>신호 강한 순으로 한 줄씩 빽빽하게 — 폰 한 화면에 근거까지 훑기 좋아요. 다시 누르면 카드보기.</div>
     <div><b>☆ 보유 (카드마다)</b><br>내가 실제로 가진 종목을 ★로 체크. 툴바의 <b>[보유 표시]</b>를 켜면 <b>체크한 종목만</b> 보이고, 끄면 전체가 보여요.</div>
     <div><b>✕ (카드마다)</b><br>그 종목만 잠깐 숨기기. 화면 맨 아래 '숨긴 종목'에서 다시 켤 수 있어요.</div>
@@ -320,7 +321,7 @@ const DEMO = {
   ],
   failed: []
 };
-let state = { data: DEMO, isDemo: true, overrides: {}, hidden: [], placeholders: [], sort: "category", dataUrl: "", showHoldings: false, autoRefresh: true, holdings: [], hideLev2x: true, compact: false };
+let state = { data: DEMO, isDemo: true, overrides: {}, hidden: [], placeholders: [], sort: "category", dataUrl: "", showHoldings: false, autoRefresh: true, holdings: [], market: "all", compact: false };
 
 /* ══════════════ 알림 토스트 + 자동갱신 ══════════════ */
 let toastTimer = null;
@@ -349,7 +350,7 @@ let saveTimer = null;
 function saveState(){
   try{
     const payload = { data: state.isDemo ? null : state.data, overrides: state.overrides,
-                      hidden: state.hidden, placeholders: state.placeholders, sort: state.sort, dataUrl: state.dataUrl, showHoldings: state.showHoldings, autoRefresh: state.autoRefresh, holdings: state.holdings, hideLev2x: state.hideLev2x, compact: state.compact };
+                      hidden: state.hidden, placeholders: state.placeholders, sort: state.sort, dataUrl: state.dataUrl, showHoldings: state.showHoldings, autoRefresh: state.autoRefresh, holdings: state.holdings, market: state.market, compact: state.compact };
     localStorage.setItem(LS_KEY, JSON.stringify(payload));
     const ind = document.getElementById("saveInd");
     if (ind){ ind.textContent = "저장됨 ✓ " + new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"}); ind.className = "save-ind saved"; }
@@ -372,7 +373,7 @@ function loadState(){
     state.showHoldings = p.showHoldings !== undefined ? p.showHoldings : false;
     state.autoRefresh = p.autoRefresh !== undefined ? p.autoRefresh : true;
     state.holdings = p.holdings || [];
-    state.hideLev2x = p.hideLev2x !== undefined ? p.hideLev2x : true;
+    state.market = p.market || "all";
     state.compact = p.compact !== undefined ? p.compact : false;
     return true;
   }catch(e){ return false; }
@@ -609,18 +610,20 @@ function bbColor(v){ return v>=90 ? "var(--ssell)" : v<=10 ? "var(--sbuy)" : "#3
 /* ══════════════ 렌더 ══════════════ */
 /* ── 티커별 섹터 분류(보유 태그를 성격에 맞는 섹터로) ── */
 const CATEGORY_MAP = {
-  NVDL:"반도체", NVDA:"반도체", SOXL:"반도체", MU:"반도체", "005930":"반도체", "005930.KS":"반도체",
-  APLX:"데이터센터", APLD:"데이터센터",
-  TSLL:"전기차·자동차", TSLA:"전기차·자동차",
+  NVDL:"반도체", NVDA:"반도체", SOXL:"반도체", MU:"반도체", SNDK:"반도체", AMAT:"반도체", ALAB:"반도체", "005930":"반도체", "005930.KS":"반도체",
+  APLX:"데이터센터", APLD:"데이터센터", NBIS:"데이터센터", CRWV:"데이터센터", IREN:"데이터센터",
+  MSFT:"소프트웨어", NOW:"소프트웨어", PLTR:"소프트웨어", CRWD:"소프트웨어",
+  TSLL:"전기차·자동차", TSLA:"전기차·자동차", PONY:"전기차·자동차",
   GDXU:"금광", AEM:"금광",
-  INFQ:"양자", IONQ:"양자", QBTS:"양자",
+  INFQ:"양자", IONQ:"양자", QBTS:"양자", RGTI:"양자",
   AAOI:"광통신", GLW:"광통신", LITE:"광통신", CIEN:"광통신",
-  RKLB:"우주",
-  LLY:"헬스케어", "196170":"바이오", "196170.KQ":"바이오",
+  RKLB:"우주", SPCX:"우주", PL:"우주", JOBY:"우주",
+  RCAT:"방산·드론", LMT:"방산·드론", LHX:"방산·드론",
+  ITB:"주택", NAIL:"주택",
+  LLY:"헬스케어", HIMS:"헬스케어", UNH:"헬스케어", "196170":"바이오", "196170.KQ":"바이오",
   JPM:"금융",
   CAT:"산업재",
-  MSFT:"빅테크",
-  "233740":"코스닥", "233740.KS":"코스닥"
+  "233740":"국장", "233740.KS":"국장"
 };
 
 /* 종목코드를 알아보기 쉬운 이름으로 (데이터에 이름이 없을 때) */
@@ -631,8 +634,14 @@ const NAME_MAP = {
   "000660":"SK하이닉스", "000660.KS":"SK하이닉스",
   NVDA:"엔비디아", TSLA:"테슬라", APLD:"어플라이드디지털", SOXL:"반도체 3x",
   GDXU:"금광주 3x", AAOI:"어플라이드옵토", GLW:"코닝", LITE:"루멘텀", CIEN:"시에나",
-  IONQ:"아이온큐", QBTS:"디웨이브", INFQ:"인플렉션", RKLB:"로켓랩", CAT:"캐터필러",
-  SPCX:"스페이스X",
+  IONQ:"아이온큐", QBTS:"디웨이브", INFQ:"인플렉션", RGTI:"리게티컴퓨팅",
+  RKLB:"로켓랩", SPCX:"스페이스X", PL:"플래닛랩스", JOBY:"조비에비에이션",
+  SNDK:"샌디스크", AMAT:"어플라이드머티어리얼즈", ALAB:"아스테라랩스",
+  NBIS:"네비우스", CRWV:"코어위브", IREN:"아이렌",
+  NOW:"서비스나우", PLTR:"팔란티어", CRWD:"크라우드스트라이크",
+  PONY:"포니AI", HIMS:"힘스앤허스", UNH:"유나이티드헬스",
+  RCAT:"레드캣홀딩스", LMT:"록히드마틴", LHX:"L3해리스",
+  ITB:"미국주택건설 ETF", NAIL:"주택건설 3x", CAT:"캐터필러",
   LLY:"일라이릴리", JPM:"JP모건", MSFT:"마이크로소프트", MU:"마이크론", AEM:"아그니코이글"
 };
 
@@ -647,8 +656,8 @@ function decorate(stock){
   return Object.assign({}, stock, {
     name: nm,
     category: displayCat,
-    _holding: state.holdings.includes(stock.ticker),   // 마님이 직접 체크한 보유종목
-    _lev2x: !!LEV2X_SINGLE[stock.ticker]                // 단일종목 2배 여부
+    _holding: state.holdings.includes(stock.ticker),   // 직접 체크한 보유종목
+    _isKR: /\.(KS|KQ)$/i.test(stock.ticker) || /^\d{6}$/.test(stock.ticker)   // 한국 종목 여부
   });
 }
 
@@ -656,7 +665,7 @@ function visibleStocks(){
   return (state.data.stocks || [])
     .filter(s => !state.hidden.includes(s.ticker))
     .map(decorate)
-    .filter(s => !(state.hideLev2x && s._lev2x))        // 2배 숨김이 켜져 있으면 제외
+    .filter(s => state.market === "all" || (state.market === "kr" ? s._isKR : !s._isKR))  // 시장 필터
     .filter(s => !state.showHoldings || s._holding)     // 보유 표시 켜면 ★보유종목만, 끄면 전체
     .map(s => Object.assign({}, s, { sig: evaluate(s) }));
 }
@@ -935,11 +944,12 @@ document.getElementById("btnCompact").onclick = () => {
   document.getElementById("btnCompact").textContent = state.compact ? "🗂 카드보기" : "📋 모아보기";
   render(); saveState();
 };
-document.getElementById("btnLev2x").onclick = () => {
-  state.hideLev2x = !state.hideLev2x;
-  document.getElementById("btnLev2x").textContent = "2배 숨김: " + (state.hideLev2x ? "켜짐" : "꺼짐");
+const MARKET_LABEL = { all:"🌐 전체", us:"🇺🇸 미국장", kr:"🇰🇷 한국장" };
+document.getElementById("btnMarket").onclick = () => {
+  state.market = state.market === "all" ? "us" : state.market === "us" ? "kr" : "all";
+  document.getElementById("btnMarket").textContent = MARKET_LABEL[state.market];
   render(); saveState();
-  toast(state.hideLev2x ? "단일종목 2배(TSLL 등) 숨김 — 1배 원주만 표시" : "2배 레버리지도 표시");
+  toast(state.market==="all" ? "전체 종목 표시" : state.market==="us" ? "미국장 종목만 표시" : "한국장 종목만 표시");
 };
 document.getElementById("btnHoldings").onclick = () => {
   state.showHoldings = !state.showHoldings;
@@ -1000,7 +1010,7 @@ if (restored){
   document.getElementById("dataUrl").value = state.dataUrl || "";
 }
 document.getElementById("btnHoldings").textContent = "보유 표시: " + (state.showHoldings ? "켜짐" : "꺼짐");
-document.getElementById("btnLev2x").textContent = "2배 숨김: " + (state.hideLev2x ? "켜짐" : "꺼짐");
+document.getElementById("btnMarket").textContent = MARKET_LABEL[state.market] || "🌐 전체";
 document.getElementById("btnCompact").textContent = state.compact ? "🗂 카드보기" : "📋 모아보기";
 render();
 if (restored){ saveState(); }               // 저장됨 표시 갱신
