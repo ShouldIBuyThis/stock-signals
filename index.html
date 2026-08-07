@@ -39,6 +39,7 @@ header{background:var(--panel);border:1px solid var(--line);border-radius:12px;p
 .notice{margin-top:10px;font-size:11.5px;color:var(--faint);line-height:1.6}.notice em{font-style:normal;color:var(--dim)}
 .autoline{margin-top:9px;font-size:12px;color:var(--accent);background:#111a2b;border:1px solid #22344f;border-radius:7px;padding:6px 10px;line-height:1.5}
 .autoline b{color:#cfe1ff}
+.sortnote{font-size:11.5px;color:var(--dim);margin-bottom:6px}
 
 /* ── 툴바 ── */
 .toolbar{display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin-bottom:12px}
@@ -196,7 +197,9 @@ dialog .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
   <label class="tl">정렬
     <select id="sortMode">
       <option value="category">카테고리순</option>
-      <option value="signal">신호 강한 순</option>
+      <option value="signal">(종합) 신호 강한 순</option>
+      <option value="trend">🟢 추세형 순</option>
+      <option value="reversal">🟡 반등형 순</option>
     </select>
   </label>
   <button id="btnAdd">＋ 종목 추가</button>
@@ -237,7 +240,10 @@ dialog .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
     <div><b>볼밴+RSI (±1.5~2)</b><br>하단+과매도 매수 / 상단+과열 매도</div>
     <div><b>스토캐스틱 (보조, ±1)</b><br>저점 골크 +1 / 고점 데크 −1 (거래량 동반 시 강화)</div>
     <div><b>🆕 시장 필터</b><br><b>QQQ가 20일선 아래</b>(미장 약세)면 미국 종목 전체 <b>−0.5</b> 감점. 상단 칩으로 표시.</div>
-    <div><b>등급 컷</b><br>+3↑ 강한매수 / +1.3↑ 매수관심 / −1.3↓ 매도관심 / −3↓ 강한매도 / 그 사이 중립</div>
+    <div><b>🆕 유형 구분 & 정렬</b><br>매수신호를 <b>🟢추세형</b>(정배열·눌림목·신고가)과 <b>🟡반등형</b>(바닥권·과매도)으로 태그. 상단 정렬에서 <b>추세형 순 / 반등형 순</b>으로 따로 볼 수 있어요.</div>
+    <div><b>🆕 52주 신고가 근접</b><br>1년 고점 5% 이내 + 5·20일선 위면 <b>+1</b> (강세 추세주 가점). 🚀 딱지 표시.</div>
+    <div><b>🆕 추격주의</b><br>매수신호인데 오늘 이미 <b>+5%↑ 급등</b>이면 ⚠딱지. 갭 추격 대신 눌림 기다리라는 뜻.</div>
+    <div><b>등급 컷 (합산)</b><br>+3↑ 강한매수 / +1.3↑ 매수관심 / −1.3↓ 매도관심 / −3↓ 강한매도 / 그 사이 중립</div>
   </div>
 </div>
 
@@ -433,6 +439,8 @@ function normalize(raw){
       macd_zero: it.macd_zero || (num(it.macd_hist ?? it.macdHist ?? it.macd) > 0 ? "above" : "below"),
       market_weak: !!it.market_weak,
       atr_pct: num(it.atr_pct),
+      pct_from_high: num(it.pct_from_high),
+      near_high: !!it.near_high,
       last_date: it.last_date || datePart || ""
     };
   });
@@ -445,11 +453,13 @@ const has = v => v !== null && v !== undefined && !Number.isNaN(v);
 const r1 = v => has(v) ? Math.round(v*10)/10 : "—";
 
 function evaluate(s){
-  let score = 0;
-  const reasons = [];   // {w: |가중치|, t: 문구}
+  let tPos = 0;   // 추세형 양(+)
+  let rPos = 0;   // 반등형 양(+)
+  let sNeg = 0;   // 공통 음(-): 과열·역배열·데드크로스·시장필터
+  const reasons = [];   // {w, t}
   const flags = [];
   const p=s.price, ma5=s.ma5, ma20=s.ma20, ma60=s.ma60, rsi=s.rsi, bb=s.bb_pos;
-  const hist = s.macd;   // MACD 히스토그램(시그널선 대비): +면 위(상승), -면 아래(하락)
+  const hist = s.macd;
 
   const volHot  = has(s.vol_ratio) && s.vol_ratio >= 1.5;
   const volWarm = has(s.vol_ratio) && s.vol_ratio >= 1.2;
@@ -457,90 +467,112 @@ function evaluate(s){
   const above5  = has(p)&&has(ma5)&&p>ma5;
   const above20 = has(p)&&has(ma20)&&p>ma20;
   const above60 = has(p)&&has(ma60)&&p>ma60;
-  const bullMA  = has(ma5)&&has(ma20)&&has(ma60)&&ma5>ma20&&ma20>ma60;   // 완전 정배열
-  const bearMA  = has(ma5)&&has(ma20)&&has(ma60)&&ma5<ma20&&ma20<ma60;   // 완전 역배열
+  const bullMA  = has(ma5)&&has(ma20)&&has(ma60)&&ma5>ma20&&ma20>ma60;
+  const bearMA  = has(ma5)&&has(ma20)&&has(ma60)&&ma5<ma20&&ma20<ma60;
   const ma5o20  = has(ma5)&&has(ma20)&&ma5>ma20;
-  const nearMa5 = above5 && has(ma5) && (p-ma5)/ma5 <= 0.03;             // 5일선 바로 위 = 눌림목권
-  const reclaim = above5 && above20 && !above60;                        // 60일선 아래서 5·20 회복 = 바닥/전환
+  const nearMa5 = above5 && has(ma5) && (p-ma5)/ma5 <= 0.03;
+  const reclaim = above5 && above20 && !above60;
+  const nearHigh = !!s.near_high;
+  const chgUp = has(s.change_1d) ? s.change_1d : 0;
   let macdCredited = false;
 
-  /* ── ① 이동평균 추세 + 패턴매매 ── */
-  if (bullMA && above5){
-    if (has(rsi) && rsi >= 75){ score += 0.5; flags.push({c:"f-warn", t:"↗ 정배열(과열)"}); reasons.push({w:1.5,t:`강한 정배열이나 RSI ${r1(rsi)} 과열`}); }
-    else if (nearMa5 && has(rsi) && rsi>=42 && rsi<=62){ score += 2.5; flags.push({c:"f-up", t:"↗ 5일선 눌림목"}); reasons.push({w:3,t:`정배열 5일선 눌림목 (RSI ${r1(rsi)}) — 추세매매 자리`}); }
-    else { score += 2; flags.push({c:"f-up", t:"↗ 정배열 상승"}); reasons.push({w:2,t:"MA 정배열 상승추세"}); }
-  } else if (reclaim){
-    // 바닥권에서 단기·중기선을 되찾은 초기 상승전환 (패턴매매 핵심 자리)
+  /* ── ① 이동평균 추세 / 패턴 ── (추세형 vs 반등형 구분) */
+  if (bullMA && above5){                        // 정배열 = 추세형
+    if (has(rsi) && rsi >= 75){ tPos += 0.5; flags.push({c:"f-warn", t:"↗ 정배열(과열)"}); reasons.push({w:1.5,t:`강한 정배열이나 RSI ${r1(rsi)} 과열`}); }
+    else if (nearMa5 && has(rsi) && rsi>=42 && rsi<=62){ tPos += 2.5; flags.push({c:"f-up", t:"↗ 5일선 눌림목"}); reasons.push({w:3,t:`정배열 5일선 눌림목 (RSI ${r1(rsi)}) — 추세매매 자리`}); }
+    else { tPos += 2; flags.push({c:"f-up", t:"↗ 정배열 상승"}); reasons.push({w:2,t:"MA 정배열 상승추세"}); }
+  } else if (reclaim){                           // 바닥권 전환 = 반등형
     let w = 2.0;
     if (has(hist) && hist>0){ w += 0.5; macdCredited = true; }
-    if (volHot) w += 0.8; else if (volWarm) w += 0.5;   // 거래량 비중 ↑ (반등은 거래량이 생명)
-    score += w;
+    if (volHot) w += 0.8; else if (volWarm) w += 0.5;
+    rPos += w;
     flags.push({c:"f-up", t:"↗ 바닥권 전환"});
     reasons.push({w:3, t:`바닥권 상승전환 — 5·20일선 회복${has(hist)&&hist>0?" + MACD 상승":""}${volHot?` + 거래량 ${r1(s.vol_ratio)}배`:""}`});
-  } else if (above5 && above20 && ma5o20){
-    score += 1.5; flags.push({c:"f-up", t:"↗ 단기 상승"}); reasons.push({w:1.5,t:"단기 상승흐름 (5·20일선 위)"});
-  } else if (above5 && !above20){
-    score += 0.5; flags.push({c:"f-up", t:"↗ 반등 시도"}); reasons.push({w:0.8,t:"5일선 위로 반등 시도"});
+  } else if (above5 && above20 && ma5o20){       // 단기 상승 = 추세형
+    tPos += 1.5; flags.push({c:"f-up", t:"↗ 단기 상승"}); reasons.push({w:1.5,t:"단기 상승흐름 (5·20일선 위)"});
+  } else if (above5 && !above20){                 // 5일선 반등 = 추세형(약)
+    tPos += 0.5; flags.push({c:"f-up", t:"↗ 반등 시도"}); reasons.push({w:0.8,t:"5일선 위로 반등 시도"});
   } else if (bearMA && !above5){
     if (has(rsi) && rsi <= 32){ flags.push({c:"f-warn", t:"↘ 역배열(낙폭과대)"}); reasons.push({w:1,t:`역배열이나 RSI ${r1(rsi)} 낙폭과대`}); }
-    else { score -= 2; flags.push({c:"f-warn", t:"↘ 역배열 하락"}); reasons.push({w:2,t:"MA 역배열 하락추세"}); }
+    else { sNeg -= 2; flags.push({c:"f-warn", t:"↘ 역배열 하락"}); reasons.push({w:2,t:"MA 역배열 하락추세"}); }
   } else if (!above5 && !above20){
-    score -= 1.5; flags.push({c:"f-warn", t:"↘ 약세"}); reasons.push({w:1.5,t:"5·20일선 아래 약세"});
+    sNeg -= 1.5; flags.push({c:"f-warn", t:"↘ 약세"}); reasons.push({w:1.5,t:"5·20일선 아래 약세"});
   }
 
-  /* ── ② MACD (교차 우선, 없으면 히스토그램 방향) ── */
+  /* ── 52주 신고가 근접 (추세형 가점) ── */
+  if (nearHigh && (above5 || above20)){
+    tPos += 1; flags.push({c:"f-up", t:"🚀 52주 신고가 근접"});
+    reasons.push({w:2.2, t:`52주 신고가 근접(${has(s.pct_from_high)?r1(s.pct_from_high)+"%":"−5% 이내"}) — 강세주`});
+  }
+
+  /* ── ② MACD ── */
   if (s.macd_cross === "golden"){
-    // 0선 아래에서의 골든크로스 = 바닥권 반등 시작 → 더 강하게, 0선 위 = 추세 지속
     let w = volHot ? 2 : 1.5;
-    if (s.macd_zero === "below"){ w += 0.5; }   // 0선 아래 골크 가점
-    score += w;
-    reasons.push({w, t:"MACD 골든크로스"+(s.macd_zero==="below"?"(0선 아래·반등)":"")+(volHot?` + 거래량 ${r1(s.vol_ratio)}배`:"")});
+    if (s.macd_zero === "below"){ w += 0.5; rPos += w; reasons.push({w, t:"MACD 골든크로스(0선 아래·반등)"+(volHot?` + 거래량 ${r1(s.vol_ratio)}배`:"")}); }
+    else { tPos += w; reasons.push({w, t:"MACD 골든크로스"+(volHot?` + 거래량 ${r1(s.vol_ratio)}배`:"")}); }
   }
-  else if (s.macd_cross === "dead"){ const w = volHot?2:1.5; score -= w; reasons.push({w, t:"MACD 데드크로스"+(volHot?` + 거래량 ${r1(s.vol_ratio)}배`:"")}); }
+  else if (s.macd_cross === "dead"){ const w = volHot?2:1.5; sNeg -= w; reasons.push({w, t:"MACD 데드크로스"+(volHot?` + 거래량 ${r1(s.vol_ratio)}배`:"")}); }
   else if (has(hist) && !macdCredited){
-    if (hist>0 && (above5||above20)) score += 0.5;         // 추세와 같은 방향 MACD면 소폭 가점
-    else if (hist<0 && !above20)     score -= 0.5;
+    if (hist>0 && (above5||above20)) tPos += 0.5;
+    else if (hist<0 && !above20)     sNeg -= 0.5;
   }
 
-  /* ── ③ 볼린저 + RSI (과열/과매도) ── */
+  /* ── ③ 볼린저 + RSI (과열=음, 과매도=반등형) ── */
   if (has(bb) && has(rsi)){
-    if (bb>=95 && rsi>=73){ score -= 2; reasons.push({w:2,t:`볼밴 상단 + RSI ${r1(rsi)} 과열`}); }
-    else if (bb>=90 && rsi>=70){ score -= 1.5; reasons.push({w:1.5,t:`볼밴 상단권 + RSI ${r1(rsi)} 과열`}); }
-    else if (bb<=5 && rsi<=27){ score += 2; reasons.push({w:2,t:`볼밴 하단 + RSI ${r1(rsi)} 과매도 반등권`}); }
-    else if (bb<=10 && rsi<=32){ score += 1.5; reasons.push({w:1.5,t:`볼밴 하단권 + RSI ${r1(rsi)} 과매도`}); }
+    if (bb>=95 && rsi>=73){ sNeg -= 2; reasons.push({w:2,t:`볼밴 상단 + RSI ${r1(rsi)} 과열`}); }
+    else if (bb>=90 && rsi>=70){ sNeg -= 1.5; reasons.push({w:1.5,t:`볼밴 상단권 + RSI ${r1(rsi)} 과열`}); }
+    else if (bb<=5 && rsi<=27){ rPos += 2; reasons.push({w:2,t:`볼밴 하단 + RSI ${r1(rsi)} 과매도 반등권`}); }
+    else if (bb<=10 && rsi<=32){ rPos += 1.5; reasons.push({w:1.5,t:`볼밴 하단권 + RSI ${r1(rsi)} 과매도`}); }
   }
 
-  /* ── ④ 스토캐스틱 모멘텀 ── */
-  if (s.stoch_cross === "golden" && has(s.stoch_k) && s.stoch_k <= 40){ const w = volWarm?1.5:1; score += w; reasons.push({w, t:"스토캐스틱 저점 골든크로스"}); }
-  else if (s.stoch_cross === "dead" && has(s.stoch_k) && s.stoch_k >= 60){ const w = volWarm?1.5:1; score -= w; reasons.push({w, t:"스토캐스틱 고점 데드크로스"}); }
+  /* ── ④ 스토캐스틱 ── */
+  if (s.stoch_cross === "golden" && has(s.stoch_k) && s.stoch_k <= 40){ const w = volWarm?1.5:1; rPos += w; reasons.push({w, t:"스토캐스틱 저점 골든크로스"}); }
+  else if (s.stoch_cross === "dead" && has(s.stoch_k) && s.stoch_k >= 60){ const w = volWarm?1.5:1; sNeg -= w; reasons.push({w, t:"스토캐스틱 고점 데드크로스"}); }
   else if (has(s.stoch_k) && has(s.stoch_d)){
-    if (s.stoch_k > s.stoch_d && s.stoch_k <= 78 && (above5||reclaim)) score += 0.5;   // 상승 모멘텀
-    else if (s.stoch_k >= 88 && s.stoch_k < s.stoch_d) score -= 0.5;                   // 고점 둔화
+    if (s.stoch_k > s.stoch_d && s.stoch_k <= 78 && (above5||reclaim)) tPos += 0.5;
+    else if (s.stoch_k >= 88 && s.stoch_k < s.stoch_d) sNeg -= 0.5;
   }
 
-  /* ── ⑤ 시장 필터 (QQQ 20일선 아래 = 미국장 약세면 미국 종목 감점) ── */
-  if (s.market_weak){ score -= 0.5; reasons.push({w:0.7, t:"⚠ 시장(QQQ) 20일선 아래 — 감점"}); flags.push({c:"f-warn", t:"⚠ 약세장"}); }
+  /* ── ⑤ 시장 필터 (QQQ 약세면 미국 종목 감점) ── */
+  if (s.market_weak){ sNeg -= 0.5; reasons.push({w:0.7, t:"⚠ 시장(QQQ) 20일선 아래 — 감점"}); flags.push({c:"f-warn", t:"⚠ 약세장"}); }
 
-  /* 등급 판정 (덜 보수적으로 조정) */
+  /* ── 점수 3종: 추세형 / 반등형 / 합산 ── */
+  const trendScore = Math.round((tPos + sNeg) * 10) / 10;
+  const revScore   = Math.round((rPos + sNeg) * 10) / 10;
+  const score      = Math.round((tPos + rPos + sNeg) * 10) / 10;
+
+  /* 등급 (합산 기준) */
   let g = 3;
   if (score >= 3) g = 5;
   else if (score >= 1.3) g = 4;
   else if (score <= -3) g = 1;
   else if (score <= -1.3) g = 2;
 
+  /* 유형 태그 (매수쪽일 때만): 추세형/반등형 중 큰 쪽 */
+  let type = null;
+  if (g >= 4){
+    type = tPos >= rPos ? "추세" : "반등";
+    if (type === "추세") flags.unshift({c:"f-up", t:"🟢 추세형"});
+    else flags.unshift({c:"f-warn", t:"🟡 반등형"});
+  }
+
+  /* 추격주의: 매수신호인데 오늘 이미 +5%↑ 급등 */
+  if (g >= 4 && chgUp >= 5){ flags.unshift({c:"f-ob", t:`⚠ 추격주의(오늘 +${r1(chgUp)}%)`}); }
+
   reasons.sort((a,b)=>b.w-a.w);
+  const typeLabel = type ? `[${type}형] ` : "";
   const line = reasons.length
-    ? reasons.slice(0,2).map(x=>x.t).join(" · ") + ` → ${GRADES[g]}`
+    ? typeLabel + reasons.slice(0,2).map(x=>x.t).join(" · ") + ` → ${GRADES[g]}`
     : "뚜렷한 신호 없음 → 중립";
 
   /* 직관 플래그 (과열/과매도/거래량) */
   const hotExt = (has(rsi)&&rsi>=72) || (has(s.stoch_k)&&s.stoch_k>=92) || (has(bb)&&bb>=108);
   const coldExt = (has(rsi)&&rsi<=30) || (has(s.stoch_k)&&s.stoch_k<=8) || (has(bb)&&bb<=3);
-  if (hotExt) flags.push({c:"f-ob", t:"🔥 단기 과열(추격 주의)"});
+  if (hotExt) flags.push({c:"f-ob", t:"🔥 단기 과열"});
   if (coldExt) flags.push({c:"f-os", t:"🧊 과매도(반등 주시)"});
   if (volHot) flags.push({c:"f-vol", t:`⚡ 거래량 ${r1(s.vol_ratio)}배`});
 
-  return { score, grade: g, line, flags };
+  return { score, trendScore, revScore, grade: g, type, line, flags };
 }
 
 /* ══════════════ 표시 유틸 ══════════════ */
@@ -669,7 +701,7 @@ function compactRow(s){
       <span class="crtk">${esc(s.ticker)}${nm}</span>
       <span class="crgrade g${g}">${GRADES[g]}</span>
       <span class="crprice">${fmtPrice(s)} <span class="chg ${chgCls}">${fmtChg(s.change_1d)}</span></span>
-      <span class="crmeta">R ${r1(s.rsi)} · B ${r1(s.bb_pos)}</span>
+      <span class="crmeta">${state.sort==="trend" ? "추세 "+r1(s.sig.trendScore) : state.sort==="reversal" ? "반등 "+r1(s.sig.revScore) : "R "+r1(s.rsi)+" · B "+r1(s.bb_pos)}</span>
     </div>
     <div class="crreason">${esc(s.sig.line)}</div>
   </div>`;
@@ -707,15 +739,23 @@ function render(){
   /* 본문 */
   const board = document.getElementById("board");
   let html = "";
+  const sortKey = s => state.sort === "trend" ? s.sig.trendScore : state.sort === "reversal" ? s.sig.revScore : s.sig.score;
   if (state.compact){
-    // 모아보기: 신호 강한 순으로 한 줄씩 빽빽하게 (폰 한 화면에)
-    const sorted = stocks.slice().sort((a,b)=> b.sig.score - a.sig.score || Math.abs(b.change_1d||0) - Math.abs(a.change_1d||0));
+    // 모아보기: 현재 정렬 기준 점수 높은 순으로 한 줄씩
+    const sorted = stocks.slice().sort((a,b)=> sortKey(b) - sortKey(a) || Math.abs(b.change_1d||0) - Math.abs(a.change_1d||0));
+    const head = state.sort==="trend" ? "🟢 추세형 순" : state.sort==="reversal" ? "🟡 반등형 순" : "(종합) 신호 강한 순";
+    html += `<div class="sortnote">${head}</div>`;
     html += `<div class="compact"><div class="crow chead"><div class="crmain"><span>종목</span><span>신호</span><span>현재가 / 등락</span><span>RSI·볼밴</span></div></div>`;
     html += sorted.map(compactRow).join("");
     html += `</div>`;
-  } else if (state.sort === "signal"){
-    const sorted = stocks.slice().sort((a,b)=> b.sig.score - a.sig.score || Math.abs(b.change_1d||0) - Math.abs(a.change_1d||0));
-    html += `<section class="cat"><h3>신호 강한 순 <span class="cnt">(매수 신호 → 매도 신호)</span></h3><div class="grid">`;
+  } else if (state.sort === "signal" || state.sort === "trend" || state.sort === "reversal"){
+    const sorted = stocks.slice().sort((a,b)=> sortKey(b) - sortKey(a) || Math.abs(b.change_1d||0) - Math.abs(a.change_1d||0));
+    const title = state.sort==="trend"
+      ? `🟢 추세형 순 <span class="cnt">(정배열·눌림목·신고가 등 추세 강한 순)</span>`
+      : state.sort==="reversal"
+      ? `🟡 반등형 순 <span class="cnt">(바닥권 전환·과매도 반등 강한 순)</span>`
+      : `(종합) 신호 강한 순 <span class="cnt">(매수 신호 → 매도 신호)</span>`;
+    html += `<section class="cat"><h3>${title}</h3><div class="grid">`;
     html += sorted.map(cardHTML).join("");
     html += state.placeholders.map(placeholderHTML).join("");
     html += `</div></section>`;
