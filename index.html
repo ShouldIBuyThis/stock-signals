@@ -380,8 +380,8 @@ function loadState(){
 }
 
 /* ══════════════ URL에서 불러오기 (폰↔컴 공용 + 새로고침) ══════════════ */
-async function fetchFromUrl(url, statusEl){
-  const st = statusEl || document.getElementById("urlStatus");
+async function fetchFromUrl(url, statusEl, silent){
+  const st = silent ? null : (statusEl || document.getElementById("urlStatus"));
   if (st){ st.textContent = "불러오는 중…"; st.className = ""; }
   try{
     const bust = url + (url.includes("?") ? "&" : "?") + "_=" + Date.now();
@@ -397,7 +397,7 @@ async function fetchFromUrl(url, statusEl){
     return true;
   }catch(e){
     if (st){ st.textContent = "실패: " + e.message + " — 저장소가 Public인지, 주소가 맞는지 확인하세요"; st.className = "err"; }
-    toast("불러오기 실패 — " + e.message, true);
+    if (!silent) toast("불러오기 실패 — " + e.message, true);
     return false;
   }
 }
@@ -958,9 +958,14 @@ document.getElementById("btnHoldings").onclick = () => {
   if (state.showHoldings && state.holdings.length === 0) toast("★보유로 체크한 종목이 아직 없어요 — 카드의 ☆보유를 눌러 체크하세요", true);
   else if (state.showHoldings) toast("내 보유종목만 표시 중");
 };
-document.getElementById("btnRefresh").onclick = () => {
-  if (state.dataUrl){ fetchFromUrl(state.dataUrl); toast("마지막 갱신 데이터 받는 중… (실시간 아님)"); }
-  else { trySameOrigin(); toast("최신 데이터 확인 중…"); }
+document.getElementById("btnRefresh").onclick = async () => {
+  toast("최신 데이터 받는 중…");
+  if (state.dataUrl){
+    const ok = await fetchFromUrl(state.dataUrl, null, true);
+    if (ok) return;
+  }
+  const ok2 = await trySameOrigin();
+  if (!ok2) toast("불러오지 못했어요 — 사용법 > 수동 입력에서 URL을 확인하세요", true);
 };
 document.getElementById("btnManualInput").onclick = () => {
   document.getElementById("helpPanel").classList.add("hidden");
@@ -1014,23 +1019,39 @@ document.getElementById("btnMarket").textContent = MARKET_LABEL[state.market] ||
 document.getElementById("btnCompact").textContent = state.compact ? "🗂 카드보기" : "📋 모아보기";
 render();
 if (restored){ saveState(); }               // 저장됨 표시 갱신
-if (state.dataUrl){ fetchFromUrl(state.dataUrl); }   // 열자마자 최신 데이터 자동 시도
-else { trySameOrigin(); }                    // 웹에 올렸으면 같은 폴더 signals.json 자동 연결
-setupAutoRefresh();                          // 5분마다 자동 재수신 시작
+bootstrapData();
+setupAutoRefresh();
+
+async function bootstrapData(){
+  // 1) 저장된 URL이 있으면 그걸로 시도 → 실패하면 2) 같은 폴더 signals.json 재시도
+  if (state.dataUrl){
+    const ok = await fetchFromUrl(state.dataUrl, null, true);
+    if (ok) return;
+  }
+  const ok2 = await trySameOrigin();
+  if (!ok2 && state.isDemo){
+    toast("데이터를 불러오지 못했어요 — 사용법 > 수동 입력에서 URL을 넣어보세요", true);
+  }
+}
 
 async function trySameOrigin(){
-  // GitHub Pages 등 웹에 올렸을 때, 같은 폴더의 signals.json을 자동으로 연결
-  if (state.dataUrl) return;
-  if (!location.protocol.startsWith("http")) return;   // 파일로 연 경우는 제외
-  try{
-    const r = await fetch("signals.json?_=" + Date.now(), { cache: "no-store" });
-    if (!r.ok) return;
-    const obj = await r.json();
-    state.data = normalize(obj); state.isDemo = false;
-    state.dataUrl = "signals.json"; saveState(); render();
-    toast("✅ 같은 폴더의 signals.json 자동 연결됨");
-    setupAutoRefresh();
-  }catch(e){ /* 없으면 조용히 무시 (데모 유지) */ }
+  // 웹에 올렸을 때 같은 폴더의 signals.json을 자동 연결 (쿼리스트링 영향 없이 절대경로로)
+  if (!location.protocol.startsWith("http")) return false;   // 파일로 연 경우 제외
+  const base = location.href.split("?")[0].split("#")[0].replace(/[^/]*$/, "");
+  const candidates = [base + "signals.json", "signals.json", "./signals.json"];
+  for (const url of candidates){
+    try{
+      const r = await fetch(url + "?_=" + Date.now(), { cache: "no-store" });
+      if (!r.ok) continue;
+      const obj = await r.json();
+      state.data = normalize(obj); state.isDemo = false;
+      state.dataUrl = url; saveState(); render();
+      toast(`✅ 데이터 연결됨 — ${state.data.stocks.length}개 종목`);
+      setupAutoRefresh();
+      return true;
+    }catch(e){ /* 다음 후보 시도 */ }
+  }
+  return false;
 }
 </script>
 <div id="toast" class="toast"></div>
