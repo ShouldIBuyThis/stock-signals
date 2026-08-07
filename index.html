@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="dark">
-<title>관심종목 신호 모니터</title>
+<title>관심종목 기술적 신호 모니터링</title>
 <style>
 :root{
   color-scheme:dark;
@@ -18,6 +18,7 @@
 html{background:var(--bg)}
 body{font-family:var(--mono);background:var(--bg);color:var(--txt);font-size:14px;line-height:1.55;padding:14px;max-width:1280px;margin:0 auto}
 h1{font-size:17px;letter-spacing:.5px}
+.subtitle{font-size:11.5px;color:var(--dim);font-weight:normal;margin-left:8px;letter-spacing:0}
 button{font-family:var(--mono);background:#1a2130;color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:6px 11px;font-size:12.5px;cursor:pointer}
 button:hover{border-color:var(--accent);color:var(--accent)}
 button:focus-visible,select:focus-visible,textarea:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
@@ -43,6 +44,19 @@ header{background:var(--panel);border:1px solid var(--line);border-radius:12px;p
 
 /* ── 툴바 ── */
 .toolbar{display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin-bottom:12px}
+.sortbar{background:var(--panel);border:1px solid #2b3a56;border-radius:10px;padding:9px 11px;margin-bottom:10px}
+.sortlabel{display:block;font-size:11px;color:var(--accent);margin-bottom:7px;letter-spacing:.3px}
+.sorttabs{display:flex;flex-wrap:wrap;gap:6px}
+.viewtabs{display:flex;gap:6px}
+.viewtabs button{flex:1;padding:11px 10px;font-size:13px;font-weight:bold;border-radius:8px;background:#141c2b;border:1px solid var(--line);color:var(--dim);display:flex;flex-direction:column;gap:2px;line-height:1.25}
+.viewtabs button em{font-style:normal;font-size:10px;font-weight:normal;color:var(--faint)}
+.viewtabs button:hover{border-color:var(--accent);color:var(--accent)}
+.viewtabs button.active{background:#1d3a2c;border-color:var(--sbuy);color:#a8f0c4}
+.viewtabs button.active em{color:#6fd39a}
+.sorttabs button{flex:1 1 auto;min-width:118px;padding:9px 10px;font-size:12.5px;border-radius:8px;background:#141c2b;border:1px solid var(--line);color:var(--dim);font-weight:bold}
+.sorttabs button:hover{border-color:var(--accent);color:var(--accent)}
+.sorttabs button.active{background:#20304d;border-color:var(--accent);color:#cfe1ff;box-shadow:0 0 0 1px rgba(138,180,248,.35)}
+@media (max-width:480px){ .sorttabs button{min-width:0;flex:1 1 45%;font-size:11.5px;padding:8px 6px} }
 .toolbar .sp{flex:1}
 label.tl{font-size:12px;color:var(--dim)}
 .save-ind{font-size:11.5px;color:var(--faint)}
@@ -151,6 +165,11 @@ section.cat>h3 .cnt{color:var(--faint);font-weight:normal}
 .crprice{font-size:11px;text-align:right;white-space:nowrap} .crprice .chg{font-size:10px;margin-left:3px}
 .crmeta{font-size:10.5px;color:var(--dim);text-align:right;white-space:nowrap}
 .crreason{font-size:10.5px;color:var(--dim);margin-top:4px;line-height:1.4;border-top:1px solid #1b2230;padding-top:4px}
+.crow[data-tk]{cursor:pointer}
+.crow[data-tk]:hover{border-color:var(--accent)}
+.crow[data-tk]:active{transform:scale(.995)}
+.focus-card{outline:2px solid var(--accent);outline-offset:2px;animation:focusPulse 2.2s ease-out}
+@keyframes focusPulse{0%{box-shadow:0 0 0 0 rgba(138,180,248,.55)}70%{box-shadow:0 0 0 14px rgba(138,180,248,0)}100%{box-shadow:0 0 0 0 rgba(138,180,248,0)}}
 @media (max-width:480px){ .crmain{grid-template-columns:minmax(0,1fr) 52px 104px 54px;gap:4px;font-size:11px} .crprice{font-size:10px} .crmeta{font-size:9.5px} .crreason{font-size:10px} }
 
 /* 숨긴 종목/푸터 */
@@ -181,7 +200,7 @@ dialog .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
 
 <header>
   <div class="head-top">
-    <h1>📡 관심종목 신호 모니터<span id="demoBadge" class="demo-badge">예시 데이터</span></h1>
+    <h1>📡 관심종목 기술적 신호 모니터링<span id="demoBadge" class="demo-badge">예시 데이터</span></h1>
     <div class="stamp">오늘 <b id="todayStr"></b> · 데이터 기준 <b id="dataStamp">—</b></div>
   </div>
   <div class="sumline" id="sumLine"></div>
@@ -191,20 +210,26 @@ dialog .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
   </div>
 </header>
 
+<div class="sortbar">
+  <span class="sortlabel">① 보기 방식</span>
+  <div class="viewtabs" id="viewTabs">
+    <button data-view="compact">📋 모아보기 <em>한눈에 훑기</em></button>
+    <button data-view="card">🗂 카드보기 <em>지표 자세히</em></button>
+  </div>
+  <span class="sortlabel" style="margin-top:11px">② 정렬 — 눌러서 바꾸기</span>
+  <div class="sorttabs" id="sortTabs">
+    <button data-sort="category">카테고리순</button>
+    <button data-sort="signal">📊 (종합) 신호 강한 순</button>
+    <button data-sort="trend">🟢 추세형 순</button>
+    <button data-sort="reversal">🟡 반등형 순</button>
+  </div>
+</div>
+
 <div class="toolbar">
   <button id="btnHelp" title="각 버튼이 뭔지 설명 보기">❔ 사용법</button>
   <button id="btnGuest" title="방명록 — 고마워요 하트 남기기">💖 방명록</button>
   <button class="primary" id="btnRefresh" title="지금 실시간이 아니라, 마지막 자동갱신(9시/16시) 데이터를 다시 받아옵니다">🔄 새로고침</button>
-  <label class="tl">정렬
-    <select id="sortMode">
-      <option value="category">카테고리순</option>
-      <option value="signal">(종합) 신호 강한 순</option>
-      <option value="trend">🟢 추세형 순</option>
-      <option value="reversal">🟡 반등형 순</option>
-    </select>
-  </label>
   <button id="btnAdd">＋ 종목 추가</button>
-  <button id="btnCompact" title="폰 한 화면에 신호순으로 빽빽하게 모아보기">📋 모아보기</button>
   <button id="btnMarket" title="미국장 / 한국장 / 전체 전환">🌐 전체</button>
   <button id="btnHoldings" title="켜면 ★보유로 체크한 종목만 보기, 끄면 전체 보기">보유 표시: 꺼짐</button>
   <span id="saveInd" class="save-ind"></span>
@@ -296,6 +321,9 @@ dialog .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
   <b>꼭 읽어주세요</b><br>
   · 신호 등급(강한매수~강한매도)은 <b>일봉(전 거래일 종가)</b> 기준으로 이동평균·RSI·MACD·볼린저밴드·스토캐스틱·거래량을 조합한 <b>기계적 판정</b>일 뿐, 매매 추천이 아닙니다. <b>3일~2주 스윙</b> 관점에 맞춘 지표예요.<br>
   · 박스권에서는 과매도 신호가 곧바로 반등으로 이어지지 않고, 강한 추세장에서는 과열 신호가 한참 유지되기도 합니다. 반대로 해석될 수 있다는 뜻이에요.<br>
+  · <b>실적 발표(어닝콜) 전후에는 참고하지 마세요.</b> 실적 하나로 지표와 무관하게 급등락하므로, 기술적 신호가 무력해집니다. 보유·관심 종목의 실적일은 미리 확인하세요.<br>
+  · <b>지표에 안 잡히는 것들이 있어요.</b> 공매도 잔고·수급, 뉴스·공시·규제, 유상증자, 지수 편입/제외 같은 이벤트는 이 신호에 전혀 반영되지 않습니다. 차트만 보고 판단하지 마세요.<br>
+  · <b>시장 약세·급락장에서는 신호가 잘 맞지 않습니다.</b> 개별 종목 지표가 좋아도 지수가 무너지면 같이 빠집니다. (QQQ 20일선 아래일 때 감점을 주지만 완전한 방어는 아닙니다.)<br>
   · 보기 설정(★보유 체크·숨김·정렬 등)은 <b>내 기기에만</b> 저장돼요. 다른 사람 화면에는 영향을 주지 않습니다.
 </footer>
 
@@ -321,7 +349,7 @@ const DEMO = {
   ],
   failed: []
 };
-let state = { data: DEMO, isDemo: true, overrides: {}, hidden: [], placeholders: [], sort: "category", dataUrl: "", showHoldings: false, autoRefresh: true, holdings: [], market: "all", compact: false };
+let state = { data: DEMO, isDemo: true, overrides: {}, hidden: [], placeholders: [], sort: "category", dataUrl: "", showHoldings: false, autoRefresh: true, holdings: [], market: "all", compact: (typeof window !== "undefined" && window.innerWidth <= 640) };
 
 /* ══════════════ 알림 토스트 + 자동갱신 ══════════════ */
 let toastTimer = null;
@@ -374,7 +402,7 @@ function loadState(){
     state.autoRefresh = p.autoRefresh !== undefined ? p.autoRefresh : true;
     state.holdings = p.holdings || [];
     state.market = p.market || "all";
-    state.compact = p.compact !== undefined ? p.compact : false;
+    state.compact = p.compact !== undefined ? p.compact : (window.innerWidth <= 640);
     return true;
   }catch(e){ return false; }
 }
@@ -705,7 +733,7 @@ function compactRow(s){
   const g = s.sig.grade;
   const chgCls = has(s.change_1d) ? (s.change_1d > 0 ? "up" : s.change_1d < 0 ? "dn" : "") : "";
   const nm = s.name && s.name !== s.ticker ? `<span class="crnm">${esc(s.name)}</span>` : "";
-  return `<div class="crow g${g}">
+  return `<div class="crow g${g}" data-tk="${esc(s.ticker)}" role="button" tabindex="0" title="눌러서 상세 카드 보기">
     <div class="crmain">
       <span class="crtk">${esc(s.ticker)}${nm}</span>
       <span class="crgrade g${g}">${GRADES[g]}</span>
@@ -752,7 +780,7 @@ function render(){
   if (state.compact){
     // 모아보기: 현재 정렬 기준 점수 높은 순으로 한 줄씩
     const sorted = stocks.slice().sort((a,b)=> sortKey(b) - sortKey(a) || Math.abs(b.change_1d||0) - Math.abs(a.change_1d||0));
-    const head = state.sort==="trend" ? "🟢 추세형 순" : state.sort==="reversal" ? "🟡 반등형 순" : "(종합) 신호 강한 순";
+    const head = (state.sort==="trend" ? "🟢 추세형 순" : state.sort==="reversal" ? "🟡 반등형 순" : state.sort==="category" ? "카테고리순(모아보기는 신호순 정렬)" : "(종합) 신호 강한 순") + " · 종목을 누르면 상세 카드로 이동";
     html += `<div class="sortnote">${head}</div>`;
     const lastCol = state.sort==="trend" ? "추세점수" : state.sort==="reversal" ? "반등점수" : "RSI·볼밴";
     html += `<div class="compact"><div class="crow chead"><div class="crmain"><span>종목</span><span>신호</span><span>현재가 / 등락</span><span>${lastCol}</span></div></div>`;
@@ -937,13 +965,29 @@ document.getElementById("btnThank").onclick = addHeart;
 document.getElementById("btnPasteClose").onclick = () => document.getElementById("pastePanel").classList.add("hidden");
 document.getElementById("btnApply").onclick = applyPaste;
 document.getElementById("btnClearPaste").onclick = () => { document.getElementById("pasteBox").value = ""; document.getElementById("pasteStatus").textContent = ""; };
-document.getElementById("sortMode").onchange = e => { state.sort = e.target.value; render(); saveState(); };
+function syncSortTabs(){
+  document.querySelectorAll("#sortTabs button").forEach(b=>{
+    b.classList.toggle("active", b.dataset.sort === state.sort);
+  });
+}
+document.getElementById("sortTabs").addEventListener("click", e => {
+  const b = e.target.closest("button[data-sort]");
+  if (!b) return;
+  state.sort = b.dataset.sort;
+  syncSortTabs(); render(); saveState();
+});
 document.getElementById("btnAdd").onclick = () => openDlg("add");
-document.getElementById("btnCompact").onclick = () => {
-  state.compact = !state.compact;
-  document.getElementById("btnCompact").textContent = state.compact ? "🗂 카드보기" : "📋 모아보기";
-  render(); saveState();
-};
+function syncViewTabs(){
+  document.querySelectorAll("#viewTabs button").forEach(b=>{
+    b.classList.toggle("active", (b.dataset.view === "compact") === !!state.compact);
+  });
+}
+document.getElementById("viewTabs").addEventListener("click", e => {
+  const b = e.target.closest("button[data-view]");
+  if (!b) return;
+  state.compact = (b.dataset.view === "compact");
+  syncViewTabs(); render(); saveState();
+});
 const MARKET_LABEL = { all:"🌐 전체", us:"🇺🇸 미국장", kr:"🇰🇷 한국장" };
 document.getElementById("btnMarket").onclick = () => {
   state.market = state.market === "all" ? "us" : state.market === "us" ? "kr" : "all";
@@ -988,6 +1032,23 @@ document.getElementById("btnFetchUrl").onclick = () => {
 document.getElementById("fileImport").onchange = e => { if (e.target.files[0]) importFile(e.target.files[0]); e.target.value = ""; };
 
 document.getElementById("board").addEventListener("click", e => {
+  // 모아보기 행 클릭 → 카드보기로 전환하고 해당 종목으로 이동
+  const row = e.target.closest(".crow[data-tk]");
+  if (row && state.compact){
+    const tk = row.dataset.tk;
+    state.compact = false;
+    syncViewTabs(); render(); saveState();
+    setTimeout(()=>{
+      const esc2 = (window.CSS && CSS.escape) ? CSS.escape(tk) : tk.replace(/["\\]/g, "\\$&");
+      const card = document.querySelector(`.card[data-tk="${esc2}"]`);
+      if (card){
+        card.classList.add("focus-card");
+        setTimeout(()=>card.classList.remove("focus-card"), 2200);
+        try{ card.scrollIntoView({behavior:"smooth", block:"center"}); }catch(e){ card.scrollIntoView(); }
+      }
+    }, 40);
+    return;
+  }
   const btn = e.target.closest("button[data-act]");
   if (!btn) return;
   const card = btn.closest(".card");
@@ -1011,12 +1072,12 @@ document.getElementById("hiddenList").addEventListener("click", e => {
 /* ── 시작: 저장된 데이터 복원 → 정렬 UI 반영 → URL 있으면 최신 시도 ── */
 const restored = loadState();
 if (restored){
-  document.getElementById("sortMode").value = state.sort;
   document.getElementById("dataUrl").value = state.dataUrl || "";
 }
 document.getElementById("btnHoldings").textContent = "보유 표시: " + (state.showHoldings ? "켜짐" : "꺼짐");
 document.getElementById("btnMarket").textContent = MARKET_LABEL[state.market] || "🌐 전체";
-document.getElementById("btnCompact").textContent = state.compact ? "🗂 카드보기" : "📋 모아보기";
+syncViewTabs();
+syncSortTabs();
 render();
 if (restored){ saveState(); }               // 저장됨 표시 갱신
 bootstrapData();
