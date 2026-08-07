@@ -61,6 +61,8 @@ label.tl{font-size:12px;color:var(--dim)}
 .help-close button{padding:3px 10px;font-size:11.5px}
 .help-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;font-size:11.8px;line-height:1.55;color:var(--dim)}
 .help-grid b{color:var(--txt)}
+.help-grid .tip-buy{border-left:3px solid var(--sbuy);padding-left:8px}
+.help-grid .tip-rev{border-left:3px solid var(--warn);padding-left:8px}
 .guest-box{text-align:center;padding:14px 8px}
 .heart-num{font-size:34px;font-weight:bold;color:var(--ssell);line-height:1.1}
 .heart-num .heart-ico{font-size:26px}
@@ -179,7 +181,7 @@ dialog .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
     <div class="stamp">오늘 <b id="todayStr"></b> · 데이터 기준 <b id="dataStamp">—</b></div>
   </div>
   <div class="sumline" id="sumLine"></div>
-  <div class="autoline">🕘 데이터 자동 갱신: <b>한국장중(09:00~15:30)·미국장중(밤 22:30~새벽 05:00) 30분마다</b>, 그 외엔 갱신 안 함. 🔄 새로고침은 "지금 실시간"이 아니라 <b>마지막 갱신(최대 30분 지연) 데이터</b>를 받아오는 버튼이에요. 지금 보는 시점은 위 <b>"데이터 기준"</b> 시각을 보세요.</div>
+  <div class="autoline">🕘 데이터 자동 갱신: <b>매일 09:00 · 16:00 (한국시간, 종가 기준)</b>. 🔄 새로고침은 "지금 실시간"이 아니라 <b>마지막 갱신 데이터</b>를 받아오는 버튼이에요. 장중에 지금 시세가 필요하면 GitHub Actions에서 수동 실행하세요. 신호는 <b>QQQ(미장) 추세</b>도 반영합니다.</div>
   <div class="notice">
     <em>⚠ 모든 지표는 참고용</em>입니다. 박스권·강한 추세장에서는 같은 신호가 반대로 해석될 수 있어요.
     yfinance는 <em>15~20분 지연</em>된 무료 데이터라 실시간이 아니며, 수치는 <em>마지막 갱신 시점 기준</em>입니다.
@@ -209,7 +211,7 @@ dialog .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
   <div class="help-close"><button id="btnHelpClose">✕ 닫기</button></div>
   <h2>이 화면 사용법</h2>
   <div class="help-grid">
-    <div><b>🕘 데이터 자동 갱신</b><br>한국장중·미국장중에 <b>30분마다</b> 깃허브가 시세·지표를 새로 계산해 올려요. 그 외 시간엔 갱신 안 해요.</div>
+    <div><b>🕘 데이터 자동 갱신</b><br>매일 <b>09:00·16:00(한국시간)</b>에 깃허브가 시세·지표를 계산해 갱신해요. 일봉 종가 기준이라 하루 2번이면 충분해요.</div>
     <div><b>🔄 새로고침</b><br>마지막 자동갱신(9시 or 16시) 데이터를 다시 받아옵니다. <b>지금 실시간 가격이 아니에요</b> — 위 '데이터 기준' 시각이 지금 보는 시점이에요.</div>
     <div><b>📋 모아보기</b><br>신호 강한 순으로 한 줄씩 빽빽하게 — 폰 한 화면에 근거까지 훑기 좋아요. 다시 누르면 카드보기.</div>
     <div><b>2배 숨김</b><br>단일종목 2배 레버리지(NVDL·TSLL·APLX)를 숨기고 1배 원주만 봅니다. 움직임이 겹쳐 헷갈리지 않게요.</div>
@@ -217,6 +219,25 @@ dialog .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
     <div><b>✕ (카드마다)</b><br>그 종목만 잠깐 숨기기. 화면 맨 아래 '숨긴 종목'에서 다시 켤 수 있어요.</div>
     <div><b>＋ 종목 추가 / 편집</b><br>이 화면에서 누른 건 <b>내 기기에만</b> 임시로 보여요. 진짜 관심종목은 저장소의 <b>main.py</b>에서 정합니다.</div>
     <div><b>📥 수동으로 데이터 넣기</b><br>자동 연결이 안 될 때만 쓰는 백업 기능.<br><button id="btnManualInput" style="margin-top:5px">📥 수동 입력 열기</button></div>
+  </div>
+
+  <h2 style="margin-top:16px">💡 신호별 진입 팁 (참고용)</h2>
+  <div class="help-grid">
+    <div class="tip-buy"><b>🟢 추세형 매수</b> (정배열 상승 · 5일선 눌림목 · MACD 골크)<br>→ 뒤늦게 <b>고점에 물릴 위험</b>. 오늘 이미 급등했으면 추격 금지, <b>손절선 먼저</b> 정하고 진입.</div>
+    <div class="tip-rev"><b>🟡 반등형 매수</b> (바닥권 상승전환 · 볼밴 하단 과매도)<br>→ <b>데드캣 바운스(하루 튀고 재하락) 위험</b>. 반드시 <b>거래량 확인</b>, <b>눌림(5일선) 확인</b> 후 정찰병만.</div>
+    <div><b>공통 원칙</b><br>· 신호는 "지금 사라"가 아니라 "지켜봐라". · 풀매수 금지, 분할·정찰병. · 강한매수여도 오늘 +5%↑ 급등이면 하루 쉬기.</div>
+    <div><b>이 신호의 성격</b><br>일봉 <b>종가</b>로 계산 → "오늘 종가 보고 <b>내일</b> 매수 여부 판단"하는 스크리너예요. 진입 타이밍·비중은 결국 본인 판단.</div>
+  </div>
+
+  <h2 style="margin-top:16px">📊 점수 산정 방식 <span class="sub">(2026-08 업데이트)</span></h2>
+  <div class="help-grid">
+    <div><b>추세·패턴 (이동평균, 최대 ±2.5)</b><br>정배열 눌림목 +2.5 / 정배열 상승 +2 / 바닥권 전환 +2 / 역배열 하락 −2</div>
+    <div><b>MACD (±1.5~2)</b><br>골든크로스 +1.5(거래량 급증 +2, <b>0선 아래 반등 +0.5</b>) / 데드크로스 −1.5</div>
+    <div><b>거래량 (개선: 비중 ↑)</b><br>바닥권 반등에 거래량 실리면 <b>+0.5~0.8</b> (전엔 +0.3). 거래량 없는 반등은 등급↓</div>
+    <div><b>볼밴+RSI (±1.5~2)</b><br>하단+과매도 매수 / 상단+과열 매도</div>
+    <div><b>스토캐스틱 (보조, ±1)</b><br>저점 골크 +1 / 고점 데크 −1 (거래량 동반 시 강화)</div>
+    <div><b>🆕 시장 필터</b><br><b>QQQ가 20일선 아래</b>(미장 약세)면 미국 종목 전체 <b>−0.5</b> 감점. 상단 칩으로 표시.</div>
+    <div><b>등급 컷</b><br>+3↑ 강한매수 / +1.3↑ 매수관심 / −1.3↓ 매도관심 / −3↓ 강한매도 / 그 사이 중립</div>
   </div>
 </div>
 
@@ -409,10 +430,13 @@ function normalize(raw){
       stoch_k: num(it.stoch_k ?? it.stochK),
       stoch_d: num(it.stoch_d ?? it.stochD),
       stoch_cross: it.stoch_cross || "none",         // 옛 형식엔 교차 이벤트 없음 → none
+      macd_zero: it.macd_zero || (num(it.macd_hist ?? it.macdHist ?? it.macd) > 0 ? "above" : "below"),
+      market_weak: !!it.market_weak,
+      atr_pct: num(it.atr_pct),
       last_date: it.last_date || datePart || ""
     };
   });
-  return { generated_at: stamp, note: raw.note || "", stocks, failed: raw.failed || [], fx: num(raw.fx) };
+  return { generated_at: stamp, note: raw.note || "", stocks, failed: raw.failed || [], fx: num(raw.fx), market: raw.market || null };
 }
 
 /* ══════════════ 신호 엔진 (지표 2~3개 조합) ══════════════ */
@@ -449,10 +473,10 @@ function evaluate(s){
     // 바닥권에서 단기·중기선을 되찾은 초기 상승전환 (패턴매매 핵심 자리)
     let w = 2.0;
     if (has(hist) && hist>0){ w += 0.5; macdCredited = true; }
-    if (volWarm) w += 0.3;
+    if (volHot) w += 0.8; else if (volWarm) w += 0.5;   // 거래량 비중 ↑ (반등은 거래량이 생명)
     score += w;
     flags.push({c:"f-up", t:"↗ 바닥권 전환"});
-    reasons.push({w:3, t:`바닥권 상승전환 — 5·20일선 회복${has(hist)&&hist>0?" + MACD 상승":""}`});
+    reasons.push({w:3, t:`바닥권 상승전환 — 5·20일선 회복${has(hist)&&hist>0?" + MACD 상승":""}${volHot?` + 거래량 ${r1(s.vol_ratio)}배`:""}`});
   } else if (above5 && above20 && ma5o20){
     score += 1.5; flags.push({c:"f-up", t:"↗ 단기 상승"}); reasons.push({w:1.5,t:"단기 상승흐름 (5·20일선 위)"});
   } else if (above5 && !above20){
@@ -465,7 +489,13 @@ function evaluate(s){
   }
 
   /* ── ② MACD (교차 우선, 없으면 히스토그램 방향) ── */
-  if (s.macd_cross === "golden"){ const w = volHot?2:1.5; score += w; reasons.push({w, t:"MACD 골든크로스"+(volHot?` + 거래량 ${r1(s.vol_ratio)}배`:"")}); }
+  if (s.macd_cross === "golden"){
+    // 0선 아래에서의 골든크로스 = 바닥권 반등 시작 → 더 강하게, 0선 위 = 추세 지속
+    let w = volHot ? 2 : 1.5;
+    if (s.macd_zero === "below"){ w += 0.5; }   // 0선 아래 골크 가점
+    score += w;
+    reasons.push({w, t:"MACD 골든크로스"+(s.macd_zero==="below"?"(0선 아래·반등)":"")+(volHot?` + 거래량 ${r1(s.vol_ratio)}배`:"")});
+  }
   else if (s.macd_cross === "dead"){ const w = volHot?2:1.5; score -= w; reasons.push({w, t:"MACD 데드크로스"+(volHot?` + 거래량 ${r1(s.vol_ratio)}배`:"")}); }
   else if (has(hist) && !macdCredited){
     if (hist>0 && (above5||above20)) score += 0.5;         // 추세와 같은 방향 MACD면 소폭 가점
@@ -487,6 +517,9 @@ function evaluate(s){
     if (s.stoch_k > s.stoch_d && s.stoch_k <= 78 && (above5||reclaim)) score += 0.5;   // 상승 모멘텀
     else if (s.stoch_k >= 88 && s.stoch_k < s.stoch_d) score -= 0.5;                   // 고점 둔화
   }
+
+  /* ── ⑤ 시장 필터 (QQQ 20일선 아래 = 미국장 약세면 미국 종목 감점) ── */
+  if (s.market_weak){ score -= 0.5; reasons.push({w:0.7, t:"⚠ 시장(QQQ) 20일선 아래 — 감점"}); flags.push({c:"f-warn", t:"⚠ 약세장"}); }
 
   /* 등급 판정 (덜 보수적으로 조정) */
   let g = 3;
@@ -660,13 +693,16 @@ function render(){
   /* 요약 */
   const cnt = {5:0,4:0,3:0,2:0,1:0};
   stocks.forEach(s=>cnt[s.sig.grade]++);
+  const mk = state.data.market;
+  const mkChip = mk ? `<span class="sumchip ${mk.below_ma20?"g2":"g4"}">${esc(mk.ticker)} ${mk.below_ma20?"20일선 아래 ⚠":"20일선 위 ✅"}</span>` : "";
   document.getElementById("sumLine").innerHTML =
     `<span class="sumchip g5">강한매수<b>${cnt[5]}</b></span>
      <span class="sumchip g4">매수관심<b>${cnt[4]}</b></span>
      <span class="sumchip">중립<b>${cnt[3]}</b></span>
      <span class="sumchip g2">매도관심<b>${cnt[2]}</b></span>
      <span class="sumchip g1">강한매도<b>${cnt[1]}</b></span>
-     <span class="sumchip">표시 종목<b>${stocks.length}</b></span>`;
+     <span class="sumchip">표시 종목<b>${stocks.length}</b></span>
+     ${mkChip}`;
 
   /* 본문 */
   const board = document.getElementById("board");
