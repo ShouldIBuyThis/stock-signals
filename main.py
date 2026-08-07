@@ -1,7 +1,13 @@
 # ============================================================
 # main.py — 관심종목 시세·지표 계산 → signals.json 저장
-# (GitHub Actions가 정해진 시각에 자동 실행)
+# (GitHub Actions가 하루 2번 자동 실행)
 # 종목을 바꾸려면 아래 WATCHLIST 딕셔너리만 고치세요.
+# ------------------------------------------------------------
+# [1차 개선 반영]
+#  · 거래량 비중 ↑ (0.3 → 0.6~0.8)
+#  · MACD 0선 조건 (0선 아래 골든크로스 = 강한 반등 → 가점 크게)
+#  · 시장 필터 (QQQ 20일선 아래면 미국 종목 전체 -0.5)
+#  · 이동평균 신호 중복 방지 (한 종목당 추세 점수는 한 갈래만)
 # ============================================================
 import yfinance as yf
 import pandas as pd
@@ -9,7 +15,7 @@ import numpy as np
 import json
 from datetime import datetime, timedelta
 
-PERIOD = "4mo"
+PERIOD = "6mo"   # 볼밴·MA60 여유 있게
 
 # ── 관심종목 (카테고리: {티커: 이름}) ──────────────────────
 WATCHLIST = {
@@ -18,7 +24,7 @@ WATCHLIST = {
     "전기차·자동차":{"TSLA":"테슬라"},
     "광통신":      {"AAOI":"어플라이드옵토", "GLW":"코닝", "LITE":"루멘텀", "CIEN":"시에나"},
     "양자":        {"IONQ":"아이온큐", "QBTS":"디웨이브", "INFQ":"인플렉션"},
-    "우주":        {"RKLB":"로켓랩", "SPCX":"스피어우주"},
+    "우주":        {"RKLB":"로켓랩", "SPCX":"스페이스X"},
     "금광":        {"GDXU":"금광주 3x"},
     "빅테크":      {"MSFT":"마이크로소프트"},
     "헬스케어":    {"LLY":"일라이릴리"},
@@ -26,6 +32,9 @@ WATCHLIST = {
     "산업재":      {"CAT":"캐터필러"},
     "코스닥":      {"233740.KS":"KODEX 코스닥150레버리지"},
 }
+
+# ── 시장 필터 기준 지수 (QQQ만) ────────────────────────────
+MARKET_TICKER = "QQQ"
 
 def safe(x, nd=2):
     try:
@@ -49,6 +58,16 @@ def cross_state(fast, slow, lookback=2):
         if now < 0 and prev >= 0: return "dead"
     return "none"
 
+def market_below_ma20(ticker):
+    """기준 지수가 20일선 아래인지 (약세장 판단)"""
+    try:
+        df = yf.Ticker(ticker).history(period="3mo", interval="1d", auto_adjust=False)
+        if df is None or len(df) < 21: return False
+        c = df["Close"]
+        return bool(c.iloc[-1] < c.rolling(20).mean().iloc[-1])
+    except Exception:
+        return False
+
 def analyze(ticker, name, category):
     df = yf.Ticker(ticker).history(period=PERIOD, interval="1d", auto_adjust=False)
     if df is None or len(df) < 30: raise ValueError("데이터 부족")
@@ -65,6 +84,10 @@ def analyze(ticker, name, category):
     va = vol.rolling(20).mean().shift(1).iloc[-1]
     vr = (vol.iloc[-1] / va) if va and va > 0 else None
     chg = (close.iloc[-1] / close.iloc[-2] - 1) * 100 if len(close) >= 2 else None
+    # ATR(14) 기반 변동성 %(참고용, 신호엔 미반영·표시용)
+    tr = pd.concat([(high-low), (high-close.shift()).abs(), (low-close.shift()).abs()], axis=1).max(axis=1)
+    atr = tr.rolling(14).mean().iloc[-1]
+    atr_pct = (atr / close.iloc[-1] * 100) if close.iloc[-1] else None
     is_kr = ticker.endswith(".KS") or ticker.endswith(".KQ")
     nd = 0 if is_kr else 2
     return {
@@ -76,25 +99,34 @@ def analyze(ticker, name, category):
         "ma5": safe(ma5.iloc[-1], nd), "ma20": safe(ma20.iloc[-1], nd), "ma60": safe(ma60.iloc[-1], nd),
         "rsi": safe(rsi.iloc[-1]),
         "macd": safe(macd.iloc[-1], 4), "macd_signal": safe(sig.iloc[-1], 4),
+        "macd_zero": "above" if macd.iloc[-1] > 0 else "below",   # 0선 위/아래
         "macd_cross": cross_state(macd, sig),
         "bb_pos": safe(bb),
         "stoch_k": safe(k.iloc[-1]), "stoch_d": safe(d.iloc[-1]),
         "stoch_cross": cross_state(k, d),
+        "atr_pct": safe(atr_pct),
         "last_date": df.index[-1].strftime("%Y-%m-%d"),
     }
 
 def main():
+    mkt_weak = market_below_ma20(MARKET_TICKER)
+    print(f"시장({MARKET_TICKER}) 20일선 아래? {mkt_weak}")
     results, failed = [], []
     for cat, items in WATCHLIST.items():
         for tk, nm in items.items():
             try:
-                results.append(analyze(tk, nm, cat)); print("OK", tk)
+                row = analyze(tk, nm, cat)
+                is_kr = tk.endswith(".KS") or tk.endswith(".KQ")
+                # 시장 필터: 미국 종목이고 QQQ가 약세면 표시 (대시보드가 -0.5 반영)
+                row["market_weak"] = bool(mkt_weak and not is_kr)
+                results.append(row); print("OK", tk)
             except Exception as e:
                 failed.append(f"{tk} ({nm}) — {e}"); print("SKIP", tk, e)
     now_kst = datetime.utcnow() + timedelta(hours=9)
     payload = {
         "generated_at": now_kst.strftime("%Y-%m-%d %H:%M") + " KST",
         "note": "yfinance 무료 데이터 · 15~20분 지연 · 참고용",
+        "market": {"ticker": MARKET_TICKER, "below_ma20": bool(mkt_weak)},
         "stocks": results, "failed": failed,
     }
     with open("signals.json", "w", encoding="utf-8") as f:
