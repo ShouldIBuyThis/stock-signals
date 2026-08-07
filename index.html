@@ -40,10 +40,24 @@ header{background:var(--panel);border:1px solid var(--line);border-radius:12px;p
 .notice{margin-top:10px;font-size:11.5px;color:var(--faint);line-height:1.6}.notice em{font-style:normal;color:var(--dim)}
 .autoline{margin-top:9px;font-size:12px;color:var(--accent);background:#111a2b;border:1px solid #22344f;border-radius:7px;padding:6px 10px;line-height:1.5}
 .autoline b{color:#cfe1ff}
+.headinfo{margin-top:9px;font-size:11.5px;background:#111a2b;border:1px solid #22344f;border-radius:8px;padding:7px 11px}
+.headinfo summary{cursor:pointer;color:var(--accent);list-style:none;line-height:1.5}
+.headinfo summary::-webkit-details-marker{display:none}
+.headinfo summary b{color:#cfe1ff}
+.headinfo summary em{font-style:normal;color:var(--warn)}
+.headinfo summary .more{color:var(--faint);font-size:10.5px}
+.headinfo[open] summary .more{color:var(--accent)}
+.headinfo-body{margin-top:7px;padding-top:7px;border-top:1px solid #22344f;color:var(--dim);line-height:1.65}
+.headinfo-body b{color:var(--txt)}
 .sortnote{font-size:11.5px;color:var(--dim);margin-bottom:6px}
 
 /* ── 툴바 ── */
 .toolbar{display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin-bottom:12px}
+.principle{padding:2px 2px 8px;margin-bottom:6px;font-size:11.5px;color:var(--faint);line-height:1.6}
+.principle b{color:var(--dim);font-weight:normal}
+.principle .p1,.principle .p2,.principle .p3{color:var(--dim)}
+.principle .parrow{color:#3a4356;margin:0 3px}
+@media (max-width:480px){ .principle{font-size:11px} }
 .sortbar{background:var(--panel);border:1px solid #2b3a56;border-radius:10px;padding:9px 11px;margin-bottom:10px}
 .sortlabel{display:block;font-size:11px;color:var(--accent);margin-bottom:7px;letter-spacing:.3px}
 .sorttabs{display:flex;flex-wrap:wrap;gap:6px}
@@ -103,6 +117,14 @@ section.cat>h3{font-size:13px;color:var(--dim);border-bottom:1px solid var(--lin
 section.cat>h3 .cnt{color:var(--faint);font-weight:normal}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(295px,1fr));gap:10px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:12px 13px;position:relative}
+.expand-btn{width:100%;margin-top:9px;padding:6px;font-size:11px;background:#0f1622;border:1px solid var(--line);border-radius:6px;color:var(--faint)}
+.expand-btn:hover{color:var(--accent);border-color:var(--accent)}
+.card.simple{padding:11px 12px}
+.card.simple .price-row{margin:6px 0 0;flex-wrap:wrap;gap:8px}
+.card.simple .grade{margin-left:auto}
+.card.simple .reason{min-height:0;margin:8px 0 7px;font-size:12px;color:var(--txt)}
+.card.simple .flags{margin-bottom:0}
+.card.simple .card-tools button{font-size:12px}
 .card.g5{border-left:3px solid var(--sbuy)} .card.g4{border-left:3px solid var(--buy)}.card.g3{border-left:3px solid #3a4356} .card.g2{border-left:3px solid var(--sell)}
 .card.g1{border-left:3px solid var(--ssell)}
 .card-top{display:flex;align-items:baseline;gap:8px}
@@ -204,17 +226,25 @@ dialog .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
     <div class="stamp">오늘 <b id="todayStr"></b> · 데이터 기준 <b id="dataStamp">—</b></div>
   </div>
   <div class="sumline" id="sumLine"></div>
-  <div class="autoline">🕘 자동 갱신(한국시간): <b>09:00 — 미국장 마감 종가</b> · <b>16:00 — 한국장 마감 종가</b><br>※ 프리장·장중 실시간 미반영. <b>일봉 종가만</b> 씁니다 — 시간봉은 단타용이라 속임수 신호에 걸리기 쉬워요.</div>
-  <div class="notice">
-    <em>⚠ 모든 지표는 참고용</em>입니다. <em>일봉 종가 기준 · 3일~2주 스윙 관점</em>(당일매매 관점 아님). 박스권·강한 추세장에서는 같은 신호가 반대로 해석될 수 있어요.
-  </div>
+  <details class="headinfo">
+    <summary>🕘 <b>09:00 미국장</b> · <b>16:00 한국장</b> 종가 자동 갱신 · <em>지표는 참고용</em> <span class="more">— 자세히</span></summary>
+    <div class="headinfo-body">
+      · 프리장·장중 실시간은 반영되지 않습니다. <b>일봉 종가만</b> 씁니다 — 시간봉은 단타용이라 속임수 신호에 걸리기 쉬워요.<br>
+      · <b>일봉 종가 기준 · 3일~2주 스윙 관점</b>(당일매매 관점 아님). 박스권·강한 추세장에서는 같은 신호가 반대로 해석될 수 있어요.<br>
+      · 신호는 <b>QQQ(미장) 추세</b>도 반영합니다.
+    </div>
+  </details>
 </header>
+
+<div class="principle">
+  <b>💡 신호를 봤다면</b> → <span class="p1">① 정찰병(소량)</span> <span class="parrow">→</span> <span class="p2">② 눌림·거래량 확인</span> <span class="parrow">→</span> <span class="p3">③ 분할 매수</span>
+</div>
 
 <div class="sortbar">
   <span class="sortlabel">① 보기 방식</span>
   <div class="viewtabs" id="viewTabs">
     <button data-view="compact">📋 모아보기 <em>한눈에 훑기</em></button>
-    <button data-view="card">🗂 카드보기 <em>지표 자세히</em></button>
+    <button data-view="card">🗂 카드보기 <em>종목별 상세</em></button>
   </div>
   <span class="sortlabel" style="margin-top:11px">② 정렬 — 눌러서 바꾸기</span>
   <div class="sorttabs" id="sortTabs">
@@ -324,7 +354,11 @@ dialog .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
   · <b>실적 발표(어닝콜) 전후에는 참고하지 마세요.</b> 실적 하나로 지표와 무관하게 급등락하므로, 기술적 신호가 무력해집니다. 보유·관심 종목의 실적일은 미리 확인하세요.<br>
   · <b>지표에 안 잡히는 것들이 있어요.</b> 공매도 잔고·수급, 뉴스·공시·규제, 유상증자, 지수 편입/제외 같은 이벤트는 이 신호에 전혀 반영되지 않습니다. 차트만 보고 판단하지 마세요.<br>
   · <b>시장 약세·급락장에서는 신호가 잘 맞지 않습니다.</b> 개별 종목 지표가 좋아도 지수가 무너지면 같이 빠집니다. (QQQ 20일선 아래일 때 감점을 주지만 완전한 방어는 아닙니다.)<br>
-  · 보기 설정(★보유 체크·숨김·정렬 등)은 <b>내 기기에만</b> 저장돼요. 다른 사람 화면에는 영향을 주지 않습니다.
+  · 보기 설정(★보유 체크·숨김·정렬 등)은 <b>내 기기에만</b> 저장돼요. 다른 사람 화면에는 영향을 주지 않습니다.<br>
+  <br>
+  <b>🧪 현재 검증(백테스트) 진행 중입니다</b><br>
+  · 이 신호가 실제로 얼마나 맞는지는 <b>아직 검증되지 않았습니다.</b> 2026년 8월부터 매 갱신마다 신호 이력을 저장하고 있으며, 표본이 충분히 쌓이면(약 3개월) 강한매수 신호의 5일·10일 후 성과를 집계해 공개할 예정입니다.<br>
+  · 그때까지는 <b>"검증 전 도구"</b>로만 보시고, 신호를 매수 근거가 아니라 <b>관찰 대상을 좁히는 필터</b>로 사용하세요.
 </footer>
 
 <dialog id="dlg">
@@ -349,7 +383,7 @@ const DEMO = {
   ],
   failed: []
 };
-let state = { data: DEMO, isDemo: true, overrides: {}, hidden: [], placeholders: [], sort: "category", dataUrl: "", showHoldings: false, autoRefresh: true, holdings: [], market: "all", compact: (typeof window !== "undefined" && window.innerWidth <= 640) };
+let state = { data: DEMO, isDemo: true, overrides: {}, hidden: [], placeholders: [], sort: "signal", dataUrl: "", showHoldings: false, autoRefresh: true, holdings: [], market: "all", view: "compact", expanded: [] };
 
 /* ══════════════ 알림 토스트 + 자동갱신 ══════════════ */
 let toastTimer = null;
@@ -378,7 +412,7 @@ let saveTimer = null;
 function saveState(){
   try{
     const payload = { data: state.isDemo ? null : state.data, overrides: state.overrides,
-                      hidden: state.hidden, placeholders: state.placeholders, sort: state.sort, dataUrl: state.dataUrl, showHoldings: state.showHoldings, autoRefresh: state.autoRefresh, holdings: state.holdings, market: state.market, compact: state.compact };
+                      hidden: state.hidden, placeholders: state.placeholders, sort: state.sort, dataUrl: state.dataUrl, showHoldings: state.showHoldings, autoRefresh: state.autoRefresh, holdings: state.holdings, market: state.market, view: state.view, expanded: state.expanded };
     localStorage.setItem(LS_KEY, JSON.stringify(payload));
     const ind = document.getElementById("saveInd");
     if (ind){ ind.textContent = "저장됨 ✓ " + new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"}); ind.className = "save-ind saved"; }
@@ -396,13 +430,14 @@ function loadState(){
     state.overrides = p.overrides || {};
     state.hidden = p.hidden || [];
     state.placeholders = p.placeholders || [];
-    state.sort = p.sort || "category";
+    state.sort = p.sort || "signal";
     state.dataUrl = p.dataUrl || "";
     state.showHoldings = p.showHoldings !== undefined ? p.showHoldings : false;
     state.autoRefresh = p.autoRefresh !== undefined ? p.autoRefresh : true;
     state.holdings = p.holdings || [];
     state.market = p.market || "all";
-    state.compact = p.compact !== undefined ? p.compact : (window.innerWidth <= 640);
+    state.view = (p.view === "card") ? "card" : "compact";
+    state.expanded = p.expanded || [];
     return true;
   }catch(e){ return false; }
 }
@@ -726,6 +761,33 @@ function cardHTML(s){
     <div class="flags">${flags}</div>
     <div class="gauges">${gauges}</div>
     <div class="mini-note">MA5 ${r1(s.ma5)} · MA20 ${r1(s.ma20)} · MA60 ${r1(s.ma60)} · 거래량 ${fmtVol(s.volume)} · ${esc(s.last_date||"")}</div>
+    <button class="expand-btn" data-act="collapse">▴ 접기</button>
+  </div>`;
+}
+
+function renderCard(s){ return state.expanded.includes(s.ticker) ? cardHTML(s) : simpleCardHTML(s); }
+
+/* 🔰 간단 카드 — 초보자용: 등급·근거·핵심 딱지만 */
+function simpleCardHTML(s){
+  const g = s.sig.grade;
+  const chgCls = has(s.change_1d) ? (s.change_1d > 0 ? "up" : s.change_1d < 0 ? "dn" : "") : "";
+  // 게이지 대신 한 줄 요약(과열/과매도/거래량만)
+  const key = s.sig.flags.filter(f => /추격주의|추세형|반등형|과열|과매도|거래량|약세장|신고가/.test(f.t)).slice(0,3);
+  const flags = key.map(f=>`<span class="flag ${f.c}">${f.t}</span>`).join("");
+  return `<div class="card simple g${g}" data-tk="${esc(s.ticker)}">
+    <div class="card-tools">
+      <button data-act="own" class="${s._holding?"on":""}" title="보유종목으로 표시/해제">${s._holding?"★":"☆"}</button>
+      <button data-act="hide" title="이 카드 숨기기">✕</button>
+    </div>
+    <div class="card-top"><span class="tk">${esc(s.ticker)}</span><span class="nm">${esc(s.name||"")}</span></div>
+    <div class="price-row">
+      <span class="price">${fmtPrice(s)}</span>
+      <span class="chg ${chgCls}">${fmtChg(s.change_1d)}</span>
+      <span class="grade g${g}">${GRADES[g]}</span>
+    </div>
+    <div class="reason simple-reason">${esc(s.sig.line)}</div>
+    <div class="flags">${flags}</div>
+    <button class="expand-btn" data-act="expand">▾ 자세히 보기 (지표·게이지)</button>
   </div>`;
 }
 
@@ -777,7 +839,7 @@ function render(){
   const board = document.getElementById("board");
   let html = "";
   const sortKey = s => state.sort === "trend" ? s.sig.trendScore : state.sort === "reversal" ? s.sig.revScore : s.sig.score;
-  if (state.compact){
+  if (state.view === "compact"){
     // 모아보기: 현재 정렬 기준 점수 높은 순으로 한 줄씩
     const sorted = stocks.slice().sort((a,b)=> sortKey(b) - sortKey(a) || Math.abs(b.change_1d||0) - Math.abs(a.change_1d||0));
     const head = (state.sort==="trend" ? "🟢 추세형 순" : state.sort==="reversal" ? "🟡 반등형 순" : state.sort==="category" ? "카테고리순(모아보기는 신호순 정렬)" : "(종합) 신호 강한 순") + " · 종목을 누르면 상세 카드로 이동";
@@ -794,7 +856,7 @@ function render(){
       ? `🟡 반등형 순 <span class="cnt">(바닥권 전환·과매도 반등 강한 순)</span>`
       : `(종합) 신호 강한 순 <span class="cnt">(매수 신호 → 매도 신호)</span>`;
     html += `<section class="cat"><h3>${title}</h3><div class="grid">`;
-    html += sorted.map(cardHTML).join("");
+    html += sorted.map(renderCard).join("");
     html += state.placeholders.map(placeholderHTML).join("");
     html += `</div></section>`;
   } else {
@@ -803,7 +865,7 @@ function render(){
     state.placeholders.forEach(p=>{ const c = p.category || "기타"; if(!cats.has(c)) cats.set(c, []); cats.get(c).push(Object.assign({__ph:true}, p)); });
     for (const [cat, arr2] of cats){
       html += `<section class="cat"><h3>${esc(cat)} <span class="cnt">(${arr2.length})</span></h3><div class="grid">`;
-      html += arr2.map(x => x.__ph ? placeholderHTML(x) : cardHTML(x)).join("");
+      html += arr2.map(x => x.__ph ? placeholderHTML(x) : renderCard(x)).join("");
       html += `</div></section>`;
     }
   }
@@ -979,13 +1041,13 @@ document.getElementById("sortTabs").addEventListener("click", e => {
 document.getElementById("btnAdd").onclick = () => openDlg("add");
 function syncViewTabs(){
   document.querySelectorAll("#viewTabs button").forEach(b=>{
-    b.classList.toggle("active", (b.dataset.view === "compact") === !!state.compact);
+    b.classList.toggle("active", b.dataset.view === state.view);
   });
 }
 document.getElementById("viewTabs").addEventListener("click", e => {
   const b = e.target.closest("button[data-view]");
   if (!b) return;
-  state.compact = (b.dataset.view === "compact");
+  state.view = b.dataset.view;
   syncViewTabs(); render(); saveState();
 });
 const MARKET_LABEL = { all:"🌐 전체", us:"🇺🇸 미국장", kr:"🇰🇷 한국장" };
@@ -1034,9 +1096,10 @@ document.getElementById("fileImport").onchange = e => { if (e.target.files[0]) i
 document.getElementById("board").addEventListener("click", e => {
   // 모아보기 행 클릭 → 카드보기로 전환하고 해당 종목으로 이동
   const row = e.target.closest(".crow[data-tk]");
-  if (row && state.compact){
+  if (row && state.view === "compact"){
     const tk = row.dataset.tk;
-    state.compact = false;
+    state.view = "card";
+    if (!state.expanded.includes(tk)) state.expanded.push(tk);
     syncViewTabs(); render(); saveState();
     setTimeout(()=>{
       const esc2 = (window.CSS && CSS.escape) ? CSS.escape(tk) : tk.replace(/["\\]/g, "\\$&");
@@ -1058,6 +1121,16 @@ document.getElementById("board").addEventListener("click", e => {
     const tk = card.dataset.tk;
     if (state.holdings.includes(tk)) state.holdings = state.holdings.filter(t=>t!==tk);
     else state.holdings.push(tk);
+    render(); saveState();
+  }
+  else if (act === "expand"){
+    const tk = card.dataset.tk;
+    if (!state.expanded.includes(tk)) state.expanded.push(tk);
+    render(); saveState();
+    setTimeout(()=>{ const c=document.querySelector(`.card[data-tk="${(window.CSS&&CSS.escape)?CSS.escape(tk):tk}"]`); if(c) c.scrollIntoView({block:"nearest"}); },30);
+  }
+  else if (act === "collapse"){
+    state.expanded = state.expanded.filter(t => t !== card.dataset.tk);
     render(); saveState();
   }
   else if (act === "edit"){ openDlg("edit", card.dataset.tk); }
