@@ -24,8 +24,7 @@ WATCHLIST = {
         "KO":"코카콜라", "MCD":"맥도날드", "LLY":"일라이릴리",
         "UNH":"유나이티드헬스", "HIMS":"힘스앤허스", "JPM":"JP모건", "CAT":"캐터필러"},
     "반도체":        {"NVDA":"엔비디아", "SOXL":"반도체 3x", "MU":"마이크론",
-                      "SNDK":"샌디스크", "AMAT":"어플라이드머티어리얼즈", "ALAB":"아스테라랩스",
-                      "INTC":"인텔", "DELL":"델", "STX":"씨게이트", "AMD":"AMD"},
+                      "SNDK":"샌디스크", "AMAT":"어플라이드머티어리얼즈", "ALAB":"아스테라랩스"},
     "데이터센터":    {"APLD":"어플라이드디지털", "NBIS":"네비우스", "CRWV":"코어위브", "IREN":"아이렌"},
     "소프트웨어":    {"MSFT":"마이크로소프트", "NOW":"서비스나우", "PLTR":"팔란티어", "CRWD":"크라우드스트라이크"},
     "광통신":        {"AAOI":"어플라이드옵토", "GLW":"코닝", "LITE":"루멘텀", "CIEN":"시에나", "POET":"포엣테크놀로지"},
@@ -35,12 +34,10 @@ WATCHLIST = {
     "원자재·금광":   {"XOM":"엑슨모빌", "GDXU":"금광주 3x"},
     "암호화폐":      {"MSTR":"마이크로스트래티지", "BMNR":"비트마인", "COIN":"코인베이스"},
     "양자컴퓨팅":    {"IONQ":"아이온큐", "QBTS":"디웨이브", "INFQ":"인플렉션", "RGTI":"리게티컴퓨팅"},
-    "우주·UAM":      {"RKLB":"로켓랩", "SPCX":"스페이스X", "PL":"플래닛랩스", "JOBY":"조비에비에이션",
-                      "RDW":"레드와이어"},
+    "우주·UAM":      {"RKLB":"로켓랩", "SPCX":"스페이스X", "PL":"플래닛랩스", "JOBY":"조비에비에이션"},
     "방산·드론":     {"RCAT":"레드캣홀딩스", "LMT":"록히드마틴", "LHX":"L3해리스"},
     "주택":          {"ITB":"미국주택건설 ETF", "NAIL":"주택건설 3x"},
-    "빅테크":        {"META":"메타", "AAPL":"애플", "GOOGL":"구글", "AMZN":"아마존"},
-   "국장":          {"069500.KS":"코스피", "229200.KS":"코스닥"}
+    "국장":          {"069500.KS":"코스피", "229200.KS":"코스닥"},
 }
 
 # ── 시장 필터 기준 지수 (QQQ만) ────────────────────────────
@@ -111,26 +108,6 @@ def drop_unclosed(df, ticker):
         return df                                          # 오늘 봉이지만 마감 지남 → 확정
     return df.iloc[:-1]                                    # 장중 → 미완성 봉 제거
 
-def futures_snapshot(ticker="NQ=F", label="나스닥 선물"):
-    """참고용: 나스닥 선물 최근 등락률. 신호 점수엔 반영하지 않음."""
-    try:
-        df = yf.Ticker(ticker).history(period="5d", interval="1h", auto_adjust=False)
-        if df is None or len(df) < 2:
-            return None
-        close = df["Close"].dropna()
-        if len(close) < 2:
-            return None
-        # 직전 정규장 종가(전일 마지막 값) 대비 현재
-        last = float(close.iloc[-1])
-        base_day = df.index[-1].date()
-        prev = close[[d.date() < base_day for d in close.index]]
-        base = float(prev.iloc[-1]) if len(prev) else float(close.iloc[0])
-        chg = (last / base - 1) * 100 if base else None
-        return {"ticker": ticker, "label": label, "price": safe(last), "change": safe(chg)}
-    except Exception as e:
-        print("선물 조회 실패:", e)
-        return None
-
 def analyze(ticker, name, category):
     df = yf.Ticker(ticker).history(period=PERIOD, interval="1d", auto_adjust=False)
     df = drop_unclosed(df, ticker)
@@ -182,8 +159,6 @@ def main():
     mkt = market_state(MARKET_TICKER)
     mkt_level = mkt["level"]
     print(f"시장({MARKET_TICKER}) 국면: {mkt_level} — {mkt['detail']}")
-    fut = futures_snapshot()
-    print("나스닥 선물:", fut)
     results, failed = [], []
     for cat, items in WATCHLIST.items():
         for tk, nm in items.items():
@@ -213,7 +188,6 @@ def main():
         "generated_at": now_kst.strftime("%Y-%m-%d %H:%M") + " KST",
         "note": "yfinance 무료 데이터 · 15~20분 지연 · 참고용",
         "market": mkt,
-        "futures": fut,
         "sectors": sectors,
         "stocks": results, "failed": failed,
     }
