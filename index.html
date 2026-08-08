@@ -377,7 +377,8 @@ html[data-theme="dark"] .close-update-text{color:var(--muted)}
 /* 미장·국장 전환 (이모지) */
 .mkswitch{display:inline-flex;gap:3px;background:var(--surface2);border:1px solid var(--line);border-radius:999px;padding:3px}
 .mkswitch button{width:34px;height:26px;border-radius:999px;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center}
-.mkswitch button.on{background:var(--navy)}
+.mkswitch button.on{background:var(--navy);box-shadow:0 1px 3px rgba(16,24,40,.25)}
+html[data-theme="dark"] .mkswitch button.on{background:#37456a;box-shadow:none}
 .mkswitch button:hover{background:var(--navy-soft)}
 .mkswitch button.on:hover{background:var(--navy)}
 .themebar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:12px 0 10px}
@@ -716,9 +717,9 @@ function evaluate(s){
   const overheat = (has(rsi)&&rsi>=70) || (has(bb)&&bb>=95);
   const brokeSupport = !a20 && (( has(ma5)&&has(ma20)&&ma5<ma20 ) || s.macd_cross==="dead");
   if (g<=2){
-    if (brokeSupport){ sellType="비상탈출"; tags.unshift({c:"t-hot",t:"🚨 비상탈출 — 지지선 이탈",click:"비상탈출"}); }
+    if (brokeSupport){ sellType="추세이탈"; tags.unshift({c:"t-hot",t:"🚨 추세 이탈 — 지지선 붕괴",click:"추세이탈"}); }
     else if (overheat){ sellType="과열익절"; tags.unshift({c:"t-warn",t:"🔥 과열 분할익절",click:"과열익절"}); }
-    else { sellType="비상탈출"; tags.unshift({c:"t-hot",t:"🚨 비상탈출 — 추세 이탈",click:"비상탈출"}); }
+    else { sellType="추세이탈"; tags.unshift({c:"t-hot",t:"🚨 추세 이탈",click:"추세이탈"}); }
   } else if (g>=4 && overheat){
     tags.push({c:"t-hot",t:"⚠ 과열 — 익절 구간 주의",click:"과열주의"});
   }
@@ -1088,7 +1089,7 @@ function renderHelp(){
     <details class="acc"><summary>매도 신호 두 가지 구분</summary>
       <div class="help-grid" style="margin-top:10px">
         <div class="help-card"><b>🔥 과열 분할익절</b><br>추세는 아직 살아있는데 RSI·볼린저가 과열된 상태.<br>→ 전량 매도보다 <b>분할 익절</b>을 검토하는 구간.</div>
-        <div class="help-card"><b>🚨 비상탈출</b><br>20일선을 잃고 이동평균이 무너졌거나 MACD 데드크로스가 겹친 상태.<br>→ <b>지지선이 깨진</b> 것이라 손절 검토 구간.</div>
+        <div class="help-card"><b>🚨 추세 이탈</b><br>20일선을 잃고 이동평균이 무너졌거나 MACD 데드크로스가 겹친 상태.<br>→ <b>단기 스윙 관점에서 지지선이 깨진</b> 자리라는 뜻입니다. 장기 보유 종목이라면 판단 기준이 다릅니다.</div>
         <div class="help-card"><b>⚠ 과열 — 익절 구간 주의</b><br>등급은 아직 매수인데 과열 지표가 뜬 경우. 신규 진입은 쉬고 보유분 익절을 고려하세요.</div>
       </div>
     </details>
@@ -1232,10 +1233,15 @@ function explainStyle(kind){
   const close = `<div class="modal-actions"><button class="primary" onclick="document.getElementById('modal').classList.remove('on')">닫기</button></div>`;
   const P = t => `<p style="font-size:13px;color:var(--reason);line-height:1.8">${t}</p>`;
 
-  if (kind === "비상탈출"){
-    openModal(`<h3>🚨 비상탈출</h3>` +
+  if (kind === "추세이탈"){
+    openModal(`<h3>🚨 추세 이탈</h3>` +
       P(`20일선을 잃고 이동평균이 무너졌거나, MACD 데드크로스가 겹친 상태예요.<br><br>
-         → <b>지지선이 깨진 것</b>이라 손절을 검토하는 구간입니다.`) + close);
+         → <b>3일~2주 단기 스윙 관점에서 지지선이 깨졌다</b>는 뜻이지, 팔라는 신호가 아닙니다.<br><br>
+         <b>장기 투자자라면 흔들리지 마세요.</b> 이 신호는 최근 며칠의 차트 모양만 봅니다.
+         회사의 실적·성장성·산업 전망은 전혀 반영하지 않아요.
+         길게 보고 믿고 담은 종목이라면 이 뱃지 하나로 계획을 바꿀 이유는 없습니다.<br><br>
+         · 단기 스윙으로 들어온 자리라면 → 미리 정해둔 손절선을 지켰는지 점검할 때<br>
+         · 장기 보유 종목이라면 → 오히려 분할 매수 구간인지 따져볼 수도 있는 자리`) + close);
     return;
   }
   if (kind === "과열익절"){
