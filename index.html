@@ -106,7 +106,7 @@ html[data-theme="dark"] .sresult .tk{color:#eef2f8} .sresult .nm{color:var(--mut
 .principle{font-size:11.5px;color:var(--muted);margin:10px 0 4px}
 .principle b{color:var(--ink)}
 
-/* 시장·선물 배지 */
+/* 시장 배지 */
 .marketbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:12px 0 10px}
 .mchip{font-size:11.5px;font-weight:700;border-radius:999px;padding:4px 11px;border:1px solid var(--line);background:var(--surface)}
 .mchip.good{color:var(--buy);border-color:#bfe6d0}
@@ -529,7 +529,7 @@ function normalize(raw){
       last_date: it.last_date || ""
     };
   });
-  return { generated_at: stamp, stocks, failed: raw.failed||[], market: raw.market||null, sectors: raw.sectors||null, futures: raw.futures||null };
+  return { generated_at: stamp, stocks, failed: raw.failed||[], market: raw.market||null, sectors: raw.sectors||null };
 }
 
 /* ══════════ 신호 엔진 ══════════ */
@@ -752,19 +752,11 @@ function widget(title, sub, rows, emptyMsg){
 }
 function marketBar(){
   const mk = state.data && state.data.market;
-  const fu = state.data && state.data.futures;
-  if (!mk && !fu) return "";
-  const LV = {
-    strong:  {cls:"good",  t:"강세",   ico:"✅"},
-    neutral: {cls:"mid",   t:"중립",   ico:"➖"},
-    caution: {cls:"warn",  t:"주의",   ico:"⚠"},
-    weak:    {cls:"bad",   t:"약세",   ico:"🚨"}
-  };
-  const lv = LV[(mk&&mk.level)||"neutral"] || LV.neutral;
-  const mkB = mk ? `<span class="mchip ${lv.cls}">${esc(mk.ticker)} 시장 ${lv.t} ${lv.ico}${mk.detail?`<em>${esc(mk.detail)}</em>`:""}</span>` : "";
-  const fuB = (fu && has(fu.change))
-    ? `<span class="mchip ${fu.change<0?"bad":"good"}">${esc(fu.label||"나스닥 선물")} ${fu.change>0?"+":""}${r1(fu.change)}%<em>참고용</em></span>` : "";
-  return `<div class="marketbar">${mkB}${fuB}<span class="mnote">선물은 참고 정보이며 신호 점수에는 반영하지 않습니다</span></div>`;
+  if (!mk) return "";
+  return `<div class="marketbar">
+    <span class="mchip ${mk.below_ma20?"bad":"good"}">${esc(mk.ticker)} 20일선 ${mk.below_ma20?"아래 ⚠":"위 ✅"}</span>
+    <span class="mnote">${mk.below_ma20?"미국장 약세 — 미국 종목 신호에 감점이 적용됩니다":"미국장 추세 양호"}</span>
+  </div>`;
 }
 function themeHoldBar(){
   return `<div class="filters" style="margin-bottom:12px">
@@ -1023,7 +1015,6 @@ function renderHelp(){
       <div class="help-grid" style="margin-top:10px">
         <div class="help-card"><b>거래량</b><br>20일 평균 대비 배율로 봅니다. <b>거래량이 실린 움직임</b>은 신뢰도가 높다고 보고 비중 있게 반영하고, <b>거래량 없이 나온 반등</b>은 오히려 감점합니다.</div>
         <div class="help-card"><b>시장 국면 (QQQ 4단계)</b><br><b>강세</b> 20일선 위 + 20일선 상승 + 60일선 위<br><b>중립</b> 20일선 위이나 추세 약함<br><b>주의</b> 20일선 아래(60일선 유지)<br><b>약세</b> 20·60일선 모두 아래<br>→ 국면이 나쁠수록 미국 종목 전체에 감점 폭이 커집니다.</div>
-        <div class="help-card"><b>나스닥 선물</b><br>16시 갱신 때 밤사이 분위기를 가늠하는 <b>참고 정보</b>일 뿐, 점수에는 반영하지 않습니다.</div>
       </div>
     </details>
 
@@ -1049,11 +1040,8 @@ function render(){
   const stamp = document.getElementById("stamp");
   stamp.textContent = state.data ? (state.data.generated_at || "기준 시각 미표기") : "데이터 불러오는 중…";
   const mk = state.data && state.data.market;
-  const fu = state.data && state.data.futures;
-  const LVT = {strong:"강세",neutral:"중립",caution:"주의",weak:"약세"};
-  document.getElementById("mktInfo").innerHTML =
-    (mk ? `현재 <b>${esc(mk.ticker)}</b> 시장 국면은 <b>${LVT[mk.level]||"중립"}</b>${mk.detail?` (${esc(mk.detail)})`:""}입니다.` : "")
-    + (fu && has(fu.change) ? ` <b>${esc(fu.label||"나스닥 선물")}</b> ${fu.change>0?"+":""}${r1(fu.change)}% — <b>참고용</b>이며 신호 점수에는 반영하지 않습니다.` : "");
+  document.getElementById("mktInfo").innerHTML = mk
+    ? `현재 <b>${esc(mk.ticker)}</b>는 20일선 ${mk.below_ma20?'<b style="color:var(--sell)">아래(약세)</b>':'<b style="color:var(--buy)">위</b>'}입니다.` : "";
 
   const main = document.getElementById("main");
   if (!state.data){ main.innerHTML = `<div class="empty-state">데이터를 불러오는 중이에요…</div>`; return; }
