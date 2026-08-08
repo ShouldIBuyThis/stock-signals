@@ -73,7 +73,7 @@ header{background:var(--navy);color:#fff;padding:14px 0 0}
 .btn-admin{background:#3b4a6d;color:#dfe6f3;border-radius:9px;padding:8px 12px;font-size:12.5px;font-weight:600;white-space:nowrap}
 .btn-admin:hover{background:#46567c}
 /* 검색 결과 */
-.sresult{position:absolute;z-index:40;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(16,24,40,.14);max-height:300px;overflow:auto;min-width:230px}
+.sresult{position:absolute;z-index:40;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(16,24,40,.14);max-height:300px;overflow:auto;min-width:230px}
 .sresult button{display:flex;width:100%;gap:9px;align-items:center;padding:9px 12px;font-size:13px;border-bottom:1px solid #f1f3f5;text-align:left}
 .sresult button:last-child{border-bottom:none}
 .sresult button:hover{background:var(--navy-soft)}
@@ -98,13 +98,26 @@ html[data-theme="dark"] .sresult .tk{color:#eef2f8} .sresult .nm{color:var(--mut
 .up{color:var(--up)} .down{color:var(--down)}
 
 /* 안내 스트립 */
-.strip{background:#fff;border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin:12px 0;font-size:12px;color:var(--muted);line-height:1.6}
+.strip{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin:12px 0;font-size:12px;color:var(--muted);line-height:1.6}
 .strip b{color:var(--ink)}
 .strip details summary{cursor:pointer;color:var(--navy);font-weight:600;list-style:none}
 .strip details summary::-webkit-details-marker{display:none}
 .strip details[open] summary{margin-bottom:6px}
 .principle{font-size:11.5px;color:var(--muted);margin:10px 0 4px}
 .principle b{color:var(--ink)}
+
+/* 시장·선물 배지 */
+.marketbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:12px 0 10px}
+.mchip{font-size:11.5px;font-weight:700;border-radius:999px;padding:4px 11px;border:1px solid var(--line);background:var(--surface)}
+.mchip.good{color:var(--buy);border-color:#bfe6d0}
+.mchip.mid{color:var(--muted);border-color:var(--line)}
+.mchip.warn{color:var(--sell);border-color:#f6dcc0}
+.mchip.bad{color:var(--up);border-color:#f3c9c9}
+.mchip em{font-style:normal;font-size:9.5px;font-weight:600;margin-left:5px;padding:1px 6px;border-radius:999px;background:var(--neutral-soft);color:var(--faint)}
+.mnote{font-size:10.5px;color:var(--faint)}
+html[data-theme="dark"] .mchip.good{border-color:#255c3c}
+html[data-theme="dark"] .mchip.warn{border-color:#5c4423}
+html[data-theme="dark"] .mchip.bad{border-color:#5c2b2b}
 
 /* ── 섹터 히트바 (시그니처) ── */
 .heat{display:flex;gap:3px;flex-wrap:wrap}
@@ -264,7 +277,7 @@ html[data-theme="dark"] .rkitem.top b{color:#a9c6ff}
 @media (min-width:641px){ .fab-top{display:flex;right:14px;bottom:18px} }
 .sheet{position:fixed;inset:0;background:rgba(17,24,39,.45);z-index:60;opacity:0;pointer-events:none;transition:opacity .22s}
 .sheet.on{opacity:1;pointer-events:auto}
-.sheet-in{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:18px 18px 0 0;padding:16px 16px 26px;max-height:86vh;overflow:auto;transform:translateY(100%);transition:transform .24s ease-out}
+.sheet-in{position:absolute;left:0;right:0;bottom:0;background:var(--surface);border-radius:18px 18px 0 0;padding:16px 16px 26px;max-height:86vh;overflow:auto;transform:translateY(100%);transition:transform .24s ease-out}
 .sheet.on .sheet-in{transform:translateY(0)}
 .sheet-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:13px;padding-bottom:11px;border-bottom:1px solid var(--line)}
 .sheet-h .t{font-size:15px;font-weight:800}
@@ -279,7 +292,7 @@ html[data-theme="dark"] .rkitem.top b{color:#a9c6ff}
 /* ── 모달 ── */
 .modal{position:fixed;inset:0;background:rgba(17,24,39,.45);z-index:70;display:flex;align-items:center;justify-content:center;padding:18px;opacity:0;pointer-events:none;transition:opacity .18s}
 .modal.on{opacity:1;pointer-events:auto}
-.modal-box{background:#fff;border-radius:16px;padding:20px;width:100%;max-width:440px;max-height:84vh;overflow:auto;box-shadow:0 12px 40px rgba(16,24,40,.24)}
+.modal-box{background:var(--surface);color:var(--ink);border-radius:16px;padding:20px;width:100%;max-width:440px;max-height:84vh;overflow:auto;box-shadow:0 12px 40px rgba(16,24,40,.24)}
 .modal-box h3{font-size:16px;font-weight:800;margin-bottom:12px}
 .modal-box .fld{margin-bottom:10px}
 .modal-box label{display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;font-weight:600}
@@ -296,18 +309,19 @@ html[data-theme="dark"] .rkitem.top b{color:#a9c6ff}
 .help-card b{color:var(--ink)}
 .help-card.buy{border-left:3px solid var(--buy)}
 .help-card.rev{border-left:3px solid var(--sell)}
-table.cmp{width:100%;border-collapse:collapse;font-size:12px;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+table.cmp{width:100%;border-collapse:collapse;font-size:12px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:10px;overflow:hidden}
 table.cmp th{background:var(--surface2);font-weight:700;font-size:11px;color:var(--muted)}
-table.cmp th,table.cmp td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+table.cmp th,table.cmp td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;color:var(--ink)}
+table.cmp th{color:var(--muted)}
 table.cmp tr:last-child td{border-bottom:none}
-details.acc{background:#fff;border:1px solid var(--line);border-radius:10px;padding:11px 13px;margin-top:9px}
+details.acc{background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:11px 13px;margin-top:9px}
 details.acc summary{cursor:pointer;font-size:13px;font-weight:700;list-style:none}
 details.acc summary::-webkit-details-marker{display:none}
 details.acc summary::before{content:"▸ ";color:var(--faint)}
 details.acc[open] summary::before{content:"▾ "}
 
 /* 방명록 */
-.guest{text-align:center;padding:20px 10px;background:#fff;border:1px solid var(--line);border-radius:var(--radius)}
+.guest{text-align:center;padding:20px 10px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
 .hearts{font-size:34px;font-weight:800;color:var(--up)}
 .thanks{margin-top:12px;background:var(--up);color:#fff;border-radius:999px;padding:11px 26px;font-size:14px;font-weight:700}
 .thanks:active{transform:scale(.96)}
@@ -320,7 +334,7 @@ footer b{color:var(--muted)}
 .toast{position:fixed;left:50%;bottom:80px;transform:translateX(-50%) translateY(12px);background:var(--navy);color:#fff;border-radius:10px;padding:10px 16px;font-size:12.5px;opacity:0;pointer-events:none;transition:.22s;z-index:90;max-width:88%;text-align:center}
 .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 
-.empty-state{background:#fff;border:1px dashed var(--line);border-radius:var(--radius);padding:26px 16px;text-align:center;color:var(--muted);font-size:13px}
+.empty-state{background:var(--surface);color:var(--ink);border:1px dashed var(--line);border-radius:var(--radius);padding:26px 16px;text-align:center;color:var(--muted);font-size:13px}
 
 @media (max-width:640px){
   body{font-size:13.5px}
@@ -362,7 +376,7 @@ footer b{color:var(--muted)}
 <div class="wrap">
   <div class="strip">
     <details>
-      <summary>🕘 09:00 미국장 · 16:00 한국장 종가 자동 갱신 · <b id="stamp">—</b> · 자세히</summary>
+      <summary>🕘 <b>06:00 미국장 · 16:00 한국장</b> 종가 일 1회 갱신 · <b id="stamp">—</b> · 자세히</summary>
       <div style="margin-top:6px">
         · 프리장·장중 실시간은 반영되지 않습니다. <b>일봉 종가만</b> 씁니다 — 시간봉은 단타용이라 속임수 신호에 걸리기 쉬워요.<br>
         · <b>3일~2주 스윙 관점</b>이며 당일매매용이 아닙니다. 박스권·강한 추세장에서는 같은 신호가 반대로 해석될 수 있어요.<br>
@@ -370,7 +384,7 @@ footer b{color:var(--muted)}
       </div>
     </details>
   </div>
-  <div class="principle">💡 신호를 봤다면 → <b>① 정찰병(소량)</b> → <b>② 눌림·거래량·재료 확인</b> → <b>③ 분할 매수/매도</b></div>
+  <div class="principle">💡 신호를 봤다면 → <b>① 정찰병(소량)</b> → <b>② 외부 재료 확인 후 필터링</b> → <b>③ 분할 매수/매도</b></div>
 </div>
 
 <main class="wrap" id="main"></main>
@@ -402,16 +416,16 @@ footer b{color:var(--muted)}
     </div>
     <div class="sheet-label">보기 (전체순위)</div>
     <div class="sheet-grid" id="sheetView">
-      <button class="sheet-btn" data-view="compact">📋 모아보기</button>
-      <button class="sheet-btn" data-view="cards">🃏 펼쳐보기</button>
+      <button class="sheet-btn" data-view="compact">모아보기</button>
+      <button class="sheet-btn" data-view="cards">펼쳐보기</button>
     </div>
     <div class="sheet-label">정렬 (전체순위)</div>
     <div class="sheet-grid" id="sheetSort">
-      <button class="sheet-btn" data-sort="signal">📊 종합 신호순</button>
-      <button class="sheet-btn" data-sort="trend">📈 추세추종</button>
-      <button class="sheet-btn" data-sort="reversal">🔄 반등신호</button>
-      <button class="sheet-btn" data-sort="volume">⚡ 거래량순</button>
-      <button class="sheet-btn" data-sort="category">🗂 테마별</button>
+      <button class="sheet-btn" data-sort="signal">종합 신호순</button>
+      <button class="sheet-btn" data-sort="trend">추세추종</button>
+      <button class="sheet-btn" data-sort="reversal">반등신호</button>
+      <button class="sheet-btn" data-sort="volume">거래량순</button>
+      <button class="sheet-btn" data-sort="category">테마별</button>
     </div>
     <div class="sheet-label">필터</div>
     <div class="sheet-grid" id="sheetFilter">
@@ -419,7 +433,6 @@ footer b{color:var(--muted)}
       <button class="sheet-btn" data-market="us">🇺🇸 미국장</button>
       <button class="sheet-btn" data-market="kr">🇰🇷 한국장</button>
       <button class="sheet-btn" id="sheetHold">⭐ 보유만</button>
-      <button class="sheet-btn full" id="sheetRefresh">🔄 새로고침</button>
     </div>
   </div>
 </div>
@@ -512,11 +525,11 @@ function normalize(raw){
       stoch_k: num(it.stoch_k ?? it.stochK), stoch_d: num(it.stoch_d ?? it.stochD),
       stoch_cross: it.stoch_cross || "none",
       near_high: !!it.near_high, pct_from_high: num(it.pct_from_high),
-      market_weak: !!it.market_weak, atr_pct: num(it.atr_pct),
+      market_weak: !!it.market_weak, market_level: it.market_level || null, atr_pct: num(it.atr_pct),
       last_date: it.last_date || ""
     };
   });
-  return { generated_at: stamp, stocks, failed: raw.failed||[], market: raw.market||null, sectors: raw.sectors||null };
+  return { generated_at: stamp, stocks, failed: raw.failed||[], market: raw.market||null, sectors: raw.sectors||null, futures: raw.futures||null };
 }
 
 /* ══════════ 신호 엔진 ══════════ */
@@ -562,7 +575,9 @@ function evaluate(s){
     if (reclaim||!a5) rPos+=vAdd; else tPos+=vAdd;
     reasons.push({w:2.4,t:`거래량 ${r1(vr)}배 동반`});
   } else if (vAdd<0 && (reclaim||a5)){
-    sNeg+=vAdd; reasons.push({w:1.6,t:`거래량 ${r1(vr)}배로 빈약 — 신뢰도 낮음`});
+    sNeg+=vAdd;
+    // 반등형(바닥권 전환)일 때만 '신뢰도 낮음' 경고 — 추세형엔 문구 생략
+    if (reclaim) reasons.push({w:2.6,t:`거래량 ${r1(vr)}배뿐 — 반등 신뢰도 낮음`});
   }
 
   /* ③ 돌파매매 — 저항선 강하게 돌파 */
@@ -607,7 +622,11 @@ function evaluate(s){
   }
 
   /* ⑧ 시장 필터 */
-  if (s.market_weak){ sNeg-=0.5; tags.push({c:"t-warn",t:"⚠ 시장 약세"}); reasons.push({w:0.7,t:"시장(QQQ) 20일선 아래 — 감점"}); }
+  const lv = s.market_level;
+  if (lv==="weak"){ sNeg-=1.0; tags.push({c:"t-warn",t:"⚠ 시장 약세"}); reasons.push({w:0.9,t:"시장(QQQ) 20·60일선 아래 — 감점"}); }
+  else if (lv==="caution"){ sNeg-=0.5; tags.push({c:"t-warn",t:"⚠ 시장 주의"}); reasons.push({w:0.7,t:"시장(QQQ) 20일선 아래 — 감점"}); }
+  else if (lv==="strong"){ tPos+=0.3; }
+  else if (s.market_weak){ sNeg-=0.5; tags.push({c:"t-warn",t:"⚠ 시장 약세"}); reasons.push({w:0.7,t:"시장(QQQ) 20일선 아래 — 감점"}); }
 
   const trendScore=Math.round((tPos+sNeg)*10)/10;
   const revScore=Math.round((rPos+sNeg)*10)/10;
@@ -731,9 +750,43 @@ function widget(title, sub, rows, emptyMsg){
     ${body}
   </div>`;
 }
+function marketBar(){
+  const mk = state.data && state.data.market;
+  const fu = state.data && state.data.futures;
+  if (!mk && !fu) return "";
+  const LV = {
+    strong:  {cls:"good",  t:"강세",   ico:"✅"},
+    neutral: {cls:"mid",   t:"중립",   ico:"➖"},
+    caution: {cls:"warn",  t:"주의",   ico:"⚠"},
+    weak:    {cls:"bad",   t:"약세",   ico:"🚨"}
+  };
+  const lv = LV[(mk&&mk.level)||"neutral"] || LV.neutral;
+  const mkB = mk ? `<span class="mchip ${lv.cls}">${esc(mk.ticker)} 시장 ${lv.t} ${lv.ico}${mk.detail?`<em>${esc(mk.detail)}</em>`:""}</span>` : "";
+  const fuB = (fu && has(fu.change))
+    ? `<span class="mchip ${fu.change<0?"bad":"good"}">${esc(fu.label||"나스닥 선물")} ${fu.change>0?"+":""}${r1(fu.change)}%<em>참고용</em></span>` : "";
+  return `<div class="marketbar">${mkB}${fuB}<span class="mnote">선물은 참고 정보이며 신호 점수에는 반영하지 않습니다</span></div>`;
+}
+function themeHoldBar(){
+  return `<div class="filters" style="margin-bottom:12px">
+    <div class="frow"><span class="flabel">필터</span>
+      <button class="chip tgl ${state.showHoldings?"on":""}" data-hold="1">⭐ 보유만 보기</button>
+      <button class="chip ${state.market==="all"?"on":""}" data-market="all">🌐 전체</button>
+      <button class="chip ${state.market==="us"?"on":""}" data-market="us">🇺🇸 미국장</button>
+      <button class="chip ${state.market==="kr"?"on":""}" data-market="kr">🇰🇷 한국장</button>
+    </div>
+  </div>`;
+}
+function noHoldingState(){
+  return `<div class="empty-state">
+    <b style="color:var(--muted);font-size:13.5px">보유 종목이 없습니다.</b><br>
+    <span style="font-size:12.5px;color:var(--faint)">종목 티커를 검색해서 별 표시(☆)를 눌러보세요!</span>
+  </div>`;
+}
 function renderTheme(){
   const list = visible();
-  if (!list.length) return emptyState();
+  if (!list.length){
+    return marketBar() + themeHoldBar() + (state.showHoldings && !state.holdings.length ? noHoldingState() : emptyState());
+  }
   const secs = sectorStats(list);
   const hot = secs.filter(x=>has(x.avg)&&x.avg>0).slice(0,3);
   const cold = secs.filter(x=>has(x.avg)&&x.avg<0).slice(-3).reverse();
@@ -749,7 +802,7 @@ function renderTheme(){
   const rev = list.filter(s=>s.sig.revScore>0).sort((a,b)=>b.sig.revScore-a.sig.revScore).slice(0,5)
     .map(s=>({ticker:s.ticker,name:s.name,val:"반등 "+r1(s.sig.revScore)}));
 
-  return `
+  return marketBar() + themeHoldBar() + `
   <div class="section">
     <div class="section-h"><h2>핵심 시그널 TOP 5</h2><span class="sub">항목을 누르면 상세 카드로 이동</span></div>
     <div class="widgets">
@@ -859,7 +912,7 @@ function emptyState(){
 }
 function renderAll(){
   const list = visible();
-  if (!list.length) return filterBar() + emptyState();
+  if (!list.length) return filterBar() + (state.showHoldings && !state.holdings.length ? noHoldingState() : emptyState());
   const compact = state.view === "compact";
   const item = (s,i) => compact ? compactRow(s,i) : stockCard(s,i);
   const wrapCls = compact ? "compactlist" : "grid";
@@ -874,7 +927,7 @@ function renderAll(){
     }
   } else {
     const sorted = list.slice().sort((a,b)=>sortKey(b)-sortKey(a) || Math.abs(b.change_1d||0)-Math.abs(a.change_1d||0));
-    const label = state.sort==="trend" ? "📈 추세추종 순" : state.sort==="reversal" ? "🔄 반등신호 순" : state.sort==="volume" ? "⚡ 거래량 순" : "📊 종합 신호순";
+    const label = state.sort==="trend" ? "추세추종 순" : state.sort==="reversal" ? "반등신호 순" : state.sort==="volume" ? "거래량 순" : "종합 신호순";
     body = `<div class="section"><div class="section-h"><h2>${label}</h2><span class="sub">${sorted.length}종목${compact?" · 누르면 상세보기":""}</span></div>
       <div class="${wrapCls}">${sorted.map(item).join("")}</div></div>`;
   }
@@ -885,12 +938,12 @@ function renderAll(){
   return filterBar() + body + hid;
 }
 function filterBar(){
-  const sorts = [["signal","📊 종합순"],["trend","📈 추세순"],["reversal","🔄 반등순"],["volume","⚡ 거래량순"],["category","🗂 테마별"]];
+  const sorts = [["signal","종합순"],["trend","추세순"],["reversal","반등순"],["volume","거래량순"],["category","테마별"]];
   const mkts = [["all","🌐 전체"],["us","🇺🇸 미국장"],["kr","🇰🇷 한국장"]];
   return `<div class="filters">
     <div class="frow"><span class="flabel">보기</span>
-      <button class="chip view ${state.view==="compact"?"on":""}" data-view="compact">📋 모아보기</button>
-      <button class="chip view ${state.view==="cards"?"on":""}" data-view="cards">🃏 펼쳐보기</button>
+      <button class="chip view ${state.view==="compact"?"on":""}" data-view="compact">모아보기</button>
+      <button class="chip view ${state.view==="cards"?"on":""}" data-view="cards">펼쳐보기</button>
     </div>
     <div class="frow"><span class="flabel">정렬</span>
       ${sorts.map(([v,l])=>`<button class="chip ${state.sort===v?"on":""}" data-sort="${v}">${l}</button>`).join("")}
@@ -898,7 +951,6 @@ function filterBar(){
     <div class="frow"><span class="flabel">필터</span>
       ${mkts.map(([v,l])=>`<button class="chip ${state.market===v?"on":""}" data-market="${v}">${l}</button>`).join("")}
       <button class="chip tgl ${state.showHoldings?"on":""}" data-hold="1">⭐ 보유만 보기</button>
-      <button class="chip" data-refresh="1">🔄 새로고침</button>
     </div>
   </div>`;
 }
@@ -935,29 +987,51 @@ function renderHelp(){
   </div>
 
   <div class="section help-block">
-    <h3>화면 사용법</h3>
-    <div class="help-grid">
-      <div class="help-card"><b>테마랭킹</b><br>오늘 어느 테마로 돈이 흘렀는지, 신호 TOP5는 무엇인지 한눈에. 항목을 누르면 그 종목 상세 카드로 이동해요.</div>
-      <div class="help-card"><b>전체순위</b><br>전 종목을 신호 강한 순으로. 🥇🥈🥉와 순위가 붙고, 카드마다 <b>자세히 보기</b>로 지표를 펼칠 수 있어요.</div>
-      <div class="help-card"><b>🔍 검색</b><br>티커나 한글 종목명을 입력하면 바로 그 종목 카드로 이동해요.</div>
-      <div class="help-card"><b>☆ 보유 / ⭐ 보유만 보기</b><br>가진 종목을 ★로 체크하고, 필터를 켜면 체크한 것만 봅니다. 내 기기에만 저장돼요.</div>
-      <div class="help-card"><b>🕘 갱신 시각</b><br>09:00엔 미국장 마감 종가, 16:00엔 한국장 마감 종가가 반영돼요. 프리장·장중 실시간은 반영되지 않습니다.</div>
-      <div class="help-card"><b>➕ 종목추가(관리자용)</b><br>실제 관심종목은 관리자만 바꿀 수 있어요. 여기서 추가한 건 내 기기에만 임시로 보입니다.</div>
-    </div>
-  </div>
-
-  <div class="section help-block">
     <h3>신호는 어떻게 매겨지나요</h3>
-    <details class="acc"><summary>점수 산정 방식 자세히 보기</summary>
+    <p style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:9px">
+      여러 지표를 조합해 <b>종합·추세추종·반등신호</b> 세 가지 점수를 각각 계산하고, 그 결과로 등급을 매깁니다.
+      (구체적인 가중치는 공개하지 않습니다)</p>
+
+    <details class="acc"><summary>종합 점수 — 등급이 정해지는 방식</summary>
       <div class="help-grid" style="margin-top:10px">
-        <div class="help-card"><b>추세·패턴 (최대 ±2.5)</b><br>정배열 눌림목 +2.5 / 정배열 상승 +2 / 바닥권 전환 +2 / 역배열 하락 −2</div>
-        <div class="help-card"><b>MACD (±1.5~2)</b><br>골든크로스 +1.5 (거래량 급증 +2, 0선 아래 반등 +0.5) / 데드크로스 −1.5</div>
-        <div class="help-card"><b>거래량</b><br>바닥권 반등에 거래량이 실리면 +0.5~0.8. 거래량 없는 반등은 등급이 내려갑니다.</div>
-        <div class="help-card"><b>볼린저 + RSI (±1.5~2)</b><br>하단+과매도는 매수 쪽, 상단+과열은 매도 쪽</div>
-        <div class="help-card"><b>스토캐스틱 (보조 ±1)</b><br>저점 골든크로스 +1 / 고점 데드크로스 −1</div>
-        <div class="help-card"><b>52주 신고가</b><br>1년 고점 5% 이내 + 이동평균 위면 +1 (강세 추세주 가점)</div>
-        <div class="help-card"><b>시장 필터</b><br>QQQ가 20일선 아래면 미국 종목 전체 −0.5</div>
-        <div class="help-card"><b>등급 컷</b><br>+3↑ 강한매수 / +1.3↑ 매수관심 / −1.3↓ 매도관심 / −3↓ 강한매도</div>
+        <div class="help-card"><b>어떻게 나오나</b><br>추세추종 점수와 반등신호 점수를 합치고, 양쪽 모두에 불리한 <b>공통 위험 요소</b>를 빼서 종합 점수를 만듭니다.</div>
+        <div class="help-card"><b>보는 지표</b><br>이동평균(5·20·60일) · RSI · MACD · 볼린저밴드 · 스토캐스틱 · 거래량 · 52주 신고가 · 시장(QQQ) 국면</div>
+        <div class="help-card"><b>공통 위험 요소</b><br>과열(볼린저 상단+RSI) · 역배열 하락 · 이동평균 이탈 · MACD 데드크로스 · 스토캐스틱 고점 꺾임 · 시장 약세</div>
+        <div class="help-card"><b>등급</b><br>강한매수 · 매수관심 · 중립 · 매도관심 · 강한매도 5단계로 나뉩니다.</div>
+      </div>
+    </details>
+
+    <details class="acc"><summary>추세추종 점수 — 달리는 말에 올라타기</summary>
+      <div class="help-grid" style="margin-top:10px">
+        <div class="help-card buy"><b>정배열 눌림목</b> <span style="color:var(--buy)">(가장 높은 비중)</span><br>이동평균이 정배열인데 주가가 <b>5일선 아래로 눌린</b> 자리 + 20일선은 유지 + RSI가 과열도 침체도 아닌 구간.<br>→ <b>음봉에 뜨는 분할 매수 신호</b>예요.</div>
+        <div class="help-card"><b>저항선 돌파</b><br>5·20일선 위 + 볼린저 상단권 + 거래량 증가 + 과열 아님.<br>강하게 뚫고 올라갈 때 따라붙는 자리.</div>
+        <div class="help-card"><b>추세 유지</b><br>정배열 상승 · 단기 상승(5·20일선 위) · MACD 골든크로스(0선 위) · 52주 신고가 근접.<br>단, <b>이미 5일선 위로 올라온 상태</b>는 추격 위험이 있어 비중을 낮춥니다.</div>
+        <div class="help-card"><b>깎이는 경우</b><br>정배열이어도 RSI가 과열이면 가점이 거의 없어집니다.</div>
+      </div>
+    </details>
+
+    <details class="acc"><summary>반등신호 점수 — 저점 매수</summary>
+      <div class="help-grid" style="margin-top:10px">
+        <div class="help-card rev"><b>바닥권 전환</b> <span style="color:var(--sell)">(가장 높은 비중)</span><br>60일선 아래에 있지만 <b>5·20일선을 회복</b>한 상태. MACD가 상승 방향이면 더 높게 봅니다.</div>
+        <div class="help-card"><b>과매도 반등</b><br><b>볼린저 하단</b>과 <b>RSI 침체</b>를 <b>동시에</b> 충족할 때만 인정합니다. 하나만 맞으면 점수를 주지 않아요.</div>
+        <div class="help-card"><b>전환 신호</b><br>MACD가 0선 아래에서 골든크로스 · 스토캐스틱 저점 골든크로스.</div>
+        <div class="help-card" style="border-left:3px solid var(--sell)"><b>⚠ 데드캣 바운스 주의</b><br>하루 튀고 다시 빠지는 경우가 많아, <b>거래량이 눈에 띄게 적으면</b> 카드에 “반등 신뢰도 낮음”을 표시합니다.</div>
+      </div>
+    </details>
+
+    <details class="acc"><summary>거래량과 시장 국면은 어떻게 반영되나</summary>
+      <div class="help-grid" style="margin-top:10px">
+        <div class="help-card"><b>거래량</b><br>20일 평균 대비 배율로 봅니다. <b>거래량이 실린 움직임</b>은 신뢰도가 높다고 보고 비중 있게 반영하고, <b>거래량 없이 나온 반등</b>은 오히려 감점합니다.</div>
+        <div class="help-card"><b>시장 국면 (QQQ 4단계)</b><br><b>강세</b> 20일선 위 + 20일선 상승 + 60일선 위<br><b>중립</b> 20일선 위이나 추세 약함<br><b>주의</b> 20일선 아래(60일선 유지)<br><b>약세</b> 20·60일선 모두 아래<br>→ 국면이 나쁠수록 미국 종목 전체에 감점 폭이 커집니다.</div>
+        <div class="help-card"><b>나스닥 선물</b><br>16시 갱신 때 밤사이 분위기를 가늠하는 <b>참고 정보</b>일 뿐, 점수에는 반영하지 않습니다.</div>
+      </div>
+    </details>
+
+    <details class="acc"><summary>매도 신호 두 가지 구분</summary>
+      <div class="help-grid" style="margin-top:10px">
+        <div class="help-card"><b>🔥 과열 분할익절</b><br>추세는 아직 살아있는데 RSI·볼린저가 과열된 상태.<br>→ 전량 매도보다 <b>분할 익절</b>을 검토하는 구간.</div>
+        <div class="help-card"><b>🚨 비상탈출</b><br>20일선을 잃고 이동평균이 무너졌거나 MACD 데드크로스가 겹친 상태.<br>→ <b>지지선이 깨진</b> 것이라 손절 검토 구간.</div>
+        <div class="help-card"><b>⚠ 과열 — 익절 구간 주의</b><br>등급은 아직 매수인데 과열 지표가 뜬 경우. 신규 진입은 쉬고 보유분 익절을 고려하세요.</div>
       </div>
     </details>
   </div>`;
@@ -975,8 +1049,11 @@ function render(){
   const stamp = document.getElementById("stamp");
   stamp.textContent = state.data ? (state.data.generated_at || "기준 시각 미표기") : "데이터 불러오는 중…";
   const mk = state.data && state.data.market;
-  document.getElementById("mktInfo").innerHTML = mk
-    ? `현재 <b>${esc(mk.ticker)}</b>는 20일선 ${mk.below_ma20?'<b style="color:var(--sell)">아래(약세)</b>':'<b style="color:var(--buy)">위</b>'}입니다.` : "";
+  const fu = state.data && state.data.futures;
+  const LVT = {strong:"강세",neutral:"중립",caution:"주의",weak:"약세"};
+  document.getElementById("mktInfo").innerHTML =
+    (mk ? `현재 <b>${esc(mk.ticker)}</b> 시장 국면은 <b>${LVT[mk.level]||"중립"}</b>${mk.detail?` (${esc(mk.detail)})`:""}입니다.` : "")
+    + (fu && has(fu.change) ? ` <b>${esc(fu.label||"나스닥 선물")}</b> ${fu.change>0?"+":""}${r1(fu.change)}% — <b>참고용</b>이며 신호 점수에는 반영하지 않습니다.` : "");
 
   const main = document.getElementById("main");
   if (!state.data){ main.innerHTML = `<div class="empty-state">데이터를 불러오는 중이에요…</div>`; return; }
