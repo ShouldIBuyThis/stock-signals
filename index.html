@@ -348,6 +348,45 @@ footer b{color:var(--muted)}
   html[data-theme="dark"] .close-update-text {
       color: #fff;
     }
+
+/* ── 추가 스타일 ── */
+.principle .plink{color:var(--navy);font-weight:700;border-bottom:1px dotted var(--navy);cursor:pointer;padding-bottom:1px}
+html[data-theme="dark"] .principle .plink{color:#a9c6ff;border-bottom-color:#a9c6ff}
+.tag.clickable{text-decoration:underline dotted;text-underline-offset:2px}
+.mchip.inline{font-size:10px;padding:2px 8px;margin-left:4px;vertical-align:middle}
+.lev{display:inline-flex;align-items:center;justify-content:center;height:16px;padding:0 4px;margin-left:3px;
+  border-radius:5px;background:#fdecec;color:var(--up);font-size:10px;font-weight:800;
+  border-bottom:1px dotted var(--up);cursor:pointer;flex-shrink:0}
+html[data-theme="dark"] .lev{background:#33191b;color:#ff8080;border-bottom-color:#ff8080}
+/* 내 보유종목 아코디언 */
+.holdpanel{position:static;margin:12px 0 0;max-height:280px;box-shadow:var(--shadow)}
+.holdpanel .phead{padding:8px 12px;font-size:11px;color:var(--faint);border-bottom:1px solid var(--line);font-weight:700}
+.btn-admin.on{background:#46567c;color:#fff}
+html[data-theme="dark"] .btn-admin.on{background:#3b4a6d;color:#fff}
+html[data-theme="dark"] .strip details summary{color:#8fb4ff}
+html[data-theme="dark"] .strip{color:var(--muted)}
+html[data-theme="dark"] .close-update-text{color:var(--muted)}
+.mchip.inline{background:var(--surface2)}
+/* 미장·국장 전환 (이모지) */
+.mkswitch{display:inline-flex;gap:3px;background:var(--surface2);border:1px solid var(--line);border-radius:999px;padding:3px}
+.mkswitch button{width:34px;height:26px;border-radius:999px;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center}
+.mkswitch button.on{background:var(--navy)}
+.mkswitch button:hover{background:var(--navy-soft)}
+.mkswitch button.on:hover{background:var(--navy)}
+.themebar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:12px 0 10px}
+.themebar .lbl{font-size:10.5px;color:var(--faint);font-weight:700}
+.hold-mini{border:1px solid var(--line);border-radius:999px;padding:3px 11px;font-size:11px;font-weight:700;
+  color:var(--muted);background:var(--surface2);margin-left:auto;white-space:nowrap}
+.hold-mini.on{background:var(--buy);border-color:var(--buy);color:#fff}
+.section-h .hold-mini{margin-left:auto}
+/* 빠른 메뉴 — 오른쪽 세로 패널 */
+.sheet-in{left:auto;right:0;top:0;bottom:0;width:56%;min-width:268px;max-width:400px;
+  border-radius:18px 0 0 18px;max-height:100%;padding:16px 15px 26px;
+  transform:translateX(100%)}
+.sheet.on .sheet-in{transform:translateX(0)}
+.sheet-grid{grid-template-columns:1fr;gap:6px}
+.sheet-btn{height:40px;font-size:12px}
+.sheet-btn.full{grid-column:span 1}
 </style>
 </head>
 <body>
@@ -365,7 +404,7 @@ footer b{color:var(--muted)}
         <input type="text" id="q" placeholder="티커·종목명 검색 (예: NVDA, 엔비디아)" autocomplete="off">
         <div id="qres" class="sresult hidden" style="top:38px;left:0;right:0"></div>
       </div>
-      <button class="btn-admin" id="btnAdd">➕ 종목추가<span style="opacity:.7">(관리자용)</span></button>
+      <button class="btn-admin" id="btnHold">⭐ 내 보유종목</button>
     </div>
     <div class="tabs" id="tabs">
       <button data-tab="theme" class="on">테마랭킹</button>
@@ -377,9 +416,10 @@ footer b{color:var(--muted)}
 </header>
 
 <div class="wrap">
+  <div id="holdPanel" class="sresult holdpanel hidden"></div>
   <div class="strip">
     <details>
-      <summary>🕘 <b>06:00 미국장 · 16:00 한국장</b> <span class="close-update-text">종가 일 1회 갱신</span> · <b id="stamp">—</b> · 자세히</summary>
+      <summary>🕘 <b>06:00 미국장 · 16:00 한국장</b> <span class="close-update-text">종가 일 1회 갱신</span> · <b id="stamp">—</b> · 자세히<span id="mktChip"></span></summary>
       <div style="margin-top:6px">
         · 프리장·장중 실시간은 반영되지 않습니다. <b>일봉 종가만</b> 씁니다 — 시간봉은 단타용이라 속임수 신호에 걸리기 쉬워요.<br>
         · <b>3일~2주 스윙 관점</b>이며 당일매매용이 아닙니다. 박스권·강한 추세장에서는 같은 신호가 반대로 해석될 수 있어요.<br>
@@ -387,7 +427,7 @@ footer b{color:var(--muted)}
       </div>
     </details>
   </div>
-  <div class="principle">💡 신호를 봤다면 → <b>① 정찰병</b> → <b>② 외부 재료 필터링</b> → <b>③ 분할 매수/매도</b></div>
+  <div class="principle">💡 신호를 봤다면 → <b>①</b> <span class="plink" id="matLink" role="button" tabindex="0">외부 재료 필터링</span> → <b>② 정찰병</b> → <b>③ 분할 매수/매도</b></div>
 </div>
 
 <main class="wrap" id="main"></main>
@@ -403,6 +443,10 @@ footer b{color:var(--muted)}
   <b>🧪 현재 검증(백테스트) 진행 중입니다</b><br>
   · 이 신호가 실제로 얼마나 맞는지는 <b>아직 검증되지 않았습니다.</b> 2026년 8월부터 매 갱신마다 신호 이력을 저장하고 있으며, 표본이 쌓이면(약 3개월) 강한매수 신호의 5일·10일 후 성과를 집계해 공개할 예정입니다.<br>
   · 그때까지는 신호를 매수 근거가 아니라 <b>관찰 대상을 좁히는 필터</b>로 사용하세요.
+  <div style="margin-top:18px;padding-top:12px;border-top:1px solid var(--line);font-size:11px;color:var(--faint)">
+    © 2026 <b>Should I Buy This?</b> · 신호 산출 방식·화면 구성·문구를 포함한 모든 콘텐츠의 무단 복제·재배포를 금합니다.<br>
+    시세 출처 yfinance · 투자 판단과 그 결과에 대한 책임은 이용자 본인에게 있습니다.
+  </div>
 </footer>
 
 <button class="fab fab-top hidden" id="fabTop" title="맨 위로">▲</button>
@@ -471,38 +515,51 @@ function toast(msg){
 const NAME_MAP = {
   KO:"코카콜라", MCD:"맥도날드", LLY:"일라이릴리", UNH:"유나이티드헬스", HIMS:"힘스앤허스",
   JPM:"JP모건", CAT:"캐터필러",
-  NVDA:"엔비디아", SOXL:"반도체 3x", MU:"마이크론", SNDK:"샌디스크",
-  AMAT:"어플라이드머티어리얼즈", ALAB:"아스테라랩스",
+  MU:"마이크론", SNDK:"샌디스크", STX:"씨게이트",
+  NVDA:"엔비디아", AMD:"AMD", SOXL:"반도체 3x", ALAB:"아스테라랩스",
+  AMAT:"어플라이드머티어리얼즈", INTC:"인텔", DELL:"델",
   APLD:"어플라이드디지털", NBIS:"네비우스", CRWV:"코어위브", IREN:"아이렌",
   MSFT:"마이크로소프트", NOW:"서비스나우", PLTR:"팔란티어", CRWD:"크라우드스트라이크",
   AAOI:"어플라이드옵토", GLW:"코닝", LITE:"루멘텀", CIEN:"시에나", POET:"포엣테크놀로지",
   TSLA:"테슬라", PONY:"포니AI",
   CEG:"컨스텔레이션에너지", VST:"비스트라", BE:"블룸에너지", SMR:"뉴스케일파워", OKLO:"오클로",
-  XOM:"엑슨모빌", GDXU:"금광주 3x",
+  GDXU:"금광주 3x", GLD:"금 현물 ETF", XOM:"엑슨모빌",
   MSTR:"마이크로스트래티지", BMNR:"비트마인", COIN:"코인베이스",
   IONQ:"아이온큐", QBTS:"디웨이브", INFQ:"인플렉션", RGTI:"리게티컴퓨팅",
-  RKLB:"로켓랩", SPCX:"스페이스X", PL:"플래닛랩스", JOBY:"조비에비에이션",
+  RKLB:"로켓랩", SPCX:"스페이스X", PL:"플래닛랩스", JOBY:"조비에비에이션", RDW:"레드와이어",
   RCAT:"레드캣홀딩스", LMT:"록히드마틴", LHX:"L3해리스",
   ITB:"미국주택건설 ETF", NAIL:"주택건설 3x",
+  META:"메타", AAPL:"애플", GOOGL:"구글", AMZN:"아마존",
   "069500.KS":"코스피", "229200.KS":"코스닥"
 };
 const DEFENSE = "경기방어·헬스케어·금융·산업재";
+const MEM = "반도체·메모리";
+const GPU = "반도체·GPU";
 const CAT_MAP = {
   KO:DEFENSE, MCD:DEFENSE, LLY:DEFENSE, UNH:DEFENSE, HIMS:DEFENSE, JPM:DEFENSE, CAT:DEFENSE,
-  NVDA:"반도체", SOXL:"반도체", MU:"반도체", SNDK:"반도체", AMAT:"반도체", ALAB:"반도체",
+  MU:MEM, SNDK:MEM, STX:MEM,
+  NVDA:GPU, AMD:GPU, SOXL:GPU, ALAB:GPU, AMAT:GPU, INTC:GPU, DELL:GPU,
   APLD:"데이터센터", NBIS:"데이터센터", CRWV:"데이터센터", IREN:"데이터센터",
   MSFT:"소프트웨어", NOW:"소프트웨어", PLTR:"소프트웨어", CRWD:"소프트웨어",
   AAOI:"광통신", GLW:"광통신", LITE:"광통신", CIEN:"광통신", POET:"광통신",
   TSLA:"전기차·자율주행", PONY:"전기차·자율주행",
   CEG:"에너지·원전", VST:"에너지·원전", BE:"에너지·원전", SMR:"에너지·원전", OKLO:"에너지·원전",
-  XOM:"원자재·금광", GDXU:"원자재·금광",
+  GDXU:"원자재·금", GLD:"원자재·금",
+  XOM:"원자재·유가",
   MSTR:"암호화폐", BMNR:"암호화폐", COIN:"암호화폐",
   IONQ:"양자컴퓨팅", QBTS:"양자컴퓨팅", INFQ:"양자컴퓨팅", RGTI:"양자컴퓨팅",
-  RKLB:"우주·UAM", SPCX:"우주·UAM", PL:"우주·UAM", JOBY:"우주·UAM",
+  RKLB:"우주·UAM", SPCX:"우주·UAM", PL:"우주·UAM", JOBY:"우주·UAM", RDW:"우주·UAM",
   RCAT:"방산·드론", LMT:"방산·드론", LHX:"방산·드론",
   ITB:"주택", NAIL:"주택",
+  META:"빅테크", AAPL:"빅테크", GOOGL:"빅테크", AMZN:"빅테크",
   "069500.KS":"국장", "229200.KS":"국장"
 };
+
+/* 레버리지(배수) 상품 — 손절선 필수 */
+const LEVERAGED = { SOXL:"반도체 지수", GDXU:"금광주 지수", NAIL:"주택건설 지수" };
+function levMark(tk){
+  return LEVERAGED[tk] ? `<span class="lev" data-lev="${esc(tk)}" title="고위험 레버리지 상품">❗</span>` : "";
+}
 
 /* ══════════ 데이터 정규화 ══════════ */
 function normalize(raw){
@@ -753,21 +810,16 @@ function widget(title, sub, rows, emptyMsg){
     ${body}
   </div>`;
 }
-function marketBar(){
-  const mk = state.data && state.data.market;
-  if (!mk) return "";
-  return `<div class="marketbar">
-    <span class="mchip ${mk.below_ma20?"bad":"good"}">${esc(mk.ticker)} 20일선 ${mk.below_ma20?"아래 ⚠":"위 ✅"}</span>
-    <span class="mnote">${mk.below_ma20?"미국장 약세 — 미국 종목 신호에 감점이 적용됩니다":"미국장 추세 양호"}</span>
-  </div>`;
-}
+function marketBar(){ return ""; }
 function themeHoldBar(){
+  const on = v => state.market===v ? "on" : "";
   return `<div class="filters" style="margin-bottom:12px">
-    <div class="frow"><span class="flabel">필터</span>
-      <button class="chip tgl ${state.showHoldings?"on":""}" data-hold="1">⭐ 보유만 보기</button>
-      <button class="chip ${state.market==="all"?"on":""}" data-market="all">🌐 전체</button>
-      <button class="chip ${state.market==="us"?"on":""}" data-market="us">🇺🇸 미국장</button>
-      <button class="chip ${state.market==="kr"?"on":""}" data-market="kr">🇰🇷 한국장</button>
+    <div class="frow"><span class="flabel">시장</span>
+      <span class="mkswitch">
+        <button class="${on("all")}" data-market="all" title="전체">🌐</button>
+        <button class="${on("us")}" data-market="us" title="미국장">🇺🇸</button>
+        <button class="${on("kr")}" data-market="kr" title="한국장">🇰🇷</button>
+      </span>
     </div>
   </div>`;
 }
@@ -799,7 +851,7 @@ function renderTheme(){
 
   return marketBar() + themeHoldBar() + `
   <div class="section">
-    <div class="section-h"><h2>핵심 시그널 TOP 5</h2><span class="sub">항목을 누르면 상세 카드로 이동</span></div>
+    <div class="section-h" style="flex-wrap:wrap"><h2>핵심 시그널 TOP 5</h2><span class="sub">항목을 누르면 상세 카드로 이동</span><button class="hold-mini ${state.showHoldings?"on":""}" data-hold="1">⭐ 보유만 보기</button></div>
     <div class="widgets">
       ${widget("🟢 매수 신호","강한매수·매수관심",buy,"오늘은 매수 신호가 없어요")}
       ${widget("📈 추세추종","달리는 말 — 상승 흐름",trend,"추세 신호 없음")}
@@ -851,7 +903,7 @@ function compactRow(s, i){
   return `<button class="crow2 g${g}" data-goto="${esc(s.ticker)}">
     <span class="c-main">
       <span class="c-rank">${state.sort==="category" ? "" : (i<3 ? ["🥇","🥈","🥉"][i] : `<span class="num">${i+1}</span>`)}</span>
-      <span class="c-name"><b>${esc(s.ticker)}</b><em>${esc(s.name||"")}</em></span>
+      <span class="c-name"><b>${esc(s.ticker)}${levMark(s.ticker)}</b><em>${esc(s.name||"")}</em></span>
       <span class="c-badge g${g}">${GRADES[g]}</span>
       <span class="c-price num">${fmtPrice(s)}<em class="${chgCls(s.change_1d)}">${fmtChg(s.change_1d)}</em></span>
       <span class="c-flag">${key?`<span class="tag ${key.c}">${key.t.replace(/\(.*\)/,"")}</span>`:""}</span>
@@ -885,7 +937,7 @@ function stockCard(s, i){
   return `<div class="stock g${g}" data-tk="${esc(s.ticker)}">
     <div class="s-top">
       ${rankMark(i)}
-      <span class="s-tk">${esc(s.ticker)}</span>
+      <span class="s-tk">${esc(s.ticker)}</span>${levMark(s.ticker)}
       <span class="s-nm">${esc(s.name||"")}</span>
       <span class="s-tools">
         <button data-act="own" class="${s._hold?"on":""}" title="보유 표시">${s._hold?"★":"☆"}</button>
@@ -1045,6 +1097,11 @@ function render(){
   const mk = state.data && state.data.market;
   document.getElementById("mktInfo").innerHTML = mk
     ? `현재 <b>${esc(mk.ticker)}</b>는 20일선 ${mk.below_ma20?'<b style="color:var(--sell)">아래(약세)</b>':'<b style="color:var(--buy)">위</b>'}입니다.` : "";
+  const mchip = document.getElementById("mktChip");
+  mchip.innerHTML = mk
+    ? `<span class="mchip inline ${mk.below_ma20?"bad":"good"}">${esc(mk.ticker)} 20일선 ${mk.below_ma20?"아래 ⚠ 미국장 약세":"위 ✅ 미국장 추세 양호"}</span>`
+    : "";
+  if (typeof holdPanel !== "undefined" && holdPanel && !holdPanel.classList.contains("hidden")) renderHoldPanel();
 
   const main = document.getElementById("main");
   if (!state.data){ main.innerHTML = `<div class="empty-state">데이터를 불러오는 중이에요…</div>`; return; }
@@ -1176,6 +1233,25 @@ function explainStyle(kind){
     </table>
     <div class="modal-actions"><button class="primary" onclick="document.getElementById('modal').classList.remove('on')">닫기</button></div>`);
 }
+function openMaterialModal(){
+  openModal(`<h3>🔍 외부 재료 필터링</h3>
+    <p style="font-size:13px;color:var(--reason);line-height:1.8">
+      · <b>실적 발표(어닝콜) 전후에는 참고하지 마세요.</b> 실적 하나로 지표와 무관하게 급등락합니다.<br><br>
+      · <b>공매도 수급·뉴스·공시·규제·유상증자·지수 편입</b> 같은 이벤트를 꼭 확인해보세요.
+    </p>
+    <div class="modal-actions"><button class="primary" onclick="document.getElementById('modal').classList.remove('on')">닫기</button></div>`);
+}
+function openLevModal(tk){
+  const base = LEVERAGED[tk] || "기초지수";
+  openModal(`<h3>❗ 고위험 레버리지 상품</h3>
+    <p style="font-size:13px;color:var(--reason);line-height:1.8">
+      <b>${esc(tk)}</b>는 ${esc(base)}의 <b>하루 등락률을 배수로 따라가는</b> 상품이에요. 일반 주식과 위험이 다릅니다.<br><br>
+      · 하루 단위로 배수가 다시 계산돼서, <b>지수가 제자리로 돌아와도 원금은 줄어듭니다.</b> 오래 들고 갈수록 불리해요.<br>
+      · 빠질 때도 배수만큼 빠집니다. <b>사기 전에 손절선을 먼저 정하세요.</b><br>
+      · 이 사이트의 등급은 배수를 감안하지 않습니다. 같은 <b>강한매수</b>여도 실제 위험은 훨씬 큽니다.
+    </p>
+    <div class="modal-actions"><button class="primary" onclick="document.getElementById('modal').classList.remove('on')">닫기</button></div>`);
+}
 function openAddModal(){
   openModal(`<h3>➕ 종목추가 <span style="font-size:11.5px;color:var(--muted);font-weight:500">(관리자용)</span></h3>
     <p style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:12px">
@@ -1199,6 +1275,30 @@ function openAddModal(){
     toast(`${tk} 추가됨 — 데이터는 다음 갱신 후 표시돼요`);
   };
 }
+
+/* ══════════ 내 보유종목 아코디언 ══════════ */
+const holdPanel = document.getElementById("holdPanel");
+const btnHoldTop = document.getElementById("btnHold");
+function renderHoldPanel(){
+  const mine = allStocks().filter(s => state.holdings.includes(s.ticker));
+  holdPanel.innerHTML = mine.length
+    ? `<div class="phead">보유 ${mine.length}종목 · 누르면 상세 카드로 이동</div>` +
+      mine.map(s=>`<button data-goto="${esc(s.ticker)}"><span class="tk">${esc(s.ticker)}</span><span class="nm">${esc(s.name||"")}</span><span class="val ${chgCls(s.change_1d)} num">${fmtChg(s.change_1d)}</span></button>`).join("")
+    : `<div class="empty">아직 보유 표시한 종목이 없어요. 종목 카드의 ☆를 누르면 여기에 모입니다.</div>`;
+}
+function toggleHoldPanel(force){
+  const open = force !== undefined ? force : holdPanel.classList.contains("hidden");
+  if (open){ renderHoldPanel(); holdPanel.classList.remove("hidden"); }
+  else holdPanel.classList.add("hidden");
+  btnHoldTop.classList.toggle("on", open);
+}
+btnHoldTop.onclick = () => toggleHoldPanel();
+holdPanel.addEventListener("click", e=>{
+  const b = e.target.closest("[data-goto]");
+  if (b){ e.stopPropagation(); toggleHoldPanel(false); gotoStock(b.dataset.goto); }
+});
+document.getElementById("matLink").onclick = openMaterialModal;
+document.getElementById("matLink").onkeydown = e => { if(e.key==="Enter"||e.key===" ") openMaterialModal(); };
 
 /* ══════════ 검색 ══════════ */
 const qEl = document.getElementById("q"), qRes = document.getElementById("qres");
@@ -1248,9 +1348,10 @@ document.getElementById("tabs").addEventListener("click", e=>{
   state.tab = b.dataset.tab; save(); render();
   try{ window.scrollTo({top:0,behavior:"smooth"}); }catch(e){ window.scrollTo(0,0); }
 });
-document.getElementById("btnAdd").onclick = openAddModal;
 
 document.getElementById("main").addEventListener("click", e=>{
+  const lev = e.target.closest("[data-lev]");
+  if (lev){ e.stopPropagation(); openLevModal(lev.dataset.lev); return; }
   const goto = e.target.closest("[data-goto]");
   if (goto){ gotoStock(goto.dataset.goto); return; }
   const sec = e.target.closest("[data-sector]");
