@@ -24,7 +24,8 @@ WATCHLIST = {
         "KO":"코카콜라", "MCD":"맥도날드", "LLY":"일라이릴리",
         "UNH":"유나이티드헬스", "HIMS":"힘스앤허스", "JPM":"JP모건", "CAT":"캐터필러"},
     "반도체":        {"NVDA":"엔비디아", "SOXL":"반도체 3x", "MU":"마이크론",
-                      "SNDK":"샌디스크", "AMAT":"어플라이드머티어리얼즈", "ALAB":"아스테라랩스"},
+                      "SNDK":"샌디스크", "AMAT":"어플라이드머티어리얼즈", "ALAB":"아스테라랩스",
+                      "INTC":"인텔", "DELL":"델", "STX":"씨게이트", "AMD":"AMD"},
     "데이터센터":    {"APLD":"어플라이드디지털", "NBIS":"네비우스", "CRWV":"코어위브", "IREN":"아이렌"},
     "소프트웨어":    {"MSFT":"마이크로소프트", "NOW":"서비스나우", "PLTR":"팔란티어", "CRWD":"크라우드스트라이크"},
     "광통신":        {"AAOI":"어플라이드옵토", "GLW":"코닝", "LITE":"루멘텀", "CIEN":"시에나", "POET":"포엣테크놀로지"},
@@ -34,9 +35,11 @@ WATCHLIST = {
     "원자재·금광":   {"XOM":"엑슨모빌", "GDXU":"금광주 3x"},
     "암호화폐":      {"MSTR":"마이크로스트래티지", "BMNR":"비트마인", "COIN":"코인베이스"},
     "양자컴퓨팅":    {"IONQ":"아이온큐", "QBTS":"디웨이브", "INFQ":"인플렉션", "RGTI":"리게티컴퓨팅"},
-    "우주·UAM":      {"RKLB":"로켓랩", "SPCX":"스페이스X", "PL":"플래닛랩스", "JOBY":"조비에비에이션"},
+    "우주·UAM":      {"RKLB":"로켓랩", "SPCX":"스페이스X", "PL":"플래닛랩스", "JOBY":"조비에비에이션",
+                      "RDW":"레드와이어"},
     "방산·드론":     {"RCAT":"레드캣홀딩스", "LMT":"록히드마틴", "LHX":"L3해리스"},
     "주택":          {"ITB":"미국주택건설 ETF", "NAIL":"주택건설 3x"},
+    "빅테크":        {"META":"메타", "AAPL":"애플", "GOOGL":"구글", "AMZN":"아마존"}
     "국장":          {"069500.KS":"코스피", "229200.KS":"코스닥"},
 }
 
@@ -65,16 +68,33 @@ def cross_state(fast, slow, lookback=2):
         if now < 0 and prev >= 0: return "dead"
     return "none"
 
-def market_below_ma20(ticker):
-    """기준 지수가 20일선 아래인지 (약세장 판단)"""
+def market_state(ticker):
+    """시장 국면을 3단계로 판정: strong / neutral / weak"""
     try:
-        df = yf.Ticker(ticker).history(period="3mo", interval="1d", auto_adjust=False)
+        df = yf.Ticker(ticker).history(period="6mo", interval="1d", auto_adjust=False)
         df = drop_unclosed(df, ticker)
-        if df is None or len(df) < 21: return False
+        if df is None or len(df) < 61:
+            return {"ticker": ticker, "level": "neutral", "below_ma20": False, "detail": "데이터 부족"}
         c = df["Close"]
-        return bool(c.iloc[-1] < c.rolling(20).mean().iloc[-1])
-    except Exception:
-        return False
+        px = float(c.iloc[-1])
+        ma20 = float(c.rolling(20).mean().iloc[-1])
+        ma60 = float(c.rolling(60).mean().iloc[-1])
+        ma20_prev = float(c.rolling(20).mean().iloc[-6])      # 5일 전 20일선(기울기)
+        rising20 = ma20 > ma20_prev
+
+        if px >= ma20 and ma20 >= ma60 and rising20:
+            level, detail = "strong", "20일선 위 · 20일선 상승 · 60일선 위"
+        elif px < ma20 and px < ma60:
+            level, detail = "weak", "20·60일선 모두 아래"
+        elif px < ma20:
+            level, detail = "caution", "20일선 아래(60일선은 유지)"
+        else:
+            level, detail = "neutral", "20일선 위이나 추세 약함"
+        return {"ticker": ticker, "level": level, "below_ma20": bool(px < ma20),
+                "detail": detail, "price": safe(px), "ma20": safe(ma20), "ma60": safe(ma60)}
+    except Exception as e:
+        print("시장 판정 실패:", e)
+        return {"ticker": ticker, "level": "neutral", "below_ma20": False, "detail": "조회 실패"}
 
 def drop_unclosed(df, ticker):
     """아직 장 마감 전이면 '오늘 봉'(미완성)을 잘라내 항상 확정 종가만 쓴다."""
@@ -159,8 +179,9 @@ def analyze(ticker, name, category):
     }
 
 def main():
-    mkt_weak = market_below_ma20(MARKET_TICKER)
-    print(f"시장({MARKET_TICKER}) 20일선 아래? {mkt_weak}")
+    mkt = market_state(MARKET_TICKER)
+    mkt_level = mkt["level"]
+    print(f"시장({MARKET_TICKER}) 국면: {mkt_level} — {mkt['detail']}")
     fut = futures_snapshot()
     print("나스닥 선물:", fut)
     results, failed = [], []
@@ -170,7 +191,8 @@ def main():
                 row = analyze(tk, nm, cat)
                 is_kr = tk.endswith(".KS") or tk.endswith(".KQ")
                 # 시장 필터: 미국 종목이고 QQQ가 약세면 표시 (대시보드가 -0.5 반영)
-                row["market_weak"] = bool(mkt_weak and not is_kr)
+                row["market_level"] = "neutral" if is_kr else mkt_level
+                row["market_weak"] = bool((not is_kr) and mkt_level in ("weak","caution"))
                 results.append(row); print("OK", tk)
             except Exception as e:
                 failed.append(f"{tk} ({nm}) — {e}"); print("SKIP", tk, e)
@@ -190,7 +212,7 @@ def main():
     payload = {
         "generated_at": now_kst.strftime("%Y-%m-%d %H:%M") + " KST",
         "note": "yfinance 무료 데이터 · 15~20분 지연 · 참고용",
-        "market": {"ticker": MARKET_TICKER, "below_ma20": bool(mkt_weak)},
+        "market": mkt,
         "futures": fut,
         "sectors": sectors,
         "stocks": results, "failed": failed,
