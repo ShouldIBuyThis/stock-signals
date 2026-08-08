@@ -228,6 +228,7 @@ html[data-theme="dark"] .c-badge.g2{background:#33240f;color:#ffb968}
 .s-nm{font-size:11.5px;color:var(--muted);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .s-tools{display:flex;gap:2px}
 .s-tools button{padding:2px 6px;font-size:12px;color:var(--faint);border-radius:6px}
+.s-tools button.own{font-size:10.5px;font-weight:600;white-space:nowrap;padding:2px 5px}
 .s-tools button:hover{background:var(--navy-soft);color:var(--navy)}
 .s-tools button.on{color:var(--sell)}
 .s-price{display:flex;align-items:baseline;gap:8px;margin:8px 0 7px;flex-wrap:wrap}
@@ -425,7 +426,7 @@ html[data-theme="dark"] .close-update-text{color:var(--muted)}
   <div id="holdPanel" class="sresult holdpanel hidden"></div>
   <div class="strip">
     <details>
-      <summary>🕘 <b>06:00 미국장 · 16:00 한국장</b> <span class="close-update-text">종가 일 1회 갱신</span> · <b id="stamp">—</b> · 자세히<span id="mktChip"></span></summary>
+      <summary>🕘 <b>06:00 미국장 · 16:00 한국장</b> <span class="close-update-text">종가 일 1회 갱신</span> · <b id="stamp">—</b> · 자세히</summary>
       <div style="margin-top:6px">
         · 프리장·장중 실시간은 반영되지 않습니다. <b>일봉 종가만</b> 씁니다 — 시간봉은 단타용이라 속임수 신호에 걸리기 쉬워요.<br>
         · <b>3일~2주 스윙 관점</b>이며 당일매매용이 아닙니다. 박스권·강한 추세장에서는 같은 신호가 반대로 해석될 수 있어요.<br>
@@ -447,7 +448,7 @@ html[data-theme="dark"] .close-update-text{color:var(--muted)}
   · 보기 설정(★보유·숨김·정렬)은 <b>내 기기에만</b> 저장되며 다른 사람 화면에 영향을 주지 않습니다.<br>
   <br>
   <b>🧪 현재 검증(백테스트) 진행 중입니다</b><br>
-  · 이 신호가 실제로 얼마나 맞는지는 <b>아직 검증되지 않았습니다.</b> 2026년 8월부터 매 갱신마다 신호 이력을 저장하고 있으며, 표본이 쌓이면(약 3개월) 강한매수 신호의 5일·10일 후 성과를 집계해 공개할 예정입니다.<br>
+  · 2026년 8월부터 매 갱신마다 신호 이력을 저장하고 있으며, 표본이 쌓이면 성과를 집계해 공개할 예정입니다.<br>
   · 그때까지는 신호를 매수 근거가 아니라 <b>관찰 대상을 좁히는 필터</b>로 사용하세요.
   <div style="margin-top:18px;padding-top:12px;border-top:1px solid var(--line);font-size:11px;color:var(--faint)">
     © 2026 <b>Should I Buy This?</b> · 신호 산출 방식·화면 구성·문구를 포함한 모든 콘텐츠의 무단 복제·재배포를 금합니다.<br>
@@ -719,7 +720,7 @@ function evaluate(s){
     else if (overheat){ sellType="과열익절"; tags.unshift({c:"t-warn",t:"🔥 과열 분할익절",click:"과열익절"}); }
     else { sellType="비상탈출"; tags.unshift({c:"t-hot",t:"🚨 비상탈출 — 추세 이탈",click:"비상탈출"}); }
   } else if (g>=4 && overheat){
-    tags.push({c:"t-hot",t:"⚠ 과열 — 익절 구간 주의"});
+    tags.push({c:"t-hot",t:"⚠ 과열 — 익절 구간 주의",click:"과열주의"});
   }
 
   if (g>=4 && has(s.change_1d) && s.change_1d>=5) tags.unshift({c:"t-hot",t:`⚠ 추격주의(오늘 +${r1(s.change_1d)}%)`});
@@ -948,7 +949,7 @@ function stockCard(s, i){
       <span class="s-tk">${esc(s.ticker)}</span>${levMark(s.ticker)}
       <span class="s-nm">${esc(s.name||"")}${LEVERAGED[s.ticker]?` <span class="levnote">(고변동 레버리지)</span>`:""}</span>
       <span class="s-tools">
-        <button data-act="own" class="${s._hold?"on":""}" title="보유 표시">${s._hold?"★":"☆"}</button>
+        <button data-act="own" class="own ${s._hold?"on":""}" title="보유 종목으로 표시">보유${s._hold?"★":"☆"}</button>
         <button data-act="hide" title="숨기기">✕</button>
       </span>
     </div>
@@ -1048,8 +1049,7 @@ function renderHelp(){
   <div class="section help-block">
     <h3>신호는 어떻게 매겨지나요</h3>
     <p style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:9px">
-      여러 지표를 조합해 <b>종합·추세추종·반등신호</b> 세 가지 점수를 각각 계산하고, 그 결과로 등급을 매깁니다.
-      (구체적인 가중치는 공개하지 않습니다)</p>
+      여러 지표를 조합해 <b>종합·추세추종·반등신호</b> 세 가지 점수를 각각 계산하고, 그 결과로 등급을 매깁니다.</p>
 
     <details class="acc"><summary>종합 점수 — 등급이 정해지는 방식</summary>
       <div class="help-grid" style="margin-top:10px">
@@ -1108,12 +1108,9 @@ function render(){
   stamp.textContent = state.data ? (state.data.generated_at || "기준 시각 미표기") : "데이터 불러오는 중…";
   const mk = state.data && state.data.market;
   document.getElementById("mktInfo").innerHTML = mk
-    ? `현재 <b>${esc(mk.ticker)}</b>는 20일선 ${mk.below_ma20?'<b style="color:var(--sell)">아래(약세)</b>':'<b style="color:var(--buy)">위</b>'}입니다.` : "";
-  const mchip = document.getElementById("mktChip");
-  mchip.innerHTML = mk
-    ? `<span class="mchip inline ${mk.below_ma20?"bad":"good"}">${esc(mk.ticker)} 20일선 ${mk.below_ma20?"아래 ⚠":"위 ✅"}</span>`
-      + `<span class="mnote inline">${mk.below_ma20?"미국장 약세":"미국장 추세 양호"}</span>`
-    : "";
+    ? `어제 종가 기준 <b>${esc(mk.ticker)}</b>는 20일선 ${mk.below_ma20
+        ? '<b style="color:var(--sell)">아래</b>입니다. 미국장 추세는 <b style="color:var(--sell)">약세</b>입니다.'
+        : '<b style="color:var(--buy)">위</b>입니다. 미국장 추세는 <b style="color:var(--buy)">양호</b>합니다.'}` : "";
   if (typeof holdPanel !== "undefined" && holdPanel && !holdPanel.classList.contains("hidden")) renderHoldPanel();
 
   const main = document.getElementById("main");
@@ -1232,6 +1229,28 @@ modal.addEventListener("click", e=>{ if(e.target===modal) closeModal(); });
 document.addEventListener("keydown", e=>{ if(e.key==="Escape"){ closeModal(); closeSheet(); } });
 
 function explainStyle(kind){
+  const close = `<div class="modal-actions"><button class="primary" onclick="document.getElementById('modal').classList.remove('on')">닫기</button></div>`;
+  const P = t => `<p style="font-size:13px;color:var(--reason);line-height:1.8">${t}</p>`;
+
+  if (kind === "비상탈출"){
+    openModal(`<h3>🚨 비상탈출</h3>` +
+      P(`20일선을 잃고 이동평균이 무너졌거나, MACD 데드크로스가 겹친 상태예요.<br><br>
+         → <b>지지선이 깨진 것</b>이라 손절을 검토하는 구간입니다.`) + close);
+    return;
+  }
+  if (kind === "과열익절"){
+    openModal(`<h3>🔥 과열 분할익절</h3>` +
+      P(`추세는 아직 살아있는데 RSI·볼린저가 과열된 상태예요.<br><br>
+         → <b>전량 매도보다 분할 익절</b>을 검토하는 구간입니다.`) + close);
+    return;
+  }
+  if (kind === "과열주의"){
+    openModal(`<h3>⚠ 과열 — 익절 구간 주의</h3>` +
+      P(`등급은 아직 매수인데 과열 지표가 뜬 경우예요.<br><br>
+         → <b>신규 진입은 쉬고</b>, 보유분 익절을 고려하세요.`) + close);
+    return;
+  }
+
   const isTrend = kind === "추세";
   openModal(`<h3>${isTrend?"📈 추세추종":"🔄 역추세 반등"}</h3>
     <p style="font-size:13px;color:var(--reason);line-height:1.7">
@@ -1243,8 +1262,7 @@ function explainStyle(kind){
       <tr><th>시장 상황</th><th>볼린저밴드</th><th>RSI</th><th>맞는 매매</th></tr>
       <tr><td>박스권·횡보장</td><td>하단 매수 / 상단 매도</td><td>30↓ 매수 / 70↑ 매도</td><td>🔄 역추세 반등</td></tr>
       <tr><td>강한 상승추세</td><td>상단 뚫고 확장 확인</td><td>다이버전스로 꺾임 감지</td><td>📈 추세추종·돌파</td></tr>
-    </table>
-    <div class="modal-actions"><button class="primary" onclick="document.getElementById('modal').classList.remove('on')">닫기</button></div>`);
+    </table>` + close);
 }
 function openMaterialModal(){
   openModal(`<h3>🔍 외부 재료 필터링</h3>
