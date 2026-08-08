@@ -345,6 +345,9 @@ footer b{color:var(--muted)}
   .heat-item{flex:1 1 calc(50% - 3px)}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}
+  html[data-theme="dark"] .close-update-text {
+      color: #fff;
+    }
 </style>
 </head>
 <body>
@@ -376,7 +379,7 @@ footer b{color:var(--muted)}
 <div class="wrap">
   <div class="strip">
     <details>
-      <summary>🕘 <b>06:00 미국장 · 16:00 한국장</b> 종가 일 1회 갱신 · <b id="stamp">—</b> · 자세히</summary>
+      <summary>🕘 <b>06:00 미국장 · 16:00 한국장</b> <span class="close-update-text">종가 일 1회 갱신</span> · <b id="stamp">—</b> · 자세히</summary>
       <div style="margin-top:6px">
         · 프리장·장중 실시간은 반영되지 않습니다. <b>일봉 종가만</b> 씁니다 — 시간봉은 단타용이라 속임수 신호에 걸리기 쉬워요.<br>
         · <b>3일~2주 스윙 관점</b>이며 당일매매용이 아닙니다. 박스권·강한 추세장에서는 같은 신호가 반대로 해석될 수 있어요.<br>
@@ -384,7 +387,7 @@ footer b{color:var(--muted)}
       </div>
     </details>
   </div>
-  <div class="principle">💡 신호를 봤다면 → <b>① 정찰병(소량)</b> → <b>② 외부 재료 확인 후 필터링</b> → <b>③ 분할 매수/매도</b></div>
+  <div class="principle">💡 신호를 봤다면 → <b>① 정찰병</b> → <b>② 외부 재료 필터링</b> → <b>③ 분할 매수/매도</b></div>
 </div>
 
 <main class="wrap" id="main"></main>
