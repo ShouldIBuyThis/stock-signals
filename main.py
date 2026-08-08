@@ -13,7 +13,8 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time as dtime
+from zoneinfo import ZoneInfo
 
 PERIOD = "1y"    # 52주 신고가 계산 위해 1년
 
@@ -68,14 +69,51 @@ def market_below_ma20(ticker):
     """기준 지수가 20일선 아래인지 (약세장 판단)"""
     try:
         df = yf.Ticker(ticker).history(period="3mo", interval="1d", auto_adjust=False)
+        df = drop_unclosed(df, ticker)
         if df is None or len(df) < 21: return False
         c = df["Close"]
         return bool(c.iloc[-1] < c.rolling(20).mean().iloc[-1])
     except Exception:
         return False
 
+def drop_unclosed(df, ticker):
+    """아직 장 마감 전이면 '오늘 봉'(미완성)을 잘라내 항상 확정 종가만 쓴다."""
+    if df is None or len(df) == 0:
+        return df
+    is_kr = ticker.endswith(".KS") or ticker.endswith(".KQ")
+    tz = ZoneInfo("Asia/Seoul") if is_kr else ZoneInfo("America/New_York")
+    close_t = dtime(15, 30) if is_kr else dtime(16, 0)     # 한국 15:30, 미국 16:00(현지)
+    now = datetime.now(tz)
+    last_date = df.index[-1].date()
+    if last_date < now.date():
+        return df                                          # 과거 봉 → 이미 확정
+    if now.time() >= close_t:
+        return df                                          # 오늘 봉이지만 마감 지남 → 확정
+    return df.iloc[:-1]                                    # 장중 → 미완성 봉 제거
+
+def futures_snapshot(ticker="NQ=F", label="나스닥 선물"):
+    """참고용: 나스닥 선물 최근 등락률. 신호 점수엔 반영하지 않음."""
+    try:
+        df = yf.Ticker(ticker).history(period="5d", interval="1h", auto_adjust=False)
+        if df is None or len(df) < 2:
+            return None
+        close = df["Close"].dropna()
+        if len(close) < 2:
+            return None
+        # 직전 정규장 종가(전일 마지막 값) 대비 현재
+        last = float(close.iloc[-1])
+        base_day = df.index[-1].date()
+        prev = close[[d.date() < base_day for d in close.index]]
+        base = float(prev.iloc[-1]) if len(prev) else float(close.iloc[0])
+        chg = (last / base - 1) * 100 if base else None
+        return {"ticker": ticker, "label": label, "price": safe(last), "change": safe(chg)}
+    except Exception as e:
+        print("선물 조회 실패:", e)
+        return None
+
 def analyze(ticker, name, category):
     df = yf.Ticker(ticker).history(period=PERIOD, interval="1d", auto_adjust=False)
+    df = drop_unclosed(df, ticker)
     if df is None or len(df) < 30: raise ValueError("데이터 부족")
     close, high, low, vol = df["Close"], df["High"], df["Low"], df["Volume"]
     ma5, ma20, ma60 = close.rolling(5).mean(), close.rolling(20).mean(), close.rolling(60).mean()
@@ -123,6 +161,8 @@ def analyze(ticker, name, category):
 def main():
     mkt_weak = market_below_ma20(MARKET_TICKER)
     print(f"시장({MARKET_TICKER}) 20일선 아래? {mkt_weak}")
+    fut = futures_snapshot()
+    print("나스닥 선물:", fut)
     results, failed = [], []
     for cat, items in WATCHLIST.items():
         for tk, nm in items.items():
@@ -151,6 +191,7 @@ def main():
         "generated_at": now_kst.strftime("%Y-%m-%d %H:%M") + " KST",
         "note": "yfinance 무료 데이터 · 15~20분 지연 · 참고용",
         "market": {"ticker": MARKET_TICKER, "below_ma20": bool(mkt_weak)},
+        "futures": fut,
         "sectors": sectors,
         "stocks": results, "failed": failed,
     }
