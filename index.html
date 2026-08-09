@@ -699,7 +699,9 @@ function evaluate(s){
 
   const trendScore=Math.round((tPos+sNeg)*10)/10;
   const revScore=Math.round((rPos+sNeg)*10)/10;
-  const score=Math.round((tPos+rPos+sNeg)*10)/10;
+  /* 종합 = 두 전략 중 잘하는 쪽. 합산하면 양쪽에 어중간한 종목이 유리해져 신호가 흐려진다.
+     공통 감점(sNeg)은 trendScore·revScore에 이미 들어 있으므로 중복 차감되지 않는다. */
+  const score=Math.max(trendScore, revScore);
 
   let g=3;
   if (score>=3.2) g=5; else if (score>=1.5) g=4;
@@ -708,7 +710,7 @@ function evaluate(s){
   /* ⑨ 매수 유형 태그 */
   let type=null;
   if (g>=4){
-    type = tPos>=rPos ? "추세" : "반등";
+    type = trendScore>=revScore ? "추세" : "반등";
     tags.unshift({c: type==="추세"?"t-buy":"t-warn", t:(type==="추세"?"📈 추세추종":"🔄 반등신호"), click:type});
   }
 
@@ -1050,11 +1052,11 @@ function renderHelp(){
   <div class="section help-block">
     <h3>신호는 어떻게 매겨지나요</h3>
     <p style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:9px">
-      여러 지표를 조합해 <b>종합·추세추종·반등신호</b> 세 가지 점수를 각각 계산하고, 그 결과로 등급을 매깁니다.</p>
+      여러 지표를 조합해 <b>추세추종</b> 점수와 <b>반등신호</b> 점수를 따로 계산한 뒤, <b>둘 중 높은 쪽</b>을 종합 점수로 삼아 등급을 매깁니다.</p>
 
     <details class="acc"><summary>종합 점수 — 등급이 정해지는 방식</summary>
       <div class="help-grid" style="margin-top:10px">
-        <div class="help-card"><b>어떻게 나오나</b><br>추세추종 점수와 반등신호 점수를 합치고, 양쪽 모두에 불리한 <b>공통 위험 요소</b>를 빼서 종합 점수를 만듭니다.</div>
+        <div class="help-card"><b>어떻게 나오나</b><br>추세추종·반등신호 점수를 각각 매기고 양쪽 모두에 불리한 <b>공통 위험 요소</b>를 뺀 뒤, <b>둘 중 높은 점수</b>를 종합 점수로 씁니다.<br><br>합치지 않는 이유는, 더하면 <b>어느 쪽도 뚜렷하지 않은 종목</b>이 양쪽에서 조금씩 점수를 모아 앞자리를 차지하기 때문입니다. 추세가 강한 종목은 추세로, 바닥에서 돌아서는 종목은 반등으로 평가받게 두는 쪽이 신호가 선명합니다.</div>
         <div class="help-card"><b>보는 지표</b><br>이동평균(5·20·60일) · RSI · MACD · 볼린저밴드 · 스토캐스틱 · 거래량 · 52주 신고가 · 시장(QQQ) 국면</div>
         <div class="help-card"><b>공통 위험 요소</b><br>과열(볼린저 상단+RSI) · 역배열 하락 · 이동평균 이탈 · MACD 데드크로스 · 스토캐스틱 고점 꺾임 · 시장 약세</div>
         <div class="help-card"><b>등급</b><br>강한매수 · 매수관심 · 중립 · 매도관심 · 강한매도 5단계로 나뉩니다.</div>
