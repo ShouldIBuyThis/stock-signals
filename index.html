@@ -615,8 +615,8 @@ const CART_MAX = 10;   // 모의구매 점검이 의미를 가지는 상한
    나중에 소급 채점할 때: git show <커밋>:index.html 로 그 시점 evaluate()를 꺼내 쓴다. */
 const LOGIC_VERSION = "v4";
 const LOGIC_LOG = [
-  {v:"v4", from:"2026-08-10", t:"초기 반등 가점 추가",
-   d:"애매한 바닥권(20일선 아래·60일선 위, RSI 35~45, 거래량 증가, MACD 개선)에 반등 가점을 신설했다. 조건이 빡세서 점수를 못 받던 바닥권 종목이 반등 축으로 올라올 수 있게 했다."},
+  {v:"v4", from:"2026-08-10", t:"초기 반등 가점 · 당일 급등 반등 감점",
+   d:"애매한 바닥권(20일선 아래, RSI 35~45, 거래량 증가, MACD 개선)에 반등 가점을 신설했다. 동시에 연속 급등 중인 날은 반등 점수에서 최대 1.5점을 뺀다. 단 직전 이틀이 조용했던 '첫 급등일'은 감점하지 않는다 — 시세 분출의 첫날은 반등 전략이 노려야 할 자리이기 때문이다."},
   {v:"v3", from:"2026-08-10", t:"추세·반등·공통 감점 분리",
    d:"감점을 한 통(sNeg)에 담아 쓰던 걸 셋으로 나눴다. 추세가 깨져도 반등 점수가 같이 죽지 않는다. 공포 투매 반등 가점, 3일 급등 차등 감점, 거래량 가점 상향(3배 2.4)."},
   {v:"v2", from:"2026-08-10", t:"진입 위치(눌림목) 평가 도입",
@@ -827,6 +827,29 @@ function evaluate(s){
     reasons.push({w: overheated?2.6:1.4,
       t: overheated ? `최근 3일 +${r1(s.run3_sum)}% + 과열 지표 — 추격 매수 위험`
                     : `최근 3일 +${r1(s.run3_sum)}% — 많이 올랐지만 과열 지표는 아직`});
+  }
+  /* ②-e 당일 급등은 '반등' 점수에서 뺀다.
+     반등은 아직 안 오른 자리에서 사는 전략이다. 오늘 이미 크게 오른 종가는
+     MACD·스토캐스틱이 아무리 좋아도 반등 진입 자리가 아니다.
+     (가점을 덜 주는 것만으로는 부족했다 — MACD 골든크로스처럼 캡이 안 걸리는 항목이 남는다) */
+  if (surge){
+    /* 같은 +19%라도 '바닥에서 오늘 처음 터진 날'과 '사흘째 계속 오르는 날'은 다르다.
+       직전 이틀 상승분(3일 누적 − 오늘)으로 그 둘을 가른다.
+       첫 급등이면 감점하지 않는다 — 시세 분출의 첫날을 죽이면 반등 전략의 의미가 없다. */
+    const prior = has(s.run3_sum) ? s.run3_sum - pct : null;
+    /* 주도주는 1일차 +4%, 2일차 +3%로 조용히 자리를 잡고 3일차에 거래량을 터뜨리는 경우가 많다.
+       직전 이틀 합이 12% 아래면 아직 '분출 초입'으로 본다.
+       거기에 5일선 이격이 크지 않으면(=아직 안 벌어졌으면) 연속 상승도 정상 분출로 인정한다. */
+    const notExtended = ext5 !== null && ext5 <= 5;
+    const firstPush = prior !== null && (prior < 12 || notExtended);
+    if (firstPush){
+      tags.unshift({c:"t-warn",t:`🔥 분출 초입(+${r1(pct)}%)`});
+      reasons.push({w:2.7,t:`직전 이틀 +${r1(prior)}% — 아직 분출 초입 구간`});
+    } else {
+      const dS = Math.min(1.5, 0.3 + (pct - 5) * 0.08);
+      rNeg -= dS;
+      reasons.push({w:2.5,t:`직전 이틀 이미 +${r1(prior)}% — 연속 급등 중이라 반등 진입 자리는 아님`});
+    }
   }
 
   /* ②-c RSI 50~65 — 과열도 침체도 아닌 구간 */
@@ -1627,20 +1650,6 @@ function renderHelp(){
       <div class="help-grid" style="margin-top:10px">
         <div class="help-card"><b>거래량</b><br>20일 평균 대비 배율로 봅니다. <b>거래량이 실린 움직임</b>은 신뢰도가 높다고 보고 비중 있게 반영하고, <b>거래량 없이 나온 반등</b>은 오히려 감점합니다.</div>
         <div class="help-card"><b>시장 국면 (QQQ 4단계)</b><br><b>강세</b> 20일선 위 + 20일선 상승 + 60일선 위<br><b>중립</b> 20일선 위이나 추세 약함<br><b>주의</b> 20일선 아래(60일선 유지)<br><b>약세</b> 20·60일선 모두 아래<br>→ 국면이 나쁠수록 미국 종목 전체에 감점 폭이 커집니다.</div>
-      </div>
-    </details>
-
-    <details class="acc"><summary>점수 산식 변경 이력 (${LOGIC_VERSION})</summary>
-      <p style="font-size:12px;color:var(--muted);line-height:1.7;margin:8px 0 4px">
-        산식이 바뀌면 <b>과거 신호 히스토리도 새 산식으로 다시 계산</b>됩니다.
-        <code>history/</code>에는 점수가 아니라 원본 지표만 쌓기 때문입니다.
-        그래서 나중에 어떤 버전으로도 소급 채점할 수 있어요.</p>
-      <div class="vlog">
-        ${LOGIC_LOG.map((x,i)=>`<div class="vrow${i===0?" now":""}">
-          <div class="vh"><b>${esc(x.v)}</b><span class="vd">${esc(x.from)}</span>${i===0?'<span class="vnow">현재</span>':""}</div>
-          <div class="vt">${esc(x.t)}</div>
-          <div class="vc">${esc(x.d)}</div>
-        </div>`).join("")}
       </div>
     </details>
 
