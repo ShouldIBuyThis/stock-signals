@@ -41,6 +41,11 @@ jobs:
         run: pip install yfinance pandas numpy
 
       - name: 지표 계산
+        # 한국장 슬롯(15:40 KST)에서는 한국 종목만 새로 받고,
+        # 미국 종목은 직전 signals.json 값을 그대로 유지한다.
+        # (그 시각 뉴욕은 02:40이라 새 종가가 없고, 다시 부르면 장전에 점수가 흔들린다)
+        env:
+          RUN_SCOPE: ${{ github.event.schedule == '40 6 * * 1-5' && 'kr' || 'all' }}
         run: python main.py
 
       - name: signals.json 커밋
