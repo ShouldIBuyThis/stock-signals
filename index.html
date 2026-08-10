@@ -431,6 +431,9 @@ html[data-theme="dark"] .tlink{color:#8fb4ff}
 .tlg{font-size:9.5px;padding:1px 6px;border-radius:99px;min-width:52px;text-align:center}
 .tlsub{font-size:10.5px;color:var(--faint);padding:1px 0 4px 42px}
 .badge.mini{font-size:9.5px;padding:1px 6px}
+/* 단기과열 — 매도가 아니라 '지금은 쉬는 자리'라 붉은색을 쓰지 않는다 */
+.badge.gOh,.c-badge.gOh{background:rgba(240,135,43,.14);color:#c2610a;border:1px solid rgba(240,135,43,.35)}
+html[data-theme="dark"] .badge.gOh,html[data-theme="dark"] .c-badge.gOh{background:rgba(240,135,43,.18);color:#f0a95a;border-color:rgba(240,135,43,.4)}
 .lvcur{font-size:10px;color:var(--muted);font-weight:600}
 .lvgap{font-size:9.5px;color:var(--faint);margin-left:3px;font-weight:600}
 .lv2{font-size:10px;color:var(--faint);font-weight:600}
@@ -1069,11 +1072,11 @@ function evaluate(s){
   if (score>=2.6) g=5; else if (score>=1.2) g=4;
   else if (score <= -1.4 + mShift) g=1; else if (score <= -0.5 + mShift) g=2;
 
-  /* 과열로 점수가 깎인 것과 지지선이 무너진 것은 다르다.
-     20일선 위에서 '익절 고려' 수준인 종목에 강한매도를 붙이면 안 된다.
-     강한매도는 지지선이 실제로 깨졌을 때만. */
+  /* 매도 판정의 '사유'만 나눈다. 점수도 등급도 건드리지 않는다.
+     추세가 살아있는데 과열로 점수가 내려간 종목은 '매도'가 아니라 '지금 신규 진입을 쉬는 자리'다. */
   const brokeSup = !a20 && (( has(ma5)&&has(ma20)&&ma5<ma20 ) || s.macd_cross==="dead");
-  if (g === 1 && !brokeSup) g = 2;
+  const trendAlive = a20 && has(ma5) && has(ma20) && ma5 > ma20 && s.macd_cross !== "dead";
+  const overheatOnly = g <= 2 && !brokeSup && trendAlive;
 
   /* ⑩ 매수 유형 */
   let type=null;
@@ -1109,7 +1112,7 @@ function evaluate(s){
 
   /* 검증용 내역 — 나중에 "저항 보정이 실제로 도움이 됐나"를 사후 비교할 수 있게 남긴다 */
   const adj = { base: baseScore, res: resAdj, resGap, leader, ldr: ldrAdj, final: score };
-  return { score, trendScore, revScore, grade:g, type, sellType, line, tags, adj };
+  return { score, trendScore, revScore, grade:g, type, sellType, line, tags, adj, overheatOnly };
 }
   
 /* ══════════ 종목 가공 ══════════ */
@@ -1307,9 +1310,9 @@ function renderTheme(){
   const byVol = list.filter(s=>has(s.vol_ratio)).sort((a,b)=>b.vol_ratio-a.vol_ratio).slice(0,5)
     .map(s=>({ticker:s.ticker,name:s.name,val:r1(s.vol_ratio)+"배",cls:"up"}));
   const buy = list.filter(s=>s.sig.grade>=4).sort((a,b)=>b.sig.score-a.sig.score).slice(0,5)
-    .map(s=>({ticker:s.ticker,name:s.name,val:GRADES[s.sig.grade]}));
+    .map(s=>({ticker:s.ticker,name:s.name,val:gradeLabel(s.sig)}));
   const sell = list.filter(s=>s.sig.grade<=2).sort((a,b)=>a.sig.score-b.sig.score).slice(0,5)
-    .map(s=>({ticker:s.ticker,name:s.name,val:GRADES[s.sig.grade]}));
+    .map(s=>({ticker:s.ticker,name:s.name,val:gradeLabel(s.sig)}));
   const trend = list.filter(s=>s.sig.trendScore>0).sort((a,b)=>b.sig.trendScore-a.sig.trendScore).slice(0,5)
     .map(s=>({ticker:s.ticker,name:s.name,val:"추세 "+r1(s.sig.trendScore)}));
   const rev = list.filter(s=>s.sig.revScore>0).sort((a,b)=>b.sig.revScore-a.sig.revScore).slice(0,5)
@@ -1358,6 +1361,10 @@ function rankMark(i){
 /* ══════════ 기술 상태 번역 (UI 전용) ══════════
    새 점수 체계가 아니다. 이미 계산된 지표를 초보자가 읽을 수 있는 말로 옮기기만 한다.
    종합점수·등급·순위에는 전혀 영향을 주지 않는다. */
+/* 등급 표시명. 단기과열은 새 등급이 아니라 매도 판정의 사유 표시다. */
+function gradeLabel(sig){ return sig && sig.overheatOnly ? "단기과열" : GRADES[sig ? sig.grade : 3]; }
+function gradeCls(sig){ return sig && sig.overheatOnly ? "gOh" : "g"+(sig ? sig.grade : 3); }
+
 function starRow(icon, label, n, note){
   const full = "★".repeat(n) + "☆".repeat(5-n);
   return `<div class="strow"><span class="slab">${icon} ${label}</span>
@@ -1414,7 +1421,7 @@ function compactRow(s, i){
     <span class="c-main">
       <span class="c-rank">${state.sort==="category" ? "" : (i<3 ? ["🥇","🥈","🥉"][i] : `<span class="num">${i+1}</span>`)}</span>
       <span class="c-name"><b>${esc(s.ticker)}${levMark(s.ticker)}</b><em>${esc(s.name||"")}</em></span>
-      <span class="c-badge g${g}">${GRADES[g]}</span>
+      <span class="c-badge ${gradeCls(s.sig)}">${gradeLabel(s.sig)}</span>
       <span class="c-price num">${fmtPrice(s)}<em class="${chgCls(s.change_1d)}">${fmtChg(s.change_1d)}</em></span>
       <span class="c-flag">${key?`<span class="tag ${key.c}">${key.t.replace(/\(.*\)/,"")}</span>`:""}</span>
     </span>
@@ -1543,7 +1550,7 @@ function openCartReview(){
       <td class="num">${L.f(L.sup1)}${g(L.sup1)}<br><span class="lv2">${L.f(L.sup2)}</span></td>
       <td class="num">${L.f(L.res1)}${g(L.res1)}<br><span class="lv2">${L.f(L.res2)}</span></td>
       <td class="num"><span class="lv2">${L.f(L.hi52)}</span></td>
-      <td><span class="badge g${s.sig.grade} mini">${GRADES[s.sig.grade]}</span></td></tr>`;
+      <td><span class="badge ${gradeCls(s.sig)} mini">${gradeLabel(s.sig)}</span></td></tr>`;
   }).join("");
 
   openModal(`<h3>🛒 모의구매 점검 · ${n}종목</h3>
@@ -1707,7 +1714,7 @@ function stockCard(s, i){
     <div class="s-price">
       <span class="p num">${fmtPrice(s)}</span>
       <span class="c num ${chgCls(s.change_1d)}">${fmtChg(s.change_1d)}</span>
-      <span class="badge g${g}">${GRADES[g]}</span>${trendChip(s)}
+      <span class="badge ${gradeCls(s.sig)}">${gradeLabel(s.sig)}</span>${trendChip(s)}
     </div>
     <div class="s-reason">${esc(s.sig.line)}</div>
     <div class="tags">${tags}</div>
@@ -1836,7 +1843,12 @@ function renderHelp(){
         <div class="help-card"><b>5일선 이격도</b><br>5일선에서 멀어질수록 단계적으로 감점 — <b>+3~5% −0.3 · +5~8% −0.7 · +8%↑ −1.0</b>. 한 번에 크게 깎으면 급등한 날 점수가 무너지기 때문입니다.</div>
         <div class="help-card"><b>보는 지표</b><br>이동평균(5·20·60일) · RSI · MACD · 볼린저밴드 · 스토캐스틱 · 거래량 · 52주 신고가 · 시장(QQQ) 국면</div>
         <div class="help-card"><b>공통 위험 요소</b><br>과열(볼린저 상단+RSI) · 역배열 하락 · 이동평균 이탈 · MACD 데드크로스 · 스토캐스틱 고점 꺾임 · 시장 약세</div>
-        <div class="help-card"><b>등급</b><br>강한매수 · 매수관심 · 중립 · 매도관심 · 강한매도 5단계로 나뉩니다.</div>
+        <div class="help-card"><b>등급</b><br>강한매수 · 매수관심 · 중립 · 매도관심 · 강한매도 5단계입니다.<br><br>
+        매도 쪽은 <b>사유를 한 번 더 나눕니다.</b> 점수가 같아도 <b>20일선 위 + 5일선이 20일선 위 + MACD 데드크로스 없음</b>이면
+        추세는 살아있는데 과열로 점수가 내려간 경우라, <b>단기과열</b>로 표시합니다.
+        "팔아야 한다"가 아니라 <b>"지금 신규 진입은 쉬고 눌림을 기다리는 자리"</b>라는 뜻이에요.
+        20일선을 잃었거나 MACD 데드크로스가 겹치면 그대로 <b>강한매도</b>입니다.<br><br>
+        단기과열은 새 등급이 아니라 <b>표시만 바꾸는 것</b>이라, 점수·순위는 전혀 달라지지 않습니다.</div>
       </div>
     </details>
 
