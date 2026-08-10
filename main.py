@@ -28,8 +28,9 @@ PERIOD = "1y"    # 52주 신고가 계산 위해 1년
 # 카드 타임라인용 — 최근 며칠치 지표를 함께 내려준다.
 # 키를 반복하는 객체 대신 위치 기반 배열이라 용량이 절반 이하다.
 HIST_DAYS = 5
-HIST_FIELDS = ["date","price","ma5","ma20","ma60","rsi","macd_hist","macd_cross","macd_zero",
-               "bb_pos","stoch_k","stoch_d","stoch_cross","vol_ratio","near_high","pct_from_high"]
+HIST_FIELDS = ["date","price","change_1d","ma5","ma20","ma60","rsi","macd_hist","macd_cross","macd_zero",
+               "bb_pos","stoch_k","stoch_d","stoch_cross","vol_ratio","near_high","pct_from_high",
+               "ma20_slope","run5_max","run3_sum","range3","range10","vol3_ratio"]
 
 RUN_SCOPE = os.environ.get("RUN_SCOPE", "all").strip().lower()
 if RUN_SCOPE not in ("all", "kr"):
@@ -199,6 +200,20 @@ def analyze(ticker, name, category):
         atr_pct = (atr_s.iloc[i] / c_i * 100) if c_i else None
         h52 = high.iloc[:end].max()           # 그 시점까지의 52주 고가
         pfh = (c_i / h52 - 1) * 100 if h52 else None
+
+        # ── 진입 위치(Positioning) 판단용 파생값 ────────────────────
+        # 점수 계산은 하지 않는다. 산식은 index.html 한 곳에만 둔다.
+        m20_now, m20_ago = ma20.iloc[i], ma20.iloc[i-5]
+        ma20_slope = ((m20_now / m20_ago - 1) * 100) if (m20_ago and m20_ago > 0) else None
+        chg_s = close.pct_change() * 100
+        run5_max = chg_s.iloc[end-5:end].max() if end >= 5 else None       # 최근 5일 중 최대 일간 상승률
+        run3_sum = ((c_i / close.iloc[i-3] - 1) * 100) if end >= 4 else None  # 최근 3일 누적 등락률
+        rng = ((high - low) / close * 100)
+        range3  = rng.iloc[end-3:end].mean()  if end >= 3  else None       # 최근 3일 평균 변동폭
+        range10 = rng.iloc[end-13:end-3].mean() if end >= 13 else None     # 그 직전 10일 평균 변동폭
+        v3 = vol.iloc[end-3:end].mean() if end >= 3 else None
+        vol3_ratio = (v3 / va) if (v3 is not None and va and va > 0) else None
+
         return {
             "price": safe(c_i, nd), "change_1d": safe(chg),
             "volume": int(vol.iloc[i]) if not np.isnan(vol.iloc[i]) else None,
@@ -215,6 +230,8 @@ def analyze(ticker, name, category):
             "atr_pct": safe(atr_pct),
             "pct_from_high": safe(pfh),
             "near_high": bool(pfh is not None and pfh >= -5),
+            "ma20_slope": safe(ma20_slope), "run5_max": safe(run5_max), "run3_sum": safe(run3_sum),
+            "range3": safe(range3), "range10": safe(range10), "vol3_ratio": safe(vol3_ratio),
             "last_date": df.index[i].strftime("%Y-%m-%d"),
         }
 
