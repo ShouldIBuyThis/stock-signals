@@ -766,14 +766,19 @@ function evaluate(s){
   const ext5   = (has(p)&&has(ma5)&&ma5) ? (p/ma5 - 1)*100 : null;   // MA5 이격도
   const rising = has(s.ma20_slope) && s.ma20_slope > 0;              // MA20 기울기 상승
   const run5   = has(s.run5_max) ? s.run5_max : null;                // 최근 5일 최대 상승률
-  const dry    = has(s.vol3_ratio) && s.vol3_ratio < 0.8;            // 최근 3일 거래량 마름
+  /* 거래량이 말랐는지 — 3일 평균이 줄었거나, 오늘 하루라도 확실히 줄었으면 인정 */
+  const dry    = (has(s.vol3_ratio) && s.vol3_ratio < 0.85) || (has(vr) && vr < 0.85);
   const squeeze= has(s.range3)&&has(s.range10)&&s.range10 ? s.range3 < s.range10*0.8 : false;
   const yChg   = has(s.prev_change_1d) ? s.prev_change_1d : null;
   const yVr    = has(s.prev_vol_ratio) ? s.prev_vol_ratio : null;
   /* 어제 대량 음봉이면 오늘은 '쉬는 것'이 아니라 '던진 다음날'로 본다 */
   const dumpedYesterday = (yChg !== null && yChg <= -5) && (yVr !== null && yVr >= 1.5);
 
-  const nearMA5 = has(p)&&has(ma5)&&has(ma20) && p <= ma5 && p >= ma20;  // MA5~MA20 사이
+  const nearMA5 = has(p)&&has(ma5)&&has(ma20) && p <= ma5 && p >= ma20;  // MA5~MA20 사이로 눌린 자리
+  /* 5일선을 깨지 않고 그 바로 위에서 거래량 줄이며 조용히 쉬는 날.
+     주도주는 눌리기보다 이렇게 매물을 소화하는 경우가 더 많다.
+     '정배열 상승' 분기를 그대로 두고 별도 가점만 얹는다 — 눌림목 분기로 보내면 오히려 강등된다. */
+  const restAbove = has(p)&&has(ma5) && (p/ma5-1)*100 <= 3 && p >= ma5;
   /* 일반 눌림목: 상승추세 유지 + MA5~MA20 사이 + 거래량 감소 */
   const dipSoft = bull && a20 && nearMA5 && dry && !dumpedYesterday;
   /* 강한 눌림목: 최근 급등 → 변동폭 축소 → 거래량 마름 → MA20 이탈 없음 */
@@ -803,6 +808,13 @@ function evaluate(s){
     else { tNeg-=2; tags.push({c:"t-cool",t:"📉 역배열 하락"}); reasons.push({w:2,t:"이동평균 역배열 하락추세"}); }
   } else if (!a5&&!a20){
     tNeg-=1.5; tags.push({c:"t-cool",t:"📉 약세"}); reasons.push({w:1.5,t:"5·20일선 아래 약세"});
+  }
+
+  /* ①-b 5일선 위 숨고르기 — 정배열 유지 + 거래량 감소 + 하루 등락 작음 */
+  const resting = bull && restAbove && dry && pct !== null && Math.abs(pct) <= 2.5 && !dipSoft && !dipHard;
+  if (resting){
+    tPos += 0.7; tags.push({c:"t-buy",t:"😴 5일선 위 숨고르기"});
+    reasons.push({w:2.4,t:`5일선 위 ${r1((p/ma5-1)*100)}%에서 거래량 ${r1(vr)}배로 횡보 — 매물 소화 구간`});
   }
 
   /* ②-a MA20 기울기 — 추세가 살아있는지 */
@@ -874,7 +886,7 @@ function evaluate(s){
         rPos += w; tags.push({c:"t-warn",t:"💧 공포 투매"});
         reasons.push({w:3.0,t:`공포 투매 — 거래량 ${r1(vr)}배 동반 ${r1(pct)}% 급락`});
       }
-    } else if (isRed && vr<0.8 && bull){
+    } else if (isRed && vr<0.85 && bull && !resting){
       tPos += 0.5; reasons.push({w:1.5,t:`거래량 감소(${r1(vr)}배) 음봉 — 건전한 숨고르기`});
     } else if (!isRed){
       /* 거래량이 어디로 가는지 먼저 정한다.
