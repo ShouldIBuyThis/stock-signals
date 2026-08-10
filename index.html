@@ -730,6 +730,9 @@ function normalize(raw){
       /* 진입 위치(Positioning) 파생값 — 빠뜨리면 오늘 카드에서만 관련 로직이 통째로 죽는다 */
       ma20_slope: num(it.ma20_slope), run5_max: num(it.run5_max), run3_sum: num(it.run3_sum),
       range3: num(it.range3), range10: num(it.range10), vol3_ratio: num(it.vol3_ratio),
+      res_short: num(it.res_short), res_mid: num(it.res_mid),
+      sup_short: num(it.sup_short), sup_mid: num(it.sup_mid),
+      high_52w: num(it.high_52w), ret20: num(it.ret20),
       last_date: it.last_date || "",
       _prevRaw: it.prev || null,
       _hist: Array.isArray(it.hist) && it.hist.length ? it.hist : null
@@ -985,7 +988,40 @@ function evaluate(s){
   /* 점수 및 등급 */
   const trendScore=Math.round((tPos+tNeg+cNeg)*10)/10;
   const revScore=Math.round((rPos+rNeg+cNeg)*10)/10;
-  const score=Math.max(trendScore, revScore);
+  const baseScore=Math.max(trendScore, revScore);
+  const isTrendType = trendScore >= revScore;
+
+  /* ── 여기서부터는 기존 산식을 건드리지 않는 '자리 보정'이다.
+     위에서 나온 점수를 그대로 두고, 마지막에 작게만 더하고 뺀다. ── */
+
+  /* (a) 단기 저항이 머리 위에 있으면 진입 자리가 불리하다.
+         최대 -1.2. 저항 하나로 강한 신호를 무력화하지 않는 크기다. */
+  let resAdj = 0, resGap = null;
+  if (has(s.res_short) && has(p) && p > 0){
+    resGap = (s.res_short / p - 1) * 100;
+    if (resGap < 2)      resAdj = -1.2;
+    else if (resGap < 4) resAdj = -0.7;
+    else if (resGap < 7) resAdj = -0.3;
+  }
+
+  /* (b) 추세형에만 상대강도(주도주 강도) 보정.
+         반등형은 바닥 종목이라 상대강도가 낮은 게 당연하므로 적용하지 않는다.
+         우리 점수 폭이 대략 -5~4라 ±0.5로 제한한다(100점 스케일의 ±5에 해당). */
+  let ldrAdj = 0, leader = null;
+  if (has(s.ret20) && has(s.market_ret20)){
+    const rel = s.ret20 - s.market_ret20;                       // 시장 대비 20일 초과수익
+    const slope = has(s.ma20_slope) ? s.ma20_slope : 0;
+    const nearTop = has(s.pct_from_high) ? Math.max(0, 100 + s.pct_from_high) : 50;
+    leader = Math.round(Math.max(0, Math.min(100,
+      50 + rel * 1.2 + slope * 2 + (nearTop - 80) * 0.5)));     // 0~100 내부 지표
+    if (isTrendType){
+      if (leader >= 80)      ldrAdj = 0.5;
+      else if (leader >= 65) ldrAdj = 0.3;
+      else if (leader <= 25) ldrAdj = -0.3;
+    }
+  }
+
+  const score = Math.round((baseScore + resAdj + ldrAdj) * 10) / 10;
 
   let g=3;
   if (score>=3.2) g=5; else if (score>=1.5) g=4;
@@ -1020,7 +1056,9 @@ function evaluate(s){
     ? (type?`[${type}형] `:"") + reasons.slice(0,2).map(x=>x.t).join(" · ")
     : "뚜렷한 신호 없음";
 
-  return { score, trendScore, revScore, grade:g, type, sellType, line, tags };
+  /* 검증용 내역 — 나중에 "저항 보정이 실제로 도움이 됐나"를 사후 비교할 수 있게 남긴다 */
+  const adj = { base: baseScore, res: resAdj, resGap, leader, ldr: ldrAdj, final: score };
+  return { score, trendScore, revScore, grade:g, type, sellType, line, tags, adj };
 }
   
 /* ══════════ 종목 가공 ══════════ */
@@ -1060,6 +1098,8 @@ function histRow(s, row, i, total){
     near_high: !!o.near_high, pct_from_high: num(o.pct_from_high),
     change_1d: num(o.change_1d),
     ma20_slope: num(o.ma20_slope), run5_max: num(o.run5_max), run3_sum: num(o.run3_sum),
+    res_short: num(o.res_short), ret20: num(o.ret20),
+    market_ret20: (state.data && state.data.market) ? num(state.data.market.ret20) : null,
     range3: num(o.range3), range10: num(o.range10), vol3_ratio: num(o.vol3_ratio),
     market_level: s._kr ? "neutral" : lvl,
     market_weak: !s._kr && (lvl === "weak" || lvl === "caution")
@@ -1104,6 +1144,10 @@ function allStocks(){
       s.prev_change_1d = y[F.indexOf("change_1d")];
       s.prev_vol_ratio = y[F.indexOf("vol_ratio")];
       s.prev_macd_hist = y[F.indexOf("macd_hist")];
+    }
+    {
+      const mk = (state.data && state.data.market) || {};
+      s.market_ret20 = num(mk.ret20);
     }
     const sig = evaluate(s);
     const pv = prevStock(s);
