@@ -712,18 +712,19 @@ function evaluate(s){
   const reasons=[], tags=[];
   const p=s.price, ma5=s.ma5, ma20=s.ma20, ma60=s.ma60, rsi=s.rsi, bb=s.bb_pos, hist=s.macd, vr=s.vol_ratio;
   
-  // 🟢 당일 캔들 양봉/음봉 및 급등 여부 판별
-  const isGreen = has(s.pct) ? s.pct >= 0 : true; 
-  const isOverboughtDay = has(s.pct) && s.pct >= 6.0;
+  // 🟢 [1. 당일 급등 필터] s.change_1d 연동 (+5% 이상 급등 시 추격매수 가점 제한)
+  const pct = has(s.change_1d) ? s.change_1d : (has(s.pct) ? s.pct : 0);
+  const isGreen = pct >= 0; 
+  const isOverboughtDay = pct >= 5.0;
 
   const a5=has(p)&&has(ma5)&&p>ma5, a20=has(p)&&has(ma20)&&p>ma20, a60=has(p)&&has(ma60)&&p>ma60;
   const bull=has(ma5)&&has(ma20)&&has(ma60)&&ma5>ma20&&ma20>ma60;
   const bear=has(ma5)&&has(ma20)&&has(ma60)&&ma5<ma20&&ma20<ma60;
   const reclaim=a5&&a20&&!a60;
-  const dip = !a5 && has(ma5) && has(p) && (ma5-p)/ma5 <= 0.06;
+  const dip = !a5 && has(ma5) && has(p) && (ma5-p)/ma5 <= 0.06; // MA5 아래 6% 이내 눌림
   let macdDone=false;
 
-  /* ① 추세·패턴 */
+  /* ① 추세·패턴 + [2. 정배열 눌림목 우대] */
   if (bull && dip && a20 && has(rsi) && rsi>=38 && rsi<=68){
     let w = (has(vr) && vr <= 0.8) ? 3.0 : 2.5;
     tPos += w; 
@@ -732,7 +733,7 @@ function evaluate(s){
   } else if (bull && a5){
     if (has(rsi)&&rsi>=75){ tPos+=0.3; reasons.push({w:1.5,t:`정배열이나 RSI ${r1(rsi)} 과열`}); }
     else { 
-      let w = isOverboughtDay ? 0.8 : 1.5;
+      let w = isOverboughtDay ? 0.5 : 1.5; // 급등일 가점 제한
       tPos += w; 
       tags.push({c:"t-buy",t:"📈 정배열 상승"}); 
       reasons.push({w:1.8,t: isOverboughtDay ? "당일 급등 정배열 (추격 매수 위험)" : "정배열 상승추세"}); 
@@ -755,42 +756,45 @@ function evaluate(s){
     }
   }
 
-  /* ② 거래량 — [vAdd 단일 변수로 정리 완료] */
+  /* ② 수급 상태 (거래량) — [3. 거래량 감소 눌림 가점 / 4. 대량 거래량 음봉 감점] */
   if (has(vr)){
     let vAdd = 0;
     if (isGreen) { 
-      if (vr>=3.0) vAdd=2.0; else if (vr>=2.0) vAdd=1.8;
-      else if (vr>=1.5) vAdd=1.5; else if (vr>=1.2) vAdd=0.8;
-      else if (vr<0.8) vAdd=-0.3;
+      if (vr>=3.0) vAdd = isOverboughtDay ? 0.8 : 2.0; 
+      else if (vr>=2.0) vAdd = isOverboughtDay ? 0.6 : 1.8;
+      else if (vr>=1.5) vAdd = 1.2; 
+      else if (vr>=1.2) vAdd = 0.8;
       
       if (vAdd>0){
         if (reclaim||!a5) rPos+=vAdd; else tPos+=vAdd;
         reasons.push({w:2.4,t:`양봉 거래량 ${r1(vr)}배 동반`});
       }
     } else { 
-      if (vr>=2.0) {
-        sNeg -= 2.5; 
+      // [4. 대량 음봉 = 감점]
+      if (vr>=1.5) {
+        sNeg -= 3.0; 
         tags.push({c:"t-cool",t:"🚨 대량 매도 이탈"});
         reasons.push({w:3.0,t:`대량 거래량(${r1(vr)}배) 동반 음봉 — 세력 이탈/폭락 위험`});
-      } else if (vr<0.8 && bull) {
+      } 
+      // [3. 거래량 감소 음봉 = 눌림목 가점]
+      else if (vr<0.8 && bull) {
         tPos += 0.8;
         reasons.push({w:1.5,t:`거래량 감소(${r1(vr)}배) 음봉 — 건전한 눌림목 조정`});
       }
     }
   }
 
-  /* ③ 돌파매매 */
-  const breakout = a5 && a20 && has(bb) && bb>=80 && has(vr) && vr>=1.3 && (!has(rsi)||rsi<75) && (bull||s.near_high) && isGreen;
+  /* ③ 돌파매매 (당일 급등 시 차단) */
+  const breakout = a5 && a20 && has(bb) && bb>=80 && has(vr) && vr>=1.3 && (!has(rsi)||rsi<75) && (bull||s.near_high) && isGreen && !isOverboughtDay;
   if (breakout){
-    tPos+=2; tags.push({c:"t-buy",t:"🚀 저항선 돌파"});
+    tPos+=1.5; tags.push({c:"t-buy",t:"🚀 저항선 돌파"});
     reasons.push({w:3.1,t:`저항선 돌파 — 볼밴 ${r1(bb)} + 거래량 ${r1(vr)}배`});
   }
 
-  /* ④ 52주 신고가 */
-  if (s.near_high && (a5||a20)){
-    let w = isOverboughtDay ? 0.5 : 1.0; 
-    tPos+=w; tags.push({c:"t-buy",t:"🏔 52주 신고가 근접"});
-    reasons.push({w:2.2,t:`52주 신고가 근접(${has(s.pct_from_high)?r1(s.pct_from_high)+"%":"5% 이내"})`});
+  /* ④ 52주 신고가 (당일 급등 시 차단) */
+  if (s.near_high && (a5||a20) && !isOverboughtDay){
+    tPos+=0.8; tags.push({c:"t-buy",t:"🏔 52주 신고가 근접"});
+    reasons.push({w:2.2,t:`52주 신고가 근접`});
   }
 
   /* ⑤ MACD */
@@ -844,7 +848,7 @@ function evaluate(s){
     tags.unshift({c: type==="추세"?"t-buy":"t-warn", t:(type==="추세"?"📈 추세추종":"🔄 반등신호"), click:type});
   }
 
-  /* ⑩ 매도 신호 2종 구분 */
+  /* ⑩ 매도 신호 */
   let sellType=null;
   const overheat = (has(rsi)&&rsi>=70) || (has(bb)&&bb>=95);
   const brokeSupport = !a20 && (( has(ma5)&&has(ma20)&&ma5<ma20 ) || s.macd_cross==="dead");
@@ -856,8 +860,8 @@ function evaluate(s){
     tags.push({c:"t-hot",t:"⚠ 과열 — 익절 구간 주의",click:"과열주의"});
   }
 
-  /* 기타 태그 및 근거 요약문 정렬 */
-  if (g>=4 && has(s.change_1d) && s.change_1d>=5) tags.unshift({c:"t-hot",t:`⚠ 추격주의(오늘 +${r1(s.change_1d)}%)`});
+  /* 태그 정리 및 요약 */
+  if (g>=4 && has(pct) && pct>=5) tags.unshift({c:"t-hot",t:`⚠ 추격주의(오늘 +${r1(pct)}%)`});
   if (has(rsi)&&rsi<=30) tags.push({c:"t-cool",t:"🧊 과매도"});
   if (has(vr)&&vr>=1.5) tags.push({c:"t-vol",t:`⚡ 거래량 ${r1(vr)}배`});
 
