@@ -4,8 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="light">
-<title>Should I Buy This? — 매수/매도 기술적 신호 모니터링</title>
+<title>지금이니? — 매수/매도 기술적 신호 모니터링</title>
 <style>
+html,body{overflow-x:hidden;max-width:100%}
 :root{
   color-scheme:light;
   --bg:#f7f8fa; --surface:#fff; --surface2:#fbfcfd;
@@ -398,6 +399,7 @@ html[data-theme="dark"] .bchip.on{background:#37456a;border-color:#37456a}
 .tklist .val{font-weight:800}
 /* ── 헤더 미니 버튼 · 카드 장바구니 ── */
 .theme-btn.mini{padding:6px 9px;font-size:15px;line-height:1}
+@media (max-width:640px){ .theme-btn.mini{padding:6px 5px;font-size:14px} .tabs{gap:0} }
 .theme-btn.mini.on{background:rgba(255,255,255,.22)}
 .s-tools button.cart{font-size:12px;padding:2px 5px}
 .s-tools button.cart.on{color:var(--buy)}
@@ -438,6 +440,25 @@ html[data-theme="dark"] .badge.gOh,html[data-theme="dark"] .c-badge.gOh,html[dat
 .lvcur{font-size:10px;color:var(--muted);font-weight:600}
 .lvgap{font-size:9.5px;color:var(--faint);margin-left:3px;font-weight:600}
 .lv2{font-size:10px;color:var(--faint);font-weight:600}
+.cmp.lv .gcol{white-space:nowrap;text-align:right;padding-left:6px}
+.cmp.lv .gcol .badge{display:inline-block;white-space:nowrap}
+/* 로고 */
+.brand{font-weight:900;letter-spacing:-0.5px}
+/* 테마랭킹 시장 필터 (TOP5 아래, 축소) */
+.mkbar{display:flex;align-items:center;gap:8px;margin:0 0 11px;padding:5px 9px;
+  background:var(--surface2);border:1px solid var(--line);border-radius:999px;width:fit-content}
+.mkbar .flabel{font-size:11px;color:var(--muted);font-weight:700}
+.mkswitch.sm{padding:2px;gap:1px;background:var(--surface)}
+.mkswitch.sm button{padding:3px 8px;font-size:13px}
+html[data-theme="dark"] .mkbar{background:var(--surface2)}
+html[data-theme="dark"] .mkswitch.sm{background:var(--surface)}
+/* TOP5 헤더의 보유종목 칩 */
+.chip.tgl.mini2{margin-left:8px;font-size:11px;padding:3px 9px;white-space:nowrap}
+@media (max-width:640px){ .section-h .chip.tgl.mini2{margin-left:auto} }
+/* 스윙 관점 링크 */
+.swinglink{background:none;border:0;padding:0;cursor:pointer;color:var(--faint);
+  font-size:11px;font-weight:600;text-decoration:underline dotted;text-underline-offset:2px}
+html[data-theme="dark"] .swinglink{color:var(--muted)}
 /* ── 기술 상태 별점 (UI 번역 전용) ── */
 .stars{margin-top:9px;padding-top:9px;border-top:1px dashed var(--line)}
 .sthead{font-size:11.5px;font-weight:800;color:var(--ink);margin-bottom:6px}
@@ -540,7 +561,7 @@ html[data-theme="dark"] .mkswitch button.on{background:#37456a;box-shadow:none}
 <header>
   <div class="wrap">
     <div class="brand">
-      <h1>Should I Buy This?</h1>
+      <h1 class="brand">지금이니?</h1>
       <span class="ko">매수/매도 기술적 신호 모니터링</span>
       <span class="tag">참고용</span>
     </div>
@@ -593,7 +614,7 @@ html[data-theme="dark"] .mkswitch button.on{background:#37456a;box-shadow:none}
   · 2026년 8월부터 매 갱신마다 신호 이력을 저장하고 있으며, 표본이 쌓이면 성과를 집계해 공개할 예정입니다.<br>
   · 그때까지는 신호를 매수 근거가 아니라 <b>관찰 대상을 좁히는 필터</b>로 사용하세요.
   <div style="margin-top:18px;padding-top:12px;border-top:1px solid var(--line);font-size:11px;color:var(--faint)">
-    © 2026 <b>Should I Buy This?</b> · 신호 산출 방식·화면 구성·문구를 포함한 모든 콘텐츠의 무단 복제·재배포를 금합니다.<br>
+    © 2026 <b>지금이니?</b> · shouldibuythis.github.io/stock-signals<br>신호 산출 방식·화면 구성·문구를 포함한 모든 콘텐츠의 무단 복제·재배포를 금합니다.<br>
     시세 출처 yfinance · 투자 판단과 그 결과에 대한 책임은 이용자 본인에게 있습니다.
   </div>
 </footer>
@@ -1282,15 +1303,13 @@ function widget(title, sub, rows, emptyMsg){
 function marketBar(){ return ""; }
 function themeHoldBar(){
   const on = v => state.market===v ? "on" : "";
-  return `<div class="filters" style="margin-bottom:12px">
-    <div class="frow"><span class="flabel">시장</span>
-      <span class="mkswitch">
-        <button class="${on("all")}" data-market="all" title="전체">🌐</button>
-        <button class="${on("us")}" data-market="us" title="미국장">🇺🇸</button>
-        <button class="${on("kr")}" data-market="kr" title="한국장">🇰🇷</button>
-      </span>
-      <button class="chip tgl right ${state.showHoldings?"on":""}" data-hold="1">⭐ 보유만 보기</button>
-    </div>
+  return `<div class="mkbar">
+    <span class="flabel">시장</span>
+    <span class="mkswitch sm">
+      <button class="${on("all")}" data-market="all" title="전체">🌐</button>
+      <button class="${on("us")}" data-market="us" title="미국장">🇺🇸</button>
+      <button class="${on("kr")}" data-market="kr" title="한국장">🇰🇷</button>
+    </span>
   </div>`;
 }
 function noHoldingState(){
@@ -1319,11 +1338,14 @@ function renderTheme(){
   const rev = list.filter(s=>s.sig.revScore>0).sort((a,b)=>b.sig.revScore-a.sig.revScore).slice(0,5)
     .map(s=>({ticker:s.ticker,name:s.name,val:"반등 "+r1(s.sig.revScore)}));
 
-  return marketBar() + themeHoldBar() + `
+  return marketBar() + `
   <div class="section">
-    <div class="section-h"><h2>핵심 시그널 TOP 5</h2><span class="sub">항목을 누르면 상세 카드로 이동</span>${basisNote()}</div>
+    <div class="section-h"><h2>핵심 시그널 TOP 5</h2>
+      <button class="chip tgl mini2 ${state.showHoldings?"on":""}" data-hold="1">⭐ 보유종목</button>
+      ${basisNote()}</div>
+    ${themeHoldBar()}
     <div class="widgets">
-      ${widget("🟢 매수 신호","강한매수·매수관심",buy,"오늘은 매수 신호가 없어요")}
+      ${widget("🟢 매수 신호","<button class=\"swinglink\" data-swing=\"1\">3~20일 스윙 관점</button>",buy,"오늘은 매수 신호가 없어요")}
       ${widget("📈 추세추종","달리는 말 — 상승 흐름",trend,"추세 신호 없음")}
       ${widget("🔄 반등 신호","저점 매수 — 바닥권 전환",rev,"반등 신호 없음")}
       ${widget("🔴 매도·경계","과열·추세 꺾임",sell,"경계 신호 없음")}
@@ -1552,8 +1574,7 @@ function openCartReview(){
     return `<tr><td><b>${esc(s.ticker)}</b><br><span class="lvcur">${L.f(s.price)}</span></td>
       <td class="num">${L.f(L.sup1)}${g(L.sup1)}<br><span class="lv2">${L.f(L.sup2)}</span></td>
       <td class="num">${L.f(L.res1)}${g(L.res1)}<br><span class="lv2">${L.f(L.res2)}</span></td>
-      <td class="num"><span class="lv2">${L.f(L.hi52)}</span></td>
-      <td><span class="badge ${gradeCls(s.sig)} mini">${gradeLabel(s.sig)}</span></td></tr>`;
+      <td class="gcol"><span class="badge ${gradeCls(s.sig)} mini">${gradeLabel(s.sig)}</span></td></tr>`;
   }).join("");
 
   openModal(`<h3>🛒 모의구매 점검 · ${n}종목</h3>
@@ -1568,11 +1589,11 @@ function openCartReview(){
 
     <div class="cf-h" style="margin-top:14px">📐 종목별 자리</div>
     <table class="cmp lv">
-      <tr><th>종목<br><span>현재가</span></th><th>지지<br><span>20일 / 60일</span></th><th>저항<br><span>20일 / 60일</span></th><th>52주<br><span>고가</span></th><th>신호<br><span>등급</span></th></tr>
+      <tr><th>종목<br><span>현재가</span></th><th>지지<br><span>20일 / 60일</span></th><th>저항<br><span>20일 / 60일</span></th><th class="gcol">신호</th></tr>
       ${rows}
     </table>
     <p class="cf-note">지지는 최근 20·60거래일 <b>저점</b>, 저항은 그 기간의 <b>고점</b>입니다. 윗줄이 가까운 자리(20일), 아랫줄이 다음 자리(60일)예요.
-      저항이 <b>—</b>면 이미 그 구간 고점을 넘어선 상태입니다. 손절선은 진입가와 보유 기간에 따라 달라지므로 직접 정하셔야 합니다.</p>
+      저항이 <b>—</b>면 이미 그 구간 고점을 넘어선 상태입니다. 52주 고가는 카드에서 확인하세요. 손절선은 진입가와 보유 기간에 따라 달라지므로 직접 정하셔야 합니다.</p>
 
     <div class="bub good"><div class="bub-h">💚 괜찮은 점</div>${B.good.map(t=>`<p>${t}</p>`).join("")}</div>
     <div class="bub care"><div class="bub-h">⚠️ 놓치기 쉬운 점</div>${B.care.map(t=>`<p>${t}</p>`).join("")}</div>
@@ -2230,6 +2251,13 @@ document.getElementById("main").addEventListener("click", e=>{
   if (tl){ e.stopPropagation(); openTimeline(tl.dataset.timeline); return; }
   const tr = e.target.closest("[data-trend]");
   if (tr){ e.stopPropagation(); openTrendModal(tr.dataset.trend); return; }
+  if (e.target.closest("[data-swing]")){
+    openModal(`<h3>🎯 3~20일 스윙 관점</h3>
+      <p style="font-size:13px;color:var(--reason);line-height:1.85">
+        당일매매용이 아닌 <b>스윙 관점</b>이며, <b>다음날 급등할 종목을 추천하는 게 아닙니다.</b><br><br>
+        기술적 신호를 기반으로 <b>3~20일 스윙 관점에서 타이밍이 좋은 종목</b>들을 1차로 스크리닝해보세요!</p>
+      <div class="modal-actions"><button class="primary" onclick="document.getElementById('modal').classList.remove('on')">닫기</button></div>`);
+    return; }
   if (e.target.closest("[data-foldall]")){
     /* 모바일에서 73개를 한 번에 펼치면 스크롤이 감당이 안 된다. 20개씩 끊는다. */
     state.expanded = state.expanded.length ? [] : visible().slice(0, 20).map(x=>x.ticker);
