@@ -401,6 +401,19 @@ html[data-theme="dark"] .bchip.on{background:#37456a;border-color:#37456a}
 .theme-btn.mini.on{background:rgba(255,255,255,.22)}
 .s-tools button.cart{font-size:12px;padding:2px 5px}
 .s-tools button.cart.on{color:var(--buy)}
+/* ── 산식 변경 이력 ── */
+.vlog{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.vrow{border:1px solid var(--line);border-radius:10px;padding:9px 11px;background:var(--surface2)}
+.vrow.now{border-color:var(--navy)}
+html[data-theme="dark"] .vrow.now{border-color:#37456a}
+.vh{display:flex;align-items:center;gap:7px;font-size:12.5px}
+.vh b{font-weight:900;color:var(--ink)}
+.vd{font-size:11px;color:var(--faint)}
+.vnow{margin-left:auto;font-size:10px;font-weight:800;background:var(--navy);color:#fff;padding:1px 7px;border-radius:99px}
+html[data-theme="dark"] .vnow{background:#37456a}
+.vt{font-size:12.5px;font-weight:700;color:var(--ink);margin-top:3px}
+.vc{font-size:11.5px;color:var(--reason);line-height:1.65;margin-top:3px}
+.lver{font-weight:700;color:var(--faint)}
 /* ── 신호 히스토리 타임라인 ── */
 .tlink{background:none;border:0;padding:0;margin-left:2px;cursor:pointer;color:var(--link,#2f6fd0);
   font-size:11px;font-weight:700;text-decoration:underline dotted;text-underline-offset:2px}
@@ -547,7 +560,7 @@ html[data-theme="dark"] .mkswitch button.on{background:#37456a;box-shadow:none}
   · 2026년 8월부터 매 갱신마다 신호 이력을 저장하고 있으며, 표본이 쌓이면 성과를 집계해 공개할 예정입니다.<br>
   · 그때까지는 신호를 매수 근거가 아니라 <b>관찰 대상을 좁히는 필터</b>로 사용하세요.
   <div style="margin-top:18px;padding-top:12px;border-top:1px solid var(--line);font-size:11px;color:var(--faint)">
-    © 2026 <b>Should I Buy This?</b> · 신호 산출 방식·화면 구성·문구를 포함한 모든 콘텐츠의 무단 복제·재배포를 금합니다.<br>
+    <span class="lver">산식 ${LOGIC_VERSION}</span> · © 2026 <b>Should I Buy This?</b> · 신호 산출 방식·화면 구성·문구를 포함한 모든 콘텐츠의 무단 복제·재배포를 금합니다.<br>
     시세 출처 yfinance · 투자 판단과 그 결과에 대한 책임은 이용자 본인에게 있습니다.
   </div>
 </footer>
@@ -595,6 +608,22 @@ html[data-theme="dark"] .mkswitch button.on{background:#37456a;box-shadow:none}
 /* ══════════ 상태 ══════════ */
 const LS = "sibt-v2";
 const CART_MAX = 10;   // 모의구매 점검이 의미를 가지는 상한
+
+/* ── 점수 산식 버전 ──────────────────────────────────────────
+   history/ 에는 '원본 지표'만 쌓이므로, 어느 버전으로도 과거를 다시 채점할 수 있다.
+   필요한 건 "언제부터 어느 산식이 돌았는가"의 기록이다. 코드 자체는 git이 보관한다.
+   나중에 소급 채점할 때: git show <커밋>:index.html 로 그 시점 evaluate()를 꺼내 쓴다. */
+const LOGIC_VERSION = "v3";
+const LOGIC_LOG = [
+  {v:"v3", from:"2026-08-10", t:"추세·반등·공통 감점 분리",
+   d:"감점을 한 통(sNeg)에 담아 쓰던 걸 셋으로 나눴다. 추세가 깨져도 반등 점수가 같이 죽지 않는다. 공포 투매 반등 가점, 3일 급등 차등 감점, 거래량 가점 상향(3배 2.4)."},
+  {v:"v2", from:"2026-08-10", t:"진입 위치(눌림목) 평가 도입",
+   d:"당일 급등 시 가점 상한, 정배열 눌림목 2단계(일반 0.8 / 강한 1.5), MA5 이격도 단계 감점, 대량 음봉 감점, 전일 대량 음봉 뒤 눌림목 차단."},
+  {v:"v1", from:"2026-08-08", t:"종합 = max(추세, 반등)",
+   d:"종합 점수를 추세+반등 합산에서 둘 중 높은 쪽으로 변경. 양쪽에 어중간한 종목이 상위로 올라오던 문제를 없앴다."},
+  {v:"v0", from:"—", t:"초기 산식",
+   d:"종합 = 추세 가점 + 반등 가점 + 공통 감점. 거래량 가중치가 커서 급등 마지막 날에도 강한매수가 자주 떴다."}
+];
 let state = {
   data: null, tab: "theme", sort: "signal", market: "all",
   showHoldings: false, holdings: [], hidden: [], expanded: [], cart: [], badge: null,
@@ -781,13 +810,21 @@ function evaluate(s){
   /* ②-b MA5 이격도 단계 감점 — 급등일에 점수가 한꺼번에 박살나지 않게 단계로 */
   if (ext5 !== null && ext5 > 3){
     const d = ext5 >= 8 ? 1.0 : ext5 >= 5 ? 0.7 : 0.3;
-    tNeg -= d; rNeg -= d; reasons.push({w:2.0,t:`5일선 대비 +${r1(ext5)}% 이격 — 단기 과열`});
+    tNeg -= d; reasons.push({w:2.0,t:`5일선 대비 +${r1(ext5)}% 이격 — 추격 매수 위험`});
   }
   /* ②-d 최근 3일 누적 급등 — 추격 매수 위험. 반등 메리트도 같이 사라진다 */
-  if (has(s.run3_sum) && s.run3_sum >= 15){
-    const d3 = s.run3_sum >= 25 ? 2.0 : 1.0;
-    tNeg -= d3; rNeg -= d3; tags.push({c:"t-hot",t:`⚠ 3일 +${r1(s.run3_sum)}%`});
-    reasons.push({w:2.6,t:`최근 3일 누적 +${r1(s.run3_sum)}% — 추격 매수 위험`});
+  /* 같은 +20%라도 KO에겐 이상 급등, GDXU(3배 레버리지)에겐 평범한 이틀이다.
+     그래서 고정 %가 아니라 종목의 평소 변동성(ATR) 배수로 기준을 잡는다. */
+  const surgeThr = Math.max(15, (has(s.atr_pct) ? s.atr_pct : 4) * 3);
+  if (has(s.run3_sum) && s.run3_sum >= surgeThr){
+    /* 같은 3일 +18%라도 RSI 58·볼밴 65면 아직 과열이 아니고,
+       RSI 81·볼밴 98이면 진짜 과열이다. 둘을 같은 감점으로 보지 않는다. */
+    const overheated = (has(rsi)&&rsi>=70) || (has(bb)&&bb>=90);
+    const d3 = overheated ? (s.run3_sum >= surgeThr*1.7 ? 2.0 : 1.0) : 0.4;
+    tNeg -= d3; tags.push({c:"t-hot",t:`⚠ 3일 +${r1(s.run3_sum)}%`});
+    reasons.push({w: overheated?2.6:1.4,
+      t: overheated ? `최근 3일 +${r1(s.run3_sum)}% + 과열 지표 — 추격 매수 위험`
+                    : `최근 3일 +${r1(s.run3_sum)}% — 많이 올랐지만 과열 지표는 아직`});
   }
 
   /* ②-c RSI 50~65 — 과열도 침체도 아닌 구간 */
@@ -800,23 +837,41 @@ function evaluate(s){
       tNeg -= a20 ? 1.5 : 3.0;
       tags.push({c:"t-cool",t:"🚨 대량 매도 이탈"});
       reasons.push({w:3.4,t:`대량 거래량(${r1(vr)}배) 동반 음봉 — 추세 이탈 위험`});
+      /* 공포 거래량 = 평소 변동폭을 넘는 급락 + 거래량 폭증. 추세엔 악재지만 반등엔 재료다. */
+      const bigDrop = pct !== null && pct <= -Math.max(4, (has(s.atr_pct)?s.atr_pct:4) * 1.2);
       const capit = (has(bb)&&bb<=20) || (has(rsi)&&rsi<=35);
-      if (capit && a60){
-        rPos += 1.5; tags.push({c:"t-warn",t:"💧 공포 투매"});
-        reasons.push({w:3.0,t:`공포 투매 구간 — 거래량 ${r1(vr)}배 동반 급락`});
+      if (bigDrop || capit){
+        let w = capit ? 2.0 : 1.5;
+        /* '아직 지지가 남았는가' 판단. 60일선 위이거나 이동평균이 아직 정배열이면 인정한다.
+           하루 폭락으로 20일선은 깨져도 정배열 자체는 살아있는 경우가 많다. */
+        const supported = a60 || bull;
+        if (!supported) w -= 0.5;
+        rPos += w; tags.push({c:"t-warn",t:"💧 공포 투매"});
+        reasons.push({w:3.0,t:`공포 투매 — 거래량 ${r1(vr)}배 동반 ${r1(pct)}% 급락`});
       }
     } else if (isRed && vr<0.8 && bull){
       tPos += 0.5; reasons.push({w:1.5,t:`거래량 감소(${r1(vr)}배) 음봉 — 건전한 숨고르기`});
     } else if (!isRed){
+      /* 거래량이 어디로 가는지 먼저 정한다.
+         반등(역추세) 국면에서는 거래량 폭증이 전환의 핵심 근거라 급등 캡을 걸지 않는다.
+         추세 국면에서만 '이미 오른 날 거래량 가점까지 얹는' 것을 제한한다. */
+      const toRev = reclaim || !a5 || !bull;
       let vAdd = 0;
-      if (vr>=3.0) vAdd = surge ? 0.8 : 2.0;
-      else if (vr>=2.0) vAdd = surge ? 0.6 : 1.8;
-      else if (vr>=1.5) vAdd = surge ? 0.5 : 1.5;
+      if (vr>=3.0)      vAdd = 2.4;
+      else if (vr>=2.0) vAdd = 2.2;
+      else if (vr>=1.5) vAdd = 1.6;
       else if (vr>=1.2) vAdd = 0.8;
       else if (vr<0.8 && !dipSoft) vAdd = -0.7;   // 눌림목이 아닌데 거래량이 없으면 감점
+      /* 거래량의 힘은 인정하되, 이미 급등한 날의 추격만 막는다 */
+      if (vAdd>0 && surge && !toRev) vAdd = Math.min(vAdd, 0.8);   // 추세 쪽 캡
+      const hot3 = has(s.run3_sum) && s.run3_sum >= surgeThr;
+      if (vAdd>0 && toRev && hot3){                                 // 반등 쪽은 절반만
+        vAdd = Math.round(vAdd*5)/10;
+        reasons.push({w:2.2,t:`3일 +${r1(s.run3_sum)}% 뒤의 거래량 — 전환 수급으로는 절반만 인정`});
+      }
       if (vAdd>0){
-        if (reclaim||!a5) rPos+=vAdd; else tPos+=vAdd;
-        reasons.push({w:2.4,t:`거래량 ${r1(vr)}배 동반`});
+        if (toRev) rPos+=vAdd; else tPos+=vAdd;
+        reasons.push({w:2.4,t:`거래량 ${r1(vr)}배 동반${toRev?" — 전환 수급":""}`});
       } else if (vAdd<0 && (reclaim||a5)) tNeg+=vAdd;
     }
   }
@@ -1553,6 +1608,20 @@ function renderHelp(){
       <div class="help-grid" style="margin-top:10px">
         <div class="help-card"><b>거래량</b><br>20일 평균 대비 배율로 봅니다. <b>거래량이 실린 움직임</b>은 신뢰도가 높다고 보고 비중 있게 반영하고, <b>거래량 없이 나온 반등</b>은 오히려 감점합니다.</div>
         <div class="help-card"><b>시장 국면 (QQQ 4단계)</b><br><b>강세</b> 20일선 위 + 20일선 상승 + 60일선 위<br><b>중립</b> 20일선 위이나 추세 약함<br><b>주의</b> 20일선 아래(60일선 유지)<br><b>약세</b> 20·60일선 모두 아래<br>→ 국면이 나쁠수록 미국 종목 전체에 감점 폭이 커집니다.</div>
+      </div>
+    </details>
+
+    <details class="acc"><summary>점수 산식 변경 이력 (${LOGIC_VERSION})</summary>
+      <p style="font-size:12px;color:var(--muted);line-height:1.7;margin:8px 0 4px">
+        산식이 바뀌면 <b>과거 신호 히스토리도 새 산식으로 다시 계산</b>됩니다.
+        <code>history/</code>에는 점수가 아니라 원본 지표만 쌓기 때문입니다.
+        그래서 나중에 어떤 버전으로도 소급 채점할 수 있어요.</p>
+      <div class="vlog">
+        ${LOGIC_LOG.map((x,i)=>`<div class="vrow${i===0?" now":""}">
+          <div class="vh"><b>${esc(x.v)}</b><span class="vd">${esc(x.from)}</span>${i===0?'<span class="vnow">현재</span>':""}</div>
+          <div class="vt">${esc(x.t)}</div>
+          <div class="vc">${esc(x.d)}</div>
+        </div>`).join("")}
       </div>
     </details>
 
