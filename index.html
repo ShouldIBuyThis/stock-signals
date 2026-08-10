@@ -431,6 +431,34 @@ html[data-theme="dark"] .tlink{color:#8fb4ff}
 .tlg{font-size:9.5px;padding:1px 6px;border-radius:99px;min-width:52px;text-align:center}
 .tlsub{font-size:10.5px;color:var(--faint);padding:1px 0 4px 42px}
 .badge.mini{font-size:9.5px;padding:1px 6px}
+.lvcur{font-size:10px;color:var(--muted);font-weight:600}
+.lvgap{font-size:9.5px;color:var(--faint);margin-left:3px;font-weight:600}
+.lv2{font-size:10px;color:var(--faint);font-weight:600}
+/* ── 기술 상태 별점 (UI 번역 전용) ── */
+.stars{margin-top:9px;padding-top:9px;border-top:1px dashed var(--line)}
+.sthead{font-size:11.5px;font-weight:800;color:var(--ink);margin-bottom:6px}
+.sthead span{font-weight:500;color:var(--faint);font-size:10px;margin-left:5px}
+.strow{display:flex;align-items:center;gap:8px;padding:2.5px 0}
+.slab{font-size:12px;color:var(--reason);min-width:92px}
+.sstar{font-size:12.5px;letter-spacing:1px;color:var(--faint);font-weight:700}
+.sstar.s4{color:#f0a83a} .sstar.s5{color:#f08a1e}
+.sstar.s1,.sstar.s2{color:#b9c2d0}
+.snote{font-size:10.5px;color:var(--faint);margin-left:auto;white-space:nowrap}
+.bodyrow{margin-top:3px;padding-top:5px;border-top:1px dotted var(--line)}
+.bodyv{font-size:12.5px;font-weight:800;color:var(--ink);white-space:nowrap}
+.bodyrow .snote{font-size:10px}
+.rawind{margin-top:9px}
+.rawind>summary{cursor:pointer;font-size:11.5px;font-weight:700;color:var(--muted);padding:4px 0;list-style:none}
+.rawind>summary::-webkit-details-marker{display:none}
+.rawind>summary::before{content:"▾ ";font-size:10px}
+.rawind[open]>summary::before{content:"▴ "}
+.rankline.mini{margin-top:7px;padding-top:7px;gap:4px}
+.rankline.mini .rkitem{font-size:10px;padding:2px 6px}
+.rankline.mini .rktot{display:none}
+.morebtn{display:block;width:100%;margin-top:12px;padding:12px;border:1px dashed var(--line);
+  background:var(--surface);color:var(--muted);font-size:13px;font-weight:700;border-radius:12px;cursor:pointer}
+.morebtn:hover{background:var(--surface2);color:var(--ink)}
+
 /* ── 장바구니 호버 말풍선 ── */
 #btnCart{position:relative;overflow:visible}
 .cartTip{position:absolute;top:calc(100% + 8px);right:0;background:var(--navy);color:#fff;
@@ -536,7 +564,8 @@ html[data-theme="dark"] .mkswitch button.on{background:#37456a;box-shadow:none}
     <details>
       <summary>🕘 <b>모든 지표는 장 마감 후 종가 기준입니다</b> · 자세히</summary>
       <div style="margin-top:6px">
-        · <b>06:00 미국장 · 16:00 한국장</b> <span class="close-update-text">종가 일 1회 갱신</span> · <b id="stamp">—</b><br>
+        · <b>06:00 미국장 · 16:20 한국장</b> <span class="close-update-text">종가 일 1회 갱신</span> · <b id="stamp">—</b><br>
+        · 갱신은 GitHub 자동 실행이라 <b>정시가 아니라 몇 분에서 수십 분 늦을 수 있습니다.</b> 한국장은 마감(15:30) 직후엔 확정 종가가 안 잡혀서 16:20에 받습니다.<br>
         · 프리장·장중 실시간은 반영되지 않습니다. <b>일봉 종가만</b> 씁니다 — 시간봉은 단타용이라 속임수 신호에 걸리기 쉬워요.<br>
         · <b>3일~2주 스윙 관점</b>이며 당일매매용이 아닙니다. 박스권·강한 추세장에서는 같은 신호가 반대로 해석될 수 있어요.<br>
         · 신호는 <b>QQQ(미장) 추세</b>도 반영합니다. <span id="mktInfo"></span>
@@ -760,7 +789,11 @@ function evaluate(s){
   const pct = has(s.change_1d) ? s.change_1d : null;
   const isRed   = pct !== null && pct < 0;           // 음봉이 확실한 경우만
   const isGreen = pct !== null && pct >= 0;
-  const surge   = pct !== null && pct >= 5;          // 당일 급등
+  /* 3배 레버리지의 +8%는 기초지수로는 +2.7%다. 급등 판정만 1배로 환산해서 본다.
+     (테마 흐름에서 이미 같은 환산을 쓰고 있다) */
+  const levMul  = levX(s.ticker);
+  const pctEff  = pct !== null ? pct / levMul : null;
+  const surge   = pctEff !== null && pctEff >= 5;    // 당일 급등 (1배 환산)
 
   const a5=has(p)&&has(ma5)&&p>ma5, a20=has(p)&&has(ma20)&&p>ma20, a60=has(p)&&has(ma60)&&p>ma60;
   const bull=has(ma5)&&has(ma20)&&has(ma60)&&ma5>ma20&&ma20>ma60;
@@ -769,7 +802,7 @@ function evaluate(s){
   let macdDone=false;
 
   /* ── 진입 위치(Positioning) 재료 ────────────────────────────── */
-  const ext5   = (has(p)&&has(ma5)&&ma5) ? (p/ma5 - 1)*100 : null;   // MA5 이격도
+  const ext5   = (has(p)&&has(ma5)&&ma5) ? ((p/ma5 - 1)*100) / levMul : null;   // MA5 이격도(1배 환산)
   const rising = has(s.ma20_slope) && s.ma20_slope > 0;              // MA20 기울기 상승
   const run5   = has(s.run5_max) ? s.run5_max : null;                // 최근 5일 최대 상승률
   /* 거래량이 말랐는지 — 3일 평균이 줄었거나, 오늘 하루라도 확실히 줄었으면 인정 */
@@ -824,8 +857,8 @@ function evaluate(s){
   }
 
   /* ②-a MA20 기울기 — 추세가 살아있는지 */
-  if (rising && a20) tPos+=0.3;
-  else if (has(s.ma20_slope) && s.ma20_slope < -0.5){ tNeg-=0.3; reasons.push({w:1.0,t:"20일선이 내려오는 중"}); }
+  if (rising && a20) tPos+=0.5;
+  else if (has(s.ma20_slope) && s.ma20_slope < -0.5){ tNeg-=0.5; reasons.push({w:1.0,t:"20일선이 내려오는 중"}); }
 
   /* ②-b MA5 이격도 단계 감점 — 급등일에 점수가 한꺼번에 박살나지 않게 단계로 */
   if (ext5 !== null && ext5 > 3){
@@ -841,7 +874,7 @@ function evaluate(s){
        RSI 81·볼밴 98이면 진짜 과열이다. 둘을 같은 감점으로 보지 않는다. */
     const overheated = (has(rsi)&&rsi>=70) || (has(bb)&&bb>=90);
     const d3 = overheated ? (s.run3_sum >= surgeThr*1.7 ? 2.0 : 1.0) : 0.4;
-    tNeg -= d3; tags.push({c:"t-hot",t:`⚠ 3일 +${r1(s.run3_sum)}%`});
+    tNeg -= d3; tags.push({c:"t-hot",t:"⚠ 연속 급등 과열"});
     reasons.push({w: overheated?2.6:1.4,
       t: overheated ? `최근 3일 +${r1(s.run3_sum)}% + 과열 지표 — 추격 매수 위험`
                     : `최근 3일 +${r1(s.run3_sum)}% — 많이 올랐지만 과열 지표는 아직`});
@@ -863,8 +896,8 @@ function evaluate(s){
     const notExtended = ext5 !== null && ext5 <= 5;
     const firstPush = prior === null || prior < 12 || notExtended;
     if (firstPush){
-      tags.unshift({c:"t-warn",t:`🔥 분출 초입(+${r1(pct)}%)`});
-      if (prior !== null) reasons.push({w:2.7,t:`직전 이틀 ${prior>=0?"+":""}${r1(prior)}% — 아직 분출 초입 구간`});
+      tags.unshift({c:"t-warn",t:"🔥 상승 초입"});
+      if (prior !== null) reasons.push({w:2.7,t:`직전 이틀 ${prior>=0?"+":""}${r1(prior)}% — 아직 상승 초입 구간`});
     } else {
       const dS = Math.min(1.5, 0.3 + (pct - 5) * 0.08);
       rNeg -= dS;
@@ -1023,9 +1056,24 @@ function evaluate(s){
 
   const score = Math.round((baseScore + resAdj + ldrAdj) * 10) / 10;
 
+  /* 등급 컷오프 — 2026-08-10 기준 73종목 실제 점수 분포로 재조정.
+     이전 값(3.2/1.5/-1.3/-3)은 감점 항목이 늘기 전 스케일에 맞춘 것이라,
+     지금 분포(최저 -1.6 · 중앙 1.2 · 최고 4.3)에서는 강한매도가 구조적으로 나올 수 없었다.
+     ※ 하루치 분포에 맞춘 잠정값이다. history가 쌓이면 다시 잡아야 한다. */
+  /* 시장 국면에 따라 매도 컷만 낮춘다.
+     약세장에서는 QQQ 감점(-0.5~-1.0)이 모든 미국 종목에 똑같이 걸려 점수가 통째로 내려간다.
+     컷을 고정해두면 그날 하루에 강한매도가 쏟아진다. 그 감점폭만큼 매도 컷도 내린다.
+     매수 컷은 그대로 둔다 — 약세장에서 매수 신호가 줄어드는 것은 의도한 동작이다. */
+  const mShift = lv === "weak" ? -1.0 : lv === "caution" ? -0.5 : 0;
   let g=3;
-  if (score>=3.2) g=5; else if (score>=1.5) g=4;
-  else if (score<=-3) g=1; else if (score<=-1.3) g=2;
+  if (score>=2.6) g=5; else if (score>=1.2) g=4;
+  else if (score <= -1.4 + mShift) g=1; else if (score <= -0.5 + mShift) g=2;
+
+  /* 과열로 점수가 깎인 것과 지지선이 무너진 것은 다르다.
+     20일선 위에서 '익절 고려' 수준인 종목에 강한매도를 붙이면 안 된다.
+     강한매도는 지지선이 실제로 깨졌을 때만. */
+  const brokeSup = !a20 && (( has(ma5)&&has(ma20)&&ma5<ma20 ) || s.macd_cross==="dead");
+  if (g === 1 && !brokeSup) g = 2;
 
   /* ⑩ 매수 유형 */
   let type=null;
@@ -1037,7 +1085,7 @@ function evaluate(s){
   /* ⑪ 매도 신호 */
   let sellType=null;
   const overheat = (has(rsi)&&rsi>=70) || (has(bb)&&bb>=95);
-  const brokeSupport = !a20 && (( has(ma5)&&has(ma20)&&ma5<ma20 ) || s.macd_cross==="dead");
+  const brokeSupport = brokeSup;
   if (g<=2){
     if (brokeSupport){ sellType="추세이탈"; tags.unshift({c:"t-hot",t:"🚨 추세 이탈 — 지지선 붕괴",click:"추세이탈"}); }
     else if (overheat){ sellType="과열익절"; tags.unshift({c:"t-warn",t:"🔥 과열 분할익절",click:"과열익절"}); }
@@ -1046,7 +1094,10 @@ function evaluate(s){
     tags.push({c:"t-hot",t:"⚠ 과열 — 익절 구간 주의",click:"과열주의"});
   }
 
-  if (g>=4 && surge) tags.unshift({c:"t-hot",t:`⚠ 추격주의(오늘 +${r1(pct)}%)`});
+  if (g>=4 && surge) tags.unshift({c:"t-hot",t:"⚠ 추격주의"});
+  /* max(추세,반등) 구조에서는 추세가 크게 무너져도 반등 점수에 가려 등급이 안 내려간다.
+     등급 체계는 그대로 두고, 그 사실만 경고 뱃지로 드러낸다. */
+  if (trendScore <= -3 && g >= 3) tags.unshift({c:"t-hot",t:"⚠ 장기 추세 약세"});
   if (dumpedYesterday) tags.push({c:"t-cool",t:"⚠ 전일 대량 음봉"});
   if (has(rsi)&&rsi<=30) tags.push({c:"t-cool",t:"🧊 과매도"});
   if (has(vr)&&vr>=1.5) tags.push({c:"t-vol",t:`⚡ 거래량 ${r1(vr)}배`});
@@ -1304,6 +1355,50 @@ function rankMark(i){
   if (i<3) return `<span class="s-rank medal">${["🥇","🥈","🥉"][i]}</span>`;
   return `<span class="s-rank num">${i+1}</span>`;
 }
+/* ══════════ 기술 상태 번역 (UI 전용) ══════════
+   새 점수 체계가 아니다. 이미 계산된 지표를 초보자가 읽을 수 있는 말로 옮기기만 한다.
+   종합점수·등급·순위에는 전혀 영향을 주지 않는다. */
+function starRow(icon, label, n, note){
+  const full = "★".repeat(n) + "☆".repeat(5-n);
+  return `<div class="strow"><span class="slab">${icon} ${label}</span>
+    <span class="sstar s${n}">${full}</span><span class="snote">${esc(note||"")}</span></div>`;
+}
+function toStar(v, cuts){          // cuts = [1★상한, 2★상한, 3★상한, 4★상한]
+  if (!has(v)) return 3;
+  for (let i=0;i<cuts.length;i++) if (v < cuts[i]) return i+1;
+  return 5;
+}
+/* 52주 고가 대비 위치를 몸의 부위로. 재미만 남기지 않도록 설명을 함께 둔다. */
+function bodyPos(s){
+  const d = has(s.pct_from_high) ? s.pct_from_high : null;
+  if (d === null) return null;
+  const t = d >= -3  ? ["🧠","정수리 부근","52주 고가 바로 아래"]
+          : d >= -10 ? ["👀","눈 부근","고점권"]
+          : d >= -20 ? ["❤️","가슴 부근","중간권"]
+          : d >= -35 ? ["🦵","무릎 부근","중간 이하"]
+          : d >= -55 ? ["🦶","발목 부근","저점권"]
+          :            ["🦶","발끝 부근","바닥권"];
+  return {icon:t[0], name:t[1], desc:t[2], gap:d};
+}
+function techStars(s){
+  const power = toStar(s.rsi, [35, 45, 55, 68]);                       // 힘 — RSI
+  const speed = toStar(has(s.stoch_k) ? s.stoch_k + (has(s.stoch_d)&&s.stoch_k>s.stoch_d?10:0) : null,
+                       [25, 45, 62, 80]);                              // 상승 속도 — 스토캐스틱
+  const inter = toStar(s.vol_ratio, [0.8, 1.1, 1.4, 2.0]);             // 시장 관심 — 거래량비
+  const room  = toStar(has(s.bb_pos) ? 100 - s.bb_pos : null, [10, 25, 45, 70]); // 상승 여력 — 볼린저 잔여폭
+  const bp = bodyPos(s);
+  return `<div class="stars">
+    <div class="sthead">기술 상태 <span>지표를 읽기 쉽게 옮긴 것 — 점수·순위와는 별개예요</span></div>
+    ${starRow("💪","힘", power, has(s.rsi)?`RSI ${r1(s.rsi)}`:"")}
+    ${starRow("🚀","상승 속도", speed, has(s.stoch_k)?`스토캐 ${r1(s.stoch_k)}`:"")}
+    ${starRow("💰","시장 관심", inter, has(s.vol_ratio)?`평소의 ${r1(s.vol_ratio)}배`:"")}
+    ${starRow("🌡","단기 상승 여력", room, has(s.bb_pos)?`볼린저 ${r1(s.bb_pos)}`:"")}
+    ${bp ? `<div class="strow bodyrow"><span class="slab">📍 가격 위치</span>
+      <span class="bodyv">${bp.icon} ${bp.name}</span>
+      <span class="snote">${bp.desc} · 52주 고가 대비 ${r1(bp.gap)}%</span></div>` : ""}
+  </div>`;
+}
+
 function gauge(label,pct,val,opts={}){
   const p = clamp(pct,0,100);
   let inner = `<div class="fill" style="width:${p}%;background:${opts.color||"#9aa4b2"}"></div>`;
@@ -1314,7 +1409,7 @@ function gauge(label,pct,val,opts={}){
 /* 모아보기 — 한 줄 요약 */
 function compactRow(s, i){
   const g = s.sig.grade;
-  const key = s.sig.tags.find(t=>/추격주의|과열|과매도|거래량/.test(t.t));
+  const key = displayTags(s.sig.tags, 1)[0];
   return `<button class="crow2 g${g}" data-goto="${esc(s.ticker)}">
     <span class="c-main">
       <span class="c-rank">${state.sort==="category" ? "" : (i<3 ? ["🥇","🥈","🥉"][i] : `<span class="num">${i+1}</span>`)}</span>
@@ -1388,15 +1483,22 @@ function cartFacts(){
   return {mine, cats, gradeCnt, warns, above20, lev, mk};
 }
 
-/* 종목별 자리: 지지 = 20일선, 저항 = 52주 고가, 손절 참고 = 현재가 − 1.5×ATR */
+/* 종목별 자리.
+   저항을 52주 고가 하나로 쓰면 MSTR $100에 저항 $414 같은 값이 나온다.
+   지금 당장 부딪힐 가격(단기)과 다음 매물대(중기), 장기 참고값(52주)을 나눠서 본다. */
 function cartLevels(s){
   const cur = s.price;
-  const sup = has(s.ma20) ? s.ma20 : null;
-  const hi  = (has(cur) && has(s.pct_from_high)) ? cur / (1 + s.pct_from_high/100) : null;
-  const stop = (has(cur) && has(s.atr_pct)) ? cur * (1 - 1.5*s.atr_pct/100) : null;
-  const f = v => v==null ? "—" : (s.currency==="KRW" ? "₩"+Math.round(v).toLocaleString("ko-KR")
+  const sup1 = has(s.sup_short) ? s.sup_short : null;          // 20일 저점
+  const sup2 = has(s.sup_mid)   ? s.sup_mid   : null;          // 60일 저점
+  const ma20 = has(s.ma20) ? s.ma20 : null;
+  const res1 = has(s.res_short) ? s.res_short : null;          // 20일 고점 (현재가 위)
+  const res2 = has(s.res_mid)   ? s.res_mid   : null;          // 60일 고점
+  const hi52 = has(s.high_52w) ? s.high_52w
+             : ((has(cur) && has(s.pct_from_high)) ? cur / (1 + s.pct_from_high/100) : null);
+  const gap = v => (v==null || !has(cur) || !cur) ? null : Math.round((v/cur - 1)*1000)/10;
+  const f = v => v==null ? "—" : (s.currency==="KRW" ? "\u20a9"+Math.round(v).toLocaleString("ko-KR")
                                  : "$"+v.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}));
-  return {sup, hi, stop, f};
+  return {sup1, sup2, ma20, res1, res2, hi52, gap, f};
 }
 
 function cartBubbles(F){
@@ -1436,8 +1538,11 @@ function openCartReview(){
 
   const rows = F.mine.map(s => {
     const L = cartLevels(s);
-    return `<tr><td><b>${esc(s.ticker)}</b></td><td class="num">${L.f(s.price)}</td>
-      <td class="num">${L.f(L.sup)}</td><td class="num">${L.f(L.hi)}</td>
+    const g = v => { const d = L.gap(v); return d==null ? "" : `<span class="lvgap">${d>0?"+":""}${d}%</span>`; };
+    return `<tr><td><b>${esc(s.ticker)}</b><br><span class="lvcur">${L.f(s.price)}</span></td>
+      <td class="num">${L.f(L.sup1)}${g(L.sup1)}<br><span class="lv2">${L.f(L.sup2)}</span></td>
+      <td class="num">${L.f(L.res1)}${g(L.res1)}<br><span class="lv2">${L.f(L.res2)}</span></td>
+      <td class="num"><span class="lv2">${L.f(L.hi52)}</span></td>
       <td><span class="badge g${s.sig.grade} mini">${GRADES[s.sig.grade]}</span></td></tr>`;
   }).join("");
 
@@ -1453,10 +1558,11 @@ function openCartReview(){
 
     <div class="cf-h" style="margin-top:14px">📐 종목별 자리</div>
     <table class="cmp lv">
-      <tr><th>종목</th><th>현재가</th><th>지지<br><span>20일선</span></th><th>저항<br><span>52주고가</span></th><th>신호<br><span>등급</span></th></tr>
+      <tr><th>종목<br><span>현재가</span></th><th>지지<br><span>20일 / 60일</span></th><th>저항<br><span>20일 / 60일</span></th><th>52주<br><span>고가</span></th><th>신호<br><span>등급</span></th></tr>
       ${rows}
     </table>
-    <p class="cf-note">지지·저항은 20일선과 52주 고가를 그대로 옮긴 값이에요. 손절선은 진입가와 보유 기간에 따라 달라지므로 직접 정하셔야 합니다.</p>
+    <p class="cf-note">지지는 최근 20·60거래일 <b>저점</b>, 저항은 그 기간의 <b>고점</b>입니다. 윗줄이 가까운 자리(20일), 아랫줄이 다음 자리(60일)예요.
+      저항이 <b>—</b>면 이미 그 구간 고점을 넘어선 상태입니다. 손절선은 진입가와 보유 기간에 따라 달라지므로 직접 정하셔야 합니다.</p>
 
     <div class="bub good"><div class="bub-h">💚 괜찮은 점</div>${B.good.map(t=>`<p>${t}</p>`).join("")}</div>
     <div class="bub care"><div class="bub-h">⚠️ 놓치기 쉬운 점</div>${B.care.map(t=>`<p>${t}</p>`).join("")}</div>
@@ -1525,28 +1631,68 @@ function openTrendModal(tk){
     <div class="modal-actions"><button class="primary" onclick="document.getElementById('modal').classList.remove('on')">닫기</button></div>`);
 }
 
+/* ══════════ 뱃지 다이어트 (표시 전용) ══════════
+   sig.tags 원본은 건드리지 않는다. 🏷️ 뱃지 모아보기 필터가 전체 태그를 쓰기 때문이다.
+   카드에는 겹치는 의미를 하나로 접고 최대 3개만 보여준다. */
+/* 그룹 안에서는 구체적인 신호가 앞, 포괄적인 유형 라벨(추세추종·반등신호)이 뒤.
+   "🔄 반등신호 + 🔄 바닥권 전환" 이면 더 구체적인 바닥권 전환이 대표가 된다. */
+const BADGE_GROUPS = [
+  { key:"danger", rank:1, m:["🚨 추세 이탈","🚨 대량 매도 이탈","⚠ 장기 추세 약세","📉 역배열 하락","📉 약세"] },
+  { key:"caution", rank:2, m:["🔥 과열 분할익절","⚠ 연속 급등 과열","⚠ 과열","⚠ 추격주의","⚠ 전일 대량 음봉"] },
+  { key:"pattern", rank:3, m:["💧 공포 투매","📉 강한 눌림목","📉 정배열 눌림목","🚀 저항선 돌파",
+                              "🌱 초기 반등","🌱 바닥 다지기","🔄 바닥권 전환","🔥 상승 초입",
+                              "📈 정배열 상승","📈 단기 상승","🔄 반등신호","📈 추세추종"] },
+  { key:"state", rank:4, m:["😴 5일선 위 숨고르기","🏔 52주 신고가 근접"] },
+  { key:"sub", rank:5, m:["⚡ 거래량","🧊 과매도"] }
+];
+function badgeSlot(label){
+  const k = badgeKey(label);
+  for (const g of BADGE_GROUPS){
+    const i = g.m.findIndex(x => k.startsWith(x) || x.startsWith(k));
+    if (i >= 0) return {key:g.key, rank:g.rank, idx:i};
+  }
+  return null;
+}
+function displayTags(tags, max){
+  const picked = new Map();          // 그룹당 대표 하나 (그룹 내 우선순위가 높은 것)
+  const rest = [];
+  (tags||[]).forEach(t => {
+    const g = badgeSlot(t.t);
+    if (!g) { rest.push({t, rank:9, idx:0}); return; }
+    const cur = picked.get(g.key);
+    if (!cur || g.idx < cur.idx) picked.set(g.key, {t, rank:g.rank, idx:g.idx});
+  });
+  return [...picked.values(), ...rest]
+    .sort((a,b) => a.rank - b.rank)
+    .slice(0, max || 3)
+    .map(x => x.t);
+}
+
 function stockCard(s, i){
   const g = s.sig.grade, open = state.expanded.includes(s.ticker);
-  const tags = s.sig.tags.slice(0, open?9:4).map(t =>
+  const tags = displayTags(s.sig.tags, open ? 5 : 3).map(t =>
     `<span class="tag ${t.c} ${t.click?"clickable":""}" ${t.click?`data-explain="${t.click}"`:""}>${t.t}</span>`).join("");
   const rk = state._ranks || {};
-  const rankLine = open ? `<div class="rankline">
+  const rankLine = `<div class="rankline${open?"":" mini"}">
       <span class="rkitem ${(rk.total&&rk.total[s.ticker]<=3)?"top":""}">📊 종합 <b>${rk.total?rk.total[s.ticker]:"—"}위</b></span>
       <span class="rkitem ${(rk.trend&&rk.trend[s.ticker]<=3)?"top":""}">📈 추세 <b>${rk.trend?rk.trend[s.ticker]:"—"}위</b></span>
       <span class="rkitem ${(rk.rev&&rk.rev[s.ticker]<=3)?"top":""}">🔄 반등 <b>${rk.rev?rk.rev[s.ticker]:"—"}위</b></span>
       <span class="rkitem ${(rk.vol&&rk.vol[s.ticker]<=3)?"top":""}">⚡ 거래량 <b>${rk.vol?rk.vol[s.ticker]:"—"}위</b></span>
       <span class="rktot">/ ${rk.n||0}종목</span>
-    </div>` : "";
-  const detail = open ? rankLine + `
+    </div>`;
+  const detail = open ? techStars(s) + `
+    <details class="rawind"><summary>기술지표 자세히</summary>
     <div class="gauges">
       ${gauge("RSI", s.rsi??0, r1(s.rsi), {color: has(s.rsi)&&s.rsi>=70?"#e5484d":has(s.rsi)&&s.rsi<=30?"#0f9d58":"#9aa4b2", ticks:[30,70]})}
       ${gauge("볼린저", s.bb_pos??0, r1(s.bb_pos), {color: has(s.bb_pos)&&s.bb_pos>=90?"#e5484d":has(s.bb_pos)&&s.bb_pos<=10?"#0f9d58":"#9aa4b2", ticks:[10,90]})}
       ${gauge("스토캐스틱", s.stoch_k??0, `${r1(s.stoch_k)}/${r1(s.stoch_d)}`, {ticks:[20,80], dot:s.stoch_d})}
       ${gauge("거래량비", has(s.vol_ratio)?clamp(s.vol_ratio/3*100,0,100):0, has(s.vol_ratio)?r1(s.vol_ratio)+"배":"—", {color: has(s.vol_ratio)&&s.vol_ratio>=1.5?"#f0872b":"#9aa4b2", ticks:[33]})}
     </div>
-    <div class="minor num">MA5 ${r1(s.ma5)} · MA20 ${r1(s.ma20)} · MA60 ${r1(s.ma60)}${has(s.atr_pct)?` · 변동성 ${r1(s.atr_pct)}%`:""}${s.last_date?" · "+esc(s.last_date):""}${(s._hist&&s._hist.length>=2)?` · <button class="tlink" data-timeline="${esc(s.ticker)}">신호 히스토리</button>`:""}</div>
+    <div class="minor num">MA5 ${r1(s.ma5)} · MA20 ${r1(s.ma20)} · MA60 ${r1(s.ma60)}${has(s.atr_pct)?` · 변동성 ${r1(s.atr_pct)}%`:""}${s.last_date?" · "+esc(s.last_date):""}</div>
+    </details>
+    ${(s._hist&&s._hist.length>=2)?`<div class="minor"><button class="tlink" data-timeline="${esc(s.ticker)}">📈 신호 히스토리</button></div>`:""}
     <button class="expand" data-act="collapse">▴ 접기</button>`
-    : `<button class="expand" data-act="expand">▾ 자세히 보기 (RSI·볼린저·스토캐스틱)</button>`;
+    : `<button class="expand" data-act="expand">▾ 자세히 보기 (기술 상태·가격 위치)</button>`;
   return `<div class="stock g${g}${LEVERAGED[s.ticker]?" lev-card":""}" data-tk="${esc(s.ticker)}">
     <div class="s-top">
       ${rankMark(i)}
@@ -1565,6 +1711,7 @@ function stockCard(s, i){
     </div>
     <div class="s-reason">${esc(s.sig.line)}</div>
     <div class="tags">${tags}</div>
+    ${rankLine}
     ${detail}
   </div>`;
 }
@@ -1575,6 +1722,9 @@ function renderAll(){
   if (state.badge) return filterBar() + badgeList();
   const list = visible();
   if (!list.length) return filterBar() + (state.showHoldings && !state.holdings.length ? noHoldingState() : emptyState());
+  const moreBtn = (state.view === "cards" && state.expanded.length
+      && list.some(x=>!state.expanded.includes(x.ticker)))
+    ? `<button class="morebtn" data-more="1">▾ 20개 더 펼치기 (${state.expanded.length}/${list.length})</button>` : "";
   const compact = state.view === "compact";
   const item = (s,i) => compact ? compactRow(s,i) : stockCard(s,i);
   const wrapCls = compact ? "compactlist" : "grid";
@@ -1597,7 +1747,7 @@ function renderAll(){
   if (state.hidden.length){
     hid = `<div class="strip">🙈 숨긴 종목 (눌러서 복원): ${state.hidden.map(t=>`<button class="chip" data-restore="${esc(t)}" style="margin:2px">${esc(t)} ↩︎</button>`).join("")}</div>`;
   }
-  return filterBar() + body + hid;
+  return filterBar() + body + moreBtn + hid;
 }
 function filterBar(){
   const sorts = [["signal","종합순"],["trend","추세순"],["reversal","반등순"],["volume","거래량순"],["category","테마별"]];
@@ -1617,6 +1767,7 @@ function filterBar(){
         <button class="${on("kr")}" data-market="kr" title="한국장">🇰🇷</button>
       </span>
       <button class="chip tgl ${state.badge?"on":""}" data-badgeopen="1">🏷️ 뱃지${state.badge?" ✓":""}</button>
+      ${state.view==="cards" ? `<button class="chip tgl" data-foldall="1">${state.expanded.length ? "📕 모두 접기" : "📖 모두 펼치기"}</button>` : ""}
       <button class="chip tgl right ${state.showHoldings?"on":""}" data-hold="1">⭐ 보유만 보기</button>
     </div>
     ${state._badgeOpen ? badgePicker() : ""}
@@ -1665,24 +1816,24 @@ function renderHelp(){
         <b>주의</b> 데드캣 바운스(하루 튀고 재하락) 위험 — 거래량·눌림 확인 후 정찰병만.</div>
     </div>
     <table class="cmp">
-      <tr><th>시장 상황</th><th>볼린저밴드 보는 법</th><th>RSI 보는 법</th><th>맞는 매매</th></tr>
-      <tr><td><b>박스권·횡보장</b></td><td>밴드 하단 닿으면 매수 / 상단이면 매도</td><td>30 이하 매수 / 70 이상 매도</td><td>🔄 역추세 반등</td></tr>
-      <tr><td><b>강한 상승추세</b></td><td>상단을 뚫고 밴드가 확장되는지 확인</td><td>다이버전스로 추세 꺾임 감지</td><td>📈 추세추종·돌파</td></tr>
+      <tr><th>시장 상황</th><th>맞는 매매</th></tr>
+      <tr><td><b>박스권·횡보장</b></td><td>🔄 역추세 반등</td></tr>
+      <tr><td><b>강한 상승추세</b></td><td>📈 추세추종·돌파</td></tr>
     </table>
   </div>
 
   <div class="section help-block">
     <h3>신호는 어떻게 매겨지나요</h3>
     <p style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:9px">
-      여러 지표를 조합해 <b>추세추종</b> 점수와 <b>반등신호</b> 점수를 따로 계산한 뒤, <b>둘 중 높은 쪽</b>을 종합 점수로 삼아 등급을 매깁니다.</p>
+      <b>추세추종</b> 점수와 <b>반등신호</b> 점수를 따로 계산해 <b>둘 중 높은 쪽</b>을 종합 점수로 씁니다.</p>
 
     <details class="acc"><summary>종합 점수 — 등급이 정해지는 방식</summary>
       <div class="help-grid" style="margin-top:10px">
-        <div class="help-card"><b>어떻게 나오나</b><br>추세추종·반등신호 점수를 각각 매기고 양쪽 모두에 불리한 <b>공통 위험 요소</b>를 뺀 뒤, <b>둘 중 높은 점수</b>를 종합 점수로 씁니다.<br><br>합치지 않는 이유는, 더하면 <b>어느 쪽도 뚜렷하지 않은 종목</b>이 양쪽에서 조금씩 점수를 모아 앞자리를 차지하기 때문입니다.</div>
-        <div class="help-card"><b>많이 오른 종목 ≠ 좋은 신호</b><br>예전에는 <b>오늘 많이 오른 종목</b>이 자동으로 높은 점수를 받았습니다. 그러면 이미 다 오른 자리에서 사게 됩니다.<br><br>지금은 <b>“상승 추세인데 지금 들어가기 좋은 자리인가”</b>를 봅니다. 당일 <b>+5% 이상 급등하면 가점에 상한</b>을 두고, 돌파·신고가 가점은 아예 주지 않습니다.</div>
-        <div class="help-card"><b>눌림목 — 두 단계로 나눕니다</b><br><b>📉 정배열 눌림목</b> — 정배열이 유지된 채 종가가 5일선과 20일선 사이에 있고, 최근 3일 거래량이 줄어든 상태.<br><br><b>📉 강한 눌림목</b> — 여기에 <b>최근 5일 안에 +5% 이상 오른 적이 있고</b>, <b>변동폭이 줄어들고</b>, <b>20일선이 상승 중</b>일 때. 급등 후 조용히 매물을 소화하는 자리입니다.</div>
-        <div class="help-card"><b>쉬는 것과 던지는 것의 구분</b><br>같은 하락이라도 <b>거래량이 줄면</b> 숨고르기(가점), <b>거래량이 1.5배 이상 터지면</b> 이탈(강한 감점)로 봅니다.<br><br>또 <b>전날 대량 음봉으로 무너진 다음 날</b>은 반등해도 눌림목으로 보지 않습니다. 떨어지는 칼날을 잡지 않기 위해서입니다.</div>
-        <div class="help-card"><b>5일선 이격도</b><br>주가가 5일선에서 너무 멀어지면 단계적으로 감점합니다 — <b>+3~5% 감점 0.3</b>, <b>+5~8% 감점 0.7</b>, <b>+8% 이상 감점 1.0</b>.<br><br>한 번에 크게 깎지 않고 단계로 나눈 이유는, 급등한 날 점수가 갑자기 무너지는 걸 막으면서도 추격 매수는 억제하기 위해서입니다.</div>
+        <div class="help-card"><b>왜 합치지 않나</b><br>더하면 <b>어느 쪽도 뚜렷하지 않은 종목</b>이 양쪽에서 조금씩 모아 앞자리를 차지합니다. 그래서 잘하는 쪽 하나만 씁니다.</div>
+        <div class="help-card"><b>많이 오른 종목 ≠ 좋은 신호</b><br><b>“상승 추세인데 지금 들어가기 좋은 자리인가”</b>를 봅니다. 당일 <b>+5% 이상 급등하면 가점에 상한</b>을 두고, 돌파·신고가 가점은 주지 않습니다.</div>
+        <div class="help-card"><b>눌림목 — 두 단계</b><br><b>📉 정배열 눌림목</b> 정배열 유지 + 종가가 5·20일선 사이 + 거래량 감소<br><b>📉 강한 눌림목</b> 여기에 최근 급등 + 변동폭 축소 + 20일선 상승까지 겹칠 때</div>
+        <div class="help-card"><b>쉬는 것과 던지는 것</b><br>같은 하락이라도 <b>거래량이 줄면</b> 숨고르기(가점), <b>1.5배 이상 터지면</b> 이탈(감점)입니다. 전날 대량 음봉으로 무너진 다음 날은 반등해도 눌림목으로 보지 않습니다.</div>
+        <div class="help-card"><b>5일선 이격도</b><br>5일선에서 멀어질수록 단계적으로 감점 — <b>+3~5% −0.3 · +5~8% −0.7 · +8%↑ −1.0</b>. 한 번에 크게 깎으면 급등한 날 점수가 무너지기 때문입니다.</div>
         <div class="help-card"><b>보는 지표</b><br>이동평균(5·20·60일) · RSI · MACD · 볼린저밴드 · 스토캐스틱 · 거래량 · 52주 신고가 · 시장(QQQ) 국면</div>
         <div class="help-card"><b>공통 위험 요소</b><br>과열(볼린저 상단+RSI) · 역배열 하락 · 이동평균 이탈 · MACD 데드크로스 · 스토캐스틱 고점 꺾임 · 시장 약세</div>
         <div class="help-card"><b>등급</b><br>강한매수 · 매수관심 · 중립 · 매도관심 · 강한매도 5단계로 나뉩니다.</div>
@@ -1709,7 +1860,13 @@ function renderHelp(){
 
     <details class="acc"><summary>거래량과 시장 국면은 어떻게 반영되나</summary>
       <div class="help-grid" style="margin-top:10px">
-        <div class="help-card"><b>거래량</b><br>20일 평균 대비 배율로 봅니다. <b>거래량이 실린 움직임</b>은 신뢰도가 높다고 보고 비중 있게 반영하고, <b>거래량 없이 나온 반등</b>은 오히려 감점합니다.</div>
+        <div class="help-card"><b>거래량 — 어떻게 반영되나</b><br>20일 평균 대비 배율로 봅니다. 같은 배율이라도 <b>어느 방향으로 붙었는지</b>에 따라 정반대로 씁니다.<br><br>
+        · <b>양봉 + 거래량</b> — 1.2배 <b>+0.8</b> · 1.5배 <b>+1.6</b> · 2배 <b>+2.2</b> · 3배 <b>+2.4</b><br>
+        · <b>음봉 + 거래량 1.5배↑</b> — 이탈로 보고 <b>−1.5~−3.0</b> (20일선 아래면 더 크게)<br>
+        · <b>급락 + 거래량 폭증</b> — 공포 투매로 보고 <b>반등 점수 +1.5~2.0</b><br>
+        · <b>음봉 + 거래량 0.85배 미만</b> — 건전한 숨고르기로 <b>+0.5</b><br>
+        · <b>거래량 없는 상승(0.8배 미만)</b> — <b>−0.7</b><br><br>
+        단, 당일 급등한 날의 거래량 가점은 <b>0.8로 제한</b>합니다. 이미 오른 자리에서 거래량까지 얹어주면 추격 매수가 되기 때문입니다. 3배 레버리지 종목은 등락률을 <b>1배로 환산</b>해서 급등 여부를 판단합니다.</div>
         <div class="help-card"><b>시장 국면 (QQQ 4단계)</b><br><b>강세</b> 20일선 위 + 20일선 상승 + 60일선 위<br><b>중립</b> 20일선 위이나 추세 약함<br><b>주의</b> 20일선 아래(60일선 유지)<br><b>약세</b> 20·60일선 모두 아래<br>→ 국면이 나쁠수록 미국 종목 전체에 감점 폭이 커집니다.</div>
       </div>
     </details>
@@ -1897,9 +2054,9 @@ function explainStyle(kind){
         : "<b>저점을 노려 사는 방식</b>이에요. 바닥권 전환·과매도처럼 많이 빠진 뒤 돌아서는 자리를 잡습니다.<br><br><b>강점</b> — 싸게 잡을 수 있어 성공하면 수익폭이 크고, 손절선도 가깝게 둘 수 있어요.<br><b>주의</b> — 데드캣 바운스(하루 튀고 다시 하락) 위험이 커요. 거래량과 눌림을 꼭 확인하고 정찰병만 넣으세요."}
     </p>
     <table class="cmp" style="margin-top:14px">
-      <tr><th>시장 상황</th><th>볼린저밴드</th><th>RSI</th><th>맞는 매매</th></tr>
-      <tr><td>박스권·횡보장</td><td>하단 매수 / 상단 매도</td><td>30↓ 매수 / 70↑ 매도</td><td>🔄 역추세 반등</td></tr>
-      <tr><td>강한 상승추세</td><td>상단 뚫고 확장 확인</td><td>다이버전스로 꺾임 감지</td><td>📈 추세추종·돌파</td></tr>
+      <tr><th>시장 상황</th><th>맞는 매매</th></tr>
+      <tr><td>박스권·횡보장</td><td>🔄 역추세 반등</td></tr>
+      <tr><td>강한 상승추세</td><td>📈 추세추종·돌파</td></tr>
     </table>` + close);
 }
 function openMaterialModal(){
@@ -2058,6 +2215,13 @@ document.getElementById("main").addEventListener("click", e=>{
   if (tl){ e.stopPropagation(); openTimeline(tl.dataset.timeline); return; }
   const tr = e.target.closest("[data-trend]");
   if (tr){ e.stopPropagation(); openTrendModal(tr.dataset.trend); return; }
+  if (e.target.closest("[data-foldall]")){
+    /* 모바일에서 73개를 한 번에 펼치면 스크롤이 감당이 안 된다. 20개씩 끊는다. */
+    state.expanded = state.expanded.length ? [] : visible().slice(0, 20).map(x=>x.ticker);
+    save(); render(); return; }
+  if (e.target.closest("[data-more]")){
+    const rest = visible().filter(x=>!state.expanded.includes(x.ticker)).slice(0, 20).map(x=>x.ticker);
+    state.expanded = state.expanded.concat(rest); save(); render(); return; }
   if (e.target.closest("[data-badgeopen]")){
     state._badgeOpen = !state._badgeOpen;
     if (!state._badgeOpen && state.badge) state.badge = null;
