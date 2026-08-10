@@ -85,6 +85,7 @@ html[data-theme="dark"] .sresult .tk{color:#eef2f8} .sresult .nm{color:var(--mut
 .tabs{display:flex;gap:2px;align-items:center}
 .theme-btn{margin-left:auto;font-size:11.5px;font-weight:600;color:#b9c4da;background:rgba(255,255,255,.09);border-radius:999px;padding:5px 11px;margin-bottom:6px;white-space:nowrap}
 .theme-btn:hover{background:rgba(255,255,255,.16);color:#fff}
+.theme-btn + .theme-btn{margin-left:6px}   /* 둘 다 auto면 사이가 벌어진다 */
 .tabs button{padding:11px 15px;font-size:13.5px;font-weight:700;color:#9daac6;border-bottom:3px solid transparent;white-space:nowrap}
 .tabs button.on{color:#fff;border-bottom-color:#fff}
 
@@ -369,6 +370,98 @@ html[data-theme="dark"] .strip details summary{color:#8fb4ff}
 html[data-theme="dark"] .strip{color:var(--muted)}
 html[data-theme="dark"] .close-update-text{color:var(--muted)}
 .mchip.inline{background:var(--surface2)}
+/* ── 어제 대비 점수 변화 칩 ── */
+.trendchip{margin-left:7px;border:1px solid var(--line);background:var(--surface2);color:var(--muted);
+  font-size:11px;font-weight:800;padding:2px 7px;border-radius:999px;cursor:pointer;white-space:nowrap}
+.trendchip.up{color:var(--buy);border-color:rgba(15,157,88,.35);background:rgba(15,157,88,.08)}
+.trendchip.down{color:var(--sell);border-color:rgba(229,72,77,.35);background:rgba(229,72,77,.08)}
+.trendchip.strong{font-size:10.5px;padding:2px 8px;box-shadow:0 1px 3px rgba(16,24,40,.12)}
+html[data-theme="dark"] .trendchip{background:var(--surface2);border-color:var(--line)}
+/* ── 뱃지 모아보기 ── */
+.bpick{display:flex;flex-wrap:wrap;gap:6px;padding:9px 0 2px;border-top:1px dashed var(--line);margin-top:8px}
+.bchip{border:1px solid var(--line);background:var(--surface);color:var(--ink);font-size:11.5px;font-weight:700;
+  padding:5px 9px;border-radius:999px;cursor:pointer;white-space:nowrap}
+.bchip b{color:var(--muted);font-weight:800;margin-left:2px}
+.bchip.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.bchip.on b{color:#cbd5e1}
+.bchip.clear{color:var(--sell);border-color:rgba(229,72,77,.4)}
+.bempty{font-size:12px;color:var(--muted)}
+html[data-theme="dark"] .bchip{background:var(--surface2)}
+html[data-theme="dark"] .bchip.on{background:#37456a;border-color:#37456a}
+/* ── 티커 목록 (뱃지 결과) ── */
+.tklist{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow)}
+.tklist button{display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:none;border:0;
+  border-bottom:1px solid var(--line);padding:11px 13px;cursor:pointer;font-size:13.5px}
+.tklist button:last-child{border-bottom:0}
+.tklist .tk{font-weight:900;color:var(--ink);min-width:64px}
+.tklist .nm{color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tklist .val{font-weight:800}
+/* ── 헤더 미니 버튼 · 카드 장바구니 ── */
+.theme-btn.mini{padding:6px 9px;font-size:15px;line-height:1}
+.theme-btn.mini.on{background:rgba(255,255,255,.22)}
+.s-tools button.cart{font-size:12px;padding:2px 5px}
+.s-tools button.cart.on{color:var(--buy)}
+/* ── 신호 히스토리 타임라인 ── */
+.tlink{background:none;border:0;padding:0;margin-left:2px;cursor:pointer;color:var(--link,#2f6fd0);
+  font-size:11px;font-weight:700;text-decoration:underline dotted;text-underline-offset:2px}
+html[data-theme="dark"] .tlink{color:#8fb4ff}
+.tl{border:1px solid var(--line);border-radius:12px;padding:9px 11px;background:var(--surface2)}
+.tlrow{display:flex;align-items:center;gap:8px;padding-top:7px}
+.tlrow.now .tlnum{font-weight:900}
+.tldate{font-size:11.5px;color:var(--muted);font-weight:700;min-width:34px}
+.tlbar{flex:1;height:7px;background:var(--line);border-radius:99px;overflow:hidden}
+.tlbar i{display:block;height:100%;border-radius:99px}
+.tlbar i.pos{background:var(--buy)} .tlbar i.neg{background:var(--sell)}
+.tlnum{font-size:12px;font-weight:800;min-width:52px;text-align:right;color:var(--ink)}
+.tld{font-size:10px;font-weight:700;margin-left:3px;color:var(--muted)}
+.tld.up{color:var(--buy)} .tld.down{color:var(--sell)}
+.tlg{font-size:9.5px;padding:1px 6px;border-radius:99px;min-width:52px;text-align:center}
+.tlsub{font-size:10.5px;color:var(--faint);padding:1px 0 4px 42px}
+.badge.mini{font-size:9.5px;padding:1px 6px}
+/* ── 장바구니 호버 말풍선 ── */
+#btnCart{position:relative;overflow:visible}
+.cartTip{position:absolute;top:calc(100% + 8px);right:0;background:var(--navy);color:#fff;
+  font-size:11px;font-weight:700;padding:6px 9px;border-radius:8px;white-space:nowrap;
+  opacity:0;visibility:hidden;transition:opacity .16s, transform .16s;transform:translateY(-3px);
+  pointer-events:none;z-index:60;box-shadow:0 4px 14px rgba(16,24,40,.28)}
+.cartTip::before{content:"";position:absolute;bottom:100%;right:14px;border:5px solid transparent;
+  border-bottom-color:var(--navy)}
+#btnCart:hover .cartTip{opacity:1;visibility:visible;transform:translateY(0)}
+html[data-theme="dark"] .cartTip{background:#37456a}
+html[data-theme="dark"] .cartTip::before{border-bottom-color:#37456a}
+@media (hover:none){ .cartTip{display:none} }
+/* ── 🛒 모의구매 점검 ── */
+.pfoot{padding:10px 12px;border-top:1px solid var(--line);background:var(--surface2)}
+.buyreview{width:100%;background:var(--navy);color:#fff;border:0;border-radius:10px;padding:10px;
+  font-size:13px;font-weight:800;cursor:pointer}
+html[data-theme="dark"] .buyreview{background:#37456a}
+.cf{background:var(--surface2);border:1px solid var(--line);border-radius:12px;padding:11px 12px}
+.cf-h{font-size:12.5px;font-weight:800;color:var(--ink);margin-bottom:6px}
+.cf-r{font-size:12.5px;color:var(--reason);line-height:1.85}
+.cf-r b{color:var(--ink)}
+.cflow.up{color:var(--up);font-weight:800}
+.cflow.down{color:var(--down);font-weight:800}
+.cmp.lv th span{display:block;font-size:9.5px;font-weight:600;color:var(--faint)}
+.cmp.lv td,.cmp.lv th{padding:6px 4px;font-size:11.5px}
+.cf-note{font-size:11px;color:var(--faint);line-height:1.6;margin-top:6px}
+.bub{border-radius:14px;padding:11px 13px;margin-top:11px;border:1px solid var(--line)}
+.bub-h{font-size:12.5px;font-weight:800;margin-bottom:5px}
+.bub p{font-size:12.5px;line-height:1.75;margin:4px 0;color:var(--reason)}
+.bub.good{background:rgba(15,157,88,.07);border-color:rgba(15,157,88,.28)}
+.bub.good .bub-h{color:var(--buy)}
+.bub.care{background:rgba(240,135,43,.09);border-color:rgba(240,135,43,.3)}
+.bub.care .bub-h{color:#c2610a}
+html[data-theme="dark"] .bub.care .bub-h{color:#f0a95a}
+.cf-last{margin-top:13px;font-size:12.5px;line-height:1.8;color:var(--reason);
+  border-top:1px dashed var(--line);padding-top:11px}
+.linkbtn{display:block;margin-top:7px;background:none;border:0;color:var(--link,#2f6fd0);
+  font-size:12px;font-weight:700;text-decoration:underline dotted;cursor:pointer;padding:0}
+html[data-theme="dark"] .linkbtn{color:#8fb4ff}
+.basis{margin-left:auto;font-size:10.5px;color:var(--faint);font-weight:600;white-space:nowrap;padding-left:8px}
+@media (max-width:640px){ /* 모바일에선 기준일을 아랫줄로 내려 제목이 안 깨지게 */
+  .section-h{flex-wrap:wrap}
+  .basis{flex:1 0 100%;margin-left:0;padding-left:0;margin-top:1px;text-align:right;font-size:10px}
+}
 .mnote.inline{margin-left:5px;font-weight:500}
 .levnote{font-size:10px;color:var(--faint);font-weight:500}
 .stock.lev-card .s-nm{white-space:normal;overflow:visible;line-height:1.35}
@@ -418,7 +511,8 @@ html[data-theme="dark"] .mkswitch button.on{background:#37456a;box-shadow:none}
       <button data-tab="theme" class="on">테마랭킹</button>
       <button data-tab="all">전체순위</button>
       <button data-tab="help">방명록·도움말</button>
-      <button id="themeBtn" class="theme-btn" title="화면 밝기 전환">🌙 다크톤</button>
+      <button id="themeBtn" class="theme-btn mini" title="화면 밝기 전환">🌙</button>
+      <button id="btnCart" class="theme-btn mini" title="">🛒<span class="cartTip">🧾 모의구매 점검이 가능해요</span></button>
     </div>
   </div>
 </header>
@@ -500,9 +594,10 @@ html[data-theme="dark"] .mkswitch button.on{background:#37456a;box-shadow:none}
 "use strict";
 /* ══════════ 상태 ══════════ */
 const LS = "sibt-v2";
+const CART_MAX = 10;   // 모의구매 점검이 의미를 가지는 상한
 let state = {
   data: null, tab: "theme", sort: "signal", market: "all",
-  showHoldings: false, holdings: [], hidden: [], expanded: [],
+  showHoldings: false, holdings: [], hidden: [], expanded: [], cart: [], badge: null,
   overrides: {}, placeholders: [], dataUrl: "", theme: "light", view: "compact"
 };
 
@@ -601,7 +696,9 @@ function normalize(raw){
       stoch_cross: it.stoch_cross || "none",
       near_high: !!it.near_high, pct_from_high: num(it.pct_from_high),
       market_weak: !!it.market_weak, market_level: it.market_level || null, atr_pct: num(it.atr_pct),
-      last_date: it.last_date || ""
+      last_date: it.last_date || "",
+      _prevRaw: it.prev || null,
+      _hist: Array.isArray(it.hist) && it.hist.length ? it.hist : null
     };
   });
   return { generated_at: stamp, stocks, failed: raw.failed||[], market: raw.market||null, sectors: raw.sectors||null };
@@ -751,11 +848,68 @@ function decorate(s){
     name: o.name ?? s.name,
     category: o.category ?? s.category,
     _hold: state.holdings.includes(s.ticker),
+    _cart: state.cart.includes(s.ticker),
     _kr: isKR(s.ticker)
   });
 }
+/* 어제 지표를 오늘과 같은 모양으로 만들어 같은 evaluate()에 넣는다.
+   산식을 파이썬으로 옮기지 않는 이유: 두 곳에 두면 반드시 어긋난다. */
+const HIST_FIELDS_DEFAULT = ["date","price","ma5","ma20","ma60","rsi","macd_hist","macd_cross","macd_zero",
+  "bb_pos","stoch_k","stoch_d","stoch_cross","vol_ratio","near_high","pct_from_high"];
+function histFields(){
+  const f = state.data && state.data.hist_fields;
+  return Array.isArray(f) && f.length ? f : HIST_FIELDS_DEFAULT;
+}
+/* hist(위치 기반 배열) 한 줄을 오늘 종목과 같은 모양으로 되살린다 */
+function histRow(s, row, i, total){
+  const F = histFields(), o = {};
+  F.forEach((k, n) => o[k] = row[n]);
+  const mk = (state.data && state.data.market) || {};
+  const mh = Array.isArray(mk.hist) ? mk.hist : null;
+  const md = mh && mh.length === total ? mh[i] : null;
+  const lvl = md ? md[0] : (mk.level || null);
+  return {
+    ticker: s.ticker, last_date: o.date || "",
+    price: num(o.price), ma5: num(o.ma5), ma20: num(o.ma20), ma60: num(o.ma60),
+    rsi: num(o.rsi), macd: num(o.macd_hist),
+    macd_cross: o.macd_cross || "none", macd_zero: o.macd_zero || "above",
+    bb_pos: num(o.bb_pos), stoch_k: num(o.stoch_k), stoch_d: num(o.stoch_d),
+    stoch_cross: o.stoch_cross || "none", vol_ratio: num(o.vol_ratio),
+    near_high: !!o.near_high, pct_from_high: num(o.pct_from_high),
+    market_level: s._kr ? "neutral" : lvl,
+    market_weak: !s._kr && (lvl === "weak" || lvl === "caution")
+  };
+}
+function histStocks(s){
+  if (!s._hist) return null;
+  const n = s._hist.length;
+  return s._hist.map((row, i) => histRow(s, row, i, n));
+}
+function prevStock(s){
+  if (s._hist && s._hist.length >= 2) return histRow(s, s._hist[s._hist.length-2], s._hist.length-2, s._hist.length);
+  const p = s._prevRaw; if (!p) return null;
+  const mk = (state.data && state.data.market) || {};
+  const pm = mk.prev || null;
+  return {
+    ticker: s.ticker,
+    price: num(p.price), ma5: num(p.ma5), ma20: num(p.ma20), ma60: num(p.ma60),
+    rsi: num(p.rsi), macd: num(p.macd_hist ?? p.macdHist),
+    macd_cross: p.macd_cross || "none", macd_zero: p.macd_zero || "above",
+    bb_pos: num(p.bb_pos), stoch_k: num(p.stoch_k), stoch_d: num(p.stoch_d),
+    stoch_cross: p.stoch_cross || "none", vol_ratio: num(p.vol_ratio),
+    near_high: !!p.near_high, pct_from_high: num(p.pct_from_high),
+    change_1d: num(p.change_1d),
+    market_level: pm ? pm.level : s.market_level,
+    market_weak: pm ? (pm.level === "weak") : s.market_weak,
+    last_date: p.last_date || ""
+  };
+}
 function allStocks(){
-  return ((state.data && state.data.stocks) || []).map(decorate).map(s => Object.assign(s, {sig: evaluate(s)}));
+  return ((state.data && state.data.stocks) || []).map(decorate).map(s => {
+    const sig = evaluate(s);
+    const pv = prevStock(s);
+    return Object.assign(s, {sig, prevSig: pv ? evaluate(pv) : null, _prev: pv});
+  });
 }
 function visible(){
   return allStocks()
@@ -869,7 +1023,7 @@ function renderTheme(){
 
   return marketBar() + themeHoldBar() + `
   <div class="section">
-    <div class="section-h"><h2>핵심 시그널 TOP 5</h2><span class="sub">항목을 누르면 상세 카드로 이동</span></div>
+    <div class="section-h"><h2>핵심 시그널 TOP 5</h2><span class="sub">항목을 누르면 상세 카드로 이동</span>${basisNote()}</div>
     <div class="widgets">
       ${widget("🟢 매수 신호","강한매수·매수관심",buy,"오늘은 매수 신호가 없어요")}
       ${widget("📈 추세추종","달리는 말 — 상승 흐름",trend,"추세 신호 없음")}
@@ -930,6 +1084,204 @@ function compactRow(s, i){
   </button>`;
 }
 
+/* "⚡ 거래량 2.4배" · "⚠ 추격주의(오늘 +9.3%)" 처럼 숫자가 박힌 라벨을 묶어준다 */
+/* 데이터가 어느 날 종가인지 — 월요일엔 미국이 금요일이라 반드시 보여준다 */
+function basisNote(){
+  const a = allStocks(); if (!a.length) return "";
+  const pick = arr => { const c={}; arr.forEach(d=>{ if(d) c[d]=(c[d]||0)+1; });
+    return Object.entries(c).sort((x,y)=>y[1]-x[1])[0]?.[0] || ""; };
+  const us = pick(a.filter(s=>!s._kr).map(s=>s.last_date));
+  const kr = pick(a.filter(s=>s._kr).map(s=>s.last_date));
+  const md = d => { const p=String(d).split("-"); return p.length===3 ? `${+p[1]}/${+p[2]}` : d; };
+  let txt = "";
+  if (us && kr && us !== kr) txt = `미국 ${md(us)} · 한국 ${md(kr)} 종가 기준`;
+  else if (us || kr)         txt = `${md(us||kr)} 종가 기준`;
+  return txt ? `<span class="basis">${esc(txt)}</span>` : "";
+}
+const badgeKey = t => String(t).replace(/\(오늘[^)]*\)/,"").replace(/[\d.]+배/,"").replace(/—.*$/,"").trim();
+function badgeIndex(){
+  const m = new Map();
+  visible().forEach(s => new Set(s.sig.tags.map(t=>badgeKey(t.t))).forEach(k=>{
+    if(!m.has(k)) m.set(k, []); m.get(k).push(s);
+  }));
+  return [...m.entries()].sort((a,b)=>b[1].length-a[1].length);
+}
+
+/* 어제 → 오늘 점수 변화 칩 */
+function trendChip(s){
+  if (!s.prevSig) return "";
+  const d = Math.round((s.sig.score - s.prevSig.score)*10)/10;
+  const gUp = s.sig.grade - s.prevSig.grade;
+  const arrow = d > 0 ? "↑" : d < 0 ? "↓" : "→";
+  const cls = gUp > 0 ? "up strong" : gUp < 0 ? "down strong" : d > 0 ? "up" : d < 0 ? "down" : "flat";
+  const label = gUp !== 0 ? `${arrow} ${GRADES[s.prevSig.grade]}→${GRADES[s.sig.grade]}`
+                          : `${arrow} ${d > 0 ? "+" : ""}${d}`;
+  return `<button class="trendchip ${cls}" data-trend="${esc(s.ticker)}" title="어제 대비 변화">${label}</button>`;
+}
+
+/* ══════════ 🛒 모의구매 점검 ══════════ */
+/* 사실 → 해석 → 한마디 순서. 사실 칸에는 계산된 값만 넣고 의견은 말풍선에만 둔다. */
+function cartFacts(){
+  const mine = allStocks().filter(s => state.cart.includes(s.ticker));
+  const mk = (state.data && state.data.market) || {};
+  const secAll = new Map(sectorStats(visible()).map(o => [o.name, o.avg]));
+
+  const byCat = {};
+  mine.forEach(s => { const c = s.category || "기타"; (byCat[c] = byCat[c] || []).push(s); });
+  const cats = Object.entries(byCat).map(([name, arr]) => ({
+    name, n: arr.length, share: arr.length / mine.length, flow: secAll.has(name) ? secAll.get(name) : null
+  })).sort((a,b) => b.n - a.n);
+
+  const gradeCnt = {5:0,4:0,3:0,2:0,1:0};
+  mine.forEach(s => gradeCnt[s.sig.grade]++);
+  const warnKeys = ["⚠ 과열","⚠ 추격주의","🚨 추세 이탈","🔥 과열 분할익절","📉 역배열 하락","📉 약세"];
+  const warns = {};
+  mine.forEach(s => s.sig.tags.forEach(t => {
+    const k = badgeKey(t.t);
+    if (warnKeys.includes(k)) warns[k] = (warns[k] || 0) + 1;
+  }));
+  const above20 = mine.filter(s => has(s.price) && has(s.ma20) && s.price > s.ma20).length;
+  const lev = mine.filter(s => LEVERAGED[s.ticker]);
+  return {mine, cats, gradeCnt, warns, above20, lev, mk};
+}
+
+/* 종목별 자리: 지지 = 20일선, 저항 = 52주 고가, 손절 참고 = 현재가 − 1.5×ATR */
+function cartLevels(s){
+  const cur = s.price;
+  const sup = has(s.ma20) ? s.ma20 : null;
+  const hi  = (has(cur) && has(s.pct_from_high)) ? cur / (1 + s.pct_from_high/100) : null;
+  const stop = (has(cur) && has(s.atr_pct)) ? cur * (1 - 1.5*s.atr_pct/100) : null;
+  const f = v => v==null ? "—" : (s.currency==="KRW" ? "₩"+Math.round(v).toLocaleString("ko-KR")
+                                 : "$"+v.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}));
+  return {sup, hi, stop, f};
+}
+
+function cartBubbles(F){
+  const good = [], care = [];
+  const n = F.mine.length;
+  const top = F.cats[0];
+
+  if (n === 1 && F.above20 === 1) good.push(`${esc(F.mine[0].ticker)}는 20일선 위예요. 단기 지지선은 살아있는 자리입니다.`);
+  else if (F.above20 === n && n > 1) good.push(`담은 ${n}종목이 전부 20일선 위예요. 단기 지지선은 살아있는 자리들이에요.`);
+  else if (F.above20 >= Math.ceil(n*0.7)) good.push(`${n}종목 중 ${F.above20}개가 20일선 위라 흐름은 나쁘지 않아요.`);
+  if (F.gradeCnt[5] >= 2) good.push(`강한매수가 ${F.gradeCnt[5]}종목이나 되네요.`);
+  if (F.cats.length >= 3 && top.share <= 0.5) good.push(`${F.cats.length}개 테마에 나눠 담아서 한쪽으로 쏠리진 않았어요.`);
+  if (F.mk.level === "strong") good.push(`시장(QQQ)도 20일선 위 강세 국면이라 흐름을 타기엔 무난한 때예요.`);
+  if (!good.length) good.push(`일단 후보를 좁혀둔 것만으로도 반은 한 거예요.`);
+
+  if (top && top.share >= 0.5 && n >= 3){
+    const fl = top.flow!=null ? ` 게다가 오늘 이 테마가 ${top.flow>=0?"+":""}${r1(top.flow)}%로 ${top.flow>=0?"이미 달린":"밀린"} 상태고요.` : "";
+    care.push(`${n}종목 중 ${top.n}개가 <b>${esc(top.name)}</b> 하나예요.${fl} 같이 오르고 같이 빠지니까, 전부 담기보다 한둘로 추려보는 건 어때요?`);
+  }
+  const w = Object.entries(F.warns);
+  if (w.length) care.push(`주의 뱃지가 붙은 게 있어요 — ${w.map(([k,v])=>`${esc(k)} ${v}건`).join(" · ")}. 신규 진입이라면 오늘 자리가 이미 높은 건 아닌지 보세요.`);
+  if (F.lev.length) care.push(`${F.lev.map(s=>esc(s.ticker)).join("·")}는 3배 레버리지예요. 하루 단위로 배수가 다시 계산돼서 오래 들고 있으면 불리해집니다.`);
+  if (F.mk.level === "weak" || F.mk.level === "caution") care.push(`시장(QQQ)이 20일선 아래예요. 개별 신호가 좋아도 지수가 무너지면 같이 빠집니다.`);
+  if (n >= 8) care.push(`${n}종목이면 한 종목당 비중이 얇아져요. 확신 있는 쪽으로 더 추려보는 것도 방법이에요.`);
+  if (F.above20 < n) care.push(`${n===1?esc(F.mine[0].ticker)+"는":(n - F.above20)+"종목은"} 20일선 아래예요. 지지선이 깨진 자리라 진입 시점은 한 번 더 볼 만합니다.`);
+  if (!care.length) care.push(`특별히 걸리는 건 안 보여요. 그래도 아래 ① 외부 재료는 꼭 확인하세요.`);
+  return {good: good.slice(0,3), care: care.slice(0,3)};
+}
+
+function openCartReview(){
+  if (!state.cart.length){ toast("장바구니가 비어 있어요"); return; }
+  const F = cartFacts(); const B = cartBubbles(F);
+  const n = F.mine.length;
+  const gline = [5,4,3,2,1].filter(g=>F.gradeCnt[g]).map(g=>`${GRADES[g]} ${F.gradeCnt[g]}`).join(" · ");
+  const catLine = F.cats.map(c =>
+    `${esc(c.name)} <b>${c.n}</b>${c.flow!=null?` <span class="cflow ${c.flow>=0?"up":"down"}">${c.flow>=0?"+":""}${r1(c.flow)}%</span>`:""}`).join(" · ");
+
+  const rows = F.mine.map(s => {
+    const L = cartLevels(s);
+    return `<tr><td><b>${esc(s.ticker)}</b></td><td class="num">${L.f(s.price)}</td>
+      <td class="num">${L.f(L.sup)}</td><td class="num">${L.f(L.hi)}</td>
+      <td><span class="badge g${s.sig.grade} mini">${GRADES[s.sig.grade]}</span></td></tr>`;
+  }).join("");
+
+  openModal(`<h3>🛒 모의구매 점검 · ${n}종목</h3>
+
+    <div class="cf">
+      <div class="cf-h">📊 지금 담은 상태</div>
+      <div class="cf-r">테마 · ${catLine}</div>
+      <div class="cf-r">등급 · ${gline}</div>
+      <div class="cf-r">20일선 위 · <b>${F.above20}</b>/${n}종목</div>
+      <div class="cf-r">시장 · ${esc(F.mk.ticker||"QQQ")} ${F.mk.below_ma20?"20일선 아래":"20일선 위"}${F.mk.detail?` (${esc(F.mk.detail)})`:""}</div>
+    </div>
+
+    <div class="cf-h" style="margin-top:14px">📐 종목별 자리</div>
+    <table class="cmp lv">
+      <tr><th>종목</th><th>현재가</th><th>지지<br><span>20일선</span></th><th>저항<br><span>52주고가</span></th><th>신호<br><span>등급</span></th></tr>
+      ${rows}
+    </table>
+    <p class="cf-note">지지·저항은 20일선과 52주 고가를 그대로 옮긴 값이에요. 손절선은 진입가와 보유 기간에 따라 달라지므로 직접 정하셔야 합니다.</p>
+
+    <div class="bub good"><div class="bub-h">💚 괜찮은 점</div>${B.good.map(t=>`<p>${t}</p>`).join("")}</div>
+    <div class="bub care"><div class="bub-h">⚠️ 놓치기 쉬운 점</div>${B.care.map(t=>`<p>${t}</p>`).join("")}</div>
+
+    <div class="cf-last">여기까지 보고도 담고 싶으면 —<br>
+      <b>① 외부 재료</b>를 2차로 확인하고, <b>② 정찰병</b>부터 <b>③ 분할</b>로 들어가세요.
+      <button class="linkbtn" data-openmat="1">외부 재료가 뭔지 보기</button></div>
+
+    <div class="modal-actions"><button class="primary" onclick="document.getElementById('modal').classList.remove('on')">닫기</button></div>`);
+}
+
+function openTimeline(tk){
+  const s = allStocks().find(x=>x.ticker===tk); if(!s) return;
+  const hs = histStocks(s);
+  if (!hs || hs.length < 2){ toast("아직 이력이 충분하지 않아요"); return; }
+  const rows = hs.map(h => Object.assign({d:h.last_date}, evaluate(h)));
+  const vals = rows.map(r=>r.score);
+  const lo = Math.min(...vals, 0), hi = Math.max(...vals, 1);
+  const md = d => { const p=String(d).split("-"); return p.length===3?`${+p[1]}/${+p[2]}`:d; };
+  const bar = v => {
+    const w = Math.max(3, Math.round((v - lo) / (hi - lo || 1) * 100));
+    return `<span class="tlbar"><i style="width:${w}%" class="${v>=0?"pos":"neg"}"></i></span>`;
+  };
+  const body = rows.map((r,i) => {
+    const prev = i ? rows[i-1].score : null;
+    const d = prev==null ? null : Math.round((r.score-prev)*10)/10;
+    const dd = d==null ? "" : `<span class="tld ${d>0?"up":d<0?"down":""}">${d>0?"+":""}${d}</span>`;
+    return `<div class="tlrow${i===rows.length-1?" now":""}">
+      <span class="tldate">${esc(md(r.d))}</span>
+      ${bar(r.score)}
+      <span class="tlnum">${r.score}${dd}</span>
+      <span class="tlg g${r.grade}">${GRADES[r.grade]}</span>
+    </div>
+    <div class="tlsub">추세 ${r.trendScore} · 반등 ${r.revScore}</div>`;
+  }).join("");
+  openModal(`<h3>📈 ${esc(s.ticker)} 신호 히스토리</h3>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:9px">최근 ${rows.length}거래일 · 종합 점수 기준</p>
+    <div class="tl">${body}</div>
+    <p style="font-size:12px;color:var(--reason);line-height:1.75;margin-top:11px">
+      점수가 <b>어느 방향으로 쌓여왔는지</b>를 보는 화면이에요. 오르는 중이면 신호가 만들어지는 과정,
+      떨어지는 중이면 식어가는 과정일 수 있습니다. 며칠치 흐름이라 그 자체로 매매 근거는 되지 않아요.</p>
+    <div class="modal-actions"><button class="primary" onclick="document.getElementById('modal').classList.remove('on')">닫기</button></div>`);
+}
+function openTrendModal(tk){
+  const s = allStocks().find(x=>x.ticker===tk); if(!s||!s.prevSig) return;
+  const row = (lab,a,b) => {
+    const d = Math.round((b-a)*10)/10;
+    const c = d>0?"var(--buy)":d<0?"var(--sell)":"var(--muted)";
+    return `<tr><td>${lab}</td><td class="num">${a}</td><td class="num">${b}</td>
+      <td class="num" style="color:${c};font-weight:800">${d>0?"+":""}${d}</td></tr>`;
+  };
+  openModal(`<h3>📅 어제 → 오늘</h3>
+    <p style="font-size:12.5px;color:var(--muted);margin-bottom:10px">
+      ${esc(s._prev.last_date||"직전 거래일")} → ${esc(s.last_date||"오늘")} · 직전 <b>거래일</b> 기준이라
+      월요일에는 금요일 종가와 비교됩니다.</p>
+    <table class="cmp">
+      <tr><th></th><th>어제</th><th>오늘</th><th>변화</th></tr>
+      ${row("종합", s.prevSig.score, s.sig.score)}
+      ${row("추세", s.prevSig.trendScore, s.sig.trendScore)}
+      ${row("반등", s.prevSig.revScore, s.sig.revScore)}
+    </table>
+    <p style="font-size:13px;color:var(--reason);margin-top:12px;line-height:1.7">
+      등급 <b>${GRADES[s.prevSig.grade]}</b> → <b>${GRADES[s.sig.grade]}</b><br><br>
+      점수 자체보다 <b>어느 방향으로 움직이는 중인지</b>가 자리를 잡는 데 더 도움이 됩니다.
+      다만 하루치 변화는 흔들림이 크니 한 번의 변화로 결론 내지 마세요.</p>
+    <div class="modal-actions"><button class="primary" onclick="document.getElementById('modal').classList.remove('on')">닫기</button></div>`);
+}
+
 function stockCard(s, i){
   const g = s.sig.grade, open = state.expanded.includes(s.ticker);
   const tags = s.sig.tags.slice(0, open?9:4).map(t =>
@@ -949,7 +1301,7 @@ function stockCard(s, i){
       ${gauge("스토캐스틱", s.stoch_k??0, `${r1(s.stoch_k)}/${r1(s.stoch_d)}`, {ticks:[20,80], dot:s.stoch_d})}
       ${gauge("거래량비", has(s.vol_ratio)?clamp(s.vol_ratio/3*100,0,100):0, has(s.vol_ratio)?r1(s.vol_ratio)+"배":"—", {color: has(s.vol_ratio)&&s.vol_ratio>=1.5?"#f0872b":"#9aa4b2", ticks:[33]})}
     </div>
-    <div class="minor num">MA5 ${r1(s.ma5)} · MA20 ${r1(s.ma20)} · MA60 ${r1(s.ma60)}${has(s.atr_pct)?` · 변동성 ${r1(s.atr_pct)}%`:""}${s.last_date?" · "+esc(s.last_date):""}</div>
+    <div class="minor num">MA5 ${r1(s.ma5)} · MA20 ${r1(s.ma20)} · MA60 ${r1(s.ma60)}${has(s.atr_pct)?` · 변동성 ${r1(s.atr_pct)}%`:""}${s.last_date?" · "+esc(s.last_date):""}${(s._hist&&s._hist.length>=2)?` · <button class="tlink" data-timeline="${esc(s.ticker)}">신호 히스토리</button>`:""}</div>
     <button class="expand" data-act="collapse">▴ 접기</button>`
     : `<button class="expand" data-act="expand">▾ 자세히 보기 (RSI·볼린저·스토캐스틱)</button>`;
   return `<div class="stock g${g}${LEVERAGED[s.ticker]?" lev-card":""}" data-tk="${esc(s.ticker)}">
@@ -959,13 +1311,14 @@ function stockCard(s, i){
       <span class="s-nm">${esc(s.name||"")}${LEVERAGED[s.ticker]?` <span class="levnote">(고변동 레버리지)</span>`:""}</span>
       <span class="s-tools">
         <button data-act="own" class="own ${s._hold?"on":""}" title="보유 종목으로 표시">보유${s._hold?"★":"☆"}</button>
+        <button data-act="cart" class="cart ${s._cart?"on":""}" title="관심종목 담기">${s._cart?"🛒✓":"🛒"}</button>
         <button data-act="hide" title="숨기기">✕</button>
       </span>
     </div>
     <div class="s-price">
       <span class="p num">${fmtPrice(s)}</span>
       <span class="c num ${chgCls(s.change_1d)}">${fmtChg(s.change_1d)}</span>
-      <span class="badge g${g}">${GRADES[g]}</span>
+      <span class="badge g${g}">${GRADES[g]}</span>${trendChip(s)}
     </div>
     <div class="s-reason">${esc(s.sig.line)}</div>
     <div class="tags">${tags}</div>
@@ -976,6 +1329,7 @@ function emptyState(){
   return `<div class="empty-state">표시할 종목이 없어요.<br>필터(보유만·시장)를 확인해 보세요.</div>`;
 }
 function renderAll(){
+  if (state.badge) return filterBar() + badgeList();
   const list = visible();
   if (!list.length) return filterBar() + (state.showHoldings && !state.holdings.length ? noHoldingState() : emptyState());
   const compact = state.view === "compact";
@@ -1019,9 +1373,28 @@ function filterBar(){
         <button class="${on("us")}" data-market="us" title="미국장">🇺🇸</button>
         <button class="${on("kr")}" data-market="kr" title="한국장">🇰🇷</button>
       </span>
+      <button class="chip tgl ${state.badge?"on":""}" data-badgeopen="1">🏷️ 뱃지${state.badge?" ✓":""}</button>
       <button class="chip tgl right ${state.showHoldings?"on":""}" data-hold="1">⭐ 보유만 보기</button>
     </div>
+    ${state._badgeOpen ? badgePicker() : ""}
   </div>`;
+}
+function badgePicker(){
+  const idx = badgeIndex();
+  if (!idx.length) return `<div class="bpick"><span class="bempty">표시할 뱃지가 없어요.</span></div>`;
+  return `<div class="bpick">
+    ${state.badge ? `<button class="bchip clear" data-badge="">✕ 해제</button>` : ""}
+    ${idx.map(([k,arr])=>`<button class="bchip ${state.badge===k?"on":""}" data-badge="${esc(k)}">${esc(k)} <b>${arr.length}</b></button>`).join("")}
+  </div>`;
+}
+/* 뱃지로 고른 결과는 티커 + 회사명만 간단히 */
+function badgeList(){
+  const hit = visible().filter(s => s.sig.tags.some(t => badgeKey(t.t) === state.badge));
+  if (!hit.length) return `<div class="empty-state">이 뱃지에 해당하는 종목이 없어요.</div>`;
+  return `<div class="section-h"><h2>${esc(state.badge)}</h2><span class="sub">${hit.length}종목 · 누르면 상세 카드로 이동</span></div>
+    <div class="tklist">${hit.map(s=>`<button data-goto2="${esc(s.ticker)}">
+      <span class="tk">${esc(s.ticker)}</span><span class="nm">${esc(s.name||"")}</span>
+      <span class="val ${chgCls(s.change_1d)} num">${fmtChg(s.change_1d)}</span></button>`).join("")}</div>`;
 }
 
 /* ══════════ VIEW 3 · 방명록·도움말 ══════════ */
@@ -1094,7 +1467,7 @@ function renderHelp(){
       </div>
     </details>
 
-    <details class="acc"><summary>매도 신호 두 가지 구분</summary>
+    <details class="acc"><summary>매도 신호 구분</summary>
       <div class="help-grid" style="margin-top:10px">
         <div class="help-card"><b>🔥 과열 분할익절</b><br>추세는 아직 살아있는데 RSI·볼린저가 과열된 상태.<br>→ 전량 매도보다 <b>분할 익절</b>을 검토하는 구간.</div>
         <div class="help-card"><b>🚨 추세 이탈</b><br>20일선을 잃고 이동평균이 무너졌거나 MACD 데드크로스가 겹친 상태.<br>→ <b>단기 스윙 관점에서 지지선이 깨진</b> 자리라는 뜻입니다. 장기 보유 종목이라면 판단 기준이 다릅니다.</div>
@@ -1134,7 +1507,7 @@ function save(){
   try{
     localStorage.setItem(LS, JSON.stringify({
       sort:state.sort, market:state.market, showHoldings:state.showHoldings,
-      holdings:state.holdings, hidden:state.hidden, expanded:state.expanded,
+      holdings:state.holdings, hidden:state.hidden, expanded:state.expanded, cart:state.cart,
       overrides:state.overrides, placeholders:state.placeholders, dataUrl:state.dataUrl, theme:state.theme, view:state.view
     }));
   }catch(e){}
@@ -1145,7 +1518,8 @@ function load(){
     if (!p) return;
     ["sort","market","dataUrl","theme","view"].forEach(k=>{ if(p[k]) state[k]=p[k]; });
     state.showHoldings = !!p.showHoldings;
-    ["holdings","hidden","expanded","placeholders"].forEach(k=>{ if(Array.isArray(p[k])) state[k]=p[k]; });
+    ["holdings","hidden","expanded","placeholders","cart"].forEach(k=>{ if(Array.isArray(p[k])) state[k]=p[k]; });
+    state.cart = state.cart.slice(0, CART_MAX);   // 저장값이 손상돼도 상한을 넘지 않게
     if (p.overrides) state.overrides = p.overrides;
   }catch(e){}
 }
@@ -1234,7 +1608,10 @@ async function addHeart(){
 const modal = document.getElementById("modal"), modalBox = document.getElementById("modalBox");
 function openModal(html){ modalBox.innerHTML = html; modal.classList.add("on"); }
 function closeModal(){ modal.classList.remove("on"); }
-modal.addEventListener("click", e=>{ if(e.target===modal) closeModal(); });
+modal.addEventListener("click", e=>{
+  if (e.target.closest("[data-openmat]")){ openMaterialModal(); return; }
+  if (e.target===modal) closeModal();
+});
 document.addEventListener("keydown", e=>{ if(e.key==="Escape"){ closeModal(); closeSheet(); } });
 
 function explainStyle(kind){
@@ -1281,6 +1658,7 @@ function explainStyle(kind){
 function openMaterialModal(){
   openModal(`<h3>🔍 외부 재료 필터링</h3>
     <p style="font-size:13px;color:var(--reason);line-height:1.8">
+      · <b>장바구니 기능</b>으로 먼저 모의점검을 해요.<br><br>
       · <b>실적 발표(어닝콜) 전후에는 참고하지 마세요.</b> 실적 하나로 지표와 무관하게 급등락합니다.<br><br>
       · <b>공매도 수급·뉴스·공시·규제·유상증자·지수 편입</b> 같은 이벤트를 꼭 확인해보세요.
     </p>
@@ -1333,13 +1711,35 @@ function renderHoldPanel(){
     : `<div class="empty">아직 보유 표시한 종목이 없어요. 종목 카드의 ☆를 누르면 여기에 모입니다.</div>`;
 }
 function toggleHoldPanel(force){
-  const open = force !== undefined ? force : holdPanel.classList.contains("hidden");
-  if (open){ renderHoldPanel(); holdPanel.classList.remove("hidden"); }
-  else holdPanel.classList.add("hidden");
+  const open = force !== undefined ? force : (holdPanel.classList.contains("hidden") || holdPanel.dataset.mode !== "hold");
+  if (open){ holdPanel.dataset.mode="hold"; renderHoldPanel(); holdPanel.classList.remove("hidden"); }
+  else { holdPanel.classList.add("hidden"); holdPanel.dataset.mode=""; }
   btnHoldTop.classList.toggle("on", open);
+  const bc = document.getElementById("btnCart"); if (bc) bc.classList.remove("on");
 }
-btnHoldTop.onclick = () => toggleHoldPanel();
+btnHoldTop.onclick = () => { toggleCartPanel(false); toggleHoldPanel(); };
+
+/* 장바구니 패널 — 보유 패널과 같은 자리를 쓴다 */
+const btnCartTop = document.getElementById("btnCart");
+function renderCartPanel(){
+  const mine = allStocks().filter(s => state.cart.includes(s.ticker));
+  holdPanel.innerHTML = mine.length
+    ? `<div class="phead">🛒 관심종목 ${mine.length}/${CART_MAX} · 누르면 상세 카드로 이동</div>` +
+      mine.map(s=>`<button data-goto="${esc(s.ticker)}"><span class="tk">${esc(s.ticker)}</span><span class="nm">${esc(s.name||"")}</span><span class="val ${chgCls(s.change_1d)} num">${fmtChg(s.change_1d)}</span></button>`).join("") +
+      `<div class="pfoot"><button class="buyreview" data-review="1">🧾 모의구매 점검하기</button></div>`
+    : `<div class="empty">아직 담은 종목이 없어요. 카드를 펼치고 🛒를 누르면 여기에 모입니다.</div>`;
+}
+function toggleCartPanel(force){
+  const open = force !== undefined ? force : (holdPanel.classList.contains("hidden") || holdPanel.dataset.mode !== "cart");
+  if (open){ holdPanel.dataset.mode="cart"; renderCartPanel(); holdPanel.classList.remove("hidden"); }
+  else { holdPanel.classList.add("hidden"); holdPanel.dataset.mode=""; }
+  btnCartTop.classList.toggle("on", open);
+  btnHoldTop.classList.toggle("on", false);
+}
+btnCartTop.onclick = () => { holdPanel.dataset.mode="cart"; toggleCartPanel(); };
 holdPanel.addEventListener("click", e=>{
+  if (e.target.closest("[data-review]")){
+    e.stopPropagation(); toggleCartPanel(false); openCartReview(); return; }
   const b = e.target.closest("[data-goto]");
   if (b){ e.stopPropagation(); toggleHoldPanel(false); gotoStock(b.dataset.goto); }
 });
@@ -1407,6 +1807,18 @@ document.getElementById("main").addEventListener("click", e=>{
     return; }
   const ex = e.target.closest("[data-explain]");
   if (ex){ explainStyle(ex.dataset.explain); return; }
+  const tl = e.target.closest("[data-timeline]");
+  if (tl){ e.stopPropagation(); openTimeline(tl.dataset.timeline); return; }
+  const tr = e.target.closest("[data-trend]");
+  if (tr){ e.stopPropagation(); openTrendModal(tr.dataset.trend); return; }
+  if (e.target.closest("[data-badgeopen]")){
+    state._badgeOpen = !state._badgeOpen;
+    if (!state._badgeOpen && state.badge) state.badge = null;
+    render(); return; }
+  const bg = e.target.closest("[data-badge]");
+  if (bg){ state.badge = bg.dataset.badge || null; render(); return; }
+  const g2 = e.target.closest("[data-goto2]");
+  if (g2){ state.badge=null; state._badgeOpen=false; render(); gotoStock(g2.dataset.goto2); return; }
   const vw = e.target.closest("[data-view]");
   if (vw){ state.view=vw.dataset.view; save(); render(); return; }
   const so = e.target.closest("[data-sort]");
@@ -1427,6 +1839,10 @@ document.getElementById("main").addEventListener("click", e=>{
   const act = btn.dataset.act;
   if (act==="own"){
     state.holdings = state.holdings.includes(tk) ? state.holdings.filter(t=>t!==tk) : state.holdings.concat(tk);
+  } else if (act==="cart"){
+    if (state.cart.includes(tk)){ state.cart = state.cart.filter(t=>t!==tk); toast("🛒 장바구니에서 뺐어요"); }
+    else if (state.cart.length >= CART_MAX){ toast(`후보가 조금 많아졌어 🙂 ${CART_MAX}개 정도로 추려보는 걸 추천해.`); }
+    else { state.cart = state.cart.concat(tk); toast("🛒 관심종목에 담았어"); }
   } else if (act==="hide"){ state.hidden.push(tk); }
   else if (act==="expand"){ if(!state.expanded.includes(tk)) state.expanded.push(tk); }
   else if (act==="collapse"){ state.expanded = state.expanded.filter(t=>t!==tk); }
@@ -1467,7 +1883,7 @@ sheet.addEventListener("click", e=>{
 function applyTheme(){
   document.documentElement.setAttribute("data-theme", state.theme);
   const b = document.getElementById("themeBtn");
-  if (b) b.textContent = state.theme === "dark" ? "☀️ 화이트톤" : "🌙 다크톤";
+  if (b) b.textContent = state.theme === "dark" ? "☀️" : "🌙";
 }
 document.getElementById("themeBtn").onclick = () => {
   state.theme = state.theme === "dark" ? "light" : "dark";
