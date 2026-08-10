@@ -613,8 +613,10 @@ const CART_MAX = 10;   // 모의구매 점검이 의미를 가지는 상한
    history/ 에는 '원본 지표'만 쌓이므로, 어느 버전으로도 과거를 다시 채점할 수 있다.
    필요한 건 "언제부터 어느 산식이 돌았는가"의 기록이다. 코드 자체는 git이 보관한다.
    나중에 소급 채점할 때: git show <커밋>:index.html 로 그 시점 evaluate()를 꺼내 쓴다. */
-const LOGIC_VERSION = "v3";
+const LOGIC_VERSION = "v4";
 const LOGIC_LOG = [
+  {v:"v4", from:"2026-08-10", t:"초기 반등 가점 추가",
+   d:"애매한 바닥권(20일선 아래·60일선 위, RSI 35~45, 거래량 증가, MACD 개선)에 반등 가점을 신설했다. 조건이 빡세서 점수를 못 받던 바닥권 종목이 반등 축으로 올라올 수 있게 했다."},
   {v:"v3", from:"2026-08-10", t:"추세·반등·공통 감점 분리",
    d:"감점을 한 통(sNeg)에 담아 쓰던 걸 셋으로 나눴다. 추세가 깨져도 반등 점수가 같이 죽지 않는다. 공포 투매 반등 가점, 3일 급등 차등 감점, 거래량 가점 상향(3배 2.4)."},
   {v:"v2", from:"2026-08-10", t:"진입 위치(눌림목) 평가 도입",
@@ -876,6 +878,21 @@ function evaluate(s){
     }
   }
 
+  /* ③-b 초기 반등 — 애매한 바닥권을 놓치지 않기 위한 가점.
+     20일선은 내줬지만 60일선은 지킨 자리에서, RSI가 바닥을 벗어나기 시작하고
+     거래량과 MACD가 함께 개선될 때. 업종·시장이 아니라 차트 상태만 본다. */
+  const macdUp = has(hist) && has(s.prev_macd_hist) && hist > s.prev_macd_hist;
+  if (!a20 && a60 && has(rsi) && rsi>=35 && rsi<=45 && has(vr) && vr>=1.1 && macdUp){
+    const w = vr>=1.5 ? 1.0 : 0.5;
+    rPos += w; tags.push({c:"t-warn",t:"🌱 초기 반등"});
+    reasons.push({w:2.3,t:`초기 반등 — 60일선 지지 + RSI ${r1(rsi)} + 거래량 ${r1(vr)}배 + MACD 개선`});
+  }
+  /* ③-c 깊은 바닥에서의 방향 전환 — 60일선까지 내줬어도 MACD·거래량이 같이 돌면 소폭 인정 */
+  else if (!a20 && !a60 && has(rsi) && rsi>=30 && rsi<=45 && has(vr) && vr>=1.3 && macdUp && s.macd_cross!=="dead"){
+    rPos += 0.5; tags.push({c:"t-warn",t:"🌱 바닥 다지기"});
+    reasons.push({w:1.8,t:`바닥권 방향 전환 조짐 — RSI ${r1(rsi)} + 거래량 ${r1(vr)}배 + MACD 개선`});
+  }
+
   /* ④ 돌파매매 (급등일·어제 대량음봉이면 차단) */
   const breakout = a5 && a20 && has(bb) && bb>=80 && has(vr) && vr>=1.3 && (!has(rsi)||rsi<75)
                    && (bull||s.near_high) && !isRed && !surge && !dumpedYesterday;
@@ -1010,7 +1027,8 @@ function histRow(s, row, i, total){
 }
 /* 어제 값을 붙여준다 — '던진 다음날'을 눌림목으로 오인하지 않기 위해 */
 function withPrev(cur, prev){
-  if (prev){ cur.prev_change_1d = prev.change_1d; cur.prev_vol_ratio = prev.vol_ratio; }
+  if (prev){ cur.prev_change_1d = prev.change_1d; cur.prev_vol_ratio = prev.vol_ratio;
+             cur.prev_macd_hist = prev.macd; }
   return cur;
 }
 function histStocks(s){
@@ -1045,6 +1063,7 @@ function allStocks(){
       const y = s._hist[s._hist.length-2];
       s.prev_change_1d = y[F.indexOf("change_1d")];
       s.prev_vol_ratio = y[F.indexOf("vol_ratio")];
+      s.prev_macd_hist = y[F.indexOf("macd_hist")];
     }
     const sig = evaluate(s);
     const pv = prevStock(s);
