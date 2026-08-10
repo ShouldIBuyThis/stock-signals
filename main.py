@@ -30,7 +30,8 @@ PERIOD = "1y"    # 52주 신고가 계산 위해 1년
 HIST_DAYS = 5
 HIST_FIELDS = ["date","price","change_1d","ma5","ma20","ma60","rsi","macd_hist","macd_cross","macd_zero",
                "bb_pos","stoch_k","stoch_d","stoch_cross","vol_ratio","near_high","pct_from_high",
-               "ma20_slope","run5_max","run3_sum","range3","range10","vol3_ratio"]
+               "ma20_slope","run5_max","run3_sum","range3","range10","vol3_ratio",
+               "res_short","ret20"]
 
 RUN_SCOPE = os.environ.get("RUN_SCOPE", "all").strip().lower()
 if RUN_SCOPE not in ("all", "kr"):
@@ -132,6 +133,7 @@ def market_state(ticker):
         ma60 = float(m60s.iloc[-1])
         ma20_prev = float(m20s.iloc[-6])                      # 5일 전 20일선(기울기)
         rising20 = ma20 > ma20_prev
+        ret20 = (float(c.iloc[-1]) / float(c.iloc[-21]) - 1) * 100 if len(c) >= 21 else None
         prev_level = judge(-2) if len(c) >= 66 else None
         prev_below = bool(float(c.iloc[-2]) < float(m20s.iloc[-2])) if len(c) >= 66 else None
         mhist = []
@@ -149,6 +151,7 @@ def market_state(ticker):
             level, detail = "neutral", "20일선 위이나 추세 약함"
         return {"ticker": ticker, "level": level, "below_ma20": bool(px < ma20),
                 "detail": detail, "price": safe(px), "ma20": safe(ma20), "ma60": safe(ma60),
+                "ret20": safe(ret20),
                 "prev": ({"level": prev_level, "below_ma20": prev_below} if prev_level else None),
                 "hist": mhist}
     except Exception as e:
@@ -214,6 +217,23 @@ def analyze(ticker, name, category):
         v3 = vol.iloc[end-3:end].mean() if end >= 3 else None
         vol3_ratio = (v3 / va) if (v3 is not None and va and va > 0) else None
 
+        # ── 지지·저항 (표시용 + 자리 보정용) ────────────────────────
+        # 52주 고가 하나만 저항으로 쓰면 MSTR $100에 저항 $414 같은 값이 나온다.
+        # 지금 당장 부딪힐 가격(단기)과 그다음 매물대(중기)를 나눠서 계산한다.
+        def hi_above(n_):
+            if end < n_: return None
+            h = float(high.iloc[end-n_:end].max())
+            return h if h > c_i * 1.005 else None      # 이미 뚫었으면 저항이 아니다
+        def lo_below(n_):
+            if end < n_: return None
+            l = float(low.iloc[end-n_:end].min())
+            return l if l < c_i * 0.995 else None
+        res_short = hi_above(20)          # 최근 20거래일 고점 중 현재가 위
+        res_mid   = hi_above(60)          # 최근 60거래일 고점
+        sup_short = lo_below(20)
+        sup_mid   = lo_below(60)
+        ret20 = ((c_i / close.iloc[i-20] - 1) * 100) if end >= 21 else None
+
         return {
             "price": safe(c_i, nd), "change_1d": safe(chg),
             "volume": int(vol.iloc[i]) if not np.isnan(vol.iloc[i]) else None,
@@ -231,6 +251,9 @@ def analyze(ticker, name, category):
             "pct_from_high": safe(pfh),
             "near_high": bool(pfh is not None and pfh >= -5),
             "ma20_slope": safe(ma20_slope), "run5_max": safe(run5_max), "run3_sum": safe(run3_sum),
+            "res_short": safe(res_short, nd), "res_mid": safe(res_mid, nd),
+            "sup_short": safe(sup_short, nd), "sup_mid": safe(sup_mid, nd),
+            "high_52w": safe(h52, nd), "ret20": safe(ret20),
             "range3": safe(range3), "range10": safe(range10), "vol3_ratio": safe(vol3_ratio),
             "last_date": df.index[i].strftime("%Y-%m-%d"),
         }
