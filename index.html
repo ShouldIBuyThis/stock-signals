@@ -560,7 +560,7 @@ html[data-theme="dark"] .mkswitch button.on{background:#37456a;box-shadow:none}
   · 2026년 8월부터 매 갱신마다 신호 이력을 저장하고 있으며, 표본이 쌓이면 성과를 집계해 공개할 예정입니다.<br>
   · 그때까지는 신호를 매수 근거가 아니라 <b>관찰 대상을 좁히는 필터</b>로 사용하세요.
   <div style="margin-top:18px;padding-top:12px;border-top:1px solid var(--line);font-size:11px;color:var(--faint)">
-    <span class="lver">산식 ${LOGIC_VERSION}</span> · © 2026 <b>Should I Buy This?</b> · 신호 산출 방식·화면 구성·문구를 포함한 모든 콘텐츠의 무단 복제·재배포를 금합니다.<br>
+    © 2026 <b>Should I Buy This?</b> · 신호 산출 방식·화면 구성·문구를 포함한 모든 콘텐츠의 무단 복제·재배포를 금합니다.<br>
     시세 출처 yfinance · 투자 판단과 그 결과에 대한 책임은 이용자 본인에게 있습니다.
   </div>
 </footer>
@@ -727,6 +727,9 @@ function normalize(raw){
       stoch_cross: it.stoch_cross || "none",
       near_high: !!it.near_high, pct_from_high: num(it.pct_from_high),
       market_weak: !!it.market_weak, market_level: it.market_level || null, atr_pct: num(it.atr_pct),
+      /* 진입 위치(Positioning) 파생값 — 빠뜨리면 오늘 카드에서만 관련 로직이 통째로 죽는다 */
+      ma20_slope: num(it.ma20_slope), run5_max: num(it.run5_max), run3_sum: num(it.run3_sum),
+      range3: num(it.range3), range10: num(it.range10), vol3_ratio: num(it.vol3_ratio),
       last_date: it.last_date || "",
       _prevRaw: it.prev || null,
       _hist: Array.isArray(it.hist) && it.hist.length ? it.hist : null
@@ -848,15 +851,17 @@ function evaluate(s){
     /* 같은 +19%라도 '바닥에서 오늘 처음 터진 날'과 '사흘째 계속 오르는 날'은 다르다.
        직전 이틀 상승분(3일 누적 − 오늘)으로 그 둘을 가른다.
        첫 급등이면 감점하지 않는다 — 시세 분출의 첫날을 죽이면 반등 전략의 의미가 없다. */
+    /* 3일 누적을 모르면 연속인지 첫 급등인지 판단할 수 없다.
+       모를 때 '연속'으로 단정하면 폭락 다음날 첫 반등까지 감점된다(실제로 그랬다). */
     const prior = has(s.run3_sum) ? s.run3_sum - pct : null;
     /* 주도주는 1일차 +4%, 2일차 +3%로 조용히 자리를 잡고 3일차에 거래량을 터뜨리는 경우가 많다.
        직전 이틀 합이 12% 아래면 아직 '분출 초입'으로 본다.
        거기에 5일선 이격이 크지 않으면(=아직 안 벌어졌으면) 연속 상승도 정상 분출로 인정한다. */
     const notExtended = ext5 !== null && ext5 <= 5;
-    const firstPush = prior !== null && (prior < 12 || notExtended);
+    const firstPush = prior === null || prior < 12 || notExtended;
     if (firstPush){
       tags.unshift({c:"t-warn",t:`🔥 분출 초입(+${r1(pct)}%)`});
-      reasons.push({w:2.7,t:`직전 이틀 +${r1(prior)}% — 아직 분출 초입 구간`});
+      if (prior !== null) reasons.push({w:2.7,t:`직전 이틀 ${prior>=0?"+":""}${r1(prior)}% — 아직 분출 초입 구간`});
     } else {
       const dS = Math.min(1.5, 0.3 + (pct - 5) * 0.08);
       rNeg -= dS;
