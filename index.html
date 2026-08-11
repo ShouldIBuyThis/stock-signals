@@ -556,7 +556,35 @@ html[data-theme="dark"] .mkswitch button.on{background:#37456a;box-shadow:none}
 .sheet-grid{grid-template-columns:1fr;gap:6px}
 .sheet-btn{height:40px;font-size:12px}
 .sheet-btn.full{grid-column:span 1}
-.brand{position:relative}.monitorInfoLink{appearance:none;border:0;background:none;padding:0;margin:0;font:inherit;font-weight:500;color:var(--muted);cursor:pointer;line-height:1.35}.monitorInfoBubble{position:absolute;left:0;top:calc(100% + 10px);z-index:80;width:min(340px,calc(100vw - 28px));padding:13px 38px 12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--text);box-shadow:0 10px 28px rgba(16,24,40,.16);font-size:12px;line-height:1.55;font-weight:500}.monitorInfoBubble[hidden]{display:none}.monitorInfoBubble b{display:block;margin-bottom:4px}.monitorInfoBubble p{margin:0}.monitorInfoClose{position:absolute;right:8px;top:7px;width:26px;height:26px;border:0;background:transparent;color:var(--muted);font-size:19px;cursor:pointer}.monitorInfoDone{margin-top:9px;padding:5px 10px;border:1px solid var(--line);border-radius:7px;background:var(--surface2);color:var(--text);font-size:11px;font-weight:700;cursor:pointer}</style>
+.brand{position:relative}.monitorInfoLink{appearance:none;border:0;background:none;padding:0;margin:0;font:inherit;font-weight:500;color:var(--muted);cursor:pointer;line-height:1.35}.monitorInfoBubble{position:absolute;left:0;top:calc(100% + 10px);z-index:80;width:min(340px,calc(100vw - 28px));padding:13px 38px 12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--text);box-shadow:0 10px 28px rgba(16,24,40,.16);font-size:12px;line-height:1.55;font-weight:500}.monitorInfoBubble[hidden]{display:none}.monitorInfoBubble b{display:block;margin-bottom:4px}.monitorInfoBubble p{margin:0}.monitorInfoClose{position:absolute;right:8px;top:7px;width:26px;height:26px;border:0;background:transparent;color:var(--muted);font-size:19px;cursor:pointer}.monitorInfoDone{margin-top:9px;padding:5px 10px;border:1px solid var(--line);border-radius:7px;background:var(--surface2);color:var(--text);font-size:11px;font-weight:700;cursor:pointer}
+.panelrow{display:flex;align-items:center;border-bottom:1px solid var(--line)}
+.panelrow:last-child{border-bottom:0}
+.panelrow .panelgoto{display:flex;align-items:center;gap:9px;flex:1;min-width:0;text-align:left;background:none;border:0;padding:11px 8px 11px 13px;cursor:pointer;font-size:13.5px}
+.panelrow .panelx{flex:0 0 auto;width:32px;height:32px;margin-right:7px;border:0;background:transparent;color:var(--faint);font-size:17px;cursor:pointer;border-radius:8px}
+.panelrow .panelx:hover{background:var(--surface2);color:var(--sell)}
+.panelrow .tk{font-weight:900;color:var(--ink);min-width:64px}
+.panelrow .nm{color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.panelrow .val{font-weight:800}
+.cart-main{white-space:nowrap;font-size:12px!important;padding:6px 8px!important}
+.cart-main-label{font-size:11px;font-weight:800;margin-left:2px}
+@media(max-width:640px){.cart-main{padding:6px 6px!important}.cart-main-label{font-size:10px}}
+.cartstock{border:1px solid var(--line);border-radius:11px;padding:9px 10px;margin-top:8px;background:var(--surface)}
+.cartstock-h{display:flex;align-items:center;gap:7px;margin-bottom:4px;font-size:12.5px}
+.cartstock-h b{font-weight:900}
+.cartstock p{margin:2px 0;font-size:11.8px;line-height:1.65;color:var(--reason)}
+</style>
+
+<style>
+.monitorInfoLink{display:inline-flex;align-items:center;min-height:28px}
+.monitorInfoBubble{display:block;background:#fff!important;color:#172033!important;border:1px solid #cfd6e4!important}
+.monitorInfoBubble[hidden]{display:none!important}
+.monitorInfoBubble p,.monitorInfoBubble b,.monitorInfoBubble strong{color:inherit!important}
+html[data-theme="dark"] .monitorInfoBubble{background:#202b42!important;color:#f5f7fb!important;border-color:#44516a!important}
+@media(max-width:640px){
+  .monitorInfoBubble{position:fixed;left:14px;right:14px;top:74px;width:auto;max-width:none}
+  .section-h h2{font-size:16px;line-height:1.25}
+}
+</style>
 </head>
 <body>
 
@@ -566,7 +594,12 @@ html[data-theme="dark"] .mkswitch button.on{background:#37456a;box-shadow:none}
       <h1 class="brand">지금이니?</h1>
       <button type="button" class="monitorInfoLink" id="monitorInfoLink" aria-expanded="false">오늘의 주식매매 신호 모니터링</button>
       <span class="tag">참고용</span>
-    <div class="monitorInfoBubble" id="monitorInfoBubble" role="dialog" aria-label="기술적 신호 모니터링 안내" hidden><button type="button" class="monitorInfoClose" id="monitorInfoClose" aria-label="닫기">×</button><b>기술적 신호 모니터링이란?</b><p>실적·뉴스 등 시장 이벤트를 반영하지 않고, 차트 분석 후 기술적 신호만 조합한 분석입니다.<br><strong>외부 재료를 꼭 확인해보세요!</strong></p><button type="button" class="monitorInfoDone" id="monitorInfoDone">닫기</button></div></div>
+    <div class="monitorInfoBubble" id="monitorInfoBubble" role="dialog" aria-label="기술적 신호 모니터링 안내" hidden>
+      <button type="button" class="monitorInfoClose" id="monitorInfoClose" aria-label="닫기">×</button>
+      <b>기술적 신호 모니터링이란?</b>
+      <p>실적·뉴스 등 시장 이벤트를 반영하지 않고, 차트 분석 후 기술적 신호만 조합한 분석입니다.<br><strong>외부 재료를 꼭 확인해보세요!</strong></p>
+      <button type="button" class="monitorInfoDone" id="monitorInfoDone">닫기</button>
+    </div></div>
     <div class="headrow">
       <div class="search" style="position:relative">
         <span>🔍</span>
@@ -580,7 +613,7 @@ html[data-theme="dark"] .mkswitch button.on{background:#37456a;box-shadow:none}
       <button data-tab="all">전체순위</button>
       <button data-tab="help">방명록·도움말</button>
       <button id="themeBtn" class="theme-btn mini" title="화면 밝기 전환">🌙</button>
-      <button id="btnCart" class="theme-btn mini" title="">🛒<span class="cartTip">🧾 모의구매 점검이 가능해요</span></button>
+      <button id="btnCart" class="theme-btn mini cart-main" title="">🛒 <span class="cart-main-label">장바구니</span><span class="cartTip">🧾 모의구매 점검이 가능해요</span></button>
     </div>
   </div>
 </header>
@@ -591,12 +624,11 @@ html[data-theme="dark"] .mkswitch button.on{background:#37456a;box-shadow:none}
     <details>
       <summary>🕘 <b>모든 지표는 장 마감 후 종가 기준입니다</b> · 자세히</summary>
       <div style="margin-top:6px">
-        · <b>05:40~06:40 미국장 · 16:20 한국장</b> <span class="close-update-text">종가 기준 일 1회 갱신</span><br>
+        · <b>05:40~06:40 미국장 · 16:20 한국장</b> 종가 기준 일 1회 갱신<br>
         · <b id="stamp">—</b> · 마지막 데이터 패치<br>
-        · 갱신은 GitHub 자동 실행이라 <b>정시가 아니라 몇 분에서 수십 분 늦을 수 있습니다.</b> 한국장은 마감(15:30) 직후엔 확정 종가가 안 잡혀서 16:20에 받습니다.<br>
-        · 프리장·장중 실시간은 반영되지 않습니다. <b>일봉 종가만</b> 씁니다 — 시간봉은 단타용이라 속임수 신호에 걸리기 쉬워요.<br>
-        · <b>3~20일 스윙 관점</b>이며 당일매매용이 아닙니다. 박스권·강한 추세장에서는 같은 신호가 반대로 해석될 수 있어요.<br>
-        · 신호는 <b>QQQ(미장) 추세</b>도 반영합니다. <span id="mktInfo"></span>
+        · 갱신은 자동 실행이라 <b>정시가 아니라 몇 분에서 수십 분 늦을 수 있습니다.</b><br>
+        · 프리장·장중은 반영하지 않고 <b>일봉 종가</b>만 사용합니다.<br>
+        · <b>3~20일 스윙 관점</b> · QQQ(미장) 추세 반영 <span id="mktInfo"></span>
       </div>
     </details>
   </div>
@@ -659,7 +691,7 @@ html[data-theme="dark"] .mkswitch button.on{background:#37456a;box-shadow:none}
 "use strict";
 /* ══════════ 상태 ══════════ */
 const LS = "sibt-v2";
-const CART_MAX = 10;   // 모의구매 점검이 의미를 가지는 상한
+const CART_MAX = 5;   // 모의구매 점검이 의미를 가지는 상한
 
 /* ── 점수 산식 버전 ──────────────────────────────────────────
    history/ 에는 '원본 지표'만 쌓이므로, 어느 버전으로도 과거를 다시 채점할 수 있다.
@@ -796,11 +828,12 @@ function normalize(raw){
   });
   return { generated_at: stamp, stocks, failed: raw.failed||[], market: raw.market||null,
            market_events: Array.isArray(raw.market_events) ? raw.market_events : [],
+           calendar_status: raw.calendar_status || null,
            sectors: raw.sectors||null, hist_fields: raw.hist_fields||null };
 }
 
 /* ══════════ 신호 엔진 ══════════ */
-const GRADES = {5:"강한매수",4:"매수관심",3:"중립",2:"매도관심",1:"강한매도"};
+const GRADES = {5:"강한매수",4:"매수관심",3:"중립"};
 
 function evaluate(s){
   /* 감점을 세 갈래로 나눈다.
@@ -841,26 +874,27 @@ function evaluate(s){
   const squeeze= has(s.range3)&&has(s.range10)&&s.range10 ? s.range3 < s.range10*0.8 : false;
   const yChg   = has(s.prev_change_1d) ? s.prev_change_1d : null;
   const yVr    = has(s.prev_vol_ratio) ? s.prev_vol_ratio : null;
-  /* 어제 대량 음봉이면 오늘은 '쉬는 것'이 아니라 '던진 다음날'로 본다 */
+  /* 전일 대량 음봉은 기본적으로 분배 위험 */
   const dumpedYesterday = (yChg !== null && yChg <= -5) && (yVr !== null && yVr >= 1.5);
 
   const nearMA5 = has(p)&&has(ma5)&&has(ma20) && p <= ma5 && p >= ma20;  // MA5~MA20 사이로 눌린 자리
+  const dumpRecovered = dumpedYesterday && bull && a20 && rising && !isRed && s.macd_cross!=="dead" && (a5 || nearMA5);
   /* 5일선을 깨지 않고 그 바로 위에서 거래량 줄이며 조용히 쉬는 날.
      주도주는 눌리기보다 이렇게 매물을 소화하는 경우가 더 많다.
      '정배열 상승' 분기를 그대로 두고 별도 가점만 얹는다 — 눌림목 분기로 보내면 오히려 강등된다. */
   const restAbove = has(p)&&has(ma5) && (p/ma5-1)*100 <= 3 && p >= ma5;
   /* 일반 눌림목: 상승추세 유지 + MA5~MA20 사이 + 거래량 감소 */
-  const dipSoft = bull && a20 && nearMA5 && dry && !dumpedYesterday;
+  const dipSoft = bull && a20 && nearMA5 && dry && (!dumpedYesterday || dumpRecovered);
   /* 강한 눌림목: 최근 급등 → 변동폭 축소 → 거래량 마름 → MA20 이탈 없음 */
   const dipHard = dipSoft && rising && run5 !== null && run5 >= 5 && squeeze;
 
   /* ① 추세·패턴 (급등일에는 가점을 캡) */
   const cap = w => surge ? Math.min(w, 0.5) : w;
   if (dipHard){
-    pPos += cap(1.5); tags.push({c:"t-buy",t:"📉 강한 눌림목"});
+    pPos += cap(dumpRecovered ? 0.8 : 1.5); tags.push({c:"t-buy",t:dumpRecovered?"📉 대량음봉 후 소화":"📉 강한 눌림목"});
     reasons.push({w:3.2,t:`급등 후 조정 — 변동폭·거래량 축소, MA20 유지 (MA5 대비 ${r1(ext5)}%)`});
   } else if (dipSoft){
-    pPos += cap(0.8); tags.push({c:"t-buy",t:"📉 정배열 눌림목"});
+    pPos += cap(dumpRecovered ? 0.4 : 0.8); tags.push({c:"t-buy",t:dumpRecovered?"📉 대량음봉 후 안정":"📉 정배열 눌림목"});
     reasons.push({w:2.6,t:`정배열 눌림 — 거래량 감소 (MA5 대비 ${r1(ext5)}%)`});
   } else if (bull && a5){
     if (has(rsi)&&rsi>=75){ bPos+=0.3; reasons.push({w:1.5,t:`정배열이나 RSI ${r1(rsi)} 과열`}); }
@@ -942,10 +976,15 @@ function evaluate(s){
   /* ③ 수급 상태 (거래량) */
   if (has(vr)){
     if (isRed && vr>=1.5){
-      /* 추세 입장에선 이탈, 역추세 입장에선 공포 매물. 같은 사건을 다르게 읽는다. */
-      tNeg -= a20 ? 1.5 : 3.0;
-      tags.push({c:"t-cool",t:"🚨 대량 매도 이탈"});
-      reasons.push({w:3.4,t:`대량 거래량(${r1(vr)}배) 동반 음봉 — 추세 이탈 위험`});
+      /* 같은 대량음봉도 위치에 따라 의미가 다르다.
+         정배열 + 상승 MA20 + MA20 위라면 즉시 추세 붕괴로 단정하지 않고 감점을 완화한다. */
+      const healthyDump = bull && a20 && rising && s.macd_cross!=="dead";
+      const dumpPenalty = healthyDump ? (vr>=2.0 ? 0.8 : 0.4) : (a20 ? 1.5 : 3.0);
+      tNeg -= dumpPenalty;
+      tags.push({c:"t-cool",t:healthyDump?"⚠ 대량 음봉 — 추세 유지":"⚠ 대량 거래 경계"});
+      reasons.push({w:3.4,t:healthyDump
+        ? `대량 거래량(${r1(vr)}배) 음봉이나 정배열·상승 MA20 유지 — 감점 완화`
+        : `대량 거래량(${r1(vr)}배) 동반 음봉 — 추세 훼손 위험`});
       /* 공포 거래량 = 평소 변동폭을 넘는 급락 + 거래량 폭증. 추세엔 악재지만 반등엔 재료다. */
       const bigDrop = pct !== null && pct <= -Math.max(4, (has(s.atr_pct)?s.atr_pct:4) * 1.2);
       const capit = (has(bb)&&bb<=20) || (has(rsi)&&rsi<=35);
@@ -1000,12 +1039,52 @@ function evaluate(s){
     reasons.push({w:1.8,t:`바닥권 방향 전환 조짐 — RSI ${r1(rsi)} + 거래량 ${r1(vr)}배 + MACD 개선`});
   }
 
-  /* ④ 돌파매매 (급등일·어제 대량음봉이면 차단) */
-  const breakout = a5 && a20 && has(bb) && bb>=80 && has(vr) && vr>=1.3 && (!has(rsi)||rsi<75)
-                   && (bull||s.near_high) && !isRed && !surge && !dumpedYesterday;
+  /* ④ 미너비니식 돌파 근사
+     정확한 원전 패턴 전체를 구현한 것이 아니라, 현재 데이터에서 재현 가능한 요소:
+     - 10·20·50일선 정렬/상승
+     - 최근 고점·저항 근접
+     - 변동폭 수축 후 거래량 동반 확장
+     - 상대강도(rs20) 우위
+     - 과열 추격은 제한
+  */
+  const ma10=s.ma10, ma50=s.ma50;
+  const miniTrend =
+    (has(ma10)&&has(ma20)&&has(ma50)
+      ? (p>ma10 && ma10>ma20 && ma20>ma50)
+      : (bull && a20)) &&
+    (!has(s.ma20_slope)||s.ma20_slope>0);
+
+  const miniContract =
+    (has(s.range3)&&has(s.range10)&&s.range10>0 && s.range3 <= s.range10*0.85) ||
+    (has(s.vol3_ratio)&&s.vol3_ratio<0.9);
+
+  const miniLeader =
+    (has(s.rs20)&&s.rs20>0) || s.near_high;
+
+  const miniNearPivot =
+    (has(s.res_short)&&has(p)&&s.res_short>=p && (s.res_short/p-1)*100<=3.5) ||
+    s.near_high;
+
+  const miniVolume =
+    has(vr)&&vr>=1.3;
+
+  const miniNotExtended =
+    (!has(rsi)||rsi<72) &&
+    (!has(bb)||bb<98) &&
+    !surge &&
+    s.macd_cross!=="dead";
+
+  const breakout =
+    miniTrend && miniLeader && miniNearPivot && miniVolume && miniNotExtended &&
+    !isRed;
+
   if (breakout){
-    bPos+=2; tags.push({c:"t-buy",t:"🚀 저항선 돌파"});
-    reasons.push({w:3.1,t:`저항선 돌파 — 볼밴 ${r1(bb)} + 거래량 ${r1(vr)}배`});
+    let w=2.0;
+    if(miniContract) w+=0.8;          // 수축 후 확장
+    if(has(s.rs20)&&s.rs20>=5) w+=0.5; // 시장 대비 강한 종목
+    bPos+=w;
+    tags.push({c:"t-buy",t:"🚀 미너비니형 돌파"});
+    reasons.push({w:3.4,t:`추세 정렬 + 저항 근접 + 거래량 ${r1(vr)}배${miniContract?" + 수축 후 확장":""}`});
   }
 
   /* ⑤ 52주 신고가 (급등일 차단) */
@@ -1091,11 +1170,11 @@ function evaluate(s){
 
   /* 등급 컷오프 — 2026-08-10 기준 73종목 실제 점수 분포로 재조정.
      이전 값(3.2/1.5/-1.3/-3)은 감점 항목이 늘기 전 스케일에 맞춘 것이라,
-     지금 분포(최저 -1.6 · 중앙 1.2 · 최고 4.3)에서는 강한매도가 구조적으로 나올 수 없었다.
+     지금 분포(최저 -1.6 · 중앙 1.2 · 최고 4.3)에서는 경계가 구조적으로 나올 수 없었다.
      ※ 하루치 분포에 맞춘 잠정값이다. history가 쌓이면 다시 잡아야 한다. */
   /* 시장 국면에 따라 매도 컷만 낮춘다.
      약세장에서는 QQQ 감점(-0.5~-1.0)이 모든 미국 종목에 똑같이 걸려 점수가 통째로 내려간다.
-     컷을 고정해두면 그날 하루에 강한매도가 쏟아진다. 그 감점폭만큼 매도 컷도 내린다.
+     컷을 고정해두면 그날 하루에 경계가 쏟아진다. 그 감점폭만큼 매도 컷도 내린다.
      매수 컷은 그대로 둔다 — 약세장에서 매수 신호가 줄어드는 것은 의도한 동작이다. */
   // 매수 로직은 그대로 유지한다. 전략별 컷으로 강한매수/매수관심만 판정.
   const breakGrade = breakScore>=2.5 ? 5 : breakScore>=1.2 ? 4 : 3;
@@ -1103,40 +1182,28 @@ function evaluate(s){
   const revGrade   = revScore  >=3.0 ? 5 : revScore  >=2.0 ? 4 : 3;
   const buyGrade=Math.max(breakGrade,pullGrade,revGrade);
 
-  /* 매도는 매수와 독립축. 매수 점수의 max(raw)를 뒤집어 쓰지 않고
-     실제 추세 훼손·모멘텀 약화·대량 매도 흔적만 따로 센다. */
-  let sellScore=0;
-  /* 매도는 매수와 독립: 구조적 추세 훼손 + 확인 신호가 함께 있어야 발동 */
-  const structureBreak =
-    (!a20 && has(ma5) && has(ma20) && ma5<ma20) ||
-    (!a60 && has(ma20) && has(ma60) && ma20<ma60) ||
-    (has(s.ma20_slope) && s.ma20_slope<0 && !a20);
-  const momentumConfirm =
-    s.macd_cross==="dead" ||
-    (s.stoch_cross==="dead" && has(s.stoch_k) && s.stoch_k>=60);
-  const volumeBreak =
-    isRed && has(vr) && vr>=1.5 && (!a20 || (has(s.change_1d)&&s.change_1d<=-3));
-  const severeBreak =
-    isRed && has(vr) && vr>=2.0 && !a20 &&
-    ((has(ma5)&&has(ma20)&&ma5<ma20) || !a60);
-  const reboundZone =
-    (has(rsi)&&rsi<=35) || (has(bb)&&bb<=15) ||
-    s.macd_cross==="golden" ||
-    (s.stoch_cross==="golden"&&has(s.stoch_k)&&s.stoch_k<=40);
+  /* 경계 = 등급이 아니라 '신규 진입 주의' 뱃지.
+     저항이 너무 가깝고 과열/추격 요소가 겹칠 때만 표시한다. */
+  const cautionResGap = has(s.res_short)&&has(p)&&p ? (s.res_short/p-1)*100 : null;
+  const nearResistance = cautionResGap!==null && cautionResGap>=0 && cautionResGap<=2.5;
+  const hotMomentum =
+    (has(rsi)&&rsi>=72) ||
+    (has(bb)&&bb>=92) ||
+    (has(s.stoch_k)&&s.stoch_k>=85) ||
+    surge;
+  const weakAtResistance =
+    nearResistance && (
+      s.macd_cross==="dead" ||
+      (s.stoch_cross==="dead"&&has(s.stoch_k)&&s.stoch_k>=70) ||
+      (has(vr)&&vr<0.9)
+    );
+  const cautionBadge = nearResistance && (hotMomentum || weakAtResistance);
 
-  if (structureBreak) sellScore+=1.8;
-  if (momentumConfirm) sellScore+=1.2;
-  if (volumeBreak) sellScore+=1.5;
-  if (severeBreak) sellScore+=1.2;
-  if (has(s.ma20_slope)&&s.ma20_slope<0) sellScore+=0.4;
-  if (!a60) sellScore+=0.5;
-  if (reboundZone && !severeBreak) sellScore=Math.max(0,sellScore-1.6);
-  sellScore=Math.round(sellScore*10)/10;
-  const sellGrade =
-    (structureBreak && (volumeBreak||momentumConfirm) && sellScore>=4.0) ? 1 :
-    (structureBreak && (volumeBreak||momentumConfirm) && sellScore>=2.8) ? 2 : 3;
-  // 매수 신호가 있으면 매수등급을 보존하고 매도축은 경고로만 병기. 없을 때만 매도등급을 최종등급으로 사용.
-  let g=buyGrade>=4 ? buyGrade : sellGrade<=2 ? sellGrade : 3;
+  let sellScore=0, sellGrade=3;
+  const trendCaution=false, hotCaution=cautionBadge;
+
+  // 경계는 등급을 내리지 않는다. 매수 등급은 그대로 유지.
+  let g=buyGrade>=4 ? buyGrade : 3;
 
   const brokeSup = !a20 && (( has(ma5)&&has(ma20)&&ma5<ma20 ) || s.macd_cross==="dead");
   const trendAlive = a20 && has(ma5) && has(ma20) && ma5 > ma20 && s.macd_cross !== "dead";
@@ -1157,16 +1224,19 @@ function evaluate(s){
     tags.unshift({c:meta[0], t:meta[1], click:type});
   }
 
-  /* ⑪ 매도 신호 — 독립 sellGrade 기준 */
+  /* ⑪ 경계 신호 — 독립 sellGrade 기준 */
   let sellType=null;
   const brokeSupport = brokeSup;
   if (sellGrade<=2){
     sellType="추세이탈";
-    const txt=sellGrade===1 ? "🚨 강한 매도 — 추세 훼손" : "⚠ 매도관심 — 추세 약화";
+    const txt=sellGrade===1 ? "⚠ 경계 — 추세 훼손" : "⚠ 경계 — 추세 약화";
     tags.unshift({c:"t-hot",t:txt,click:"추세이탈"});
   }
   if (overheat){
     tags.push({c:"t-warn",t:(g>=4?"⚠ 과열 — 익절 구간 주의":"🔥 과열 분할익절"),click:g>=4?"과열주의":"과열익절"});
+  }
+  if (cautionBadge){
+    tags.unshift({c:"t-hot",t:`⚠ 경계 — 저항 임박${cautionResGap!==null?` ${cautionResGap.toFixed(1)}%`:""}`,click:"저항주의"});
   }
 
   if (g>=4 && surge) tags.unshift({c:"t-hot",t:"⚠ 추격주의"});
@@ -1184,7 +1254,7 @@ function evaluate(s){
 
   /* 검증용 내역 — 나중에 "저항 보정이 실제로 도움이 됐나"를 사후 비교할 수 있게 남긴다 */
   const adj = { base: baseScore, res: resAdj, resGap, leader, ldr: ldrAdj, final: score };
-  return { score, trendScore, breakScore, pullScore, revScore, breakGrade, pullGrade, revGrade, sellScore, sellGrade, grade:g, type, sellType, line, tags, adj, overheat, overheatOnly };
+  return { score, trendScore, breakScore, pullScore, revScore, breakGrade, pullGrade, revGrade, sellScore, sellGrade, trendCaution, hotCaution, firstBreak20, freshMADead, grade:g, type, sellType, line, tags, adj, overheat, overheatOnly };
 }
   
 /* ══════════ 종목 가공 ══════════ */
@@ -1233,8 +1303,16 @@ function histRow(s, row, i, total){
 }
 /* 어제 값을 붙여준다 — '던진 다음날'을 눌림목으로 오인하지 않기 위해 */
 function withPrev(cur, prev){
-  if (prev){ cur.prev_change_1d = prev.change_1d; cur.prev_vol_ratio = prev.vol_ratio;
-             cur.prev_macd_hist = prev.macd; }
+  if (prev){
+    cur.prev_change_1d = prev.change_1d;
+    cur.prev_vol_ratio = prev.vol_ratio;
+    cur.prev_macd_hist = prev.macd;
+    /* 경계는 '전일까지 위였는데 오늘 처음 이탈'을 봐야 하므로
+       인접 히스토리에서 전일 가격/이평을 직접 붙인다. */
+    cur.prev_price = prev.price;
+    cur.prev_ma5 = prev.ma5;
+    cur.prev_ma20 = prev.ma20;
+  }
   return cur;
 }
 function histStocks(s){
@@ -1270,6 +1348,9 @@ function allStocks(){
       s.prev_change_1d = y[F.indexOf("change_1d")];
       s.prev_vol_ratio = y[F.indexOf("vol_ratio")];
       s.prev_macd_hist = y[F.indexOf("macd_hist")];
+      s.prev_price = y[F.indexOf("price")];
+      s.prev_ma5 = y[F.indexOf("ma5")];
+      s.prev_ma20 = y[F.indexOf("ma20")];
     }
     {
       const mk = (state.data && state.data.market) || {};
@@ -1318,6 +1399,11 @@ function overallRanked(list){
     Math.abs(b.s.change_1d||0)-Math.abs(a.s.change_1d||0)
   ).map(x=>x.s);
 }
+/* 전체순위 '다중 신호순'은 테마랭킹 다중신호와 같은 순서를 맨 앞에 사용한다.
+   따라서 두 화면의 다중신호 종목/순서는 항상 일치한다. 나머지 종목만 뒤에 이어진다. */
+function signalRanked(list){
+  return multiSignalRank(list);
+}
 /* 전략별 순위 계산 (현재 필터 기준). raw score를 서로 합치지 않는다. */
 function computeRanks(){
   const list = visible();
@@ -1326,7 +1412,7 @@ function computeRanks(){
     const m = {}; sorted.forEach((s,i)=>m[s.ticker]=i+1); return m;
   };
   const br=mk(s=>s.sig.breakScore), pu=mk(s=>s.sig.pullScore);
-  const total={}; overallRanked(list).forEach((s,i)=>total[s.ticker]=i+1);
+  const total={}; signalRanked(list).forEach((s,i)=>total[s.ticker]=i+1);
   return {
     total,
     break: br, pull: pu, trend: br,
@@ -1360,7 +1446,7 @@ function widget(title, sub, rows, emptyMsg){
       <span class="rk ${i<3?"top":""}">${i+1}</span>
       <span class="tk">${esc(r.ticker)}</span>
       <span class="nm">${esc(r.name||"")}</span>
-      ${r.val!==""?`<span class="val ${r.cls||""}">${r.val}</span>`:""}
+      ${(r.val!==undefined && r.val!==null && r.val!=="")?`<span class="val ${r.cls||""}">${esc(String(r.val))}</span>`:""}
     </button>`).join("")
     : `<div class="widget-empty">${emptyMsg||"해당 신호 없음"}</div>`;
   return `<div class="widget">
@@ -1406,38 +1492,53 @@ function earningsHoldSection(title="실적발표 보류"){
     }).join("")}</div></div>`;
 }
 /* 다중 신호: raw 점수 합산 없이 '등급 → 핵심 3전략 중복 → 전체 4축 중복 → 최고순위'만 사용 */
-function multiSignalTop(list){
+function multiSignalRank(list){
   if(!list.length) return [];
-  const eligible=list.filter(s=>s.sig.grade>=4); // 중립 이하는 TOP5 후보 제외
+  const eligible=list.filter(s=>s.sig.grade>=4); // 강한매수/매수관심만
   if(!eligible.length) return [];
-  const rank=(key)=>{const a=list.slice().sort((a,b)=>key(b)-key(a));const m={};a.forEach((s,i)=>m[s.ticker]=i+1);return m;};
-  const R={break:rank(s=>s.sig.breakScore),pull:rank(s=>s.sig.pullScore),rev:rank(s=>s.sig.revScore),vol:rank(s=>has(s.vol_ratio)?s.vol_ratio:-1)};
-  const info=s=>{
+
+  const rank=(key)=>{
+    const a=list.slice().sort((a,b)=>key(b)-key(a));
+    const m={}; a.forEach((s,i)=>m[s.ticker]=i+1); return m;
+  };
+  const R={
+    break:rank(s=>s.sig.breakScore),
+    pull:rank(s=>s.sig.pullScore),
+    rev:rank(s=>s.sig.revScore),
+    vol:rank(s=>has(s.vol_ratio)?s.vol_ratio:-1)
+  };
+
+  const xs=eligible.map(s=>{
     const br=R.break[s.ticker], pu=R.pull[s.ticker], rv=R.rev[s.ticker], vo=R.vol[s.ticker];
     const core=[br,pu,rv], all=[br,pu,rv,vo];
-    return {s,br,pu,rv,vo,
+    return {
+      s,br,pu,rv,vo,
       core5:core.filter(x=>x<=5).length,
       core10:core.filter(x=>x<=10).length,
       all5:all.filter(x=>x<=5).length,
       all10:all.filter(x=>x<=10).length,
-      bestCore:Math.min(...core), bestAll:Math.min(...all)};
-  };
+      bestCore:Math.min(...core),
+      bestAll:Math.min(...all)
+    };
+  }).filter(x=>x.all10>=2 && x.core10>=1); // 후보 B: 4축 중 2개 + 핵심전략 최소1
+
   const cmp=(a,b)=>
-    b.s.sig.grade-a.s.sig.grade ||       // 강한매수 우선, 부족하면 매수관심
-    b.core5-a.core5 ||                   // 돌파·눌림·반등 TOP5 중복
-    b.core10-a.core10 ||                 // 핵심 3전략 TOP10 중복
-    b.all5-a.all5 || b.all10-a.all10 || // 거래량 포함 보조 중복
+    b.s.sig.grade-a.s.sig.grade ||
+    b.core5-a.core5 || b.all5-a.all5 ||
+    b.core10-a.core10 || b.all10-a.all10 ||
     a.bestCore-b.bestCore || a.bestAll-b.bestAll ||
-    a.s.ticker.localeCompare(b.s.ticker); // 완전 동률은 티커순 — raw 점수 재비교 없음
-  return eligible.map(info).sort(cmp).slice(0,5).map(x=>{
+    a.s.ticker.localeCompare(b.s.ticker);
+
+  return xs.sort(cmp).map(x=>{
     const bits=[];
     if(x.br<=10)bits.push(`돌파 ${x.br}위`);
     if(x.pu<=10)bits.push(`눌림 ${x.pu}위`);
     if(x.rv<=10)bits.push(`반등 ${x.rv}위`);
     if(x.vo<=10)bits.push(`거래량 ${x.vo}위`);
-    return {ticker:x.s.ticker,name:x.s.name,val:""};
+    return Object.assign({},x.s,{_multi:bits,_multiInfo:x,val:""});
   });
 }
+function multiSignalTop(list){ return multiSignalRank(list).slice(0,5); }
 function themeHoldBar(){
   const on = v => state.market===v ? "on" : "";
   return `<div class="mkbar">
@@ -1467,7 +1568,7 @@ function renderTheme(){
     .map(s=>({ticker:s.ticker,name:s.name,val:r1(s.vol_ratio)+"배",cls:"up"}));
   const multi = multiSignalTop(list);
   const sell = list.filter(s=>s.sig.sellGrade<=2).sort((a,b)=>a.sig.sellGrade-b.sig.sellGrade || b.sig.sellScore-a.sig.sellScore).slice(0,5)
-    .map(s=>({ticker:s.ticker,name:s.name,val:s.sig.sellGrade===1?"강한매도":"매도관심"}));
+    .map(s=>({ticker:s.ticker,name:s.name,val:s.sig.sellGrade===1?"경계":"경계"}));
   const trend = list.filter(s=>s.sig.breakGrade>=4).sort((a,b)=>b.sig.breakGrade-a.sig.breakGrade || b.sig.breakScore-a.sig.breakScore).slice(0,5)
     .map(s=>({ticker:s.ticker,name:s.name,val:""}));
   const pull = list.filter(s=>s.sig.pullGrade>=4).sort((a,b)=>b.sig.pullGrade-a.sig.pullGrade || b.sig.pullScore-a.sig.pullScore).slice(0,5)
@@ -1483,10 +1584,9 @@ function renderTheme(){
     ${themeHoldBar()}
     <div class="widgets">
       ${widget("🔵 다중 신호","<button class=\"swinglink\" data-swing=\"1\">3~20일 스윙 관점</button>",multi,"오늘은 매수 신호가 없어요")}
-      ${widget("🚀 추세추종·돌파","신고가·저항 돌파",trend,"돌파 신호 없음")}
-      ${widget("📉 눌림목","쉬어가는 자리 — 매물 소화",pull,"눌림목 신호 없음")}
       ${widget("🔄 반등 신호","저점 매수 — 바닥권 전환",rev,"반등 신호 없음")}
-      ${widget("🔴 매도·경계","과열·추세 꺾임",sell,"경계 신호 없음")}
+      ${widget("📉 눌림목","쉬어가는 자리 — 매물 소화",pull,"눌림목 신호 없음")}
+      ${widget("🚀 추세추종·돌파","신고가·저항 돌파",trend,"돌파 신호 없음")}
       ${widget("⚡ 거래량 폭발","20일 평균 대비",byVol,"—")}
       <div class="widget">
         <div class="widget-h"><span class="wt">🗂 테마별 종목</span><span class="ws">${list.length}종목</span></div>
@@ -1523,8 +1623,8 @@ function rankMark(i, rankless=false){
    새 점수 체계가 아니다. 이미 계산된 지표를 초보자가 읽을 수 있는 말로 옮기기만 한다.
    종합점수·등급·순위에는 전혀 영향을 주지 않는다. */
 /* 등급 표시명. 단기과열은 새 등급이 아니라 매도 판정의 사유 표시다. */
-function gradeLabel(sig){ return sig && sig.overheatOnly ? "단기과열" : GRADES[sig ? sig.grade : 3]; }
-function gradeCls(sig){ return sig && sig.overheatOnly ? "gOh" : "g"+(sig ? sig.grade : 3); }
+function gradeLabel(sig){ return GRADES[sig ? sig.grade : 3]; }
+function gradeCls(sig){ return "g"+(sig ? sig.grade : 3); }
 
 function starRow(icon, label, n, note){
   const full = "★".repeat(n) + "☆".repeat(5-n);
@@ -1685,10 +1785,16 @@ function cartBubbles(F){
   if (F.mk.level === "strong") good.push(`시장(QQQ)도 20일선 위 강세 국면이라 흐름을 타기엔 무난한 때예요.`);
   const resRoom=F.mine.map(s=>{const L=cartLevels(s);return {s,g:L.gap(L.res1)};}).filter(x=>x.g!=null);
   if(resRoom.length && resRoom.every(x=>x.g>5)) good.push(`담은 종목들은 가까운 20일 저항까지 대체로 5% 이상 여유가 있어요. 분할 진입 후 저항 접근 때 일부 익절 여부를 점검해볼 만해요.`);
-  const vk={돌파:"break",눌림:"pull",반등:"rev"};
-  const types=[...new Set(F.mine.map(s=>vk[s.sig.type]).filter(Boolean))];
-  types.slice(0,2).forEach(k=>{const o=F.validation&&F.validation[k]&&F.validation[k][3]; if(o&&o.n>=3&&o.rate!=null) good.push(`최근 임시 검증에서 ${F.validation[k].label} 신호의 +3일 적중률은 ${o.rate}% (${o.n}건)이에요. 표본이 짧으니 참고용으로만 보세요.`);});
-  if (!good.length) good.push(`일단 후보를 좁혀둔 것만으로도 반은 한 거예요.`);
+  const strongVol=F.mine.filter(s=>has(s.vol_ratio)&&s.vol_ratio>=1.5);
+  if(strongVol.length) good.push(`${strongVol.map(s=>esc(s.ticker)).join("·")}는 거래량이 평소보다 뚜렷하게 붙어 있어요. 가격 움직임에 실제 수급이 동반되는지 확인하기 좋은 후보예요.`);
+  const trendOk=F.mine.filter(s=>has(s.ma5)&&has(s.ma20)&&has(s.ma60)&&s.ma5>s.ma20&&s.ma20>s.ma60);
+  if(trendOk.length) good.push(`${trendOk.map(s=>esc(s.ticker)).join("·")}는 5·20·60일선 정배열이라 중단기 추세 구조가 비교적 안정적이에요.`);
+  const nearSupport=F.mine.map(s=>({s,L:cartLevels(s)})).filter(x=>x.L.gap(x.L.sup1)!=null && x.L.gap(x.L.sup1)<=0 && x.L.gap(x.L.sup1)>=-5);
+  if(nearSupport.length) good.push(`${nearSupport.map(x=>esc(x.s.ticker)).join("·")}는 가까운 단기 지지 구간과 거리가 크지 않아요. 손익 기준을 잡기 비교적 쉬운 자리인지 확인해볼 만해요.`);
+  const badges=F.mine.flatMap(s=>s.sig.tags.map(t=>badgeKey(t.t))).filter(Boolean);
+  const posBadges=[...new Set(badges.filter(x=>/돌파|눌림|반등|거래량|정배열|MACD|신고가/.test(x)))];
+  if(posBadges.length) good.push(`현재 후보에서 ${posBadges.slice(0,4).map(esc).join(" · ")} 같은 기술적 확인 신호가 함께 보여요. 한 지표보다 여러 조건이 겹치는지를 보는 편이 좋아요.`);
+  if (!good.length) good.push(`뚜렷한 우위 신호는 많지 않아요. 지지·저항과 거래량을 함께 보면서 진입 가격을 좁혀보세요.`);
 
   if (top && top.share >= 0.5 && n >= 3){
     const fl = top.flow!=null ? ` 게다가 오늘 이 테마가 ${top.flow>=0?"+":""}${r1(top.flow)}%로 ${top.flow>=0?"이미 달린":"밀린"} 상태고요.` : "";
@@ -1704,10 +1810,39 @@ function cartBubbles(F){
     Object.entries(by).slice(0,2).forEach(([cat,arr])=>care.push(`<b>${esc(cat)}</b>의 ${arr.map(s=>esc(s.ticker)).join("·")}가 실적발표 영향으로 보류 중이에요. 같은 섹터는 동반 변동성이 커져 기술적 신호 신뢰도가 평소보다 약해질 수 있으니 필수로 확인하세요.`));
   }
   if (F.mk.level === "weak" || F.mk.level === "caution") care.push(`시장(QQQ)이 20일선 아래예요. 개별 신호가 좋아도 지수가 무너지면 같이 빠집니다.`);
-  if (n >= 8) care.push(`${n}종목이면 한 종목당 비중이 얇아져요. 확신 있는 쪽으로 더 추려보는 것도 방법이에요.`);
-  if (F.above20 < n) care.push(`${n===1?esc(F.mine[0].ticker)+"는":(n - F.above20)+"종목은"} 20일선 아래예요. 지지선이 깨진 자리라 진입 시점은 한 번 더 볼 만합니다.`);
+  if (F.above20 < n) care.push(`${n===1?esc(F.mine[0].ticker)+"는":(n - F.above20)+"종목은"} 20일선 아래예요. 단기 추세가 약해진 상태라 거래량 회복이나 지지 재확인을 기다려볼 만합니다.`);
   if (!care.length) care.push(`특별히 걸리는 건 안 보여요. 그래도 아래 ① 외부 재료는 꼭 확인하세요.`);
   return {good: good.slice(0,3), care: care.slice(0,3)};
+}
+
+
+function cartStockNotes(s){
+  const L=cartLevels(s), notes=[];
+  const gsup=L.gap(L.sup1), gres=L.gap(L.res1);
+  const bull=has(s.ma5)&&has(s.ma20)&&has(s.ma60)&&s.ma5>s.ma20&&s.ma20>s.ma60;
+  const above20=has(s.price)&&has(s.ma20)&&s.price>s.ma20;
+
+  if(bull) notes.push(`5·20·60일선이 정배열이라 중단기 추세 구조는 양호합니다.`);
+  else if(above20) notes.push(`20일선 위는 유지하고 있어 단기 추세 지지는 아직 살아 있습니다.`);
+  else notes.push(`20일선 아래라 단기 추세는 약합니다. 지지 재확인이나 거래량 회복을 기다리는 편이 보수적입니다.`);
+
+  if(gsup!=null){
+    if(gsup>=-4 && gsup<=0) notes.push(`가까운 20일 지지가 현재가 대비 약 ${Math.abs(gsup).toFixed(1)}% 아래라 손익 기준을 잡기 비교적 쉬운 편입니다.`);
+    else if(gsup<-8) notes.push(`가까운 20일 지지까지 거리가 약 ${Math.abs(gsup).toFixed(1)}%라 진입 위치가 뜬 상태인지 확인할 필요가 있습니다.`);
+  }
+  if(gres!=null){
+    if(gres>=0 && gres<=3) notes.push(`20일 저항이 약 ${gres.toFixed(1)}% 위라 바로 위 매물대가 가깝습니다. 돌파 확인 여부가 중요합니다.`);
+    else if(gres>5) notes.push(`가까운 20일 저항까지 약 ${gres.toFixed(1)}% 여유가 있습니다.`);
+  } else if(has(s.res_short)===false) notes.push(`최근 20일 고점 위에 있어 단기 저항을 이미 넘긴 상태일 수 있습니다.`);
+
+  if(has(s.vol_ratio)){
+    if(s.vol_ratio>=1.5) notes.push(`거래량이 20일 평균의 ${r1(s.vol_ratio)}배라 가격 움직임에 수급이 동반되고 있습니다.`);
+    else if(s.vol_ratio<0.8) notes.push(`거래량이 평균의 ${r1(s.vol_ratio)}배로 줄어 있습니다. 눌림·숨고르기라면 긍정적일 수 있지만 돌파 신호라면 확인이 더 필요합니다.`);
+  }
+  const pos=displayTags(s.sig.tags,5).map(x=>badgeKey(x.t)).filter(x=>/돌파|눌림|반등|정배열|거래량|신고가|MACD|숨고르기/.test(x));
+  if(pos.length) notes.push(`현재 확인 신호: ${[...new Set(pos)].slice(0,3).join(" · ")}.`);
+  if(s.earnings_hold) notes.push(`실적 영향 거래일 보류 종목이라 기술적 신호보다 실적 변동성을 우선 확인해야 합니다.`);
+  return notes.slice(0,5);
 }
 
 function openCartReview(){
@@ -1747,7 +1882,10 @@ function openCartReview(){
     <p class="cf-note">지지는 최근 20·60거래일 <b>저점</b>, 저항은 그 기간의 <b>고점</b>입니다. 윗줄이 가까운 자리(20일), 아랫줄이 다음 자리(60일)예요.
       저항이 <b>—</b>면 이미 그 구간 고점을 넘어선 상태입니다. 52주 고가는 카드에서 확인하세요. 손절선은 진입가와 보유 기간에 따라 달라지므로 직접 정하셔야 합니다.</p>
 
-    <div class="bub good"><div class="bub-h">💚 괜찮은 점</div>${B.good.map(t=>`<p>${t}</p>`).join("")}</div>
+    <div class="cf-h" style="margin-top:14px">🔎 종목별 체크</div>
+    ${F.mine.map(s=>`<div class="cartstock"><div class="cartstock-h"><b>${esc(s.ticker)}</b><span class="badge ${gradeCls(s.sig)} mini">${gradeLabel(s.sig)}</span></div>${cartStockNotes(s).map(t=>`<p>· ${t}</p>`).join("")}</div>`).join("")}
+
+    <div class="bub good"><div class="bub-h">💚 전체 구성에서 괜찮은 점</div>${B.good.map(t=>`<p>${t}</p>`).join("")}</div>
     <div class="bub care"><div class="bub-h">⚠️ 놓치기 쉬운 점</div>${B.care.map(t=>`<p>${t}</p>`).join("")}</div>
 
     <div class="cf-last">여기까지 보고도 담고 싶으면 —<br>
@@ -1821,7 +1959,7 @@ function openTrendModal(tk){
 /* 그룹 안에서는 구체적인 신호가 앞, 포괄적인 유형 라벨(추세추종·반등신호)이 뒤.
    "🔄 반등신호 + 🔄 바닥권 전환" 이면 더 구체적인 바닥권 전환이 대표가 된다. */
 const BADGE_GROUPS = [
-  { key:"danger", rank:1, m:["🚨 추세 이탈","🚨 대량 매도 이탈","⚠ 장기 추세 약세","📉 역배열 하락","📉 약세"] },
+  { key:"danger", rank:1, m:["🚨 추세 이탈","⚠ 대량 거래 경계","⚠ 대량 음봉 — 추세 유지","⚠ 장기 추세 약세","📉 역배열 하락","📉 약세"] },
   { key:"caution", rank:2, m:["🔥 과열 분할익절","⚠ 연속 급등 과열","⚠ 과열","⚠ 추격주의","⚠ 전일 대량 음봉"] },
   { key:"pattern", rank:3, m:["💧 공포 투매","📉 강한 눌림목","📉 정배열 눌림목","🚀 저항선 돌파",
                               "🌱 초기 반등","🌱 바닥 다지기","🔄 바닥권 전환","🔥 상승 초입",
@@ -1928,7 +2066,7 @@ function renderAll(){
         <div class="${wrapCls}">${arr.map(item).join("")}</div></div>`;
     }
   } else {
-    const sorted = state.sort==="signal" ? overallRanked(list) : list.slice().sort((a,b)=>sortKey(b)-sortKey(a) || Math.abs(b.change_1d||0)-Math.abs(a.change_1d||0));
+    const sorted = state.sort==="signal" ? signalRanked(list) : list.slice().sort((a,b)=>sortKey(b)-sortKey(a) || Math.abs(b.change_1d||0)-Math.abs(a.change_1d||0));
     const label = state.sort==="break" ? "추세추종·돌파 순" : state.sort==="pull" ? "눌림목 순" : state.sort==="reversal" ? "반등신호 순" : state.sort==="volume" ? "거래량 순" : "다중 신호순";
     body = `<div class="section"><div class="section-h"><h2>${label}</h2><span class="sub">${sorted.length}종목${compact?" · 누르면 상세보기":""}</span></div>
       <div class="${wrapCls}">${sorted.map(item).join("")}</div></div>`;
@@ -1990,7 +2128,7 @@ function strategyValidation(){
     rev:{label:"반등", icon:"🔄", grade:s=>s.revGrade}
   };
   const horizons=[1,3,5];
-  const out={break:{},pull:{},rev:{},multi:{},sell:{}};
+  const out={break:{},pull:{},rev:{},multi:{}};
   Object.keys(out).forEach(k=>horizons.forEach(h=>out[k][h]=[]));
 
   /* 종목별 hist와 실적 보류일을 먼저 준비 */
@@ -2026,30 +2164,15 @@ function strategyValidation(){
     });
   }));
 
-  /* 매도·과열: 이후 가격이 내려가면 적중. 평균수익률은 실제 종목 수익률이라 음수일수록 경고가 잘 맞은 것. */
-  byDate.forEach(entries=>entries.forEach(({row,i})=>{
-    const hs=stockHist.get(row.ticker); if(!hs) return;
-    if(row.sig.sellGrade<=2){
-      horizons.forEach(h=>{
-        if(i+h>=hs.length || !has(hs[i+h].price)) return;
-        const ret=(hs[i+h].price/row.price-1)*100;
-        out.sell[h].push({ret,hit:ret<0,date:row.last_date,ticker:row.ticker});
-      });
-    }
-    if(row.sig.overheat){
-      horizons.forEach(h=>{
-        if(i+h>=hs.length || !has(hs[i+h].price)) return;
-        const ret=(hs[i+h].price/row.price-1)*100;
-});
-    }
-  }));
 
-  /* 다중신호: 각 과거 날짜마다 당시 유니버스를 다시 순위 내 TOP5를 선정 */
+  /* 다중신호 검증 = 실제 다중신호 랭킹 자격을 충족한 종목 전체.
+     화면 TOP5 노출 여부와 무관하며, 강한매수/매수관심 + 핵심 3전략 중복 조건을 만족해야 한다. */
   byDate.forEach(entries=>{
     const universe=entries.map(x=>x.row);
-    const picked=multiSignalTop(universe);
-    picked.forEach(sel=>{
-      const ent=entries.find(x=>x.row.ticker===sel.ticker); if(!ent) return;
+    const ranked=multiSignalRank(universe);
+    ranked.forEach(sel=>{
+      const ent=entries.find(x=>x.row.ticker===sel.ticker);
+      if(!ent || ent.row.sig.grade<4) return;
       const hs=stockHist.get(sel.ticker), i=ent.i, p0=ent.row.price;
       horizons.forEach(h=>{
         if(!hs || i+h>=hs.length || !has(hs[i+h].price)) return;
@@ -2064,22 +2187,27 @@ function strategyValidation(){
     rate:a.length?Math.round(a.filter(x=>x.hit).length/a.length*100):null,
     avg:a.length?a.reduce((z,x)=>z+x.ret,0)/a.length:null
   });
-  const result={multi:{label:"다중 신호",icon:"🔵"},sell:{label:"매도",icon:"🔴"}};
+  const result={multi:{label:"다중 신호",icon:"🔵"}};
   Object.entries(kinds).forEach(([k,def])=>result[k]={label:def.label,icon:def.icon});
   Object.keys(result).forEach(k=>horizons.forEach(h=>result[k][h]=stat(out[k][h])));
   return result;
 }
+
+
 function validationBlock(){
   const v=strategyValidation();
   const pct=x=>x==null?"—":x+"%"; const av=x=>x==null?"—":`${x>=0?"+":""}${x.toFixed(2)}%`;
-  const cell=(o)=>`${pct(o.rate)}<br><span style="font-size:10.5px;color:var(--faint)">평균 ${av(o.avg)} · ${o.n}건</span>`;
+  const cell=(o)=>o.n===0
+    ? `—<br><span style="font-size:10.5px;color:var(--faint)">표본 없음</span>`
+    : `${pct(o.rate)}<br><span style="font-size:10.5px;color:var(--faint)">평균 ${av(o.avg)} · ${o.n}건</span>`;
   const row=k=>`<tr><td><b>${v[k].icon} ${v[k].label}</b></td><td>${cell(v[k][1])}</td><td>${cell(v[k][3])}</td><td>${cell(v[k][5])}</td></tr>`;
-  return `<div class="section help-block"><h3>🧪 신뢰도 검증 결과</h3><div class="strip" style="margin-bottom:8px">단기과열은 매수·매도 방향 신호가 아니라 추격주의 상태이므로 신뢰도 검증에서 제외합니다. 매도 적중은 이후 수익률이 <b>음수</b>일 때 적중으로 계산합니다.</div>
+  return `<div class="section help-block"><h3>🧪 신뢰도 검증 결과</h3><div class="strip" style="margin-bottom:8px">과열·추세 약화 등은 화면에서 <b>경계</b>로 통일해 신규 진입 주의 의미로 표시합니다. 단순 과열은 방향성 신호가 아니므로 적중률 검증에서 제외합니다. 경계는 <b>20일선 첫 이탈·5/20일선 데드 전환처럼 추세가 막 약해지는 시점</b>을 중심으로 표시합니다. 이미 과매도·급락이 진행된 구간은 반등 가능성이 있어 방향성 검증에서 제외합니다.</div>
     <table class="cmp"><tr><th>전략</th><th>+1거래일</th><th>+3거래일</th><th>+5거래일</th></tr>
-      ${row("multi")}${row("break")}${row("pull")}${row("rev")}${row("sell")}
+      ${row("multi")}${row("break")}${row("pull")}${row("rev")}
     </table>
-    <div class="strip" style="margin-top:9px"><b>현재 카드에 저장된 최근 히스토리를 새 로직으로 다시 채점한 임시 검증입니다.</b><br>
-      돌파·눌림·반등은 해당 전략 자체가 <b>매수관심 이상</b>이었던 시점만 표본으로 잡고, 다중 신호는 각 과거 거래일의 전체 종목을 당시 데이터로 다시 순위 내 <b>TOP5에 실제 선정된 종목</b>만 표본으로 잡습니다. 매수 전략 적중률은 해당 기간 뒤 종가가 신호일보다 <b>높았던 비율</b>입니다. <b>매도·과열은 반대로 이후 종가가 낮아졌을 때 적중</b>으로 계산합니다. 따라서 매도·과열의 평균수익률은 음수일수록 경고 방향과 잘 맞은 것입니다. 표본 수도 함께 표시합니다.<br>
+    <div class="strip" style="margin-top:9px">
+      돌파·눌림·반등은 각 전략 자체가 <b>매수관심 이상</b>이었던 시점을 검증합니다. 다중 신호는 <b>강한매수·매수관심</b> 종목 중 돌파·눌림·반등·거래량 <b>4축에서 TOP10이 2개 이상 겹치고, 그중 핵심 전략이 최소 1개 포함</b>될 때만 랭킹에 들어갑니다. 전체순위의 다중신호순도 이 자격을 만족한 종목만 표시합니다. 매수 전략 적중률은 해당 기간 뒤 종가가 신호일보다 <b>높았던 비율</b>입니다. 경계는 <b>신규 진입을 신중히 볼 자리</b>라는 뜻이며 매도·손절 권유가 아닙니다. 방향성 검증에는 추세 약화형 경계만 사용합니다. 표본 수도 함께 표시합니다.<br>
+      돌파·눌림은 <b>추세 훼손·추격 위험 감점</b>, 반등은 <b>반등 전용 과열·연속급등 감점</b>을 사용합니다. 다만 정배열·상승 20일선을 유지한 대량음봉은 단순 추세 훼손으로 보지 않고 감점을 완화합니다.<br>
       카드 데이터는 앞으로 <b>최근 10거래일</b>을 저장하고 화면 타임라인은 필요하면 최근 구간만 보여줍니다. 실적 보류 구간은 검증에서 제외합니다. 표본이 짧으므로 장기 승률로 해석하지 않습니다.</div>
   </div>`;
 }
@@ -2117,10 +2245,11 @@ function renderHelp(){
   <div class="section help-block">
     <h3>신호는 어떻게 매겨지나요</h3>
     <div class="help-grid">
-      <div class="help-card"><b>세 전략은 따로 계산</b><br>돌파 · 눌림 · 반등은 점수가 쌓이는 구조가 달라 서로의 raw 점수를 직접 비교하지 않습니다.</div>
-      <div class="help-card"><b>전략별 등급 기준</b><br>돌파 <b>2.5 / 1.2</b> · 눌림 <b>1.5 / 0.8</b> · 반등 <b>3.0 / 2.0</b>을 각각 강한매수 / 매수관심의 초기 기준으로 사용합니다.</div>
-      <div class="help-card"><b>다중신호순</b><br>강한매수 → 매수관심 순으로 두고, 같은 등급에서는 여러 전략 TOP5·TOP10에 동시에 포착된 종목을 우선합니다. raw 점수 합산은 하지 않습니다.</div>
+      <div class="help-card"><b>종목마다 맞는 매매 자리가 다릅니다</b><br>돌파 · 눌림 · 반등은 서로 다른 매매법이라 <b>각 전략에 맞는 조건을 따로 평가</b>합니다. 한 전략의 점수가 다른 전략보다 높다고 무조건 더 좋은 신호라는 뜻은 아닙니다.</div>
+      <div class="help-card"><b>신호 강도도 전략별로 판단합니다</b><br>각 전략에서 필요한 조건이 충분히 겹치면 <b>강한매수</b>, 일부가 확인되면 <b>매수관심</b>으로 분류합니다. 서로 다른 전략 점수를 단순 합산해 등급을 만들지 않습니다.</div>
+      <div class="help-card"><b>다중신호순은 여러 관점의 확인을 봅니다</b><br><b>강한매수 → 매수관심</b>을 먼저 보고, 같은 등급에서는 돌파 · 눌림 · 반등 여러 전략에서 동시에 상위권에 포착된 종목을 우선합니다.</div>
     </div>
+    <p style="font-size:11px;color:var(--faint);margin:8px 2px 0">세부 점수는 각 전략 내부의 신호 강도를 계산하는 데만 사용합니다.</p>
 
     <details class="acc"><summary>돌파 전략 — 저항·신고가를 넘는 흐름</summary>
       <div class="help-grid" style="margin-top:10px">
@@ -2131,12 +2260,21 @@ function renderHelp(){
     </details>
 
 
-    <details class="acc"><summary>눌림 전략 — 좋은 추세의 조정 진입</summary>
+    <details class="acc"><summary>🚀 돌파 전략 — 미너비니식 추세추종 참고</summary>
+  <div class="help-grid" style="margin-top:10px">
+    <div class="help-card buy"><b>추세 정렬</b><br>10·20·50일선 정렬과 상승 기울기를 우선합니다. 새 데이터가 쌓이기 전에는 기존 5·20·60일선으로 임시 근사합니다.</div>
+    <div class="help-card buy"><b>수축 → 확장</b><br>최근 변동폭·거래량이 줄었다가 거래량 1.3배 이상과 함께 저항을 넘는 구간을 높게 봅니다.</div>
+    <div class="help-card"><b>시장 선도주</b><br>20일 상대강도(rs20)가 QQQ보다 강하거나 52주 고점에 가까운 종목을 우선합니다.</div>
+    <div class="help-card"><b>추격 제한</b><br>RSI·볼린저 과열, 급등일, MACD 데드 상태는 돌파 가점을 제한합니다.</div>
+  </div>
+  <div class="strip" style="margin-top:8px">마크 미너비니의 전체 패턴을 그대로 복제한 것이 아니라, 사이트가 가진 일봉 데이터로 구현 가능한 핵심 원칙을 참고한 <b>근사 로직</b>입니다.</div>
+</details>
+<details class="acc"><summary>눌림 전략 — 좋은 추세의 조정 진입</summary>
       <div class="help-grid" style="margin-top:10px">
         <div class="help-card buy"><b>정배열 눌림목</b><br>이동평균 정배열을 유지하면서 종가가 <b>5일선 아래·20일선 위</b>로 쉬고, 거래량이 줄어드는 자리입니다.</div>
-        <div class="help-card buy"><b>강한 눌림목</b><br>정배열 눌림에 최근 상승 이력, 변동폭 축소, 20일선 상승이 더 겹치는 경우입니다. 단순 하락과 구분하기 위해 전일 대량 음봉은 차단합니다.</div>
+        <div class="help-card buy"><b>강한 눌림목</b><br>정배열 눌림에 최근 상승 이력, 변동폭 축소, 20일선 상승이 더 겹치는 경우입니다. 전일 대량음봉이 있어도 정배열·상승 20일선을 지키고 다음날 회복이 확인되면 제한적으로 눌림으로 인정합니다.</div>
         <div class="help-card"><b>숨고르기</b><br>5일선 위에서 거래량과 변동폭이 줄어드는 경우도 추세가 쉬는 신호로 봅니다.</div>
-        <div class="help-card"><b>실패 신호</b><br>거래량이 크게 터진 음봉, 20일선 이탈, 추세 붕괴가 겹치면 건강한 눌림으로 보지 않습니다.</div>
+        <div class="help-card"><b>실패 신호</b><br>거래량이 크게 터진 음봉과 20일선 이탈·추세 붕괴가 함께 나타나면 건강한 눌림으로 보지 않습니다.</div>
       </div>
     </details>
 
@@ -2175,10 +2313,10 @@ function renderHelp(){
       <div class="help-card" style="margin-top:10px"><b>강한매수를 먼저 채우고, 부족한 자리는 매수관심에서 채웁니다.</b><br>같은 등급 안에서는 돌파·눌림·반등의 TOP5/TOP10 동시 진입이 많은 종목을 먼저 보고, 거래량 순위는 보조 축으로 사용합니다. 서로 다른 전략 점수를 단순 합산해 새 점수를 만들지는 않습니다.</div>
     </details>
 
-    <details class="acc"><summary>매도 신호 구분</summary>
+    <details class="acc"><summary>경계 신호 구분</summary>
       <div class="help-grid" style="margin-top:10px">
         <div class="help-card"><b>🔥 과열 분할익절</b><br>추세는 아직 살아있는데 RSI·볼린저가 과열된 상태.<br>→ 전량 매도보다 <b>분할 익절</b>을 검토하는 구간.</div>
-        <div class="help-card"><b>🚨 추세 이탈</b><br>20일선을 잃고 이동평균이 무너졌거나 MACD 데드크로스가 겹친 상태.<br>→ <b>단기 스윙 관점에서 지지선이 깨진</b> 자리라는 뜻입니다. 장기 보유 종목이라면 판단 기준이 다릅니다.</div>
+        <div class="help-card"><b>⚠ 경계</b><br>구조적 추세 훼손에 거래량·모멘텀 악화까지 확인된 자리입니다.<br>→ <b>매도·손절 권유가 아닙니다.</b> 단기 스윙 관점의 신규 진입 주의 표시이며, 장기투자는 실적·성장성·밸류에이션 등 <b>펀더멘털을 별도로 확인</b>해 판단하세요.</div>
         <div class="help-card"><b>⚠ 과열 — 익절 구간 주의</b><br>등급은 아직 매수인데 과열 지표가 뜬 경우. 신규 진입은 쉬고 보유분 익절을 고려하세요.</div>
       </div>
     </details>
@@ -2425,7 +2563,7 @@ function renderHoldPanel(){
   const mine = allStocks().filter(s => state.holdings.includes(s.ticker));
   holdPanel.innerHTML = mine.length
     ? `<div class="phead">보유 ${mine.length}종목 · 누르면 상세 카드로 이동</div>` +
-      mine.map(s=>`<button data-goto="${esc(s.ticker)}"><span class="tk">${esc(s.ticker)}</span><span class="nm">${esc(s.name||"")}</span><span class="val ${chgCls(s.change_1d)} num">${fmtChg(s.change_1d)}</span></button>`).join("")
+      mine.map(s=>`<div class="panelrow"><button class="panelgoto" data-goto="${esc(s.ticker)}"><span class="tk">${esc(s.ticker)}</span><span class="nm">${esc(s.name||"")}</span><span class="val ${chgCls(s.change_1d)} num">${fmtChg(s.change_1d)}</span></button><button class="panelx" data-remove-hold="${esc(s.ticker)}" title="보유 해제">×</button></div>`).join("")
     : `<div class="empty">아직 보유 표시한 종목이 없어요. 종목 카드의 ☆를 누르면 여기에 모입니다.</div>`;
 }
 function toggleHoldPanel(force){
@@ -2445,8 +2583,8 @@ const btnCartTop = document.getElementById("btnCart");
 function renderCartPanel(){
   const mine = allStocks().filter(s => state.cart.includes(s.ticker));
   holdPanel.innerHTML = mine.length
-    ? `<div class="phead">🛒 관심종목 ${mine.length}/${CART_MAX} · 누르면 상세 카드로 이동</div>` +
-      mine.map(s=>`<button data-goto="${esc(s.ticker)}"><span class="tk">${esc(s.ticker)}</span><span class="nm">${esc(s.name||"")}</span><span class="val ${chgCls(s.change_1d)} num">${fmtChg(s.change_1d)}</span></button>`).join("") +
+    ? `<div class="phead">🛒 장바구니 ${mine.length}/${CART_MAX} · 누르면 상세 카드로 이동</div>` +
+      mine.map(s=>`<div class="panelrow"><button class="panelgoto" data-goto="${esc(s.ticker)}"><span class="tk">${esc(s.ticker)}</span><span class="nm">${esc(s.name||"")}</span><span class="val ${chgCls(s.change_1d)} num">${fmtChg(s.change_1d)}</span></button><button class="panelx" data-remove-cart="${esc(s.ticker)}" title="장바구니 해제">×</button></div>`).join("") +
       `<div class="pfoot"><button class="buyreview" data-review="1">🧾 모의구매 점검하기</button></div>`
     : `<div class="empty">아직 담은 종목이 없어요. 카드를 펼치고 🛒를 누르면 여기에 모입니다.</div>`;
 }
@@ -2462,6 +2600,18 @@ btnCartTop.onclick = () => {
   toggleCartPanel();
 };
 holdPanel.addEventListener("click", e=>{
+  const rh=e.target.closest("[data-remove-hold]");
+  if(rh){
+    e.stopPropagation();
+    state.holdings=state.holdings.filter(t=>t!==rh.dataset.removeHold);
+    save(); render(); renderHoldPanel(); return;
+  }
+  const rc=e.target.closest("[data-remove-cart]");
+  if(rc){
+    e.stopPropagation();
+    state.cart=state.cart.filter(t=>t!==rc.dataset.removeCart);
+    save(); render(); renderCartPanel(); return;
+  }
   if (e.target.closest("[data-review]")){
     e.stopPropagation(); toggleCartPanel(false); openCartReview(); return; }
   const b = e.target.closest("[data-goto]");
