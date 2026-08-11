@@ -86,14 +86,14 @@ def fetch_event_calendars(now_kst, wanted_tickers):
     조회 성공/실패 상태도 함께 반환해 UI에서 '일정 없음'과 '조회 실패'를 구분한다.
     """
     out_earn, out_market = {}, []
-    status = {"source":"yfinance Calendars", "ok":False, "earnings_rows":0, "matched":0, "error":""}
+    status = {"source":"yfinance Calendars", "ok":False, "earnings_rows":0, "matched":0, "matched_events":[], "error":""}
     if not hasattr(yf, "Calendars"):
         status["error"] = "현재 yfinance에 Calendars API 없음"
         print("이벤트 캘린더:", status["error"])
         return out_earn, out_market, status
 
     today_ny = datetime.now(ZoneInfo("America/New_York")).date()
-    start_day = today_ny - timedelta(days=5)
+    start_day = today_ny - timedelta(days=16)
     end_day   = today_ny + timedelta(days=7)
     cal = yf.Calendars(start=start_day, end=end_day)
     wanted = {t.upper() for t in wanted_tickers if not is_kr_ticker(t)}
@@ -127,7 +127,19 @@ def fetch_event_calendars(now_kst, wanted_tickers):
                 break
         status["ok"] = True
         status["matched"] = len(out_earn)
+        status["matched_events"] = [
+            {"ticker": tk, "date": ev.get("date"), "timing": ev.get("timing")}
+            for tk, ev in sorted(out_earn.items())
+        ]
         print(f"어닝 캘린더: 조회 {status['earnings_rows']}행 · 관심종목 매칭 {status['matched']}건")
+        if out_earn:
+            print("어닝 매칭 목록:")
+            for tk, ev in sorted(out_earn.items(), key=lambda kv: (kv[1].get("date") or "", kv[0])):
+                print(f"  EARN {tk} · {ev.get('date') or '?'} · {ev.get('timing') or 'UNKNOWN'}")
+            recent_cut = today_ny - timedelta(days=14)
+            recent_events = [(tk,ev) for tk,ev in out_earn.items()
+                             if ev.get("date") and datetime.strptime(ev["date"], "%Y-%m-%d").date() >= recent_cut]
+            print(f"검증용 최근 실적 이벤트: {len(recent_events)}종목")
     except Exception as e:
         status["error"] = f"{type(e).__name__}: {e}"
         print("어닝 캘린더 조회 실패:", status["error"])
@@ -209,7 +221,7 @@ def attach_earnings_holds(results, earnings):
 
         if pre_event:
             hold=True
-            reasons.append("다음 거래일 실적 예정 — 신규 진입 사전 보류")
+            reasons.append("다음 미국 거래일 실적 예정 — 신규 진입 사전 보류")
 
         if day == event_day:
             hold=True
