@@ -802,7 +802,7 @@ function normalize(raw){
       currency: it.currency || (isKR(ticker) ? "KRW" : "USD"),
       price: num(it.price), change_1d: num(it.change_1d ?? it.day),
       volume: num(it.volume), vol_ratio: num(it.vol_ratio ?? it.volRatio),
-      ma5: num(it.ma5), ma20: num(it.ma20), ma60: num(it.ma60),
+      ma5: num(it.ma5), ma10: num(it.ma10), ma20: num(it.ma20), ma50: num(it.ma50), ma60: num(it.ma60),
       rsi: num(it.rsi), macd: num(it.macd_hist ?? it.macdHist),
       macd_cross: cross, macd_zero: it.macd_zero || "above",
       bb_pos: num(it.bb_pos ?? it.bb),
@@ -815,7 +815,7 @@ function normalize(raw){
       range3: num(it.range3), range10: num(it.range10), vol3_ratio: num(it.vol3_ratio),
       res_short: num(it.res_short), res_mid: num(it.res_mid),
       sup_short: num(it.sup_short), sup_mid: num(it.sup_mid),
-      high_52w: num(it.high_52w), ret20: num(it.ret20),
+      high_52w: num(it.high_52w), ret20: num(it.ret20), rs20: num(it.rs20),
       last_date: it.last_date || "",
       earnings: it.earnings || null,
       earnings_hold: !!it.earnings_hold,
@@ -1224,14 +1224,8 @@ function evaluate(s){
     tags.unshift({c:meta[0], t:meta[1], click:type});
   }
 
-  /* ⑪ 경계 신호 — 독립 sellGrade 기준 */
+  /* 경계는 등급이 아니라 저항 임박 뱃지만 사용한다. */
   let sellType=null;
-  const brokeSupport = brokeSup;
-  if (sellGrade<=2){
-    sellType="추세이탈";
-    const txt=sellGrade===1 ? "⚠ 경계 — 추세 훼손" : "⚠ 경계 — 추세 약화";
-    tags.unshift({c:"t-hot",t:txt,click:"추세이탈"});
-  }
   if (overheat){
     tags.push({c:"t-warn",t:(g>=4?"⚠ 과열 — 익절 구간 주의":"🔥 과열 분할익절"),click:g>=4?"과열주의":"과열익절"});
   }
@@ -1254,7 +1248,7 @@ function evaluate(s){
 
   /* 검증용 내역 — 나중에 "저항 보정이 실제로 도움이 됐나"를 사후 비교할 수 있게 남긴다 */
   const adj = { base: baseScore, res: resAdj, resGap, leader, ldr: ldrAdj, final: score };
-  return { score, trendScore, breakScore, pullScore, revScore, breakGrade, pullGrade, revGrade, sellScore, sellGrade, trendCaution, hotCaution, firstBreak20, freshMADead, grade:g, type, sellType, line, tags, adj, overheat, overheatOnly };
+  return { score, trendScore, breakScore, pullScore, revScore, breakGrade, pullGrade, revGrade, sellScore, sellGrade, trendCaution, hotCaution, cautionBadge, grade:g, type, sellType, line, tags, adj, overheat, overheatOnly };
 }
   
 /* ══════════ 종목 가공 ══════════ */
@@ -1270,8 +1264,9 @@ function decorate(s){
 }
 /* 어제 지표를 오늘과 같은 모양으로 만들어 같은 evaluate()에 넣는다.
    산식을 파이썬으로 옮기지 않는 이유: 두 곳에 두면 반드시 어긋난다. */
-const HIST_FIELDS_DEFAULT = ["date","price","ma5","ma20","ma60","rsi","macd_hist","macd_cross","macd_zero",
-  "bb_pos","stoch_k","stoch_d","stoch_cross","vol_ratio","near_high","pct_from_high"];
+const HIST_FIELDS_DEFAULT = ["date","price","change_1d","ma5","ma10","ma20","ma50","ma60","rsi","macd_hist","macd_cross","macd_zero",
+  "bb_pos","stoch_k","stoch_d","stoch_cross","vol_ratio","near_high","pct_from_high",
+  "ma20_slope","run5_max","run3_sum","range3","range10","vol3_ratio","res_short","ret20","rs20"];
 function histFields(){
   const f = state.data && state.data.hist_fields;
   return Array.isArray(f) && f.length ? f : HIST_FIELDS_DEFAULT;
@@ -1286,7 +1281,7 @@ function histRow(s, row, i, total){
   const lvl = md ? md[0] : (mk.level || null);
   return {
     ticker: s.ticker, last_date: o.date || "",
-    price: num(o.price), ma5: num(o.ma5), ma20: num(o.ma20), ma60: num(o.ma60),
+    price: num(o.price), ma5: num(o.ma5), ma10: num(o.ma10), ma20: num(o.ma20), ma50: num(o.ma50), ma60: num(o.ma60),
     rsi: num(o.rsi), macd: num(o.macd_hist),
     macd_cross: o.macd_cross || "none", macd_zero: o.macd_zero || "above",
     bb_pos: num(o.bb_pos), stoch_k: num(o.stoch_k), stoch_d: num(o.stoch_d),
@@ -1294,7 +1289,7 @@ function histRow(s, row, i, total){
     near_high: !!o.near_high, pct_from_high: num(o.pct_from_high),
     change_1d: num(o.change_1d),
     ma20_slope: num(o.ma20_slope), run5_max: num(o.run5_max), run3_sum: num(o.run3_sum),
-    res_short: num(o.res_short), ret20: num(o.ret20),
+    res_short: num(o.res_short), ret20: num(o.ret20), rs20: num(o.rs20),
     market_ret20: (state.data && state.data.market) ? num(state.data.market.ret20) : null,
     range3: num(o.range3), range10: num(o.range10), vol3_ratio: num(o.vol3_ratio),
     market_level: s._kr ? "neutral" : lvl,
