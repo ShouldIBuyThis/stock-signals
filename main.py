@@ -14,6 +14,7 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import json
+import exchange_calendars as xcals
 from datetime import datetime, timedelta, time as dtime
 from zoneinfo import ZoneInfo
 
@@ -71,114 +72,248 @@ def _timing_code(v):
     if "after" in s or s == "amc": return "AMC"
     return "UNKNOWN"
 
-def _next_weekday(day):
+# NYSE 실제 거래 세션. 주말뿐 아니라 미국 휴장일까지 한 곳에서 처리한다.
+_US_CAL = xcals.get_calendar("XNYS")
+_NY = ZoneInfo("America/New_York")
+_KST = ZoneInfo("Asia/Seoul")
+
+def _session_str(v):
     try:
-        d = datetime.strptime(day, "%Y-%m-%d").date() + timedelta(days=1)
-        while d.weekday() >= 5:
-            d += timedelta(days=1)
-        return d.strftime("%Y-%m-%d")
+        return pd.Timestamp(v).strftime("%Y-%m-%d")
     except Exception:
         return None
 
-def fetch_event_calendars(now_kst, wanted_tickers):
-    """관심종목 어닝 + 주요 거시 이벤트.
-    Yahoo 전체 캘린더는 기간 전체를 페이지네이션해 호출 수를 줄인다.
-    조회 성공/실패 상태도 함께 반환해 UI에서 '일정 없음'과 '조회 실패'를 구분한다.
-    """
-    out_earn, out_market = {}, []
-    status = {"source":"yfinance Calendars", "ok":False, "earnings_rows":0, "matched":0, "matched_events":[], "error":""}
-    if not hasattr(yf, "Calendars"):
-        status["error"] = "현재 yfinance에 Calendars API 없음"
-        print("이벤트 캘린더:", status["error"])
-        return out_earn, out_market, status
+def _as_us_session(day, direction="next"):
+    try:
+        return _US_CAL.date_to_session(pd.Timestamp(day), direction=direction)
+    except Exception:
+        return None
 
-    today_ny = datetime.now(ZoneInfo("America/New_York")).date()
+def previous_us_session(day):
+    s = _as_us_session(day, "next")
+    if s is None: return None
+    try: return _session_str(_US_CAL.previous_session(s))
+    except Exception: return None
+
+def next_us_session(day):
+    s = _as_us_session(day, "next")
+    if s is None: return None
+    try: return _session_str(_US_CAL.next_session(s))
+    except Exception: return None
+
+def current_or_next_us_session(now):
+    """현재 시각에 실제로 진입 가능한 NYSE 세션. 장 마감 전이면 당일, 마감 뒤면 다음 세션."""
+    try:
+        ny = now.astimezone(_NY) if now.tzinfo else now.replace(tzinfo=_KST).astimezone(_NY)
+        d = pd.Timestamp(ny.date())
+        if _US_CAL.is_session(d):
+            close = _US_CAL.session_close(d).to_pydatetime().astimezone(_NY)
+            if ny <= close:
+                return d.strftime("%Y-%m-%d")
+            return _session_str(_US_CAL.next_session(d))
+        return _session_str(_US_CAL.date_to_session(d, direction="next"))
+    except Exception:
+        return None
+
+def us_session_open_kst(day):
+    try:
+        s = _as_us_session(day, "next")
+        if s is None: return ""
+        dt = _US_CAL.session_open(s).to_pydatetime().astimezone(_KST)
+        return dt.strftime("%Y-%m-%d %H:%M KST")
+    except Exception:
+        return ""
+
+def _earnings_windows(ev):
+    """실적 이벤트의 신규진입 금지 세션과 실제 가격 오염 종가를 분리한다."""
+    if not ev or not ev.get("date"):
+        return [], [], None, None
+    event_session = _session_str(_as_us_session(ev["date"], "next"))
+    if not event_session:
+        return [], [], None, None
+    pre = previous_us_session(event_session)
+    post = next_us_session(event_session)
+    post2 = next_us_session(post) if post else None
+    timing = ev.get("timing") or "UNKNOWN"
+    if timing == "BMO":
+        blocked = [pre, event_session]
+        affected = [event_session]
+        release = post
+    elif timing == "AMC":
+        blocked = [pre, event_session, post]
+        affected = [post]
+        release = post2
+    else:
+        # 시간 미확인은 BMO/AMC 양쪽 가능성을 모두 덮는다.
+        blocked = [pre, event_session, post]
+        affected = [event_session, post]
+        release = post2
+    return [x for x in blocked if x], [x for x in affected if x], release, event_session
+
+def _timing_from_timestamp(v):
+    try:
+        ts = pd.Timestamp(v)
+        if ts.tzinfo is None:
+            return "UNKNOWN"
+        ny = ts.tz_convert("America/New_York")
+        h = ny.hour + ny.minute / 60
+        if h < 12: return "BMO"
+        if h >= 15: return "AMC"
+    except Exception:
+        pass
+    return "UNKNOWN"
+
+def _fallback_earnings(ticker, start_day, end_day, existing=None):
+    """전체 캘린더 누락/UNKNOWN만 티커별 API로 보강한다."""
+    t = yf.Ticker(ticker)
+    target = (existing or {}).get("date")
+    # 1) earnings_dates: 인덱스 timestamp에서 BMO/AMC까지 복원 가능하면 우선 사용.
+    try:
+        df = t.get_earnings_dates(limit=12)
+        if df is not None and not df.empty:
+            rows=[]
+            for idx, _ in df.iterrows():
+                d = _event_date(idx)
+                if not d: continue
+                try:
+                    dd = datetime.strptime(d, "%Y-%m-%d").date()
+                except Exception:
+                    continue
+                if start_day <= dd <= end_day:
+                    rows.append((d, _timing_from_timestamp(idx), str(idx)))
+            if rows:
+                if target:
+                    match = next((x for x in rows if x[0] == target), None)
+                    if match:
+                        return {"date": target, "timing": match[1], "timing_raw": match[2],
+                                "source": "Yahoo/yfinance Ticker.get_earnings_dates"}
+                else:
+                    today = datetime.now(_NY).date()
+                    rows.sort(key=lambda x: abs((datetime.strptime(x[0], "%Y-%m-%d").date()-today).days))
+                    d,timing,raw = rows[0]
+                    return {"date": d, "timing": timing, "timing_raw": raw,
+                            "source": "Yahoo/yfinance Ticker.get_earnings_dates"}
+    except Exception:
+        pass
+    # 2) calendar: 날짜만이라도 복구한다. timing은 모르면 UNKNOWN 유지.
+    try:
+        cal = t.get_calendar() if hasattr(t, "get_calendar") else t.calendar
+        vals = (cal or {}).get("Earnings Date") if isinstance(cal, dict) else None
+        if vals is not None and not isinstance(vals, (list,tuple,pd.Index,np.ndarray)):
+            vals = [vals]
+        cand=[]
+        for v in vals or []:
+            d=_event_date(v)
+            if not d: continue
+            dd=datetime.strptime(d, "%Y-%m-%d").date()
+            if start_day <= dd <= end_day: cand.append(d)
+        if cand:
+            if target and target in cand: d=target
+            elif target: return None
+            else: d=sorted(cand)[0]
+            return {"date":d, "timing":"UNKNOWN", "timing_raw":"", "source":"Yahoo/yfinance Ticker.calendar"}
+    except Exception:
+        pass
+    return None
+
+def fetch_event_calendars(now_kst, wanted_tickers):
+    """관심종목 어닝 + 주요 거시 이벤트. 전체 페이지를 끝까지 읽고 누락/UNKNOWN만 티커별 fallback."""
+    out_earn, out_market = {}, []
+    status = {"source":"yfinance Calendars + ticker fallback", "ok":False, "earnings_rows":0,
+              "matched":0, "time_confirmed":0, "time_unknown":0, "fallback_resolved":0,
+              "fallback_attempted":0, "missing":0, "matched_events":[], "error":""}
+    ny_now = now_kst.astimezone(_NY) if now_kst.tzinfo else now_kst.replace(tzinfo=_KST).astimezone(_NY)
+    today_ny = ny_now.date()
     start_day = today_ny - timedelta(days=16)
     end_day   = today_ny + timedelta(days=7)
-    cal = yf.Calendars(start=start_day, end=end_day)
     wanted = {t.upper() for t in wanted_tickers if not is_kr_ticker(t)}
+    cal = None
+    if hasattr(yf, "Calendars"):
+        try:
+            cal = yf.Calendars(start=start_day, end=end_day)
+            off=0; seen_pages=set()
+            while True:
+                df = cal.get_earnings_calendar(start=start_day, end=end_day, filter_most_active=False,
+                                               limit=100, offset=off, force=True)
+                if df is None or df.empty: break
+                fp=(len(df), str(df.index[0]) if len(df) else "", str(df.index[-1]) if len(df) else "")
+                if fp in seen_pages:
+                    print(f"어닝 캘린더: 반복 페이지 감지(offset={off}) — 안전 종료")
+                    break
+                seen_pages.add(fp)
+                status["earnings_rows"] += len(df)
+                for tk, r in df.iterrows():
+                    tk = str(tk).upper()
+                    if tk not in wanted: continue
+                    dt = _event_date(r.get("Event Start Date")); timing_raw = r.get("Timing")
+                    if not dt: continue
+                    out_earn[tk] = {"date":dt, "timing":_timing_code(timing_raw),
+                                    "timing_raw":str(timing_raw or ""), "source":"Yahoo/yfinance Calendars"}
+                if len(df) < 100: break
+                off += 100
+            status["ok"] = True
+        except Exception as e:
+            status["error"] = f"{type(e).__name__}: {e}"
+            print("어닝 캘린더 조회 실패:", status["error"])
+    else:
+        status["error"] = "현재 yfinance에 Calendars API 없음 — 티커별 fallback만 사용"
+        print("이벤트 캘린더:", status["error"])
 
-    # 어닝: 날짜별 40회 가까이 호출하던 방식 대신 기간 전체를 최대 10페이지로 조회.
-    # YF가 페이지당 100건을 제한하므로 offset만 증가시킨다.
-    try:
-        for off in range(0, 1000, 100):
-            df = cal.get_earnings_calendar(
-                start=start_day, end=end_day,
-                filter_most_active=False, limit=100, offset=off, force=True
-            )
-            if df is None or df.empty:
-                break
-            status["earnings_rows"] += len(df)
-            for tk, r in df.iterrows():
-                tk = str(tk).upper()
-                if tk not in wanted:
-                    continue
-                dt = _event_date(r.get("Event Start Date"))
-                timing_raw = r.get("Timing")
-                timing = _timing_code(timing_raw)
-                if not dt:
-                    continue
-                out_earn[tk] = {
-                    "date": dt, "timing": timing,
-                    "timing_raw": str(timing_raw or ""),
-                    "source": "Yahoo/yfinance"
-                }
-            if len(df) < 100 or len(out_earn) == len(wanted):
-                break
-        status["ok"] = True
-        status["matched"] = len(out_earn)
-        status["matched_events"] = [
-            {"ticker": tk, "date": ev.get("date"), "timing": ev.get("timing")}
-            for tk, ev in sorted(out_earn.items())
-        ]
-        print(f"어닝 캘린더: 조회 {status['earnings_rows']}행 · 관심종목 매칭 {status['matched']}건")
-        if out_earn:
-            print("어닝 매칭 목록:")
-            for tk, ev in sorted(out_earn.items(), key=lambda kv: (kv[1].get("date") or "", kv[0])):
-                print(f"  EARN {tk} · {ev.get('date') or '?'} · {ev.get('timing') or 'UNKNOWN'}")
-            recent_cut = today_ny - timedelta(days=14)
-            recent_events = [(tk,ev) for tk,ev in out_earn.items()
-                             if ev.get("date") and datetime.strptime(ev["date"], "%Y-%m-%d").date() >= recent_cut]
-            print(f"검증용 최근 실적 이벤트: {len(recent_events)}종목")
-    except Exception as e:
-        status["error"] = f"{type(e).__name__}: {e}"
-        print("어닝 캘린더 조회 실패:", status["error"])
+    # 전체 캘린더에서 빠졌거나 timing UNKNOWN인 관심종목만 보강.
+    fallback_targets=[tk for tk in sorted(wanted) if tk not in out_earn or out_earn[tk].get("timing")=="UNKNOWN"]
+    for tk in fallback_targets:
+        status["fallback_attempted"] += 1
+        before=out_earn.get(tk)
+        fb=_fallback_earnings(tk, start_day, end_day, before)
+        if not fb: continue
+        if before:
+            # 기존 날짜는 유지하고, 같은 날짜에서 timing이 확인된 경우에만 개선한다.
+            if fb.get("date")==before.get("date") and before.get("timing")=="UNKNOWN" and fb.get("timing")!="UNKNOWN":
+                out_earn[tk]=fb; status["fallback_resolved"] += 1
+        else:
+            out_earn[tk]=fb; status["fallback_resolved"] += 1
 
-    # 거시 이벤트
+    # 검증용 메타데이터를 이벤트 자체에 붙인다.
+    for ev in out_earn.values():
+        blocked, affected, release, event_session = _earnings_windows(ev)
+        ev["blocked_signal_dates"] = blocked
+        ev["affected_close_dates"] = affected
+        ev["event_session"] = event_session or ""
+        ev["release_session"] = release or ""
+        ev["release_open_kst"] = us_session_open_kst(release) if release else ""
+
+    status["matched"] = len(out_earn)
+    status["time_confirmed"] = sum(1 for ev in out_earn.values() if ev.get("timing") in ("BMO","AMC"))
+    status["time_unknown"] = sum(1 for ev in out_earn.values() if ev.get("timing") == "UNKNOWN")
+    status["missing"] = max(0, len(wanted) - len(out_earn))
+    status["matched_events"] = [{"ticker":tk,"date":ev.get("date"),"timing":ev.get("timing"),"source":ev.get("source")}
+                                for tk,ev in sorted(out_earn.items())]
+    print(f"어닝 캘린더: 조회 {status['earnings_rows']}행 · 매칭 {status['matched']} · "
+          f"시간확인 {status['time_confirmed']} · 시간미확인 {status['time_unknown']} · "
+          f"fallback 해결 {status['fallback_resolved']} · 누락 {status['missing']}")
+
     try:
-        edf = cal.get_economic_events_calendar(start=start_day, end=end_day, limit=100, force=True)
+        edf = cal.get_economic_events_calendar(start=start_day, end=end_day, limit=100, force=True) if cal is not None else None
         if edf is not None and not edf.empty:
             for ev, r in edf.iterrows():
                 name = str(ev); low = name.lower()
                 label = next((k for k, words in MAJOR_EVENT_KEYS.items() if any(w in low for w in words)), None)
-                if not label:
-                    continue
-                dt = _event_date(r.get("Event Time"))
-                region = str(r.get("Region") or "")
-                if region and region.upper() not in ("US", "USA"):
-                    continue
-                if dt:
-                    out_market.append({"type":label, "name":name, "date":dt})
+                if not label: continue
+                dt = _event_date(r.get("Event Time")); region = str(r.get("Region") or "")
+                if region and region.upper() not in ("US", "USA"): continue
+                if dt: out_market.append({"type":label, "name":name, "date":dt})
     except Exception as e:
         print("경제 이벤트 캘린더 조회 실패:", e)
 
     uniq=[]; seen=set()
     for x in sorted(out_market, key=lambda z:(z.get("date") or "", z.get("name") or "")):
         k=(x.get("date"),x.get("name"))
-        if k not in seen:
-            seen.add(k); uniq.append(x)
+        if k not in seen: seen.add(k); uniq.append(x)
     return out_earn, uniq, status
 
-def attach_earnings_holds(results, earnings):
-    """3~20일 스윙용 보수적 실적 보류.
-
-    원칙:
-    - 다음 미국 거래일에 실적이 예정돼 있으면 현재 종가 신호부터 미리 보류.
-    - BMO: 직전 거래일 + 발표 당일을 보류.
-    - AMC: 직전 거래일 + 발표 당일 + 다음 거래일을 보류.
-      (발표일 종가 직후 실적이 나오므로 그 종가 신호를 새 진입에 쓰지 않는다.)
-    - Timing 불명: 날짜는 표시하되 자동 보류는 직전 거래일/당일까지만 보수적으로 적용.
-    """
+def attach_earnings_holds(results, earnings, now_kst):
+    """저장 종가가 아니라 현재 시점의 실제 진입 NYSE 세션으로 실적 보류를 판정한다."""
+    entry_session = current_or_next_us_session(now_kst)
     for r in results:
         ev = earnings.get(r.get("ticker"))
         r["earnings"] = ev
@@ -186,64 +321,30 @@ def attach_earnings_holds(results, earnings):
         r["earnings_hold_reason"] = ""
         r["earnings_hold_date"] = ""
         r["earnings_release_date"] = ""
-        if not ev:
-            continue
+        r["earnings_release_open_kst"] = ""
+        if not ev: continue
 
-        day = str(r.get("last_date") or "")
-        event_day = str(ev.get("date") or "")
-        timing = ev.get("timing")
-        if not day or not event_day:
-            continue
+        blocked = list(ev.get("blocked_signal_dates") or [])
+        affected = list(ev.get("affected_close_dates") or [])
+        release = ev.get("release_session") or ""
+        if not blocked:
+            blocked, affected, release, event_session = _earnings_windows(ev)
+            ev["blocked_signal_dates"] = blocked
+            ev["affected_close_dates"] = affected
+            ev["event_session"] = event_session or ""
+            ev["release_session"] = release or ""
+            ev["release_open_kst"] = us_session_open_kst(release) if release else ""
 
-        # 현재 데이터의 '다음 거래일'을 주말 기준으로 계산.
-        # 미국 휴일은 캘린더 원본 날짜와 종목 hist가 있으면 아래에서 보정한다.
-        next_day = _next_weekday(day)
-        post_event = _next_weekday(event_day)
-
-        hist_dates=[]
-        for h in r.get("hist") or []:
-            try:
-                if h and h[0]:
-                    hist_dates.append(str(h[0]))
-            except Exception:
-                pass
-
-        # 이벤트일 주변 실제 관측 거래일이 hist에 있으면 휴일 오차 보정.
-        if event_day in hist_dates:
-            ei=hist_dates.index(event_day)
-            if ei+1 < len(hist_dates):
-                post_event=hist_dates[ei+1]
-
-        pre_event = (next_day == event_day)
-
-        hold = False
-        reasons=[]
-
-        if pre_event:
-            hold=True
-            reasons.append("다음 미국 거래일 실적 예정 — 신규 진입 사전 보류")
-
-        if day == event_day:
-            hold=True
-            if timing == "BMO":
-                reasons.append("장전 실적 발표일")
-            elif timing == "AMC":
-                reasons.append("장후 실적 발표 예정일 — 종가 직후 이벤트")
-            else:
-                reasons.append("실적 발표 예정일")
-
-        if timing == "AMC" and day == post_event:
-            hold=True
-            reasons.append("장후 실적 발표 직후 첫 거래일")
-
-        if hold:
+        if entry_session and entry_session in blocked:
+            timing = ev.get("timing") or "UNKNOWN"
+            if timing == "BMO": reason="장전 실적 영향권 — 신규 진입 보류"
+            elif timing == "AMC": reason="장후 실적 영향권 — 신규 진입 보류"
+            else: reason="실적 시간 미확인 — 장전·장후 양쪽 가능성 보수적 보류"
             r["earnings_hold"] = True
-            r["earnings_hold_reason"] = " · ".join(reasons)
-            r["earnings_hold_date"] = day
-            # 보류 해제는 BMO/불명은 발표 다음 거래일부터,
-            # AMC는 발표 다음 거래일까지 보류하므로 그 다음 거래일부터.
-            r["earnings_release_date"] = _next_weekday(post_event if timing == "AMC" else event_day)
-
+            r["earnings_hold_reason"] = reason
+            r["earnings_hold_date"] = blocked[0] if blocked else entry_session
+            r["earnings_release_date"] = release
+            r["earnings_release_open_kst"] = ev.get("release_open_kst") or us_session_open_kst(release)
     return results
 
 def load_previous():
@@ -257,10 +358,10 @@ def load_previous():
 
 # ── 관심종목 (카테고리: {티커: 이름}) ──────────────────────
 WATCHLIST = {
-    "경기방어·헬스케어·금융·산업재": {
-        "KO":"코카콜라", "MCD":"맥도날드", "LLY":"일라이릴리",
-        "UNH":"유나이티드헬스", "HIMS":"힘스앤허스", "JPM":"JP모건", "CAT":"캐터필러",
-        "MA":"마스터카드"},
+    "경기방어": {"KO":"코카콜라", "MCD":"맥도날드"},
+    "헬스케어": {"LLY":"일라이릴리", "UNH":"유나이티드헬스", "HIMS":"힘스앤허스"},
+    "금융": {"JPM":"JP모건", "MA":"마스터카드"},
+    "산업재": {"CAT":"캐터필러"},
     "반도체·메모리":  {"MU":"마이크론", "SNDK":"샌디스크", "STX":"씨게이트"},
     "반도체·파운드리":{"TSM":"TSMC", "INTC":"인텔"},
     "반도체·GPU":     {"NVDA":"엔비디아", "AMD":"AMD", "SOXL":"반도체 3x",
@@ -344,7 +445,9 @@ def market_state(ticker):
         mhist = []
         if len(c) >= 66 + HIST_DAYS:
             for j in range(-HIST_DAYS, 0):
-                mhist.append([judge(j), bool(float(c.iloc[j]) < float(m20s.iloc[j]))])
+                r20 = (float(c.iloc[j]) / float(c.iloc[j-20]) - 1) * 100 if len(c) >= abs(j)+20 else None
+                mhist.append([c.index[j].strftime("%Y-%m-%d"), judge(j),
+                              bool(float(c.iloc[j]) < float(m20s.iloc[j])), safe(r20)])
 
         if px >= ma20 and ma20 >= ma60 and rising20:
             level, detail = "strong", "20일선 위 · 20일선 상승 · 60일선 위"
@@ -489,36 +592,68 @@ def analyze(ticker, name, category):
     })
     return row
 
-# 채점(evaluate)에 실제로 쓰이는 값 + 수익률 계산용 종가만 남긴다
-HISTORY_FIELDS = [
-    "ticker", "last_date", "price", "change_1d", "vol_ratio",
-    "ma5", "ma10", "ma20", "ma50", "ma60", "rs20", "rsi",
+# evaluate() 재현에 필요한 입력값을 모두 보관한다. 점수 자체는 저장하지 않는다.
+SNAPSHOT_FIELDS = [
+    "ticker", "last_date", "price", "change_1d", "volume", "vol_ratio",
+    "ma5", "ma10", "ma20", "ma50", "ma60", "rsi",
     "macd_hist", "macd_cross", "macd_zero",
     "bb_pos", "stoch_k", "stoch_d", "stoch_cross",
     "near_high", "pct_from_high", "atr_pct",
-    "market_level", "market_weak",
+    "ma20_slope", "run5_max", "run3_sum", "range3", "range10", "vol3_ratio",
+    "res_short", "ret20", "rs20",
+    "prev_change_1d", "prev_vol_ratio", "prev_macd_hist", "prev_price", "prev_ma5", "prev_ma20",
+    "market_level", "market_weak", "market_ret20",
 ]
 
+def _storage_row(r, mkt):
+    out={k:r.get(k) for k in SNAPSHOT_FIELDS}
+    out["market_ret20"] = mkt.get("ret20") if isinstance(mkt, dict) else None
+    hist=r.get("hist") or []
+    if len(hist)>=2:
+        prev=hist[-2]; idx={k:i for i,k in enumerate(HIST_FIELDS)}
+        def hv(k):
+            i=idx.get(k); return prev[i] if i is not None and i < len(prev) else None
+        out.update({"prev_change_1d":hv("change_1d"), "prev_vol_ratio":hv("vol_ratio"),
+                    "prev_macd_hist":hv("macd_hist"), "prev_price":hv("price"),
+                    "prev_ma5":hv("ma5"), "prev_ma20":hv("ma20")})
+    return out
+
 def save_history(results, mkt, now_kst):
-    """거래일 하루에 파일 하나. 스냅샷 날짜는 실행 시각이 아니라 '데이터의 날짜'로 잡는다."""
-    os.makedirs("history", exist_ok=True)
-    dates = [r.get("last_date") for r in results if r.get("last_date")]
+    """미국/한국 이력을 분리한다. all은 미국만, kr은 한국만 저장한다."""
+    region = "kr" if RUN_SCOPE == "kr" else "us"
+    selected = [r for r in results if is_kr_ticker(r.get("ticker", "")) == (region == "kr")]
+    dates = [r.get("last_date") for r in selected if r.get("last_date")]
     if not dates:
-        print("이력 저장 건너뜀: last_date 없음"); return
-    day = max(dates)                       # 가장 최신 거래일을 파일명으로
-    slim = [{k: r[k] for k in HISTORY_FIELDS if r.get(k) is not None} for r in results]
-    payload = {
-        "date": day,
-        "saved_at": now_kst.strftime("%Y-%m-%d %H:%M") + " KST",
-        "market": {k: mkt.get(k) for k in ("ticker", "level", "below_ma20") if k in mkt},
-        "stocks": slim,
+        print(f"이력 저장 건너뜀: {region} last_date 없음"); return
+    day = max(dates)
+    folder=f"history/{region}"; os.makedirs(folder, exist_ok=True)
+    slim=[_storage_row(r,mkt) for r in selected]
+    payload={
+        "date":day, "market":"KR" if region=="kr" else "US",
+        "saved_at":now_kst.strftime("%Y-%m-%d %H:%M")+" KST",
+        "market_state":{k:mkt.get(k) for k in ("ticker","level","below_ma20","ret20") if k in mkt},
+        "stocks":slim,
     }
-    path = f"history/{day}.json"
-    existed = os.path.exists(path)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(payload, f, ensure_ascii=False)
-    size = os.path.getsize(path) / 1024
+    path=f"{folder}/{day}.json"; existed=os.path.exists(path)
+    with open(path,"w",encoding="utf-8") as f: json.dump(payload,f,ensure_ascii=False)
+    size=os.path.getsize(path)/1024
     print(f"이력 저장: {path} ({size:.0f}KB, {len(slim)}종목){' — 덮어씀' if existed else ''}")
+
+def attach_historical_rs20(results, mkt):
+    """각 과거 날짜의 종목 ret20에서 같은 날짜 QQQ ret20을 빼 rs20을 채운다."""
+    mh = (mkt or {}).get("hist") or []
+    qret={}
+    for x in mh:
+        if isinstance(x,(list,tuple)) and len(x)>=4 and x[0]: qret[str(x[0])] = x[3]
+    if not qret: return
+    idx={k:i for i,k in enumerate(HIST_FIELDS)}
+    idate, iret, irs = idx.get("date"), idx.get("ret20"), idx.get("rs20")
+    if None in (idate,iret,irs): return
+    for r in results:
+        for h in r.get("hist") or []:
+            if len(h) <= max(idate,iret,irs): continue
+            d, rr = h[idate], h[iret]; qr=qret.get(str(d))
+            h[irs] = safe(float(rr)-float(qr)) if rr is not None and qr is not None else None
 
 def main():
     prev_rows, prev_payload = load_previous()
@@ -529,14 +664,15 @@ def main():
     mkt_level = mkt["level"]
     print(f"시장({MARKET_TICKER}) 국면: {mkt_level} — {mkt['detail']}")
 
-    # 한국장 재실행 때는 미국 이벤트를 다시 조회하지 않고 직전 payload를 유지한다.
+    # 한국장 실행에서도 미국 가격은 유지하되 실적 일정만 다시 조회해 장 시작 전 변경을 잡는다.
     all_tickers = [tk for items in WATCHLIST.values() for tk in items]
-    if RUN_SCOPE == "all":
-        earnings_map, market_events, calendar_status = fetch_event_calendars(datetime.now(ZoneInfo("Asia/Seoul")), all_tickers)
-    else:
-        earnings_map = {r.get("ticker"): r.get("earnings") for r in (prev_payload or {}).get("stocks", []) if r.get("earnings")}
-        market_events = (prev_payload or {}).get("market_events", [])
-        calendar_status = (prev_payload or {}).get("calendar_status", {"source":"previous payload","ok":False,"matched":len(earnings_map),"error":"한국장 갱신에서는 직전 미국 캘린더 유지"})
+    now_kst = datetime.now(_KST)
+    earnings_map, market_events, calendar_status = fetch_event_calendars(now_kst, all_tickers)
+    # 조회 실패/누락 시 직전 이벤트를 보조적으로 유지한다.
+    prev_earn = {r.get("ticker"): r.get("earnings") for r in (prev_payload or {}).get("stocks", []) if r.get("earnings")}
+    for tk, ev in prev_earn.items():
+        if tk not in earnings_map and ev:
+            earnings_map[tk]=ev
 
     results, failed, carried = [], [], 0
     for cat, items in WATCHLIST.items():
@@ -546,7 +682,9 @@ def main():
             # 한국장 실행: 미국 종목은 건드리지 않고 직전 값을 그대로 넘긴다
             if RUN_SCOPE == "kr" and not is_kr:
                 if tk in prev_rows:
-                    results.append(prev_rows[tk]); carried += 1; print("KEEP", tk)
+                    kept = dict(prev_rows[tk])
+                    kept["name"], kept["category"] = nm, cat  # 가격은 유지, 메타데이터는 현재 WATCHLIST에 맞춘다.
+                    results.append(kept); carried += 1; print("KEEP", tk)
                 else:
                     failed.append(f"{tk} ({nm}) — 직전 데이터 없음")
                 continue
@@ -560,14 +698,15 @@ def main():
             except Exception as e:
                 # 실패해도 대시보드에서 사라지지 않게 직전 값을 유지한다
                 if tk in prev_rows:
-                    results.append(prev_rows[tk]); carried += 1
+                    kept = dict(prev_rows[tk])
+                    kept["name"], kept["category"] = nm, cat
+                    results.append(kept); carried += 1
                     print("SKIP→KEEP", tk, e)
                 else:
                     failed.append(f"{tk} ({nm}) — {e}"); print("SKIP", tk, e)
     # 실적 보류 판정은 가격 수집이 끝난 뒤 한 번만 적용한다.
-    attach_earnings_holds(results, earnings_map)
+    attach_earnings_holds(results, earnings_map, now_kst)
     print(f"수집 {len(results)}종목 (직전 값 유지 {carried}건) · 실패 {len(failed)}건 · 실적보류 {sum(1 for r in results if r.get('earnings_hold'))}건")
-    now_kst = datetime.utcnow() + timedelta(hours=9)
 
     # ── 섹터별 평균 등락률 (핫/약세 섹터 표시용) ──
     sector_moves = {}
@@ -591,6 +730,7 @@ def main():
             _s["rs20"] = round(float(_s["ret20"]) - float(mret20), 2)
         else:
             _s["rs20"] = None
+    attach_historical_rs20(results, mkt)
 
     payload = {
         "generated_at": now_kst.strftime("%Y-%m-%d %H:%M") + " KST",
@@ -610,7 +750,7 @@ def main():
     #  1) 파일은 "거래일 하루에 하나". 같은 날 몇 번을 돌려도 덮어써서 중복이 안 쌓인다.
     #  2) 점수는 저장하지 않는다. 산식이 바뀌면 옛 점수는 죽은 값이 되지만,
     #     지표만 남겨두면 나중에 어떤 산식으로도 다시 채점할 수 있다.
-    #  3) 채점에 안 쓰는 필드(이름·카테고리·통화·prev·거래량 등)는 뺀다.
+    #  3) 이름·카테고리·통화 같은 표시용 값은 빼고, evaluate() 재현에 필요한 입력만 남긴다.
     # 브라우저는 이 폴더를 절대 읽지 않는다. 채점 스크립트 전용이다.
     save_history(results, mkt, now_kst)
 
