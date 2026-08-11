@@ -158,37 +158,80 @@ def fetch_event_calendars(now_kst, wanted_tickers):
     return out_earn, uniq, status
 
 def attach_earnings_holds(results, earnings):
-    """BMO 당일 / AMC 다음 거래일만 보류. Timing 불명은 자동 제외하지 않는다."""
+    """3~20일 스윙용 보수적 실적 보류.
+
+    원칙:
+    - 다음 미국 거래일에 실적이 예정돼 있으면 현재 종가 신호부터 미리 보류.
+    - BMO: 직전 거래일 + 발표 당일을 보류.
+    - AMC: 직전 거래일 + 발표 당일 + 다음 거래일을 보류.
+      (발표일 종가 직후 실적이 나오므로 그 종가 신호를 새 진입에 쓰지 않는다.)
+    - Timing 불명: 날짜는 표시하되 자동 보류는 직전 거래일/당일까지만 보수적으로 적용.
+    """
     for r in results:
         ev = earnings.get(r.get("ticker"))
         r["earnings"] = ev
         r["earnings_hold"] = False
-        if not ev or ev.get("timing") not in ("BMO", "AMC"): continue
-        day = r.get("last_date")
-        event_day = ev.get("date")
-        if not day or not event_day: continue
-        if ev["timing"] == "BMO":
-            hold_day = event_day
-            reason = "장전 실적 발표 — 해당일 종가가 실적 영향을 반영할 수 있어 제외"
-        else:
-            # AMC는 발표일 자체는 정상. 직후 첫 거래일만 제외한다.
-            # 휴일 오차를 줄이기 위해 종목 hist에 이벤트일→다음 관측일이 있으면 그 날짜를 우선 사용.
-            hold_day = _next_weekday(event_day)
-            hist_dates=[]
-            for h in r.get("hist") or []:
-                try:
-                    # HIST_FIELDS 첫 필드는 date
-                    if h and h[0]: hist_dates.append(str(h[0]))
-                except Exception: pass
-            if event_day in hist_dates:
-                i=hist_dates.index(event_day)
-                if i+1 < len(hist_dates): hold_day=hist_dates[i+1]
-            reason = "장후 실적 발표 — 다음 거래일 종가가 실적 영향을 반영해 제외"
-        if day == hold_day:
+        r["earnings_hold_reason"] = ""
+        r["earnings_hold_date"] = ""
+        r["earnings_release_date"] = ""
+        if not ev:
+            continue
+
+        day = str(r.get("last_date") or "")
+        event_day = str(ev.get("date") or "")
+        timing = ev.get("timing")
+        if not day or not event_day:
+            continue
+
+        # 현재 데이터의 '다음 거래일'을 주말 기준으로 계산.
+        # 미국 휴일은 캘린더 원본 날짜와 종목 hist가 있으면 아래에서 보정한다.
+        next_day = _next_weekday(day)
+        post_event = _next_weekday(event_day)
+
+        hist_dates=[]
+        for h in r.get("hist") or []:
+            try:
+                if h and h[0]:
+                    hist_dates.append(str(h[0]))
+            except Exception:
+                pass
+
+        # 이벤트일 주변 실제 관측 거래일이 hist에 있으면 휴일 오차 보정.
+        if event_day in hist_dates:
+            ei=hist_dates.index(event_day)
+            if ei+1 < len(hist_dates):
+                post_event=hist_dates[ei+1]
+
+        pre_event = (next_day == event_day)
+
+        hold = False
+        reasons=[]
+
+        if pre_event:
+            hold=True
+            reasons.append("다음 거래일 실적 예정 — 신규 진입 사전 보류")
+
+        if day == event_day:
+            hold=True
+            if timing == "BMO":
+                reasons.append("장전 실적 발표일")
+            elif timing == "AMC":
+                reasons.append("장후 실적 발표 예정일 — 종가 직후 이벤트")
+            else:
+                reasons.append("실적 발표 예정일")
+
+        if timing == "AMC" and day == post_event:
+            hold=True
+            reasons.append("장후 실적 발표 직후 첫 거래일")
+
+        if hold:
             r["earnings_hold"] = True
-            r["earnings_hold_reason"] = reason
-            r["earnings_hold_date"] = hold_day
-            r["earnings_release_date"] = _next_weekday(hold_day)
+            r["earnings_hold_reason"] = " · ".join(reasons)
+            r["earnings_hold_date"] = day
+            # 보류 해제는 BMO/불명은 발표 다음 거래일부터,
+            # AMC는 발표 다음 거래일까지 보류하므로 그 다음 거래일부터.
+            r["earnings_release_date"] = _next_weekday(post_event if timing == "AMC" else event_day)
+
     return results
 
 def load_previous():
