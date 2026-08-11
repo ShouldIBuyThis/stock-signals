@@ -28,10 +28,10 @@ PERIOD = "1y"    # 52주 신고가 계산 위해 1년
 # 카드 타임라인용 — 최근 며칠치 지표를 함께 내려준다.
 # 키를 반복하는 객체 대신 위치 기반 배열이라 용량이 절반 이하다.
 HIST_DAYS = 10
-HIST_FIELDS = ["date","price","change_1d","ma5","ma20","ma60","rsi","macd_hist","macd_cross","macd_zero",
+HIST_FIELDS = ["date","price","change_1d","ma5","ma10","ma20","ma50","ma60","rsi","macd_hist","macd_cross","macd_zero",
                "bb_pos","stoch_k","stoch_d","stoch_cross","vol_ratio","near_high","pct_from_high",
                "ma20_slope","run5_max","run3_sum","range3","range10","vol3_ratio",
-               "res_short","ret20"]
+               "res_short","ret20","rs20"]
 
 RUN_SCOPE = os.environ.get("RUN_SCOPE", "all").strip().lower()
 if RUN_SCOPE not in ("all", "kr"):
@@ -81,64 +81,81 @@ def _next_weekday(day):
         return None
 
 def fetch_event_calendars(now_kst, wanted_tickers):
-    """관심종목 어닝 + 주요 거시 이벤트. 조회 실패 시 빈 결과."""
+    """관심종목 어닝 + 주요 거시 이벤트.
+    Yahoo 전체 캘린더는 기간 전체를 페이지네이션해 호출 수를 줄인다.
+    조회 성공/실패 상태도 함께 반환해 UI에서 '일정 없음'과 '조회 실패'를 구분한다.
+    """
     out_earn, out_market = {}, []
+    status = {"source":"yfinance Calendars", "ok":False, "earnings_rows":0, "matched":0, "error":""}
     if not hasattr(yf, "Calendars"):
-        print("이벤트 캘린더: 현재 yfinance에 Calendars 없음 — 건너뜀")
-        return out_earn, out_market
+        status["error"] = "현재 yfinance에 Calendars API 없음"
+        print("이벤트 캘린더:", status["error"])
+        return out_earn, out_market, status
 
     today_ny = datetime.now(ZoneInfo("America/New_York")).date()
-    start = (today_ny - timedelta(days=5)).strftime("%Y-%m-%d")
-    end   = (today_ny + timedelta(days=7)).strftime("%Y-%m-%d")
-    cal = yf.Calendars(start=start, end=end)
+    start_day = today_ny - timedelta(days=5)
+    end_day   = today_ny + timedelta(days=7)
+    cal = yf.Calendars(start=start_day, end=end_day)
+    wanted = {t.upper() for t in wanted_tickers if not is_kr_ticker(t)}
 
-    # 어닝: 넓은 기간을 한 번에 600건까지만 훑으면 실적 시즌에 관심종목이 뒤 페이지에서 누락될 수 있다.
-    # 최근 5일~다음 2일을 날짜별로 잘라 페이지네이션하여 관심종목을 찾는다.
-    wanted = {t for t in wanted_tickers if not is_kr_ticker(t)}
+    # 어닝: 날짜별 40회 가까이 호출하던 방식 대신 기간 전체를 최대 10페이지로 조회.
+    # YF가 페이지당 100건을 제한하므로 offset만 증가시킨다.
     try:
-        d0=today_ny-timedelta(days=5); d1=today_ny+timedelta(days=2)
-        d=d0
-        while d<=d1:
-            ds=d.strftime("%Y-%m-%d")
-            for off in range(0, 500, 100):
-                df = cal.get_earnings_calendar(start=ds, end=ds, filter_most_active=False, limit=100, offset=off, force=True)
-                if df is None or df.empty: break
-                for tk, r in df.iterrows():
-                    tk = str(tk).upper()
-                    if tk not in wanted: continue
-                    dt = _event_date(r.get("Event Start Date"))
-                    timing_raw = r.get("Timing")
-                    timing = _timing_code(timing_raw)
-                    if not dt: continue
-                    out_earn[tk] = {"date": dt, "timing": timing, "timing_raw": str(timing_raw or "")}
-                if len(df) < 100: break
-            d += timedelta(days=1)
+        for off in range(0, 1000, 100):
+            df = cal.get_earnings_calendar(
+                start=start_day, end=end_day,
+                filter_most_active=False, limit=100, offset=off, force=True
+            )
+            if df is None or df.empty:
+                break
+            status["earnings_rows"] += len(df)
+            for tk, r in df.iterrows():
+                tk = str(tk).upper()
+                if tk not in wanted:
+                    continue
+                dt = _event_date(r.get("Event Start Date"))
+                timing_raw = r.get("Timing")
+                timing = _timing_code(timing_raw)
+                if not dt:
+                    continue
+                out_earn[tk] = {
+                    "date": dt, "timing": timing,
+                    "timing_raw": str(timing_raw or ""),
+                    "source": "Yahoo/yfinance"
+                }
+            if len(df) < 100 or len(out_earn) == len(wanted):
+                break
+        status["ok"] = True
+        status["matched"] = len(out_earn)
+        print(f"어닝 캘린더: 조회 {status['earnings_rows']}행 · 관심종목 매칭 {status['matched']}건")
     except Exception as e:
-        print("어닝 캘린더 조회 실패:", e)
+        status["error"] = f"{type(e).__name__}: {e}"
+        print("어닝 캘린더 조회 실패:", status["error"])
 
-    # 거시 이벤트: FOMC/CPI/PCE/주요 고용지표만 골라 메인 경고에 사용
+    # 거시 이벤트
     try:
-        edf = cal.get_economic_events_calendar(limit=100)
+        edf = cal.get_economic_events_calendar(start=start_day, end=end_day, limit=100, force=True)
         if edf is not None and not edf.empty:
             for ev, r in edf.iterrows():
-                name = str(ev)
-                low = name.lower()
+                name = str(ev); low = name.lower()
                 label = next((k for k, words in MAJOR_EVENT_KEYS.items() if any(w in low for w in words)), None)
-                if not label: continue
+                if not label:
+                    continue
                 dt = _event_date(r.get("Event Time"))
                 region = str(r.get("Region") or "")
-                if region and region.upper() not in ("US", "USA"): continue
+                if region and region.upper() not in ("US", "USA"):
+                    continue
                 if dt:
-                    out_market.append({"type": label, "name": name, "date": dt})
+                    out_market.append({"type":label, "name":name, "date":dt})
     except Exception as e:
         print("경제 이벤트 캘린더 조회 실패:", e)
 
-    # 중복 제거
     uniq=[]; seen=set()
     for x in sorted(out_market, key=lambda z:(z.get("date") or "", z.get("name") or "")):
         k=(x.get("date"),x.get("name"))
-        if k not in seen: seen.add(k); uniq.append(x)
-    return out_earn, uniq
+        if k not in seen:
+            seen.add(k); uniq.append(x)
+    return out_earn, uniq, status
 
 def attach_earnings_holds(results, earnings):
     """BMO 당일 / AMC 다음 거래일만 보류. Timing 불명은 자동 제외하지 않는다."""
@@ -195,7 +212,7 @@ WATCHLIST = {
                        "ALAB":"아스테라랩스", "AMAT":"어플라이드머티어리얼즈",
                        "DELL":"델", "AVGO":"브로드컴", "MRVL":"마벨테크놀로지"},
     "데이터센터":    {"APLD":"어플라이드디지털", "NBIS":"네비우스", "CRWV":"코어위브", "IREN":"아이렌"},
-    "소프트웨어":    {"MSFT":"마이크로소프트", "NOW":"서비스나우", "PLTR":"팔란티어", "CRWD":"크라우드스트라이크", "SNOW":"스노우플레이크"},
+    "소프트웨어":    {"MSFT":"마이크로소프트", "NOW":"서비스나우", "PLTR":"팔란티어", "CRWD":"크라우드스트라이크", "SNOW":"스노우플레이크", "DDOG":"데이터독"},
     "광통신":        {"AAOI":"어플라이드옵토", "GLW":"코닝", "LITE":"루멘텀", "CIEN":"시에나", "POET":"포엣테크놀로지",
                       "CRDO":"크레도테크놀로지", "COHR":"코히런트"},
     "전기차·자율주행":{"TSLA":"테슬라", "PONY":"포니AI"},
@@ -311,7 +328,11 @@ def analyze(ticker, name, category):
     df = drop_unclosed(df, ticker)
     if df is None or len(df) < 30: raise ValueError("데이터 부족")
     close, high, low, vol = df["Close"], df["High"], df["Low"], df["Volume"]
-    ma5, ma20, ma60 = close.rolling(5).mean(), close.rolling(20).mean(), close.rolling(60).mean()
+    ma5 = close.rolling(5).mean()
+    ma10 = close.rolling(10).mean()
+    ma20 = close.rolling(20).mean()
+    ma50 = close.rolling(50).mean()
+    ma60 = close.rolling(60).mean()
     rsi = wilder_rsi(close)
     ema12, ema26 = close.ewm(span=12, adjust=False).mean(), close.ewm(span=26, adjust=False).mean()
     macd = ema12 - ema26; sig = macd.ewm(span=9, adjust=False).mean()
@@ -371,7 +392,11 @@ def analyze(ticker, name, category):
             "price": safe(c_i, nd), "change_1d": safe(chg),
             "volume": int(vol.iloc[i]) if not np.isnan(vol.iloc[i]) else None,
             "vol_ratio": safe(vr),
-            "ma5": safe(ma5.iloc[i], nd), "ma20": safe(ma20.iloc[i], nd), "ma60": safe(ma60.iloc[i], nd),
+            "ma5": safe(ma5.iloc[i], nd), "ma10": safe(ma10.iloc[i], nd),
+            "ma20": safe(ma20.iloc[i], nd), "ma50": safe(ma50.iloc[i], nd), "ma60": safe(ma60.iloc[i], nd),
+            "prev_price": safe(close.iloc[i-1], nd) if abs(i) < len(close) else None,
+            "prev_ma5": safe(ma5.iloc[i-1], nd) if abs(i) < len(ma5) else None,
+            "prev_ma20": safe(ma20.iloc[i-1], nd) if abs(i) < len(ma20) else None,
             "rsi": safe(rsi.iloc[i]),
             "macd": safe(macd.iloc[i], 4), "macd_signal": safe(sig.iloc[i], 4),
             "macd_hist": safe(macd.iloc[i] - sig.iloc[i], 4),   # index.html이 읽는 이름
@@ -412,7 +437,7 @@ def analyze(ticker, name, category):
 # 채점(evaluate)에 실제로 쓰이는 값 + 수익률 계산용 종가만 남긴다
 HISTORY_FIELDS = [
     "ticker", "last_date", "price", "change_1d", "vol_ratio",
-    "ma5", "ma20", "ma60", "rsi",
+    "ma5", "ma10", "ma20", "ma50", "ma60", "rs20", "rsi",
     "macd_hist", "macd_cross", "macd_zero",
     "bb_pos", "stoch_k", "stoch_d", "stoch_cross",
     "near_high", "pct_from_high", "atr_pct",
@@ -452,10 +477,11 @@ def main():
     # 한국장 재실행 때는 미국 이벤트를 다시 조회하지 않고 직전 payload를 유지한다.
     all_tickers = [tk for items in WATCHLIST.values() for tk in items]
     if RUN_SCOPE == "all":
-        earnings_map, market_events = fetch_event_calendars(datetime.now(ZoneInfo("Asia/Seoul")), all_tickers)
+        earnings_map, market_events, calendar_status = fetch_event_calendars(datetime.now(ZoneInfo("Asia/Seoul")), all_tickers)
     else:
         earnings_map = {r.get("ticker"): r.get("earnings") for r in (prev_payload or {}).get("stocks", []) if r.get("earnings")}
         market_events = (prev_payload or {}).get("market_events", [])
+        calendar_status = (prev_payload or {}).get("calendar_status", {"source":"previous payload","ok":False,"matched":len(earnings_map),"error":"한국장 갱신에서는 직전 미국 캘린더 유지"})
 
     results, failed, carried = [], [], 0
     for cat, items in WATCHLIST.items():
@@ -499,12 +525,25 @@ def main():
                for k, v in sector_moves.items() if v]
     sectors.sort(key=lambda x: (x["avg_change"] if x["avg_change"] is not None else -999), reverse=True)
 
+    # 상대강도(20일): 종목 20일 수익률 - QQQ 20일 수익률. 미너비니식 RS의 단순 근사치.
+    mret20 = None
+    try:
+        mret20 = market.get("ret20") if isinstance(market, dict) else None
+    except Exception:
+        mret20 = None
+    for _s in stocks:
+        if _s.get("ret20") is not None and mret20 is not None:
+            _s["rs20"] = round(float(_s["ret20"]) - float(mret20), 2)
+        else:
+            _s["rs20"] = None
+
     payload = {
         "generated_at": now_kst.strftime("%Y-%m-%d %H:%M") + " KST",
         "hist_fields": HIST_FIELDS,
         "note": "yfinance 무료 데이터 · 15~20분 지연 · 참고용",
         "market": mkt,
         "market_events": market_events,
+        "calendar_status": calendar_status,
         "sectors": sectors,
         "stocks": results, "failed": failed,
     }
