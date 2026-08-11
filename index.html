@@ -348,6 +348,19 @@ footer b{color:var(--muted)}
   .widgets{grid-template-columns:1fr}
   .heat-item{flex:1 1 calc(50% - 3px)}
 }
+
+/* 모바일 펼쳐보기: 320~430px에서도 카드 내부 컨트롤/지표가 화면 밖으로 밀리지 않게 */
+@media (max-width:640px){
+  .grid,.stock,.s-top,.s-price,.rankline,.gauges,.stars,.rawind,.tlrow{min-width:0;max-width:100%}
+  .stock{width:100%;padding:11px 10px;overflow:hidden}
+  .s-top{flex-wrap:wrap}
+  .s-nm{min-width:80px}
+  .s-tools{margin-left:auto;flex-shrink:0}
+  .s-reason,.minor,.tlsub{overflow-wrap:anywhere;word-break:keep-all}
+  .tlrow{gap:5px}.tlnum{min-width:46px}.tlg{min-width:46px}
+  .grow{grid-template-columns:50px minmax(0,1fr) 48px;gap:6px}
+  .cmp{max-width:100%}
+}
 @media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}
   html[data-theme="dark"] .close-update-text {
       color: #fff;
@@ -709,8 +722,10 @@ const CART_MAX = 5;   // 모의구매 점검이 의미를 가지는 상한
    history/ 에는 '원본 지표'만 쌓이므로, 어느 버전으로도 과거를 다시 채점할 수 있다.
    필요한 건 "언제부터 어느 산식이 돌았는가"의 기록이다. 코드 자체는 git이 보관한다.
    나중에 소급 채점할 때: git show <커밋>:index.html 로 그 시점 evaluate()를 꺼내 쓴다. */
-const LOGIC_VERSION = "v4";
+const LOGIC_VERSION = "v5";
 const LOGIC_LOG = [
+  {v:"v5", from:"2026-08-11", t:"최종등급 2전략 고정 · 돌파 보조축화",
+   d:"A/B 검증 후 최종 매수등급을 추세·반등 중 높은 등급으로만 결정한다. 돌파 점수는 삭제하지 않고 돌파 포착 뱃지와 다중신호 축에만 사용한다. 추세·반등 점수식 자체는 변경하지 않았다."},
   {v:"v4", from:"2026-08-10", t:"초기 반등 가점 · 당일 급등 반등 감점",
    d:"애매한 바닥권(20일선 아래, RSI 35~45, 거래량 증가, MACD 개선)에 반등 가점을 신설했다. 동시에 연속 급등 중인 날은 반등 점수에서 최대 1.5점을 뺀다. 단 직전 이틀이 조용했던 '첫 급등일'은 감점하지 않는다 — 시세 분출의 첫날은 반등 전략이 노려야 할 자리이기 때문이다."},
   {v:"v3", from:"2026-08-10", t:"추세·반등·공통 감점 분리",
@@ -840,6 +855,7 @@ function normalize(raw){
       earnings_hold_reason: it.earnings_hold_reason || "",
       earnings_hold_date: it.earnings_hold_date || "",
       earnings_release_date: it.earnings_release_date || "",
+      earnings_release_open_kst: it.earnings_release_open_kst || (it.earnings&&it.earnings.release_open_kst) || "",
       _prevRaw: it.prev || null,
       _hist: Array.isArray(it.hist) && it.hist.length ? it.hist : null
     };
@@ -1198,7 +1214,7 @@ function evaluate(s){
   const breakGrade = breakScore>=2.5 ? 5 : breakScore>=1.2 ? 4 : 3;
   const pullGrade  = pullScore >=1.5 ? 5 : pullScore >=0.8 ? 4 : 3;
   const revGrade   = revScore  >=3.0 ? 5 : revScore  >=2.0 ? 4 : 3;
-  const buyGrade=Math.max(breakGrade,pullGrade,revGrade);
+  const buyGrade=Math.max(pullGrade,revGrade);
 
   /* 경계 = 등급이 아니라 '신규 진입 주의' 뱃지.
      저항이 너무 가깝고 과열/추격 요소가 겹칠 때만 표시한다. */
@@ -1233,14 +1249,15 @@ function evaluate(s){
   if (g>=4){
     const cut = g===5 ? {돌파:2.5,눌림:1.5,반등:3.0} : {돌파:1.2,눌림:0.8,반등:2.0};
     const candidates=[
-      {t:"돌파",gr:breakGrade,v:breakScore/cut.돌파},
       {t:"눌림",gr:pullGrade,v:pullScore/cut.눌림},
       {t:"반등",gr:revGrade,v:revScore/cut.반등}
     ].filter(x=>x.gr===g).sort((a,b)=>b.v-a.v);
-    type=(candidates[0]||{t:"돌파"}).t;
-    const meta = {돌파:["t-buy","🚀 추세추종"], 눌림:["t-buy","📉 눌림목"], 반등:["t-warn","🔄 반등신호"]}[type];
+    type=(candidates[0]||{t:(revScore>pullScore?"반등":"눌림")}).t;
+    const meta = {눌림:["t-buy","📈 추세추종"], 반등:["t-warn","🔄 반등신호"]}[type];
     tags.unshift({c:meta[0], t:meta[1], click:type});
   }
+  // 돌파는 최종 매수등급에는 참여하지 않고 보조 포착 뱃지/다중신호 축으로만 남긴다.
+  if (breakGrade>=4) tags.push({c:"t-buy",t:"🚀 돌파 포착",click:"돌파"});
 
   /* 경계는 등급이 아니라 저항 임박 뱃지만 사용한다. */
   let sellType=null;
@@ -1296,8 +1313,14 @@ function histRow(s, row, i, total){
   F.forEach((k, n) => o[k] = row[n]);
   const mk = (state.data && state.data.market) || {};
   const mh = Array.isArray(mk.hist) ? mk.hist : null;
-  const md = mh && mh.length === total ? mh[i] : null;
-  const lvl = md ? md[0] : (mk.level || null);
+  let md = null;
+  if (mh){
+    md = mh.find(x=>Array.isArray(x)&&x.length>=4&&String(x[0])===String(o.date)) ||
+         (mh.length===total ? mh[i] : null);
+  }
+  const modern = Array.isArray(md) && md.length>=4;
+  const lvl = md ? (modern ? md[1] : md[0]) : (mk.level || null);
+  const marketRet20 = md ? (modern ? num(md[3]) : num(mk.ret20)) : null;
   return {
     ticker: s.ticker, last_date: o.date || "",
     price: num(o.price), ma5: num(o.ma5), ma10: num(o.ma10), ma20: num(o.ma20), ma50: num(o.ma50), ma60: num(o.ma60),
@@ -1309,7 +1332,7 @@ function histRow(s, row, i, total){
     change_1d: num(o.change_1d),
     ma20_slope: num(o.ma20_slope), run5_max: num(o.run5_max), run3_sum: num(o.run3_sum),
     res_short: num(o.res_short), ret20: num(o.ret20), rs20: num(o.rs20),
-    market_ret20: (state.data && state.data.market) ? num(state.data.market.ret20) : null,
+    market_ret20: marketRet20,
     range3: num(o.range3), range10: num(o.range10), vol3_ratio: num(o.vol3_ratio),
     market_level: s._kr ? "neutral" : lvl,
     market_weak: !s._kr && (lvl === "weak" || lvl === "caution")
@@ -1491,8 +1514,9 @@ function earningTimingKst(e){
 }
 function releaseKstText(s){
   const d=s.earnings_release_date;
-  if(!d) return "다음 정상 미국장 종가 반영 후";
-  return `미국 ${esc(d)}장 종가 반영 후 · KST ${esc(isoAddDays(d,1))} 오전 갱신부터`;
+  if(!d) return "다음 정상 미국장부터";
+  const op=s.earnings_release_open_kst || (s.earnings&&s.earnings.release_open_kst) || "";
+  return `미국 ${esc(d)}장부터${op?` · ${esc(op)} 개장`:""}`;
 }
 function recentEarningsCalendar(){
   const xs=allStocks().map(s=>({s,e:s.earnings||{}})).filter(x=>x.e.date);
@@ -1513,9 +1537,14 @@ function recentEarningsCalendar(){
     body=rows.map(x=>`${esc(x.e.date)} · <b>${esc(x.s.ticker)}</b> ${esc(x.s.name||"")} · ${esc(earningTimingKst(x.e))}`).join("<br>");
   }
 
+  const quality = cs&&cs.ok
+    ? (Number(cs.quality_version||0)>=2
+      ? `<div style="margin-top:7px;color:var(--faint);font-size:10.5px">캘린더 품질 · 매칭 ${cs.matched??"—"} · 시간확인 ${cs.time_confirmed??"—"} · 시간미확인 ${cs.time_unknown??"—"} · fallback 해결 ${cs.fallback_resolved??"—"} · 누락 ${cs.missing??"—"}</div>`
+      : `<div style="margin-top:7px;color:var(--faint);font-size:10.5px">캘린더 품질 · 매칭 ${cs.matched??"—"} · <b>상세 품질은 새 패치 데이터 생성 후 표시</b></div>`)
+    : "";
   return `<details class="acc earnings-calendar">
     <summary><b>실적 일정</b> · ${esc(lo)} ~ ${esc(hi)} · 자세히</summary>
-    <div class="strip" style="margin-top:8px">${body}</div>
+    <div class="strip" style="margin-top:8px">${body}${quality}</div>
   </details>`;
 }
 
@@ -1537,7 +1566,7 @@ function earningsHoldSection(title="실적발표 보류"){
   </details>`;
 }
 
-/* 다중 신호: raw 점수 합산 없이 '등급 → 핵심 3전략 중복 → 전체 4축 중복 → 최고순위'만 사용 */
+/* 다중 신호: raw 점수 합산 없이 '등급 → 핵심 3신호축 중복 → 전체 4축 중복 → 최고순위'만 사용 */
 function multiSignalRank(list){
   if(!list.length) return [];
   const eligible=list.filter(s=>s.sig.grade>=4); // 강한매수/매수관심만
@@ -1777,29 +1806,31 @@ function trendChip(s){
 /* 사실 → 해석 → 한마디 순서. 사실 칸에는 계산된 값만 넣고 의견은 말풍선에만 둔다. */
 function cartFacts(){
   const mine = allStocks().filter(s => state.cart.includes(s.ticker));
+  const activeMine = mine.filter(s=>!s.earnings_hold);
+  const holdMine = mine.filter(s=>s.earnings_hold);
   const mk = (state.data && state.data.market) || {};
   const secAll = new Map(sectorStats(visible()).map(o => [o.name, o.avg]));
 
   const byCat = {};
   mine.forEach(s => { const c = s.category || "기타"; (byCat[c] = byCat[c] || []).push(s); });
   const cats = Object.entries(byCat).map(([name, arr]) => ({
-    name, n: arr.length, share: arr.length / mine.length, flow: secAll.has(name) ? secAll.get(name) : null
+    name, n: arr.length, share: mine.length ? arr.length / mine.length : 0, flow: secAll.has(name) ? secAll.get(name) : null
   })).sort((a,b) => b.n - a.n);
 
   const gradeCnt = {5:0,4:0,3:0,2:0,1:0};
-  mine.forEach(s => gradeCnt[s.sig.grade]++);
+  activeMine.forEach(s => gradeCnt[s.sig.grade]++);
   const warnKeys = ["⚠ 과열","⚠ 추격주의","🚨 추세 이탈","🔥 과열 분할익절","📉 역배열 하락","📉 약세"];
   const warns = {};
-  mine.forEach(s => s.sig.tags.forEach(t => {
+  activeMine.forEach(s => s.sig.tags.forEach(t => {
     const k = badgeKey(t.t);
     if (warnKeys.includes(k)) warns[k] = (warns[k] || 0) + 1;
   }));
-  const above20 = mine.filter(s => has(s.price) && has(s.ma20) && s.price > s.ma20).length;
-  const lev = mine.filter(s => LEVERAGED[s.ticker]);
+  const above20 = activeMine.filter(s => has(s.price) && has(s.ma20) && s.price > s.ma20).length;
+  const lev = activeMine.filter(s => LEVERAGED[s.ticker]);
   const catSet=new Set(mine.map(s=>s.category));
-  const heldPeers=allStocks().filter(s=>s.earnings_hold && catSet.has(s.category));
+  const heldPeers=allStocks().filter(s=>s.earnings_hold && !state.cart.includes(s.ticker) && catSet.has(s.category));
   const validation=strategyValidation();
-  return {mine, cats, gradeCnt, warns, above20, lev, mk, heldPeers, validation};
+  return {mine, activeMine, holdMine, cats, gradeCnt, warns, above20, lev, mk, heldPeers, validation};
 }
 
 /* 종목별 자리.
@@ -1822,43 +1853,44 @@ function cartLevels(s){
 
 function cartBubbles(F){
   const good = [], care = [];
-  const n = F.mine.length;
+  const n = F.activeMine.length, nTotal=F.mine.length;
   const top = F.cats[0];
 
-  if (n === 1 && F.above20 === 1) good.push(`${esc(F.mine[0].ticker)}는 20일선 위예요. 단기 지지선은 살아있는 자리입니다.`);
+  if (F.holdMine.length) care.push(`실적 보류 ${F.holdMine.length}종목 · ${F.holdMine.map(s=>esc(s.ticker)).join("·")} — 실적 영향권이라 매수등급 평가에서 제외했어요.`);
+  if (n === 1 && F.above20 === 1) good.push(`${esc(F.activeMine[0].ticker)}는 20일선 위예요. 단기 지지선은 살아있는 자리입니다.`);
   else if (F.above20 === n && n > 1) good.push(`담은 ${n}종목이 전부 20일선 위예요. 단기 지지선은 살아있는 자리들이에요.`);
   else if (F.above20 >= Math.ceil(n*0.7)) good.push(`${n}종목 중 ${F.above20}개가 20일선 위라 흐름은 나쁘지 않아요.`);
   if (F.gradeCnt[5] >= 2) good.push(`강한매수가 ${F.gradeCnt[5]}종목이나 되네요.`);
   if (F.cats.length >= 3 && top.share <= 0.5) good.push(`${F.cats.length}개 테마에 나눠 담아서 한쪽으로 쏠리진 않았어요.`);
   if (F.mk.level === "strong") good.push(`시장(QQQ)도 20일선 위 강세 국면이라 흐름을 타기엔 무난한 때예요.`);
-  const resRoom=F.mine.map(s=>{const L=cartLevels(s);return {s,g:L.gap(L.res1)};}).filter(x=>x.g!=null);
+  const resRoom=F.activeMine.map(s=>{const L=cartLevels(s);return {s,g:L.gap(L.res1)};}).filter(x=>x.g!=null);
   if(resRoom.length && resRoom.every(x=>x.g>5)) good.push(`담은 종목들은 가까운 20일 저항까지 대체로 5% 이상 여유가 있어요. 분할 진입 후 저항 접근 때 일부 익절 여부를 점검해볼 만해요.`);
-  const strongVol=F.mine.filter(s=>has(s.vol_ratio)&&s.vol_ratio>=1.5);
+  const strongVol=F.activeMine.filter(s=>has(s.vol_ratio)&&s.vol_ratio>=1.5);
   if(strongVol.length) good.push(`${strongVol.map(s=>esc(s.ticker)).join("·")}는 거래량이 평소보다 뚜렷하게 붙어 있어요. 가격 움직임에 실제 수급이 동반되는지 확인하기 좋은 후보예요.`);
-  const trendOk=F.mine.filter(s=>has(s.ma5)&&has(s.ma20)&&has(s.ma60)&&s.ma5>s.ma20&&s.ma20>s.ma60);
+  const trendOk=F.activeMine.filter(s=>has(s.ma5)&&has(s.ma20)&&has(s.ma60)&&s.ma5>s.ma20&&s.ma20>s.ma60);
   if(trendOk.length) good.push(`${trendOk.map(s=>esc(s.ticker)).join("·")}는 5·20·60일선 정배열이라 중단기 추세 구조가 비교적 안정적이에요.`);
-  const nearSupport=F.mine.map(s=>({s,L:cartLevels(s)})).filter(x=>x.L.gap(x.L.sup1)!=null && x.L.gap(x.L.sup1)<=0 && x.L.gap(x.L.sup1)>=-5);
+  const nearSupport=F.activeMine.map(s=>({s,L:cartLevels(s)})).filter(x=>x.L.gap(x.L.sup1)!=null && x.L.gap(x.L.sup1)<=0 && x.L.gap(x.L.sup1)>=-5);
   if(nearSupport.length) good.push(`${nearSupport.map(x=>esc(x.s.ticker)).join("·")}는 가까운 단기 지지 구간과 거리가 크지 않아요. 손익 기준을 잡기 비교적 쉬운 자리인지 확인해볼 만해요.`);
-  const badges=F.mine.flatMap(s=>s.sig.tags.map(t=>badgeKey(t.t))).filter(Boolean);
+  const badges=F.activeMine.flatMap(s=>s.sig.tags.map(t=>badgeKey(t.t))).filter(Boolean);
   const posBadges=[...new Set(badges.filter(x=>/돌파|눌림|반등|거래량|정배열|MACD|신고가/.test(x)))];
   if(posBadges.length) good.push(`현재 후보에서 ${posBadges.slice(0,4).map(esc).join(" · ")} 같은 기술적 확인 신호가 함께 보여요. 한 지표보다 여러 조건이 겹치는지를 보는 편이 좋아요.`);
   if (!good.length) good.push(`뚜렷한 우위 신호는 많지 않아요. 지지·저항과 거래량을 함께 보면서 진입 가격을 좁혀보세요.`);
 
-  if (top && top.share >= 0.5 && n >= 3){
+  if (top && top.share >= 0.5 && nTotal >= 3){
     const fl = top.flow!=null ? ` 게다가 오늘 이 테마가 ${top.flow>=0?"+":""}${r1(top.flow)}%로 ${top.flow>=0?"이미 달린":"밀린"} 상태고요.` : "";
-    care.push(`${n}종목 중 ${top.n}개가 <b>${esc(top.name)}</b> 하나예요.${fl} 같이 오르고 같이 빠지니까, 전부 담기보다 한둘로 추려보는 건 어때요?`);
+    care.push(`${nTotal}종목 중 ${top.n}개가 <b>${esc(top.name)}</b> 하나예요.${fl} 같이 오르고 같이 빠지니까, 전부 담기보다 한둘로 추려보는 건 어때요?`);
   }
   const w = Object.entries(F.warns);
   if (w.length) care.push(`주의 뱃지가 붙은 게 있어요 — ${w.map(([k,v])=>`${esc(k)} ${v}건`).join(" · ")}. 신규 진입이라면 오늘 자리가 이미 높은 건 아닌지 보세요.`);
   if (F.lev.length) care.push(`${F.lev.map(s=>esc(s.ticker)).join("·")}는 3배 레버리지예요. 하루 단위로 배수가 다시 계산돼서 오래 들고 있으면 불리해집니다.`);
-  const nearRes=F.mine.map(s=>{const L=cartLevels(s);return {s,g:L.gap(L.res1)};}).filter(x=>x.g!=null&&x.g>=0&&x.g<=3);
+  const nearRes=F.activeMine.map(s=>{const L=cartLevels(s);return {s,g:L.gap(L.res1)};}).filter(x=>x.g!=null&&x.g>=0&&x.g<=3);
   if(nearRes.length) care.push(`${nearRes.map(x=>esc(x.s.ticker)).join("·")}는 가까운 20일 저항이 현재가에서 3% 안쪽이에요. 추격보다는 돌파 확인이나 저항 부근 분할익절 같은 대응이 더 어울립니다.`);
   if(F.heldPeers&&F.heldPeers.length){
     const by={}; F.heldPeers.forEach(s=>(by[s.category]=by[s.category]||[]).push(s));
     Object.entries(by).slice(0,2).forEach(([cat,arr])=>care.push(`<b>${esc(cat)}</b>의 ${arr.map(s=>esc(s.ticker)).join("·")}가 실적발표 영향으로 보류 중이에요. 같은 섹터는 동반 변동성이 커져 기술적 신호 신뢰도가 평소보다 약해질 수 있으니 필수로 확인하세요.`));
   }
   if (F.mk.level === "weak" || F.mk.level === "caution") care.push(`시장(QQQ)이 20일선 아래예요. 개별 신호가 좋아도 지수가 무너지면 같이 빠집니다.`);
-  if (F.above20 < n) care.push(`${n===1?esc(F.mine[0].ticker)+"는":(n - F.above20)+"종목은"} 20일선 아래예요. 단기 추세가 약해진 상태라 거래량 회복이나 지지 재확인을 기다려볼 만합니다.`);
+  if (n>0 && F.above20 < n) care.push(`${n===1?esc(F.activeMine[0].ticker)+"는":(n - F.above20)+"종목은"} 20일선 아래예요. 단기 추세가 약해진 상태라 거래량 회복이나 지지 재확인을 기다려볼 만합니다.`);
   if (!care.length) care.push(`특별히 걸리는 건 안 보여요. 그래도 아래 ① 외부 재료는 꼭 확인하세요.`);
   return {good: good.slice(0,3), care: care.slice(0,3)};
 }
@@ -1866,6 +1898,11 @@ function cartBubbles(F){
 
 function cartStockNotes(s){
   const L=cartLevels(s), notes=[];
+  if(s.earnings_hold){
+    notes.push(`실적 영향권이라 매수등급 평가에서 제외했습니다.`);
+    notes.push(`지지·저항 가격은 위 표에서 참고하되, 신규 진입 판단은 실적 반응이 지난 뒤 다시 확인하세요.`);
+    return notes;
+  }
   const gsup=L.gap(L.sup1), gres=L.gap(L.res1);
   const bull=has(s.ma5)&&has(s.ma20)&&has(s.ma60)&&s.ma5>s.ma20&&s.ma20>s.ma60;
   const above20=has(s.price)&&has(s.ma20)&&s.price>s.ma20;
@@ -1896,10 +1933,11 @@ function cartStockNotes(s){
 function openCartReview(){
   if (!state.cart.length){ toast("장바구니가 비어 있어요"); return; }
   const F = cartFacts(); const B = cartBubbles(F);
-  const n = F.mine.length;
-  const ohN = F.mine.filter(x=>x.sig.overheatOnly).length;
-  const gline = [5,4,3,2,1].filter(g=>F.gradeCnt[g]).map(g=>`${GRADES[g]} ${F.gradeCnt[g]}`).join(" · ")
-    + (ohN ? ` <span class="lv2">(그중 단기과열 ${ohN})</span>` : "");
+  const n = F.mine.length, activeN=F.activeMine.length;
+  const ohN = F.activeMine.filter(x=>x.sig.overheatOnly).length;
+  const baseG = [5,4,3,2,1].filter(g=>F.gradeCnt[g]).map(g=>`${GRADES[g]} ${F.gradeCnt[g]}`).join(" · ");
+  const gline = (baseG || "평가 가능 종목 없음") + (ohN ? ` <span class="lv2">(그중 단기과열 ${ohN})</span>` : "");
+  const holdLine = F.holdMine.length ? `<div class="cf-r"><b>실적 보류 ${F.holdMine.length}종목</b> · ${F.holdMine.map(s=>esc(s.ticker)).join(" · ")}<br><span class="lv2">실적 영향권이라 매수등급 평가에서 제외했어요.</span></div>` : "";
   const catLine = F.cats.map(c =>
     `${esc(c.name)} <b>${c.n}</b>${c.flow!=null?` <span class="cflow ${c.flow>=0?"up":"down"}">${c.flow>=0?"+":""}${r1(c.flow)}%</span>`:""}`).join(" · ");
 
@@ -1918,7 +1956,8 @@ function openCartReview(){
       <div class="cf-h">📊 지금 담은 상태</div>
       <div class="cf-r">테마 · ${catLine}</div>
       <div class="cf-r">등급 · ${gline}</div>
-      <div class="cf-r">20일선 위 · <b>${F.above20}</b>/${n}종목</div>
+      ${holdLine}
+      <div class="cf-r">20일선 위 · <b>${F.above20}</b>/${activeN}종목 <span class="lv2">(보류 제외)</span></div>
       <div class="cf-r">시장 · ${esc(F.mk.ticker||"QQQ")} ${F.mk.below_ma20?"20일선 아래":"20일선 위"}${F.mk.detail?` (${esc(F.mk.detail)})`:""}</div>
     </div>
 
@@ -2043,13 +2082,14 @@ function stockCard(s, i, rankless=false){
   const tags = shownTags.map(t =>
     `<span class="tag ${t.c} ${t.click?"clickable":""}" ${t.click?`data-explain="${t.click}"`:""}>${t.t}</span>`).join("");
   const rk = state._ranks || {};
+  const multiRank = rk.total && Number.isFinite(Number(rk.total[s.ticker])) ? Number(rk.total[s.ticker]) : null;
   const rankLine = rankless
     ? `<div class="rankline${open?"":" mini"}"><span class="rkitem">보류 <b>순위 산정 안 함</b></span></div>`
     : `<div class="rankline${open?"":" mini"}">
-      <span class="rkitem ${(rk.total&&rk.total[s.ticker]<=3)?"top":""}">🔵 다중 <b>${rk.total?rk.total[s.ticker]:"—"}위</b></span>
-      <span class="rkitem ${(rk.pull&&rk.pull[s.ticker]<=3)?"top":""}">📈 추세 <b>${rk.pull?rk.pull[s.ticker]:"—"}위</b></span>
-      <span class="rkitem ${(rk.rev&&rk.rev[s.ticker]<=3)?"top":""}">🔄 반등 <b>${rk.rev?rk.rev[s.ticker]:"—"}위</b></span>
-      <span class="rkitem ${(rk.vol&&rk.vol[s.ticker]<=3)?"top":""}">⚡ 거래량 <b>${rk.vol?rk.vol[s.ticker]:"—"}위</b></span>
+      ${multiRank!==null ? `<span class="rkitem ${multiRank<=3?"top":""}">🔵 다중 <b>${multiRank}위</b></span>` : ""}
+      <span class="rkitem ${(rk.pull&&rk.pull[s.ticker]<=3)?"top":""}">📈 추세 <b>${rk.pull&&rk.pull[s.ticker]!=null?rk.pull[s.ticker]:"—"}위</b></span>
+      <span class="rkitem ${(rk.rev&&rk.rev[s.ticker]<=3)?"top":""}">🔄 반등 <b>${rk.rev&&rk.rev[s.ticker]!=null?rk.rev[s.ticker]:"—"}위</b></span>
+      <span class="rkitem ${(rk.vol&&rk.vol[s.ticker]<=3)?"top":""}">⚡ 거래량 <b>${rk.vol&&rk.vol[s.ticker]!=null?rk.vol[s.ticker]:"—"}위</b></span>
       <span class="rktot">/ ${rk.n||0}종목</span>
     </div>`;
   const detail = open ? techStars(s) + `
@@ -2170,31 +2210,34 @@ function badgeList(){
 }
 
 /* ══════════ 최근 신뢰도 검증 — 카드 hist를 현재 evaluate()로 재채점 ══════════ */
-function earningsBlockedDatesForValidation(s,hs){
-  const blocked=new Set(), e=s.earnings||{};
-  if(!e.date||!hs||!hs.length) return blocked;
+function earningsWindowsForValidation(s,hs){
+  const blocked=new Set(), affected=new Set(), e=s.earnings||{};
+  if(!e.date||!hs||!hs.length) return {blocked,affected};
+  const metaB=Array.isArray(e.blocked_signal_dates)?e.blocked_signal_dates:[];
+  const metaA=Array.isArray(e.affected_close_dates)?e.affected_close_dates:[];
+  if(metaB.length||metaA.length){ metaB.forEach(d=>blocked.add(d)); metaA.forEach(d=>affected.add(d)); return {blocked,affected}; }
   const i=hs.findIndex(x=>x.last_date===e.date);
-  if(i<0) return blocked;
-
-  // 운영 보류와 동일:
-  // BMO/UNKNOWN = 실적 직전 거래일 + 발표일
-  // AMC = 실적 직전 거래일 + 발표일 + 발표 직후 첫 거래일
+  if(i<0) return {blocked,affected};
   if(i-1>=0) blocked.add(hs[i-1].last_date);
   blocked.add(hs[i].last_date);
-  if(e.timing==="AMC" && i+1<hs.length) blocked.add(hs[i+1].last_date);
-  return blocked;
+  if(e.timing==="BMO") affected.add(hs[i].last_date);
+  else if(e.timing==="AMC"){
+    if(i+1<hs.length){ blocked.add(hs[i+1].last_date); affected.add(hs[i+1].last_date); }
+  }else{
+    affected.add(hs[i].last_date);
+    if(i+1<hs.length){ blocked.add(hs[i+1].last_date); affected.add(hs[i+1].last_date); }
+  }
+  return {blocked,affected};
 }
 
-/* 신호일 자체가 정상이어도 +3/+5 평가구간 중간에 실적 영향권이 끼면
-   그 수익률은 기술적 신호 성과가 아니므로 표본 전체를 제외한다. */
-function validationWindowTouchesEarnings(blocked,hs,startIdx,horizon){
-  if(!blocked || !blocked.size || !hs) return false;
+/* 신호일은 blocked_signal_dates로 막고, 성과 구간은 실제 가격이 오염된 affected_close_dates만 본다. */
+function validationWindowTouchesEarnings(affected,hs,startIdx,horizon){
+  if(!affected || !affected.size || !hs) return false;
   const end=Math.min(startIdx+horizon, hs.length-1);
-  for(let j=startIdx;j<=end;j++){
-    if(blocked.has(hs[j].last_date)) return true;
-  }
+  for(let j=startIdx+1;j<=end;j++) if(affected.has(hs[j].last_date)) return true;
   return false;
 }
+
 function strategyValidation(){
   const kinds={
     pull:{label:"추세", icon:"📈", grade:s=>s.pullGrade},
@@ -2206,12 +2249,18 @@ function strategyValidation(){
   const excluded={pull:{1:0,3:0,5:0},rev:{1:0,3:0,5:0},multi:{1:0,3:0,5:0}};
   const excludedTickers=new Set();
   const excludedSignalSamples=new Set(); // 전략+티커+신호일: +1/+3/+5 중복은 1개로 센다.
+  const excludedDetails=new Map();
+  const noteExcluded=(kind,row,h)=>{
+    const key=`${row.ticker}|${row.last_date}`;
+    if(!excludedDetails.has(key)) excludedDetails.set(key,{ticker:row.ticker,date:row.last_date,event:(row.earnings||{}).date||"",timing:(row.earnings||{}).timing||"UNKNOWN",kinds:new Set(),horizons:new Set()});
+    const o=excludedDetails.get(key); o.kinds.add(kind); o.horizons.add(h);
+  };
 
   const stockHist=new Map(), byDate=new Map();
   allStocks().forEach(s=>{
     const hs=histStocks(s); if(!hs||!hs.length) return;
-    const blocked=earningsBlockedDatesForValidation(s,hs);
-    stockHist.set(s.ticker,{hs,blocked});
+    const ew=earningsWindowsForValidation(s,hs), blocked=ew.blocked, affected=ew.affected;
+    stockHist.set(s.ticker,{hs,blocked,affected});
     hs.forEach((h,i)=>{
       if(!h.last_date || blocked.has(h.last_date) || !has(h.price) || !h.price) return;
       const row=Object.assign({},s,h);
@@ -2224,19 +2273,22 @@ function strategyValidation(){
 
   byDate.forEach(entries=>entries.forEach(({row,i})=>{
     const pack=stockHist.get(row.ticker); if(!pack) return;
-    const hs=pack.hs, blocked=pack.blocked;
+    const hs=pack.hs, affected=pack.affected;
     Object.entries(kinds).forEach(([k,def])=>{
       if(def.grade(row.sig)<4) return;
       horizons.forEach(h=>{
         if(i+h>=hs.length || !has(hs[i+h].price)) return;
-        if(validationWindowTouchesEarnings(blocked,hs,i,h)){
+        if(validationWindowTouchesEarnings(affected,hs,i,h)){
           excluded[k][h]++;
           excludedTickers.add(row.ticker);
           excludedSignalSamples.add(`${k}|${row.ticker}|${row.last_date}`);
+          noteExcluded(k,row,h);
           return;
         }
-        const ret=(hs[i+h].price/row.price-1)*100;
-        out[k][h].push({ret,hit:ret>0,date:row.last_date,ticker:row.ticker});
+        const endRow=hs[i+h];
+        const ret=(endRow.price/row.price-1)*100;
+        out[k][h].push({ret,hit:ret>0,date:row.last_date,endDate:endRow.last_date,ticker:row.ticker,
+          buyPrice:row.price,endPrice:endRow.price,horizon:h});
       });
     });
   }));
@@ -2250,17 +2302,20 @@ function strategyValidation(){
       if(!ent || ent.row.sig.grade<4) return;
       const pack=stockHist.get(sel.ticker), i=ent.i, p0=ent.row.price;
       if(!pack) return;
-      const hs=pack.hs, blocked=pack.blocked;
+      const hs=pack.hs, affected=pack.affected;
       horizons.forEach(h=>{
         if(i+h>=hs.length || !has(hs[i+h].price)) return;
-        if(validationWindowTouchesEarnings(blocked,hs,i,h)){
+        if(validationWindowTouchesEarnings(affected,hs,i,h)){
           excluded.multi[h]++;
           excludedTickers.add(sel.ticker);
           excludedSignalSamples.add(`multi|${sel.ticker}|${ent.row.last_date}`);
+          noteExcluded("multi",ent.row,h);
           return;
         }
-        const ret=(hs[i+h].price/p0-1)*100;
-        out.multi[h].push({ret,hit:ret>0,date:ent.row.last_date,ticker:sel.ticker});
+        const endRow=hs[i+h];
+        const ret=(endRow.price/p0-1)*100;
+        out.multi[h].push({ret,hit:ret>0,date:ent.row.last_date,endDate:endRow.last_date,ticker:sel.ticker,
+          buyPrice:p0,endPrice:endRow.price,horizon:h});
       });
     });
   });
@@ -2271,20 +2326,41 @@ function strategyValidation(){
   Object.keys(result).forEach(k=>horizons.forEach(h=>result[k][h]=stat(out[k][h])));  result._excluded=excluded; // 내부 진단용: 전략×평가기간별 스킵 수
   result._excludedSignalSamples=excludedSignalSamples.size;
   result._excludedTickers=[...excludedTickers].sort();
+  result._excludedDetails=[...excludedDetails.values()].map(o=>({ticker:o.ticker,date:o.date,event:o.event,timing:o.timing,kinds:[...o.kinds],horizons:[...o.horizons].sort((a,b)=>a-b)})).sort((a,b)=>a.date.localeCompare(b.date)||a.ticker.localeCompare(b.ticker));
+
+  // 공개 예시는 "수익률 TOP3"가 아니라 각 전략의 최근 완료 표본 1건씩.
+  // +5거래일을 우선하고 없으면 +3 → +1, 동일 티커는 중복하지 않는다.
+  const usedExampleTickers=new Set(), examples=[];
+  [["multi","다중 신호","🔵"],["pull","추세","📈"],["rev","반등","🔄"]].forEach(([k,label,icon])=>{
+    let pick=null;
+    for(const h of [5,3,1]){
+      const arr=(out[k][h]||[]).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+      pick=arr.find(x=>!usedExampleTickers.has(x.ticker)) || null;
+      if(pick) break;
+    }
+    if(pick){ usedExampleTickers.add(pick.ticker); examples.push(Object.assign({kind:k,label,icon},pick)); }
+  });
+  result._examples=examples;
   return result;
 }
 
 function validationBlock(){
   const v=strategyValidation();
   const pct=x=>x==null?"—":x+"%"; const av=x=>x==null?"—":`${x>=0?"+":""}${x.toFixed(2)}%`;
+  const dateShort=d=>{ const m=String(d||"").match(/\d{4}-(\d{2})-(\d{2})/); return m?`${Number(m[1])}/${Number(m[2])}`:String(d||"—"); };
+  const priceText=(tk,p)=>{ const st=allStocks().find(x=>x.ticker===tk); if(!has(p)) return "—"; return st&&st.currency==="KRW" ? `₩${Math.round(p).toLocaleString("ko-KR")}` : `$${Number(p).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`; };
+  const exRows=(v._examples||[]).map(x=>`${x.icon} <b>${esc(x.label)} · ${esc(x.ticker)}</b> · ${esc(dateShort(x.date))} 종가 ${esc(priceText(x.ticker,x.buyPrice))} 매수 → <b>${x.horizon}거래일 뒤 ${x.ret>=0?"+":""}${x.ret.toFixed(2)}%</b> <span style="color:var(--faint)">(${esc(priceText(x.ticker,x.endPrice))})</span>`);
+  const exampleBlock=exRows.length ? `<details class="acc validation-examples" style="margin-top:8px"><summary style="cursor:pointer"><b>📌 실제 검증 사례 ${exRows.length}건</b> · 펼쳐보기</summary><div class="strip" style="margin-top:6px;line-height:1.9">${exRows.join("<br>")}<div style="margin-top:5px;color:var(--faint);font-size:10.5px">최근 검증 표본에서 자동 선정 · 실적 영향권 제외 · 수익 사례만 골라내지 않습니다.</div></div></details>` : "";
   const cell=(o)=>o.n===0
     ? `—<br><span style="font-size:10.5px;color:var(--faint)">표본 없음</span>`
     : `${pct(o.rate)}<br><span style="font-size:10.5px;color:var(--faint)">평균 ${av(o.avg)} · ${o.n}건</span>`;
   const row=k=>`<tr><td><b>${v[k].icon} ${v[k].label}</b></td><td>${cell(v[k][1])}</td><td>${cell(v[k][3])}</td><td>${cell(v[k][5])}</td></tr>`;
-  return `<div class="section help-block"><h3>🧪 신뢰도 검증 결과</h3><div class="strip" style="margin-bottom:8px">실적 영향권은 운영 화면과 동일하게 <b>사전 보류일부터 영향 거래일까지 표본에서 제외</b>합니다. 돌파·경계 뱃지는 방향성 전략이 아니므로 별도 적중률로 계산하지 않습니다.</div>
+  const ex=v._excludedDetails||[];
+  const exDetail=ex.length?`<details class="acc" style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:11px"><b>실적 영향권 표본 자동 제외 · ${v._excludedTickers.length}종목 · 자세히</b></summary><div class="strip" style="margin-top:6px">${ex.map(o=>`${esc(o.ticker)} · 신호일 ${esc(o.date)} · 실적 ${esc(o.event||"?")} ${esc(o.timing)} · +${o.horizons.join("/+")} 제외`).join("<br>")}</div></details>`:"";
+  return `<div class="section help-block"><h3>🧪 신뢰도 검증 결과</h3><div class="strip" style="margin-bottom:8px">실적은 <b>신규 진입을 막는 세션</b>과 <b>가격에 실제 반영된 종가</b>를 분리해 검증합니다. AMC 발표일 종가처럼 아직 실적이 반영되지 않은 결과는 불필요하게 버리지 않습니다. 돌파·경계 뱃지는 방향성 전략이 아니므로 별도 적중률로 계산하지 않습니다.</div>
     <table class="cmp"><tr><th>전략</th><th>+1거래일</th><th>+3거래일</th><th>+5거래일</th></tr>
-      ${row("multi")}${row("pull")}${row("rev")}${(()=>{const n=v._excludedSignalSamples||0, ts=v._excludedTickers||[]; return n?`<tr><td colspan="4" style="font-size:10.5px;color:var(--faint);padding-top:8px">실적 영향권과 겹친 신호 표본 ${n}건 제외 · ${ts.length}종목 (${esc(ts.join(" · "))})</td></tr>`:""})()}
-    </table>
+      ${row("multi")}${row("pull")}${row("rev")}
+    </table>${exampleBlock}${exDetail}
     <div class="strip" style="margin-top:9px">
       <b>추세</b>와 <b>반등</b>은 해당 전략 자체가 강한매수·매수관심이었던 시점의 실제 이후 종가를 비교합니다. <b>다중신호</b>는 여러 기술 신호가 함께 강하게 포착된 종목을 같은 방식으로 검증합니다.<br>
       카드 데이터는 최근 <b>10거래일</b>을 사용하므로 아직 표본이 짧습니다. 장기 승률처럼 해석하지 않습니다.</div>
@@ -2689,14 +2765,46 @@ qRes.addEventListener("click", e=>{
 document.addEventListener("click", e=>{ if(!e.target.closest(".search")) qRes.classList.add("hidden"); });
 
 /* ══════════ 종목으로 이동 ══════════ */
+function searchBestDestination(s){
+  if(!s) return {sort:"pull",label:"추세"};
+  if(s.earnings_hold) return {sort:"hold",label:"실적 보류"};
+  const universe=allStocks().filter(x=>!x.earnings_hold);
+  if(!universe.length) return {sort:"pull",label:"추세"};
+
+  // 다중신호 자격이 실제로 있으면 다중신호 탭을 최우선으로 연다.
+  const multi=multiSignalRank(universe);
+  const mi=multi.findIndex(x=>x.ticker===s.ticker);
+  if(mi>=0) return {sort:"signal",label:`다중신호 ${mi+1}위`};
+
+  // 다중신호가 없으면 추세·반등·거래량·해당 테마에서의 "상대 순위"를 비교한다.
+  const ranked=(arr,key)=>arr.slice().sort((a,b)=>key(b)-key(a));
+  const choice=[];
+  const add=(sort,label,arr)=>{
+    const i=arr.findIndex(x=>x.ticker===s.ticker); if(i<0||!arr.length) return;
+    choice.push({sort,label:`${label} ${i+1}위`,rank:i+1,n:arr.length,ratio:(i+1)/arr.length});
+  };
+  add("pull","추세",ranked(universe,x=>x.sig.pullScore));
+  add("reversal","반등",ranked(universe,x=>x.sig.revScore));
+  add("volume","거래량",ranked(universe,x=>has(x.vol_ratio)?x.vol_ratio:-1));
+  const peers=universe.filter(x=>(x.category||"기타")===(s.category||"기타"));
+  add("category",s.category||"테마",overallRanked(peers));
+  choice.sort((a,b)=>a.ratio-b.ratio || a.rank-b.rank || ({pull:0,reversal:1,volume:2,category:3}[a.sort]??9)-({pull:0,reversal:1,volume:2,category:3}[b.sort]??9));
+  return choice[0] || {sort:"pull",label:"추세"};
+}
 function gotoStock(tk){
   state.tab = "all";
   state.view = "cards";
   if (!state.expanded.includes(tk)) state.expanded.push(tk);
   if (state.hidden.includes(tk)) state.hidden = state.hidden.filter(t=>t!==tk);
   const s = allStocks().find(x=>x.ticker===tk);
-  if (s && state.showHoldings && !s._hold) state.showHoldings = false;
-  if (s && state.market!=="all" && ((state.market==="kr")!==s._kr)) state.market = "all";
+
+  // 검색은 모든 보기 필터보다 우선한다. 뱃지/보유만/시장 필터 때문에 카드가 사라지지 않게 해제한다.
+  state.badge=null; state._badgeOpen=false;
+  if(state.showHoldings) state.showHoldings=false;
+  if(state.market!=="all") state.market="all";
+  const dest=searchBestDestination(s);
+  if(s) state.sort=dest.sort;
+
   save(); render(); qRes.classList.add("hidden"); qEl.value = "";
   setTimeout(()=>{
     const esc2 = (window.CSS&&CSS.escape) ? CSS.escape(tk) : tk;
@@ -2705,6 +2813,7 @@ function gotoStock(tk){
       card.classList.add("focus");
       setTimeout(()=>card.classList.remove("focus"), 2000);
       try{ card.scrollIntoView({behavior:"smooth",block:"center"}); }catch(e){ card.scrollIntoView(); }
+      if(s) toast(`${tk} · ${dest.label} 카드로 이동했어요`);
     }
   }, 60);
 }
