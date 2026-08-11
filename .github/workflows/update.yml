@@ -33,12 +33,12 @@ jobs:
           python-version: '3.11'
 
       - name: 라이브러리 설치
-        run: pip install --upgrade yfinance pandas numpy
+        run: pip install --upgrade yfinance pandas numpy exchange_calendars
 
       - name: 지표 계산
-        # 한국장 슬롯(16:20 KST)에서는 한국 종목만 새로 받고,
-        # 미국 종목은 직전 signals.json 값을 그대로 유지한다.
-        # (그 시각 뉴욕은 02:40이라 새 종가가 없고, 다시 부르면 장전에 점수가 흔들린다)
+        # 한국장 슬롯(16:20 KST)에서는 한국 가격만 새로 받고,
+        # 미국 가격은 직전 signals.json 값을 그대로 유지한다.
+        # 단, main.py가 미국 실적 캘린더는 한 번 더 조회해 장 시작 전 변경을 반영한다.
         env:
           RUN_SCOPE: ${{ github.event.schedule == '20 16 * * 1-5' && 'kr' || 'all' }}
         run: python main.py
