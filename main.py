@@ -528,10 +528,10 @@ def main():
     # 상대강도(20일): 종목 20일 수익률 - QQQ 20일 수익률. 미너비니식 RS의 단순 근사치.
     mret20 = None
     try:
-        mret20 = market.get("ret20") if isinstance(market, dict) else None
+        mret20 = mkt.get("ret20") if isinstance(mkt, dict) else None
     except Exception:
         mret20 = None
-    for _s in stocks:
+    for _s in results:
         if _s.get("ret20") is not None and mret20 is not None:
             _s["rs20"] = round(float(_s["ret20"]) - float(mret20), 2)
         else:
