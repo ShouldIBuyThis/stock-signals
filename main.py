@@ -27,7 +27,7 @@ PERIOD = "1y"    # 52주 신고가 계산 위해 1년
 #        (2) 불필요한 71건 요청이 레이트리밋을 유발해 종목이 통째로 사라진다.
 # 카드 타임라인용 — 최근 며칠치 지표를 함께 내려준다.
 # 키를 반복하는 객체 대신 위치 기반 배열이라 용량이 절반 이하다.
-HIST_DAYS = 5
+HIST_DAYS = 10
 HIST_FIELDS = ["date","price","change_1d","ma5","ma20","ma60","rsi","macd_hist","macd_cross","macd_zero",
                "bb_pos","stoch_k","stoch_d","stoch_cross","vol_ratio","near_high","pct_from_high",
                "ma20_slope","run5_max","run3_sum","range3","range10","vol3_ratio",
@@ -39,6 +39,140 @@ if RUN_SCOPE not in ("all", "kr"):
 
 def is_kr_ticker(t):
     return t.endswith(".KS") or t.endswith(".KQ")
+
+
+# ── 이벤트 캘린더 ─────────────────────────────────────────────
+# yfinance 1.x Calendars API를 우선 사용한다. 이벤트 조회가 실패해도
+# 가격/기술신호 생성은 계속 진행한다(fail-open).
+MAJOR_EVENT_KEYS = {
+    "FOMC": ["fomc", "federal open market"],
+    "CPI": ["consumer price index", "cpi"],
+    "PCE": ["personal consumption", "pce price"],
+    "고용": ["nonfarm", "non-farm", "employment situation", "unemployment rate", "jobless claims", "jolts"],
+}
+
+def _event_date(v):
+    """pandas/yfinance datetime을 YYYY-MM-DD로 안전하게 정규화."""
+    try:
+        ts = pd.Timestamp(v)
+        if pd.isna(ts): return None
+        # timezone이 있으면 미국 이벤트는 뉴욕 현지일 기준으로 본다.
+        if ts.tzinfo is not None:
+            ts = ts.tz_convert("America/New_York")
+        return ts.strftime("%Y-%m-%d")
+    except Exception:
+        s = str(v or "")
+        m = __import__("re").search(r"\d{4}-\d{2}-\d{2}", s)
+        return m.group(0) if m else None
+
+def _timing_code(v):
+    s = str(v or "").strip().lower()
+    if "before" in s or s == "bmo": return "BMO"
+    if "after" in s or s == "amc": return "AMC"
+    return "UNKNOWN"
+
+def _next_weekday(day):
+    try:
+        d = datetime.strptime(day, "%Y-%m-%d").date() + timedelta(days=1)
+        while d.weekday() >= 5:
+            d += timedelta(days=1)
+        return d.strftime("%Y-%m-%d")
+    except Exception:
+        return None
+
+def fetch_event_calendars(now_kst, wanted_tickers):
+    """관심종목 어닝 + 주요 거시 이벤트. 조회 실패 시 빈 결과."""
+    out_earn, out_market = {}, []
+    if not hasattr(yf, "Calendars"):
+        print("이벤트 캘린더: 현재 yfinance에 Calendars 없음 — 건너뜀")
+        return out_earn, out_market
+
+    today_ny = datetime.now(ZoneInfo("America/New_York")).date()
+    start = (today_ny - timedelta(days=5)).strftime("%Y-%m-%d")
+    end   = (today_ny + timedelta(days=7)).strftime("%Y-%m-%d")
+    cal = yf.Calendars(start=start, end=end)
+
+    # 어닝: 넓은 기간을 한 번에 600건까지만 훑으면 실적 시즌에 관심종목이 뒤 페이지에서 누락될 수 있다.
+    # 최근 5일~다음 2일을 날짜별로 잘라 페이지네이션하여 관심종목을 찾는다.
+    wanted = {t for t in wanted_tickers if not is_kr_ticker(t)}
+    try:
+        d0=today_ny-timedelta(days=5); d1=today_ny+timedelta(days=2)
+        d=d0
+        while d<=d1:
+            ds=d.strftime("%Y-%m-%d")
+            for off in range(0, 500, 100):
+                df = cal.get_earnings_calendar(start=ds, end=ds, filter_most_active=False, limit=100, offset=off, force=True)
+                if df is None or df.empty: break
+                for tk, r in df.iterrows():
+                    tk = str(tk).upper()
+                    if tk not in wanted: continue
+                    dt = _event_date(r.get("Event Start Date"))
+                    timing_raw = r.get("Timing")
+                    timing = _timing_code(timing_raw)
+                    if not dt: continue
+                    out_earn[tk] = {"date": dt, "timing": timing, "timing_raw": str(timing_raw or "")}
+                if len(df) < 100: break
+            d += timedelta(days=1)
+    except Exception as e:
+        print("어닝 캘린더 조회 실패:", e)
+
+    # 거시 이벤트: FOMC/CPI/PCE/주요 고용지표만 골라 메인 경고에 사용
+    try:
+        edf = cal.get_economic_events_calendar(limit=100)
+        if edf is not None and not edf.empty:
+            for ev, r in edf.iterrows():
+                name = str(ev)
+                low = name.lower()
+                label = next((k for k, words in MAJOR_EVENT_KEYS.items() if any(w in low for w in words)), None)
+                if not label: continue
+                dt = _event_date(r.get("Event Time"))
+                region = str(r.get("Region") or "")
+                if region and region.upper() not in ("US", "USA"): continue
+                if dt:
+                    out_market.append({"type": label, "name": name, "date": dt})
+    except Exception as e:
+        print("경제 이벤트 캘린더 조회 실패:", e)
+
+    # 중복 제거
+    uniq=[]; seen=set()
+    for x in sorted(out_market, key=lambda z:(z.get("date") or "", z.get("name") or "")):
+        k=(x.get("date"),x.get("name"))
+        if k not in seen: seen.add(k); uniq.append(x)
+    return out_earn, uniq
+
+def attach_earnings_holds(results, earnings):
+    """BMO 당일 / AMC 다음 거래일만 보류. Timing 불명은 자동 제외하지 않는다."""
+    for r in results:
+        ev = earnings.get(r.get("ticker"))
+        r["earnings"] = ev
+        r["earnings_hold"] = False
+        if not ev or ev.get("timing") not in ("BMO", "AMC"): continue
+        day = r.get("last_date")
+        event_day = ev.get("date")
+        if not day or not event_day: continue
+        if ev["timing"] == "BMO":
+            hold_day = event_day
+            reason = "장전 실적 발표 — 해당일 종가가 실적 영향을 반영할 수 있어 제외"
+        else:
+            # AMC는 발표일 자체는 정상. 직후 첫 거래일만 제외한다.
+            # 휴일 오차를 줄이기 위해 종목 hist에 이벤트일→다음 관측일이 있으면 그 날짜를 우선 사용.
+            hold_day = _next_weekday(event_day)
+            hist_dates=[]
+            for h in r.get("hist") or []:
+                try:
+                    # HIST_FIELDS 첫 필드는 date
+                    if h and h[0]: hist_dates.append(str(h[0]))
+                except Exception: pass
+            if event_day in hist_dates:
+                i=hist_dates.index(event_day)
+                if i+1 < len(hist_dates): hold_day=hist_dates[i+1]
+            reason = "장후 실적 발표 — 다음 거래일 종가가 실적 영향을 반영해 제외"
+        if day == hold_day:
+            r["earnings_hold"] = True
+            r["earnings_hold_reason"] = reason
+            r["earnings_hold_date"] = hold_day
+            r["earnings_release_date"] = _next_weekday(hold_day)
+    return results
 
 def load_previous():
     """직전 signals.json을 티커별로 읽어둔다. 없으면 빈 dict."""
@@ -56,20 +190,20 @@ WATCHLIST = {
         "UNH":"유나이티드헬스", "HIMS":"힘스앤허스", "JPM":"JP모건", "CAT":"캐터필러",
         "MA":"마스터카드"},
     "반도체·메모리":  {"MU":"마이크론", "SNDK":"샌디스크", "STX":"씨게이트"},
-    "반도체·파운드리":{"TSM":"TSMC"},
+    "반도체·파운드리":{"TSM":"TSMC", "INTC":"인텔"},
     "반도체·GPU":     {"NVDA":"엔비디아", "AMD":"AMD", "SOXL":"반도체 3x",
                        "ALAB":"아스테라랩스", "AMAT":"어플라이드머티어리얼즈",
-                       "INTC":"인텔", "DELL":"델", "AVGO":"브로드컴", "MRVL":"마벨테크놀로지"},
+                       "DELL":"델", "AVGO":"브로드컴", "MRVL":"마벨테크놀로지"},
     "데이터센터":    {"APLD":"어플라이드디지털", "NBIS":"네비우스", "CRWV":"코어위브", "IREN":"아이렌"},
     "소프트웨어":    {"MSFT":"마이크로소프트", "NOW":"서비스나우", "PLTR":"팔란티어", "CRWD":"크라우드스트라이크", "SNOW":"스노우플레이크"},
     "광통신":        {"AAOI":"어플라이드옵토", "GLW":"코닝", "LITE":"루멘텀", "CIEN":"시에나", "POET":"포엣테크놀로지",
-                      "CRDO":"크레도테크놀로지", "COHR":"코히어런트"},
+                      "CRDO":"크레도테크놀로지", "COHR":"코히런트"},
     "전기차·자율주행":{"TSLA":"테슬라", "PONY":"포니AI"},
     "에너지·원전":   {"CEG":"컨스텔레이션에너지", "VST":"비스트라", "BE":"블룸에너지",
                       "SMR":"뉴스케일파워", "OKLO":"오클로"},
     "원자재·금":     {"GDXU":"금광주 3x", "GLD":"금 현물 ETF"},
-    "원자재·유가":   {"XOM":"엑슨모빌"},
-    "원자재·희토류": {"MP":"MP머티리얼즈"},
+    "원자재·유가":   {"XOM":"엑슨모빌", "USO":"미국 원유 ETF"},
+    "원자재·희토류": {"MP":"MP머티리얼즈", "UUUU":"에너지퓨얼스"},
     "암호화폐":      {"MSTR":"마이크로스트래티지", "BMNR":"비트마인", "COIN":"코인베이스"},
     "양자컴퓨팅":    {"IONQ":"아이온큐", "QBTS":"디웨이브", "INFQ":"인플렉션", "RGTI":"리게티컴퓨팅"},
     "우주·UAM":      {"RKLB":"로켓랩", "SPCX":"스페이스X", "PL":"플래닛랩스",
@@ -77,7 +211,6 @@ WATCHLIST = {
     "방산·드론":     {"RCAT":"레드캣홀딩스", "LMT":"록히드마틴", "LHX":"L3해리스", "AXON":"액손"},
     "주택":          {"ITB":"미국주택건설 ETF", "NAIL":"주택건설 3x"},
     "빅테크":        {"META":"메타", "AAPL":"애플", "GOOGL":"구글", "AMZN":"아마존"},
-    "중국":          {"BABA":"알리바바"},
     "국장":          {"069500.KS":"코스피", "229200.KS":"코스닥"},
 }
 
@@ -316,6 +449,14 @@ def main():
     mkt_level = mkt["level"]
     print(f"시장({MARKET_TICKER}) 국면: {mkt_level} — {mkt['detail']}")
 
+    # 한국장 재실행 때는 미국 이벤트를 다시 조회하지 않고 직전 payload를 유지한다.
+    all_tickers = [tk for items in WATCHLIST.values() for tk in items]
+    if RUN_SCOPE == "all":
+        earnings_map, market_events = fetch_event_calendars(datetime.now(ZoneInfo("Asia/Seoul")), all_tickers)
+    else:
+        earnings_map = {r.get("ticker"): r.get("earnings") for r in (prev_payload or {}).get("stocks", []) if r.get("earnings")}
+        market_events = (prev_payload or {}).get("market_events", [])
+
     results, failed, carried = [], [], 0
     for cat, items in WATCHLIST.items():
         for tk, nm in items.items():
@@ -342,7 +483,9 @@ def main():
                     print("SKIP→KEEP", tk, e)
                 else:
                     failed.append(f"{tk} ({nm}) — {e}"); print("SKIP", tk, e)
-    print(f"수집 {len(results)}종목 (직전 값 유지 {carried}건) · 실패 {len(failed)}건")
+    # 실적 보류 판정은 가격 수집이 끝난 뒤 한 번만 적용한다.
+    attach_earnings_holds(results, earnings_map)
+    print(f"수집 {len(results)}종목 (직전 값 유지 {carried}건) · 실패 {len(failed)}건 · 실적보류 {sum(1 for r in results if r.get('earnings_hold'))}건")
     now_kst = datetime.utcnow() + timedelta(hours=9)
 
     # ── 섹터별 평균 등락률 (핫/약세 섹터 표시용) ──
@@ -361,6 +504,7 @@ def main():
         "hist_fields": HIST_FIELDS,
         "note": "yfinance 무료 데이터 · 15~20분 지연 · 참고용",
         "market": mkt,
+        "market_events": market_events,
         "sectors": sectors,
         "stocks": results, "failed": failed,
     }
