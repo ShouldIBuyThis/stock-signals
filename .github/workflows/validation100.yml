@@ -29,7 +29,7 @@ jobs:
       - name: Build initial raw seed only once
         run: |
           if [ ! -f validation100_input.json ]; then
-            pip install yfinance pandas numpy
+            pip install yfinance pandas numpy exchange-calendars
             python validation100_prepare.py
           else
             echo "validation100_input.json exists — skip heavy historical fetch"
