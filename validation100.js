@@ -9,7 +9,7 @@
  */
 const fs=require('fs'), vm=require('vm');
 const INDEX='index.html', INPUT='validation100_input.json', SIGNALS='signals.json';
-const HORIZONS=[1,3,5], MAX_N=100, FLAT=1.0, LEDGER_DAYS=80;
+const HORIZONS=[1,3,5], MAX_N=100, FLAT=1.0, LEDGER_DAYS=240;
 function die(x){console.error('[ERROR]',x);process.exit(1)}
 for(const f of [INDEX,INPUT,SIGNALS]) if(!fs.existsSync(f)) die(`${f} 없음`);
 const src=fs.readFileSync(INDEX,'utf8'), data=JSON.parse(fs.readFileSync(INPUT,'utf8')), signals=JSON.parse(fs.readFileSync(SIGNALS,'utf8'));
@@ -26,7 +26,7 @@ function recentRow(s,a){const o=histObj(a), mh=marketHist.get(String(o.date));co
 // ledger merge: recent hist wins for same ticker/date.
 const ledger=new Map();for(const r of data.rows||[]){if(r?.ticker&&r?.last_date) ledger.set(`${r.ticker}|${r.last_date}`,{...r,_source:r._source||'BACKTEST'})}
 for(const s of currentStocks) for(const a of s.hist||[]){const r=recentRow(s,a);if(r.last_date) ledger.set(`${r.ticker}|${r.last_date}`,r)}
-// keep bounded by latest 80 distinct signal dates.
+// keep enough recent raw signal dates so each strategy×horizon can maintain up to 100 valid samples.
 const dates=[...new Set([...ledger.values()].map(r=>r.last_date).filter(Boolean))].sort();const keepDates=new Set(dates.slice(-LEDGER_DAYS));let rows=[...ledger.values()].filter(r=>keepDates.has(r.last_date));
 // prices: merge persisted map + latest hist prices.
 const priceMap=new Map(Object.entries(data.prices||{}).map(([tk,a])=>[tk,new Map((a||[]).map(x=>[String(x[0]),Number(x[1])]))]));
