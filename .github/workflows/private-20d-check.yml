@@ -1,0 +1,47 @@
+name: 🔒 개인용 20일 검증
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  private-20d-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 저장소 불러오기
+        uses: actions/checkout@v4
+
+      - name: Node.js 준비
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: +20거래일 내부 검증
+        run: node private_20d_check.js
+
+      - name: 결과를 Actions 요약에 표시
+        if: always()
+        shell: bash
+        run: |
+          echo "## 🔒 개인용 +20거래일 검증" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f private_20d_report.txt ]; then
+            echo '```text' >> "$GITHUB_STEP_SUMMARY"
+            cat private_20d_report.txt >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "검증 리포트가 생성되지 않았습니다. 위 실행 로그를 확인하세요." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: 개인 검증 결과 파일 보관
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: private-20d-result
+          path: |
+            private_20d_report.txt
+            private_20d_samples.csv
+          retention-days: 7
