@@ -235,6 +235,7 @@ html[data-theme="dark"] .c-badge.g2{background:#33240f;color:#ffb968}
 .s-tools button:hover{background:var(--navy-soft);color:var(--navy)}
 .s-tools button.on{color:var(--sell)}
 .s-price{display:flex;align-items:baseline;gap:8px;margin:8px 0 7px;flex-wrap:wrap}
+.s-price .close-date{font-size:10.5px;color:var(--faint);font-weight:700;white-space:nowrap;margin-left:-3px}
 .s-price .p{font-size:18px;font-weight:800;letter-spacing:-.4px}
 .s-price .c{font-size:12.5px;font-weight:700}
 .badge{border-radius:7px;padding:3px 9px;font-size:11.5px;font-weight:800;margin-left:auto}
@@ -1502,16 +1503,7 @@ function widget(title, sub, rows, emptyMsg){
     ${body}
   </div>`;
 }
-function marketBar(){
-  const ev = (state.data && state.data.market_events) || [];
-  if (!ev.length) return "";
-  const today = new Date().toLocaleDateString("en-CA",{timeZone:"Asia/Seoul"});
-  const near = ev.filter(x => x && x.date && Math.abs((new Date(x.date+"T12:00:00")-new Date(today+"T12:00:00"))/86400000)<=1);
-  if (!near.length) return "";
-  const names = near.slice(0,3).map(x=>`${esc(x.type||"시장 이벤트")} ${esc(x.date)}`).join(" · ");
-  return `<div class="strip" style="border-left:3px solid var(--sell)">⚠️ <b>주요 시장 이벤트 주의</b> — ${names}<br>
-    주요 이벤트 전후에는 변동성이 커져 <b>기술적 신호의 신뢰도가 평소보다 낮아질 수 있습니다.</b> 랭킹은 그대로 표시합니다.</div>`;
-}
+function marketBar(){ return ""; }
 
 function isoAddDays(iso,n){
   const d=new Date(iso+"T12:00:00Z"); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10);
@@ -1996,8 +1988,13 @@ function openTimeline(tk){
   const s = allStocks().find(x=>x.ticker===tk); if(!s) return;
   const hs = histStocks(s);
   if (!hs || hs.length < 2){ toast("아직 이력이 충분하지 않아요"); return; }
-  const rows = hs.map(h => Object.assign({d:h.last_date}, evaluate(h)));   // overheatOnly 포함
-  const vals = rows.map(r=>r.score);
+  const rows = hs.map(h => {
+    const sig = evaluate(h); // overheatOnly 포함
+    // 히스토리 대표 게이지는 최종 매수등급과 같은 두 전략(추세/반등)만 사용한다.
+    sig.historyScore = Math.max(sig.pullScore, sig.revScore);
+    return Object.assign({d:h.last_date}, sig);
+  });
+  const vals = rows.map(r=>r.historyScore);
   const lo = Math.min(...vals, 0), hi = Math.max(...vals, 1);
   const md = d => { const p=String(d).split("-"); return p.length===3?`${+p[1]}/${+p[2]}`:d; };
   const bar = v => {
@@ -2005,13 +2002,13 @@ function openTimeline(tk){
     return `<span class="tlbar"><i style="width:${w}%" class="${v>=0?"pos":"neg"}"></i></span>`;
   };
   const body = rows.map((r,i) => {
-    const prev = i ? rows[i-1].score : null;
-    const d = prev==null ? null : Math.round((r.score-prev)*10)/10;
+    const prev = i ? rows[i-1].historyScore : null;
+    const d = prev==null ? null : Math.round((r.historyScore-prev)*10)/10;
     const dd = d==null ? "" : `<span class="tld ${d>0?"up":d<0?"down":""}">${d>0?"+":""}${d}</span>`;
     return `<div class="tlrow${i===rows.length-1?" now":""}">
       <span class="tldate">${esc(md(r.d))}</span>
-      ${bar(r.score)}
-      <span class="tlnum">${r.score}${dd}</span>
+      ${bar(r.historyScore)}
+      <span class="tlnum">${r.historyScore}${dd}</span>
       <span class="tlg ${gradeCls(r)}">${gradeLabel(r)}</span>
     </div>
     <div class="tlsub">추세 ${r.pullScore} · 반등 ${r.revScore}</div>`;
@@ -2038,7 +2035,6 @@ function openTrendModal(tk){
       월요일에는 금요일 종가와 비교됩니다.</p>
     <table class="cmp">
       <tr><th></th><th>어제</th><th>오늘</th><th>변화</th></tr>
-      ${row("종합", s.prevSig.score, s.sig.score)}
       ${row("추세", s.prevSig.pullScore, s.sig.pullScore)}
       ${row("반등", s.prevSig.revScore, s.sig.revScore)}
     </table>
@@ -2086,6 +2082,11 @@ function displayTags(tags, max){
     .map(x => x.t);
 }
 
+function closeDateLabel(d){
+  const m=String(d||"").match(/\d{4}-(\d{2})-(\d{2})/);
+  return m ? `${Number(m[1])}/${Number(m[2])}종가` : "";
+}
+
 function stockCard(s, i, rankless=false){
   const g = s.sig.grade, open = state.expanded.includes(s.ticker);
   const shownTags = s.earnings_hold ? [{c:"t-warn",t:"실적 이벤트 영향권 · 기술등급 보류"}] : displayTags(s.sig.tags, open ? 5 : 3);
@@ -2130,7 +2131,7 @@ function stockCard(s, i, rankless=false){
       </span>
     </div>
     <div class="s-price">
-      <span class="p num">${fmtPrice(s)}</span>
+      <span class="p num">${fmtPrice(s)}</span>${s.last_date?`<span class="close-date">${esc(closeDateLabel(s.last_date))}</span>`:""}
       <span class="c num ${chgCls(s.change_1d)}">${fmtChg(s.change_1d)}</span>
       <span class="badge ${stockGradeCls(s)}">${stockGradeLabel(s)}</span>${s.earnings_hold?"":trendChip(s)}
     </div>
@@ -2191,6 +2192,8 @@ function renderAll(){
 function filterBar(){
   const sorts = [["signal","다중신호순"],["pull","추세순"],["reversal","반등순"],["volume","거래량순"],["category","테마별"],["hold","보류"]];
   const on = v => state.market===v ? "on" : "";
+  const foldNow = visible().map(x=>x.ticker);
+  const allExpanded = foldNow.length>0 && foldNow.every(t=>state.expanded.includes(t));
   return `<div class="filters">
     <div class="frow"><span class="flabel">보기</span>
       <button class="chip view ${state.view==="compact"?"on":""}" data-view="compact">모아보기</button>
@@ -2206,7 +2209,7 @@ function filterBar(){
         <button class="${on("kr")}" data-market="kr" title="한국장">🇰🇷</button>
       </span>
       <button class="chip tgl ${state.badge?"on":""}" data-badgeopen="1">🏷️ 뱃지${state.badge?" ✓":""}</button>
-      ${state.view==="cards" ? `<button class="chip tgl" data-foldall="1">${state.expanded.length ? "📕 모두 접기" : "📖 모두 펼치기"}</button>` : ""}
+      ${state.view==="cards" ? `<button class="chip tgl" data-foldall="1">${allExpanded ? "📕 모두 접기" : "📖 모두 펼치기"}</button>` : ""}
       <button class="chip tgl right ${state.showHoldings?"on":""}" data-hold="1">⭐ 보유만 보기</button>
     </div>
     ${state._badgeOpen ? badgePicker() : ""}
@@ -2349,16 +2352,15 @@ function strategyValidation(){
   result._excludedTickers=[...excludedTickers].sort();
   result._excludedDetails=[...excludedDetails.values()].map(o=>({ticker:o.ticker,date:o.date,event:o.event,timing:o.timing,kinds:[...o.kinds],horizons:[...o.horizons].sort((a,b)=>a-b)})).sort((a,b)=>a.date.localeCompare(b.date)||a.ticker.localeCompare(b.ticker));
 
-  // 공개 예시는 "수익률 TOP3"가 아니라 각 전략의 최근 완료 표본 1건씩.
-  // +5거래일을 우선하고 없으면 +3 → +1, 동일 티커는 중복하지 않는다.
+  // 공개 사례는 전체 승률 계산과 분리된 '최근 수익 사례'다.
+  // +3/+5거래일 검증 통과 표본 중 수익(ret>0)이 난 사례만 무작위로 보여준다.
+  // +1거래일은 공개 사례에서 사용하지 않으며, 동일 티커는 중복하지 않는다.
   const usedExampleTickers=new Set(), examples=[];
   [["multi","다중 신호","🔵"],["pull","추세","📈"],["rev","반등","🔄"]].forEach(([k,label,icon])=>{
-    let pick=null;
-    for(const h of [5,3,1]){
-      const arr=(out[k][h]||[]).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
-      pick=arr.find(x=>!usedExampleTickers.has(x.ticker)) || null;
-      if(pick) break;
-    }
+    const profitable=[3,5]
+      .flatMap(h=>(out[k][h]||[]).filter(x=>x.ret>0))
+      .filter(x=>!usedExampleTickers.has(x.ticker));
+    const pick=profitable.length ? profitable[Math.floor(Math.random()*profitable.length)] : null;
     if(pick){ usedExampleTickers.add(pick.ticker); examples.push(Object.assign({kind:k,label,icon},pick)); }
   });
   result._examples=examples;
@@ -2367,17 +2369,18 @@ function strategyValidation(){
 
 function validationBlock(){
   const v=strategyValidation();
+  const timingLabel=t=>t==="BMO"?"장전(BMO)":t==="AMC"?"장후(AMC)":"시간 미확인";
   const pct=x=>x==null?"—":x+"%"; const av=x=>x==null?"—":`${x>=0?"+":""}${x.toFixed(2)}%`;
   const dateShort=d=>{ const m=String(d||"").match(/\d{4}-(\d{2})-(\d{2})/); return m?`${Number(m[1])}/${Number(m[2])}`:String(d||"—"); };
   const priceText=(tk,p)=>{ const st=allStocks().find(x=>x.ticker===tk); if(!has(p)) return "—"; return st&&st.currency==="KRW" ? `₩${Math.round(p).toLocaleString("ko-KR")}` : `$${Number(p).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`; };
   const exRows=(v._examples||[]).map(x=>`${x.icon} <b>${esc(x.label)} · ${esc(x.ticker)}</b> · ${esc(dateShort(x.date))} 종가 ${esc(priceText(x.ticker,x.buyPrice))} 매수 → <b>${x.horizon}거래일 뒤 ${x.ret>=0?"+":""}${x.ret.toFixed(2)}%</b> <span style="color:var(--faint)">(${esc(priceText(x.ticker,x.endPrice))})</span>`);
-  const exampleBlock=exRows.length ? `<details class="acc validation-examples" style="margin-top:8px"><summary style="cursor:pointer"><b>📌 실제 검증 사례 ${exRows.length}건</b> · 펼쳐보기</summary><div class="strip" style="margin-top:6px;line-height:1.9">${exRows.join("<br>")}<div style="margin-top:5px;color:var(--faint);font-size:10.5px">최근 검증 표본에서 자동 선정 · 실적 영향권 제외 · 수익 사례만 골라내지 않습니다.</div></div></details>` : "";
+  const exampleBlock=exRows.length ? `<details class="acc validation-examples" style="margin-top:8px"><summary style="cursor:pointer"><b>📌 최근 수익 사례 ${exRows.length}건</b> · 펼쳐보기</summary><div class="strip" style="margin-top:6px;line-height:1.9">${exRows.join("<br>")}<div style="margin-top:5px;color:var(--faint);font-size:10.5px">+3·+5거래일 수익 사례만 무작위 표시 · 실적 영향권 제외 · 전체 성과는 위 승률·평균수익률을 참고하세요.</div></div></details>` : "";
   const cell=(o)=>o.n===0
     ? `—<br><span style="font-size:10.5px;color:var(--faint)">표본 없음</span>`
     : `${pct(o.rate)}<br><span style="font-size:10.5px;color:var(--faint)">평균 ${av(o.avg)} · ${o.n}건</span>`;
   const row=k=>`<tr><td><b>${v[k].icon} ${v[k].label}</b></td><td>${cell(v[k][1])}</td><td>${cell(v[k][3])}</td><td>${cell(v[k][5])}</td></tr>`;
   const ex=v._excludedDetails||[];
-  const exDetail=ex.length?`<details class="acc" style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:11px"><b>실적 영향권 표본 자동 제외 · ${v._excludedTickers.length}종목 · 자세히</b></summary><div class="strip" style="margin-top:6px">${ex.map(o=>`${esc(o.ticker)} · 신호일 ${esc(o.date)} · 실적 ${esc(o.event||"?")} ${esc(o.timing)} · +${o.horizons.join("/+")} 제외`).join("<br>")}</div></details>`:"";
+  const exDetail=ex.length?`<details class="acc" style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:11px"><b>실적 영향권 표본 자동 제외 · ${v._excludedTickers.length}종목 · 자세히</b></summary><div class="strip" style="margin-top:6px">${ex.map(o=>`${esc(o.ticker)} · 신호일 ${esc(o.date)} · 실적 ${esc(o.event||"?")} ${esc(timingLabel(o.timing))} · +${o.horizons.join("/+")} 제외`).join("<br>")}</div></details>`:"";
   return `<div class="section help-block"><h3>🧪 신뢰도 검증 결과</h3><div class="strip" style="margin-bottom:8px">실적은 <b>신규 진입을 막는 세션</b>과 <b>가격에 실제 반영된 종가</b>를 분리해 검증합니다. AMC 발표일 종가처럼 아직 실적이 반영되지 않은 결과는 불필요하게 버리지 않습니다. 돌파·경계 뱃지는 방향성 전략이 아니므로 별도 적중률로 계산하지 않습니다.</div>
     <table class="cmp"><tr><th>전략</th><th>+1거래일</th><th>+3거래일</th><th>+5거래일</th></tr>
       ${row("multi")}${row("pull")}${row("rev")}
@@ -2455,12 +2458,10 @@ function renderHelp(){
       </div>
     </details>
 
-    <details class="acc"><summary>실적발표·시장 이벤트 처리 기준</summary>
+    <details class="acc"><summary>실적발표 처리 기준</summary>
       <div class="help-grid" style="margin-top:10px">
         <div class="help-card"><b>BMO · 미국 장전 실적</b><br>다음 미국 거래일에 실적이 예정돼 있으면 <b>직전 종가 신호부터 사전 보류</b>합니다. 발표 당일 미국장도 영향권으로 제외하고, <b>그 다음 정상 미국장 종가가 들어온 뒤</b> 다시 계산합니다.</div>
         <div class="help-card"><b>AMC · 미국 장후 실적</b><br>실적 전 거래일부터 사전 보류하고, 발표일 종가와 <b>실적을 반영하는 다음 미국 거래일</b>까지 제외합니다. 그 다음 정상 미국장 종가가 들어온 뒤 다시 계산합니다.</div>
-        <div class="help-card"><b>⚠ 시장 전체 이벤트</b><br>FOMC·CPI·PCE·주요 고용지표는 종목을 빼지 않고 <b>랭킹 유지 + 경고</b>만 표시합니다.</div>
-        <div class="help-card"><b>백테스트 원칙</b><br>시장 이벤트 포함 결과를 기본값으로 두고, 데이터가 쌓이면 <b>이벤트 제외 결과를 보조 비교</b>합니다.</div>
       </div>
     </details>
 
@@ -2940,7 +2941,7 @@ document.getElementById("main").addEventListener("click", e=>{
     if(!prev){ toast("이벤트 직전 히스토리가 아직 부족해요"); return; }
     const sg=evaluate(prev);
     openModal(`<h3>🟡 ${esc(s.ticker)} 마지막 정상 거래일 신호</h3>
-      <div class="help-card"><b>${esc(prev.last_date)}</b> · ${esc(GRADES[sg.grade]||"중립")} · 기존 종합 ${r1(sg.score)}<br><br>
+      <div class="help-card"><b>${esc(prev.last_date)}</b> · ${esc(GRADES[sg.grade]||"중립")}<br><br>
       📈 추세 ${r1(sg.pullScore)} · 🔄 반등 ${r1(sg.revScore)}<br><br>${esc(sg.line)}</div>
       <div class="modal-actions"><button onclick="closeModal()">닫기</button></div>`); return;
   }
