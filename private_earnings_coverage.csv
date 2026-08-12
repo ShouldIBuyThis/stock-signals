@@ -1,0 +1,77 @@
+ticker,verified_from,verified_to,coverage,note
+KO,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+MCD,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+LLY,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+UNH,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+HIMS,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+JPM,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 4건
+MA,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+CAT,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+ETN,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+MU,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 4건
+SNDK,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 4건
+STX,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+TSM,2025-08-11,2026-07-14,unverified,해당 기간 SEC 8-K Item 2.02 미확인 — 표본 제외 권장
+INTC,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+NVDA,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 4건
+AMD,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+SOXL,2025-08-11,2026-07-14,not_applicable_etf,ETF/펀드: 기업 실적 없음
+ALAB,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+AMAT,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 4건
+DELL,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 4건
+AVGO,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 4건
+MRVL,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 4건
+APLD,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+NBIS,2025-08-11,2026-07-14,unverified,해당 기간 SEC 8-K Item 2.02 미확인 — 표본 제외 권장
+CRWV,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 4건
+IREN,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 5건
+MSFT,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+NOW,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+PLTR,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+CRWD,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 4건
+SNOW,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 4건
+DDOG,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+NET,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+AAOI,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+GLW,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+LITE,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 4건
+CIEN,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 4건
+POET,2025-08-11,2026-07-14,unverified,해당 기간 SEC 8-K Item 2.02 미확인 — 표본 제외 권장
+CRDO,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 4건
+COHR,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 4건
+TSLA,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 7건
+PONY,2025-08-11,2026-07-14,unverified,해당 기간 SEC 8-K Item 2.02 미확인 — 표본 제외 권장
+CEG,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+VST,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+BE,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+SMR,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+OKLO,2025-08-11,2026-07-14,unverified,해당 기간 SEC 8-K Item 2.02 미확인 — 표본 제외 권장
+GEV,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+GDXU,2025-08-11,2026-07-14,not_applicable_etf,ETF/펀드: 기업 실적 없음
+GLD,2025-08-11,2026-07-14,not_applicable_etf,ETF/펀드: 기업 실적 없음
+XOM,2025-08-11,2026-07-14,unverified,해당 기간 SEC 8-K Item 2.02 미확인 — 표본 제외 권장
+USO,2025-08-11,2026-07-14,not_applicable_etf,ETF/펀드: 기업 실적 없음
+MP,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+UUUU,2025-08-11,2026-07-14,unverified,해당 기간 SEC 8-K Item 2.02 미확인 — 표본 제외 권장
+MSTR,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 4건
+BMNR,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 1건
+COIN,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+IONQ,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 4건
+QBTS,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+INFQ,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 2건
+RGTI,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 4건
+RKLB,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+SPCX,2025-08-11,2026-07-14,unverified,해당 기간 SEC 8-K Item 2.02 미확인 — 표본 제외 권장
+PL,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 4건
+JOBY,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 4건
+RDW,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+RCAT,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+LMT,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+LHX,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+AXON,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+ITB,2025-08-11,2026-07-14,not_applicable_etf,ETF/펀드: 기업 실적 없음
+NAIL,2025-08-11,2026-07-14,not_applicable_etf,ETF/펀드: 기업 실적 없음
+META,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+AAPL,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+GOOGL,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
+AMZN,2025-08-11,2026-07-14,verified,SEC 8-K Item 2.02 3건
