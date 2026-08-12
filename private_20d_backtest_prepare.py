@@ -76,7 +76,12 @@ def fetch_earn(tk):
     if app.is_kr_ticker(tk):
         return tk, []
     try:
-        ed = yf.Ticker(tk).get_earnings_dates(limit=40)
+        # offset=1: Yahoo/yfinance에서 "가장 최근 실제 발표"부터 과거 방향으로 조회.
+        # 1년 백테스트에는 분기 실적 4~5개면 충분하므로 12개만 받아 호출량을 줄인다.
+        ed = yf.Ticker(tk).get_earnings_dates(limit=12, offset=1)
+        if ed is None or ed.empty:
+            # 일부 티커/시점에서 offset=1 응답이 비면 기본 조회를 한 번만 보조 시도
+            ed = yf.Ticker(tk).get_earnings_dates(limit=12, offset=0)
         if ed is None or ed.empty:
             return tk, []
         ds = []
@@ -190,6 +195,11 @@ payload = {
     "rows": rows,
     "prices": prices,
     "earnings_dates": earnings_dates,
+    "earnings_coverage": {
+        "tickers_with_dates": len(earnings_dates),
+        "total_dates": sum(len(v) for v in earnings_dates.values()),
+        "us_tickers_checked": sum(1 for tk in tickers if not app.is_kr_ticker(tk)),
+    },
     "failed_fetch": failed_fetch,
     "errors_sample": errors[:100],
 }
@@ -197,4 +207,4 @@ with open("private_20d_backtest_input.json","w",encoding="utf-8") as f:
     json.dump(payload,f,ensure_ascii=False)
 
 app.yf.Ticker = orig_ticker
-print(f"[4/4] 준비 완료 · 신호 입력행 {len(rows)} · 실적일 보유 {len(earnings_dates)}종목 · 수집실패 {len(failed_fetch)}종목")
+print(f"[4/4] 준비 완료 · 신호 입력행 {len(rows)} · 실적일 보유 {len(earnings_dates)}종목/{sum(1 for tk in tickers if not app.is_kr_ticker(tk))}개 미국티커 · 실적일 {sum(len(v) for v in earnings_dates.values())}개 · 수집실패 {len(failed_fetch)}종목")
