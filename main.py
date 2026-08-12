@@ -368,7 +368,7 @@ WATCHLIST = {
                        "ALAB":"아스테라랩스", "AMAT":"어플라이드머티어리얼즈",
                        "DELL":"델", "AVGO":"브로드컴", "MRVL":"마벨테크놀로지"},
     "데이터센터":    {"APLD":"어플라이드디지털", "NBIS":"네비우스", "CRWV":"코어위브", "IREN":"아이렌"},
-    "소프트웨어":    {"MSFT":"마이크로소프트", "NOW":"서비스나우", "PLTR":"팔란티어", "CRWD":"크라우드스트라이크", "SNOW":"스노우플레이크", "DDOG":"데이터독"},
+    "소프트웨어":    {"MSFT":"마이크로소프트", "NOW":"서비스나우", "PLTR":"팔란티어", "CRWD":"크라우드스트라이크", "SNOW":"스노우플레이크", "DDOG":"데이터독", "NET":"클라우드플레어"},
     "광통신":        {"AAOI":"어플라이드옵토", "GLW":"코닝", "LITE":"루멘텀", "CIEN":"시에나", "POET":"포엣테크놀로지",
                       "CRDO":"크레도테크놀로지", "COHR":"코히런트"},
     "전기차·자율주행":{"TSLA":"테슬라", "PONY":"포니AI"},
@@ -579,7 +579,15 @@ def analyze(ticker, name, category):
     # 점수 계산은 index.html의 evaluate() 한 곳에서만 한다.
     # (산식을 파이썬으로 옮기면 두 곳이 반드시 어긋난다)
     hist = []
-    if len(close) >= 61 + HIST_DAYS:
+    if ticker == "SPCX":
+        # SPCX는 신규상장 종목이라 장기 이력(61+10일) 조건을 적용하지 않는다.
+        # analyze()가 통과한 데이터 안에서 최근 최대 10거래일만 내려준다.
+        spcx_days = min(HIST_DAYS, len(close))
+        for j in range(-spcx_days, 0):
+            d_ = snap(j)
+            d_["date"] = d_.pop("last_date")
+            hist.append([d_.get(k) for k in HIST_FIELDS])
+    elif len(close) >= 61 + HIST_DAYS:
         for j in range(-HIST_DAYS, 0):
             d_ = snap(j)
             d_["date"] = d_.pop("last_date")
