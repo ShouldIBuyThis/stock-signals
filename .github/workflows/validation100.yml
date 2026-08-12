@@ -1,11 +1,21 @@
 name: Validation 100
 on:
+  push:
+    paths:
+      - "index.html"
+      - "main.py"
+      - "signals.json"
+      - "validation100_prepare.py"
+      - "validation100.js"
+      - "private_earnings_history.csv"
+      - "private_earnings_coverage.csv"
   workflow_dispatch:
   schedule:
     - cron: "30 21 * * 1-5"
 jobs:
   validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: write
     steps:
@@ -26,6 +36,17 @@ jobs:
           fi
       - name: Re-score current formula and append latest hist
         run: node validation100.js
+      - name: Show recent-100 sample counts
+        run: |
+          node - <<'NODE'
+          const s=require('./validation100_summary.json');
+          for(const [st,hs] of Object.entries(s.strategies||{})) {
+            for(const h of [1,3,5]) {
+              const o=hs[h]||{};
+              console.log(`${st} +${h}: ${o.n||0}/100 (WIN ${o.win||0}, FLAT ${o.flat||0}, LOSS ${o.loss||0})`);
+            }
+          }
+          NODE
       - name: Commit validation ledger and summary
         run: |
           git config user.name "github-actions[bot]"
