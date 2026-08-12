@@ -2,11 +2,11 @@ name: 관심종목 자동 갱신
 
 on:
   schedule:
-    # 미국장: 뉴욕 현지 16:40 — DST 자동 반영 (서머 05:40 / 겨울 06:40 KST)
-    - cron: '40 16 * * 1-5'
+    # 미국장: 뉴욕 현지 16:10 — 장 마감 10분 후, DST 자동 반영
+    - cron: '10 16 * * 1-5'
       timezone: 'America/New_York'
-    # 한국장: 16:20 KST
-    - cron: '20 16 * * 1-5'
+    # 한국장: 15:40 KST — 장 마감 10분 후
+    - cron: '40 15 * * 1-5'
       timezone: 'Asia/Seoul'
   workflow_dispatch:          # Actions 탭에서 수동 실행
 
@@ -36,11 +36,11 @@ jobs:
         run: pip install --upgrade yfinance pandas numpy exchange_calendars
 
       - name: 지표 계산
-        # 한국장 슬롯(16:20 KST)에서는 한국 가격만 새로 받고,
+        # 한국장 슬롯(15:40 KST)에서는 한국 가격만 새로 받고,
         # 미국 가격은 직전 signals.json 값을 그대로 유지한다.
         # 단, main.py가 미국 실적 캘린더는 한 번 더 조회해 장 시작 전 변경을 반영한다.
         env:
-          RUN_SCOPE: ${{ github.event.schedule == '20 16 * * 1-5' && 'kr' || 'all' }}
+          RUN_SCOPE: ${{ github.event.schedule == '40 15 * * 1-5' && 'kr' || 'all' }}
         run: python main.py
 
       - name: signals.json 커밋
