@@ -14,7 +14,6 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import json
-import time
 import exchange_calendars as xcals
 from datetime import datetime, timedelta, time as dtime
 from zoneinfo import ZoneInfo
@@ -22,22 +21,21 @@ from zoneinfo import ZoneInfo
 PERIOD = "1y"    # 52주 신고가 계산 위해 1년
 
 # ── 실행 범위 ────────────────────────────────────────────────
-#  all : 전 종목 수집 (수동 전체 갱신용)
-#  us  : 미국 종목만 수집. 한국 종목은 직전 signals.json 값을 그대로 유지한다.
+#  all : 전 종목 수집 (미국장 마감 후 실행)
 #  kr  : 한국 종목만 수집. 미국 종목은 직전 signals.json 값을 그대로 유지한다.
 #        15:40 KST = 뉴욕 02:40 이라 미국장은 닫혀 있어 새 종가가 없다.
 #        그래도 다시 부르면 (1) 야후 사후 정정으로 장전에 점수가 흔들리고
-#        (2) 불필요한 요청이 레이트리밋을 유발해 종목이 통째로 사라질 수 있다.
+#        (2) 불필요한 71건 요청이 레이트리밋을 유발해 종목이 통째로 사라진다.
 # 카드 타임라인용 — 최근 며칠치 지표를 함께 내려준다.
 # 키를 반복하는 객체 대신 위치 기반 배열이라 용량이 절반 이하다.
 HIST_DAYS = 10
 HIST_FIELDS = ["date","price","change_1d","ma5","ma10","ma20","ma50","ma60","rsi","macd_hist","macd_cross","macd_zero",
                "bb_pos","stoch_k","stoch_d","stoch_cross","vol_ratio","near_high","pct_from_high",
                "ma20_slope","run5_max","run3_sum","range3","range10","vol3_ratio",
-               "res_short","ret20","rs20","atr_pct"]
+               "res_short","ret20","rs20"]
 
 RUN_SCOPE = os.environ.get("RUN_SCOPE", "all").strip().lower()
-if RUN_SCOPE not in ("all", "us", "kr"):
+if RUN_SCOPE not in ("all", "kr"):
     RUN_SCOPE = "all"
 
 def is_kr_ticker(t):
@@ -363,7 +361,7 @@ WATCHLIST = {
     "경기방어": {"KO":"코카콜라", "MCD":"맥도날드"},
     "헬스케어": {"LLY":"일라이릴리", "UNH":"유나이티드헬스", "HIMS":"힘스앤허스"},
     "금융": {"JPM":"JP모건", "MA":"마스터카드"},
-    "산업재": {"CAT":"캐터필러", "ETN":"이튼"},
+    "산업재": {"CAT":"캐터필러"},
     "반도체·메모리":  {"MU":"마이크론", "SNDK":"샌디스크", "STX":"씨게이트"},
     "반도체·파운드리":{"TSM":"TSMC", "INTC":"인텔"},
     "반도체·GPU":     {"NVDA":"엔비디아", "AMD":"AMD", "SOXL":"반도체 3x",
@@ -375,7 +373,7 @@ WATCHLIST = {
                       "CRDO":"크레도테크놀로지", "COHR":"코히런트"},
     "전기차·자율주행":{"TSLA":"테슬라", "PONY":"포니AI"},
     "에너지·원전":   {"CEG":"컨스텔레이션에너지", "VST":"비스트라", "BE":"블룸에너지",
-                      "SMR":"뉴스케일파워", "OKLO":"오클로", "GEV":"GE버노바"},
+                      "SMR":"뉴스케일파워", "OKLO":"오클로"},
     "원자재·금":     {"GDXU":"금광주 3x", "GLD":"금 현물 ETF"},
     "원자재·유가":   {"XOM":"엑슨모빌", "USO":"미국 원유 ETF"},
     "원자재·희토류": {"MP":"MP머티리얼즈", "UUUU":"에너지퓨얼스"},
@@ -629,27 +627,25 @@ def _storage_row(r, mkt):
     return out
 
 def save_history(results, mkt, now_kst):
-    """미국/한국 이력을 분리한다. us/kr은 해당 시장만, all은 둘 다 저장한다."""
-    regions = ("us", "kr") if RUN_SCOPE == "all" else (RUN_SCOPE,)
-    for region in regions:
-        selected = [r for r in results if is_kr_ticker(r.get("ticker", "")) == (region == "kr")]
-        dates = [r.get("last_date") for r in selected if r.get("last_date")]
-        if not dates:
-            print(f"이력 저장 건너뜀: {region} last_date 없음")
-            continue
-        day = max(dates)
-        folder=f"history/{region}"; os.makedirs(folder, exist_ok=True)
-        slim=[_storage_row(r,mkt) for r in selected]
-        payload={
-            "date":day, "market":"KR" if region=="kr" else "US",
-            "saved_at":now_kst.strftime("%Y-%m-%d %H:%M")+" KST",
-            "market_state":{k:mkt.get(k) for k in ("ticker","level","below_ma20","ret20") if k in mkt},
-            "stocks":slim,
-        }
-        path=f"{folder}/{day}.json"; existed=os.path.exists(path)
-        with open(path,"w",encoding="utf-8") as f: json.dump(payload,f,ensure_ascii=False)
-        size=os.path.getsize(path)/1024
-        print(f"이력 저장: {path} ({size:.0f}KB, {len(slim)}종목){' — 덮어씀' if existed else ''}")
+    """미국/한국 이력을 분리한다. all은 미국만, kr은 한국만 저장한다."""
+    region = "kr" if RUN_SCOPE == "kr" else "us"
+    selected = [r for r in results if is_kr_ticker(r.get("ticker", "")) == (region == "kr")]
+    dates = [r.get("last_date") for r in selected if r.get("last_date")]
+    if not dates:
+        print(f"이력 저장 건너뜀: {region} last_date 없음"); return
+    day = max(dates)
+    folder=f"history/{region}"; os.makedirs(folder, exist_ok=True)
+    slim=[_storage_row(r,mkt) for r in selected]
+    payload={
+        "date":day, "market":"KR" if region=="kr" else "US",
+        "saved_at":now_kst.strftime("%Y-%m-%d %H:%M")+" KST",
+        "market_state":{k:mkt.get(k) for k in ("ticker","level","below_ma20","ret20") if k in mkt},
+        "stocks":slim,
+    }
+    path=f"{folder}/{day}.json"; existed=os.path.exists(path)
+    with open(path,"w",encoding="utf-8") as f: json.dump(payload,f,ensure_ascii=False)
+    size=os.path.getsize(path)/1024
+    print(f"이력 저장: {path} ({size:.0f}KB, {len(slim)}종목){' — 덮어씀' if existed else ''}")
 
 def attach_historical_rs20(results, mkt):
     """각 과거 날짜의 종목 ret20에서 같은 날짜 QQQ ret20을 빼 rs20을 채운다."""
@@ -667,99 +663,32 @@ def attach_historical_rs20(results, mkt):
             d, rr = h[idate], h[iret]; qr=qret.get(str(d))
             h[irs] = safe(float(rr)-float(qr)) if rr is not None and qr is not None else None
 
-
-def _hist_to_dicts(hist, fields):
-    out=[]
-    if not isinstance(hist, list) or not isinstance(fields, list) or not fields:
-        return out
-    for row in hist:
-        if not isinstance(row, (list, tuple)): continue
-        d={fields[i]: row[i] for i in range(min(len(fields), len(row)))}
-        if d.get("date"): out.append(d)
-    return out
-
-def stabilize_forward_hist(results, prev_rows, prev_hist_fields):
-    """과거 검증 입력을 고정하고, 구형 row에는 atr_pct만 1회 보강한다."""
-    prev_hist_fields = prev_hist_fields if isinstance(prev_hist_fields, list) and prev_hist_fields else HIST_FIELDS
-    for r in results:
-        prev=(prev_rows or {}).get(r.get("ticker")) or {}
-        fresh=_hist_to_dicts(r.get("hist") or [], HIST_FIELDS)
-        old=_hist_to_dicts(prev.get("hist") or [], prev_hist_fields)
-        fresh_by_date={str(x.get("date")):x for x in fresh if x.get("date")}
-        merged={}
-        for x in old:
-            d=str(x.get("date"))
-            keep={k:x.get(k) for k in HIST_FIELDS}
-            if keep.get("atr_pct") is None and d in fresh_by_date:
-                keep["atr_pct"]=fresh_by_date[d].get("atr_pct")
-            merged[d]=keep
-        for x in fresh:
-            d=str(x.get("date"))
-            if d not in merged:
-                merged[d]={k:x.get(k) for k in HIST_FIELDS}
-        days=sorted(merged)[-HIST_DAYS:]
-        r["hist"]=[[merged[d].get(k) for k in HIST_FIELDS] for d in days]
-
-def freeze_validation_earnings(results, prev_rows):
-    """검증의 실적 제외 날짜를 누적 보존해 같은 과거 표본이 재실행 때 흔들리지 않게 한다."""
-    for r in results:
-        prev=(prev_rows or {}).get(r.get("ticker")) or {}
-        blocked=set(prev.get("validation_blocked_dates") or [])
-        affected=set(prev.get("validation_affected_dates") or [])
-        ev=r.get("earnings") or {}
-        blocked.update(ev.get("blocked_signal_dates") or [])
-        affected.update(ev.get("affected_close_dates") or [])
-        r["validation_blocked_dates"]=sorted(x for x in blocked if x)
-        r["validation_affected_dates"]=sorted(x for x in affected if x)
-
 def main():
     prev_rows, prev_payload = load_previous()
     print(f"실행 범위: {RUN_SCOPE} · 직전 데이터 {len(prev_rows)}종목 보유")
 
+    # QQQ 시장 국면은 어느 실행이든 새로 본다 (요청 1건)
+    mkt = market_state(MARKET_TICKER)
+    mkt_level = mkt["level"]
+    print(f"시장({MARKET_TICKER}) 국면: {mkt_level} — {mkt['detail']}")
+
+    # 한국장 실행에서도 미국 가격은 유지하되 실적 일정만 다시 조회해 장 시작 전 변경을 잡는다.
+    all_tickers = [tk for items in WATCHLIST.values() for tk in items]
     now_kst = datetime.now(_KST)
-
-    # 한국장 실행은 한국 종가만 빠르게 갱신한다.
-    # 미국 가격·QQQ 시장상태·미국 실적 캘린더는 직전 signals.json 값을 그대로 유지한다.
-    # (점수 산식/종가 판정/검증 로직과 무관한 네트워크 요청 최적화)
-    if RUN_SCOPE == "kr":
-        prev_payload = prev_payload or {}
-        mkt = prev_payload.get("market") or {
-            "ticker": MARKET_TICKER, "level": "neutral", "below_ma20": False,
-            "detail": "직전 시장 상태 없음"
-        }
-        mkt_level = mkt.get("level") or "neutral"
-        print(f"시장({MARKET_TICKER}) 국면: {mkt_level} — 직전 값 유지")
-
-        earnings_map = {
-            r.get("ticker"): r.get("earnings")
-            for r in prev_payload.get("stocks", [])
-            if r.get("ticker") and r.get("earnings")
-        }
-        market_events = prev_payload.get("market_events") or []
-        calendar_status = prev_payload.get("calendar_status") or {}
-        print(f"KR 빠른 갱신: 미국 시세/QQQ/실적 캘린더 재조회 생략 · 기존 실적 {len(earnings_map)}종목 유지")
-    else:
-        # 미국장 또는 전체 실행일 때만 QQQ와 미국 실적 일정을 새로 조회한다.
-        mkt = market_state(MARKET_TICKER)
-        mkt_level = mkt["level"]
-        print(f"시장({MARKET_TICKER}) 국면: {mkt_level} — {mkt['detail']}")
-
-        all_tickers = [tk for items in WATCHLIST.values() for tk in items]
-        earnings_map, market_events, calendar_status = fetch_event_calendars(now_kst, all_tickers)
-        # 조회 실패/누락 시 직전 이벤트를 보조적으로 유지한다.
-        prev_earn = {r.get("ticker"): r.get("earnings") for r in (prev_payload or {}).get("stocks", []) if r.get("earnings")}
-        for tk, ev in prev_earn.items():
-            if tk not in earnings_map and ev:
-                earnings_map[tk]=ev
+    earnings_map, market_events, calendar_status = fetch_event_calendars(now_kst, all_tickers)
+    # 조회 실패/누락 시 직전 이벤트를 보조적으로 유지한다.
+    prev_earn = {r.get("ticker"): r.get("earnings") for r in (prev_payload or {}).get("stocks", []) if r.get("earnings")}
+    for tk, ev in prev_earn.items():
+        if tk not in earnings_map and ev:
+            earnings_map[tk]=ev
 
     results, failed, carried = [], [], 0
-    retry_queue = []
     for cat, items in WATCHLIST.items():
         for tk, nm in items.items():
             is_kr = is_kr_ticker(tk)
 
-            # 시장별 실행: 대상이 아닌 시장은 건드리지 않고 직전 값을 그대로 넘긴다.
-            if (RUN_SCOPE == "kr" and not is_kr) or (RUN_SCOPE == "us" and is_kr):
+            # 한국장 실행: 미국 종목은 건드리지 않고 직전 값을 그대로 넘긴다
+            if RUN_SCOPE == "kr" and not is_kr:
                 if tk in prev_rows:
                     kept = dict(prev_rows[tk])
                     kept["name"], kept["category"] = nm, cat  # 가격은 유지, 메타데이터는 현재 WATCHLIST에 맞춘다.
@@ -775,38 +704,14 @@ def main():
                 row["market_weak"] = bool((not is_kr) and mkt_level in ("weak","caution"))
                 results.append(row); print("OK", tk)
             except Exception as e:
-                # 1차 실패 종목은 우선 직전 값을 자리에 유지하고, 전 종목 처리 후 5분 뒤 딱 1회 재시도한다.
-                slot = len(results)
+                # 실패해도 대시보드에서 사라지지 않게 직전 값을 유지한다
                 if tk in prev_rows:
                     kept = dict(prev_rows[tk])
                     kept["name"], kept["category"] = nm, cat
                     results.append(kept); carried += 1
-                    print("WAIT→RETRY", tk, e, "· 직전 값 임시 유지")
+                    print("SKIP→KEEP", tk, e)
                 else:
-                    results.append(None)
-                    print("WAIT→RETRY", tk, e, "· 직전 값 없음")
-                retry_queue.append((slot, cat, tk, nm, is_kr))
-
-    if retry_queue:
-        print(f"재시도 대기: {len(retry_queue)}종목 · 5분 후 1회 재시도")
-        time.sleep(300)
-        for slot, cat, tk, nm, is_kr in retry_queue:
-            try:
-                row = analyze(tk, nm, cat)
-                row["market_level"] = "neutral" if is_kr else mkt_level
-                row["market_weak"] = bool((not is_kr) and mkt_level in ("weak","caution"))
-                if results[slot] is not None:
-                    carried = max(0, carried - 1)
-                results[slot] = row
-                print("RETRY-OK", tk)
-            except Exception as e:
-                if results[slot] is not None:
-                    print("RETRY-FAIL→KEEP", tk, e)
-                else:
-                    failed.append(f"{tk} ({nm}) — 재시도 실패: {e}")
-                    print("RETRY-FAIL", tk, e)
-
-    results = [r for r in results if r is not None]
+                    failed.append(f"{tk} ({nm}) — {e}"); print("SKIP", tk, e)
     # 실적 보류 판정은 가격 수집이 끝난 뒤 한 번만 적용한다.
     attach_earnings_holds(results, earnings_map, now_kst)
     print(f"수집 {len(results)}종목 (직전 값 유지 {carried}건) · 실패 {len(failed)}건 · 실적보류 {sum(1 for r in results if r.get('earnings_hold'))}건")
@@ -834,10 +739,6 @@ def main():
         else:
             _s["rs20"] = None
     attach_historical_rs20(results, mkt)
-
-    # 과거 전향검증 입력과 실적 제외표본을 고정한다. 현재 점수/산식에는 영향 없음.
-    stabilize_forward_hist(results, prev_rows, (prev_payload or {}).get("hist_fields"))
-    freeze_validation_earnings(results, prev_rows)
 
     payload = {
         "generated_at": now_kst.strftime("%Y-%m-%d %H:%M") + " KST",
