@@ -34,7 +34,7 @@ HIST_DAYS = 10
 HIST_FIELDS = ["date","price","change_1d","ma5","ma10","ma20","ma50","ma60","rsi","macd_hist","macd_cross","macd_zero",
                "bb_pos","stoch_k","stoch_d","stoch_cross","vol_ratio","near_high","pct_from_high",
                "ma20_slope","run5_max","run3_sum","range3","range10","vol3_ratio",
-               "res_short","ret20","rs20"]
+               "res_short","ret20","rs20","atr_pct"]
 
 RUN_SCOPE = os.environ.get("RUN_SCOPE", "all").strip().lower()
 if RUN_SCOPE not in ("all", "us", "kr"):
