@@ -671,20 +671,41 @@ def main():
     prev_rows, prev_payload = load_previous()
     print(f"실행 범위: {RUN_SCOPE} · 직전 데이터 {len(prev_rows)}종목 보유")
 
-    # QQQ 시장 국면은 어느 실행이든 새로 본다 (요청 1건)
-    mkt = market_state(MARKET_TICKER)
-    mkt_level = mkt["level"]
-    print(f"시장({MARKET_TICKER}) 국면: {mkt_level} — {mkt['detail']}")
-
-    # 한국장 실행에서도 미국 가격은 유지하되 실적 일정만 다시 조회해 장 시작 전 변경을 잡는다.
-    all_tickers = [tk for items in WATCHLIST.values() for tk in items]
     now_kst = datetime.now(_KST)
-    earnings_map, market_events, calendar_status = fetch_event_calendars(now_kst, all_tickers)
-    # 조회 실패/누락 시 직전 이벤트를 보조적으로 유지한다.
-    prev_earn = {r.get("ticker"): r.get("earnings") for r in (prev_payload or {}).get("stocks", []) if r.get("earnings")}
-    for tk, ev in prev_earn.items():
-        if tk not in earnings_map and ev:
-            earnings_map[tk]=ev
+
+    # 한국장 실행은 한국 종가만 빠르게 갱신한다.
+    # 미국 가격·QQQ 시장상태·미국 실적 캘린더는 직전 signals.json 값을 그대로 유지한다.
+    # (점수 산식/종가 판정/검증 로직과 무관한 네트워크 요청 최적화)
+    if RUN_SCOPE == "kr":
+        prev_payload = prev_payload or {}
+        mkt = prev_payload.get("market") or {
+            "ticker": MARKET_TICKER, "level": "neutral", "below_ma20": False,
+            "detail": "직전 시장 상태 없음"
+        }
+        mkt_level = mkt.get("level") or "neutral"
+        print(f"시장({MARKET_TICKER}) 국면: {mkt_level} — 직전 값 유지")
+
+        earnings_map = {
+            r.get("ticker"): r.get("earnings")
+            for r in prev_payload.get("stocks", [])
+            if r.get("ticker") and r.get("earnings")
+        }
+        market_events = prev_payload.get("market_events") or []
+        calendar_status = prev_payload.get("calendar_status") or {}
+        print(f"KR 빠른 갱신: 미국 시세/QQQ/실적 캘린더 재조회 생략 · 기존 실적 {len(earnings_map)}종목 유지")
+    else:
+        # 미국장 또는 전체 실행일 때만 QQQ와 미국 실적 일정을 새로 조회한다.
+        mkt = market_state(MARKET_TICKER)
+        mkt_level = mkt["level"]
+        print(f"시장({MARKET_TICKER}) 국면: {mkt_level} — {mkt['detail']}")
+
+        all_tickers = [tk for items in WATCHLIST.values() for tk in items]
+        earnings_map, market_events, calendar_status = fetch_event_calendars(now_kst, all_tickers)
+        # 조회 실패/누락 시 직전 이벤트를 보조적으로 유지한다.
+        prev_earn = {r.get("ticker"): r.get("earnings") for r in (prev_payload or {}).get("stocks", []) if r.get("earnings")}
+        for tk, ev in prev_earn.items():
+            if tk not in earnings_map and ev:
+                earnings_map[tk]=ev
 
     results, failed, carried = [], [], 0
     retry_queue = []
