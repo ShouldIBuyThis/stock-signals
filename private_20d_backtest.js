@@ -117,6 +117,9 @@ lines.push(`생성: ${new Date().toISOString()}`);
 lines.push(`신호 구간: ${data.signal_date_from} ~ ${data.signal_date_to} · 현재 산식 소급 적용`);
 lines.push(`현재 main.py 원시지표 + 현재 index.html evaluate()/multiSignalRank() 직접 재사용`);
 lines.push(`과거 실적일 best-effort 제외 · 자동배포/사이트 수정 없음`);
+const ec=data.earnings_coverage||{};
+lines.push(`실적 캘린더 확보: ${ec.tickers_with_dates??0}/${ec.us_tickers_checked??0}개 미국티커 · 과거 실적일 ${ec.total_dates??0}개`);
+if((ec.tickers_with_dates??0)===0) lines.push('⚠ 실적 캘린더 확보 0건 — 실적 제외 수치는 신뢰하지 마세요.');
 lines.push('');
 for(const k of ['multi','pull','rev']){
   const s=R[k];
