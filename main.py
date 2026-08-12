@@ -667,6 +667,51 @@ def attach_historical_rs20(results, mkt):
             d, rr = h[idate], h[iret]; qr=qret.get(str(d))
             h[irs] = safe(float(rr)-float(qr)) if rr is not None and qr is not None else None
 
+
+def _hist_to_dicts(hist, fields):
+    out=[]
+    if not isinstance(hist, list) or not isinstance(fields, list) or not fields:
+        return out
+    for row in hist:
+        if not isinstance(row, (list, tuple)): continue
+        d={fields[i]: row[i] for i in range(min(len(fields), len(row)))}
+        if d.get("date"): out.append(d)
+    return out
+
+def stabilize_forward_hist(results, prev_rows, prev_hist_fields):
+    """과거 검증 입력을 고정하고, 구형 row에는 atr_pct만 1회 보강한다."""
+    prev_hist_fields = prev_hist_fields if isinstance(prev_hist_fields, list) and prev_hist_fields else HIST_FIELDS
+    for r in results:
+        prev=(prev_rows or {}).get(r.get("ticker")) or {}
+        fresh=_hist_to_dicts(r.get("hist") or [], HIST_FIELDS)
+        old=_hist_to_dicts(prev.get("hist") or [], prev_hist_fields)
+        fresh_by_date={str(x.get("date")):x for x in fresh if x.get("date")}
+        merged={}
+        for x in old:
+            d=str(x.get("date"))
+            keep={k:x.get(k) for k in HIST_FIELDS}
+            if keep.get("atr_pct") is None and d in fresh_by_date:
+                keep["atr_pct"]=fresh_by_date[d].get("atr_pct")
+            merged[d]=keep
+        for x in fresh:
+            d=str(x.get("date"))
+            if d not in merged:
+                merged[d]={k:x.get(k) for k in HIST_FIELDS}
+        days=sorted(merged)[-HIST_DAYS:]
+        r["hist"]=[[merged[d].get(k) for k in HIST_FIELDS] for d in days]
+
+def freeze_validation_earnings(results, prev_rows):
+    """검증의 실적 제외 날짜를 누적 보존해 같은 과거 표본이 재실행 때 흔들리지 않게 한다."""
+    for r in results:
+        prev=(prev_rows or {}).get(r.get("ticker")) or {}
+        blocked=set(prev.get("validation_blocked_dates") or [])
+        affected=set(prev.get("validation_affected_dates") or [])
+        ev=r.get("earnings") or {}
+        blocked.update(ev.get("blocked_signal_dates") or [])
+        affected.update(ev.get("affected_close_dates") or [])
+        r["validation_blocked_dates"]=sorted(x for x in blocked if x)
+        r["validation_affected_dates"]=sorted(x for x in affected if x)
+
 def main():
     prev_rows, prev_payload = load_previous()
     print(f"실행 범위: {RUN_SCOPE} · 직전 데이터 {len(prev_rows)}종목 보유")
@@ -789,6 +834,10 @@ def main():
         else:
             _s["rs20"] = None
     attach_historical_rs20(results, mkt)
+
+    # 과거 전향검증 입력과 실적 제외표본을 고정한다. 현재 점수/산식에는 영향 없음.
+    stabilize_forward_hist(results, prev_rows, (prev_payload or {}).get("hist_fields"))
+    freeze_validation_earnings(results, prev_rows)
 
     payload = {
         "generated_at": now_kst.strftime("%Y-%m-%d %H:%M") + " KST",
