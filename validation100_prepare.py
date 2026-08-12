@@ -21,7 +21,7 @@ if not (ROOT/"main.py").exists():
 import main as app
 
 LOOKBACK_PERIOD = "2y"
-BACKTEST_DAYS = 60
+BACKTEST_DAYS = 240
 MAX_WORKERS = 8
 
 watch = [(cat, tk, nm) for cat, items in app.WATCHLIST.items() for tk, nm in items.items()]
@@ -126,7 +126,7 @@ qqq_dates = [pd.Timestamp(x).strftime("%Y-%m-%d") for x in cache[app.MARKET_TICK
 if len(qqq_dates) < 100:
     raise SystemExit("QQQ 거래일이 부족합니다.")
 
-# 초기 seed는 최근 60개 완료 신호일만 만든다. +1/+3/+5 중 가장 긴 +5 결과가 존재하는 날짜까지만.
+# 초기 seed는 최근 최대 240개 완료 신호일을 만들어 전략×기간별 최근 유효 100건 확보에 충분한 후보를 제공한다. +1/+3/+5 중 가장 긴 +5 결과가 존재하는 날짜까지만.
 eligible_qqq = qqq_dates[:-5]
 signal_dates = eligible_qqq[-BACKTEST_DAYS:]
 if not signal_dates:
