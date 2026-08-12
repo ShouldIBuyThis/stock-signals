@@ -16,13 +16,20 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: pip install yfinance pandas numpy
-      - run: python validation100_prepare.py
-      - run: node validation100.js
-      - name: Commit validation outputs
+      - name: Build initial raw seed only once
+        run: |
+          if [ ! -f validation100_input.json ]; then
+            pip install yfinance pandas numpy
+            python validation100_prepare.py
+          else
+            echo "validation100_input.json exists — skip heavy historical fetch"
+          fi
+      - name: Re-score current formula and append latest hist
+        run: node validation100.js
+      - name: Commit validation ledger and summary
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add validation100_summary.json validation100_samples.csv
+          git add validation100_input.json validation100_summary.json validation100_samples.csv
           git diff --cached --quiet || git commit -m "Update validation100"
           git push
