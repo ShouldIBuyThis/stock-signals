@@ -1,0 +1,34 @@
+name: 🧾 과거 실적 CSV 1회 생성
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: SEC EDGAR에서 확정 실적일 생성
+        run: python private_earnings_sec_builder.py
+      - name: 요약
+        shell: bash
+        run: |
+          echo "## 🧾 과거 실적 CSV" >> "$GITHUB_STEP_SUMMARY"
+          echo "- history rows: $(($(wc -l < private_earnings_history.csv)-1))" >> "$GITHUB_STEP_SUMMARY"
+          echo "- coverage rows: $(($(wc -l < private_earnings_coverage.csv)-1))" >> "$GITHUB_STEP_SUMMARY"
+          echo "- verified: $(grep -c ',verified,' private_earnings_coverage.csv || true)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- unverified: $(grep -c ',unverified,' private_earnings_coverage.csv || true)" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: private-earnings-history
+          path: |
+            private_earnings_history.csv
+            private_earnings_coverage.csv
+          retention-days: 7
