@@ -1328,7 +1328,7 @@ function decorate(s){
    산식을 파이썬으로 옮기지 않는 이유: 두 곳에 두면 반드시 어긋난다. */
 const HIST_FIELDS_DEFAULT = ["date","price","change_1d","ma5","ma10","ma20","ma50","ma60","rsi","macd_hist","macd_cross","macd_zero",
   "bb_pos","stoch_k","stoch_d","stoch_cross","vol_ratio","near_high","pct_from_high",
-  "ma20_slope","run5_max","run3_sum","range3","range10","vol3_ratio","res_short","ret20","rs20"];
+  "ma20_slope","run5_max","run3_sum","range3","range10","vol3_ratio","res_short","ret20","rs20","atr_pct"];
 function histFields(){
   const f = state.data && state.data.hist_fields;
   return Array.isArray(f) && f.length ? f : HIST_FIELDS_DEFAULT;
@@ -1354,7 +1354,7 @@ function histRow(s, row, i, total){
     macd_cross: o.macd_cross || "none", macd_zero: o.macd_zero || "above",
     bb_pos: num(o.bb_pos), stoch_k: num(o.stoch_k), stoch_d: num(o.stoch_d),
     stoch_cross: o.stoch_cross || "none", vol_ratio: num(o.vol_ratio),
-    near_high: !!o.near_high, pct_from_high: num(o.pct_from_high),
+    near_high: !!o.near_high, pct_from_high: num(o.pct_from_high), atr_pct: num(o.atr_pct),
     change_1d: num(o.change_1d),
     ma20_slope: num(o.ma20_slope), run5_max: num(o.run5_max), run3_sum: num(o.run3_sum),
     res_short: num(o.res_short), ret20: num(o.ret20), rs20: num(o.rs20),
