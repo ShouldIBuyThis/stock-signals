@@ -2187,7 +2187,10 @@ function renderAll(){
         <div class="${wrapCls}">${arr.map(item).join("")}</div></div>`;
     }
   } else {
-    const sorted = state.sort==="signal" ? signalRanked(list) : list.slice().sort((a,b)=>sortKey(b)-sortKey(a) || Math.abs(b.change_1d||0)-Math.abs(a.change_1d||0));
+    const sorted = state.sort==="signal" ? signalRanked(list)
+      : state.sort==="pull" ? list.slice().sort((a,b)=>b.sig.pullGrade-a.sig.pullGrade || b.sig.pullScore-a.sig.pullScore || a.ticker.localeCompare(b.ticker))
+      : state.sort==="reversal" ? list.slice().sort((a,b)=>b.sig.revGrade-a.sig.revGrade || b.sig.revScore-a.sig.revScore || a.ticker.localeCompare(b.ticker))
+      : list.slice().sort((a,b)=>sortKey(b)-sortKey(a) || Math.abs(b.change_1d||0)-Math.abs(a.change_1d||0));
     const label = state.sort==="pull" ? "추세 순" : state.sort==="reversal" ? "반등 순" : state.sort==="volume" ? "거래량 순" : "다중 신호순";
     const limit = Math.max(20, state.displayLimit || 20);
     const shown = sorted.slice(0, limit);
