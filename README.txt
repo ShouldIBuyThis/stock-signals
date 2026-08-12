@@ -1,11 +1,8 @@
-# Validation100 patch
+Validation100 v2
 
-- Uses current `main.py` raw-indicator logic and current `index.html` `evaluate()` / `multiSignalRank()`.
-- Recomputes +1/+3/+5; does **not** reuse the old +20 WIN/LOSS labels.
-- WIN > +1%, FLAT -1%..+1%, LOSS < -1%.
-- Excludes earnings-contaminated windows and unverified US-company earnings coverage.
-- Merges `signals.json` recent hist and gives it priority over overlapping historical rows.
-- Keeps the most recent **100 valid samples per strategy × horizon** for displayed statistics.
-- Raw historical/backtest source is marked `BACKTEST`; recent hist is `RECENT_HIST`.
-
-Required repo files: `main.py`, `index.html`, `signals.json`, `private_earnings_history.csv`, `private_earnings_coverage.csv`.
+1. Replace index.html with included index.html. Other UI/strategy code is unchanged.
+2. Put validation100_prepare.py and validation100.js in repository root.
+3. Put .github/workflows/validation100.yml in the same path.
+4. Existing private_earnings_history.csv AND private_earnings_coverage.csv are required for the initial seed. If coverage is missing, the initial seed intentionally aborts instead of assuming no earnings.
+5. First Action run performs one heavy historical seed build. Later runs skip yfinance historical backfill and only merge recent signals.json hist, re-score with current evaluate(), and update the tiny summary.
+6. WIN > +1%, FLAT -1%..+1%, LOSS < -1%; BMO/AMC/UNKNOWN affected closes are treated separately; max 100 valid samples per strategy×horizon.
