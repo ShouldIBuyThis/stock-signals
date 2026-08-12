@@ -1450,6 +1450,17 @@ function sortKey(s){
   if (state.sort==="volume") return has(s.vol_ratio) ? s.vol_ratio : -1;
   return 0; // 다중신호순은 raw score가 아니라 overallRanked()를 사용
 }
+
+function strategyRanked(list, kind, buyOnly=false){
+  const isPull = kind==="pull";
+  let a=list.slice();
+  if(buyOnly) a=a.filter(s => (isPull ? s.sig.pullGrade : s.sig.revGrade) >= 4);
+  return a.sort((x,y)=>{
+    const sx=isPull ? x.sig.pullScore : x.sig.revScore;
+    const sy=isPull ? y.sig.pullScore : y.sig.revScore;
+    return sy-sx || Math.abs(y.change_1d||0)-Math.abs(x.change_1d||0) || x.ticker.localeCompare(y.ticker);
+  });
+}
 function overallRanked(list){
   if(!list.length) return [];
   const rank=(key)=>{const a=list.slice().sort((a,b)=>key(b)-key(a));const m={};a.forEach((s,i)=>m[s.ticker]=i+1);return m;};
@@ -1662,9 +1673,9 @@ function renderTheme(){
   const byVol = list.filter(s=>has(s.vol_ratio)).sort((a,b)=>b.vol_ratio-a.vol_ratio).slice(0,5)
     .map(s=>({ticker:s.ticker,name:s.name,val:r1(s.vol_ratio)+"배",cls:"up"}));
   const multi = multiSignalTop(list);
-  const pull = list.filter(s=>s.sig.pullGrade>=4).sort((a,b)=>b.sig.pullGrade-a.sig.pullGrade || b.sig.pullScore-a.sig.pullScore).slice(0,5)
+  const pull = strategyRanked(list,"pull",true).slice(0,5)
     .map(s=>({ticker:s.ticker,name:s.name,val:""}));
-  const rev = list.filter(s=>s.sig.revGrade>=4).sort((a,b)=>b.sig.revGrade-a.sig.revGrade || b.sig.revScore-a.sig.revScore).slice(0,5)
+  const rev = strategyRanked(list,"reversal",true).slice(0,5)
     .map(s=>({ticker:s.ticker,name:s.name,val:""}));
 
   return `
@@ -2188,8 +2199,8 @@ function renderAll(){
     }
   } else {
     const sorted = state.sort==="signal" ? signalRanked(list)
-      : state.sort==="pull" ? list.slice().sort((a,b)=>b.sig.pullGrade-a.sig.pullGrade || b.sig.pullScore-a.sig.pullScore || a.ticker.localeCompare(b.ticker))
-      : state.sort==="reversal" ? list.slice().sort((a,b)=>b.sig.revGrade-a.sig.revGrade || b.sig.revScore-a.sig.revScore || a.ticker.localeCompare(b.ticker))
+      : state.sort==="pull" ? strategyRanked(list,"pull")
+      : state.sort==="reversal" ? strategyRanked(list,"reversal")
       : list.slice().sort((a,b)=>sortKey(b)-sortKey(a) || Math.abs(b.change_1d||0)-Math.abs(a.change_1d||0));
     const label = state.sort==="pull" ? "추세 순" : state.sort==="reversal" ? "반등 순" : state.sort==="volume" ? "거래량 순" : "다중 신호순";
     const limit = Math.max(20, state.displayLimit || 20);
@@ -2258,6 +2269,13 @@ function badgeList(){
 /* ══════════ 최근 신뢰도 검증 — 카드 hist를 현재 evaluate()로 재채점 ══════════ */
 function earningsWindowsForValidation(s,hs){
   const blocked=new Set(), affected=new Set(), e=s.earnings||{};
+  const frozenB=Array.isArray(s.validation_blocked_dates)?s.validation_blocked_dates:[];
+  const frozenA=Array.isArray(s.validation_affected_dates)?s.validation_affected_dates:[];
+  if(frozenB.length || frozenA.length){
+    frozenB.forEach(d=>blocked.add(d));
+    frozenA.forEach(d=>affected.add(d));
+    return {blocked,affected};
+  }
   if(!e.date||!hs||!hs.length) return {blocked,affected};
   const metaB=Array.isArray(e.blocked_signal_dates)?e.blocked_signal_dates:[];
   const metaA=Array.isArray(e.affected_close_dates)?e.affected_close_dates:[];
