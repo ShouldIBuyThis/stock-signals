@@ -14,6 +14,7 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import json
+import time
 import exchange_calendars as xcals
 from datetime import datetime, timedelta, time as dtime
 from zoneinfo import ZoneInfo
@@ -21,11 +22,12 @@ from zoneinfo import ZoneInfo
 PERIOD = "1y"    # 52주 신고가 계산 위해 1년
 
 # ── 실행 범위 ────────────────────────────────────────────────
-#  all : 전 종목 수집 (미국장 마감 후 실행)
+#  all : 전 종목 수집 (수동 전체 갱신용)
+#  us  : 미국 종목만 수집. 한국 종목은 직전 signals.json 값을 그대로 유지한다.
 #  kr  : 한국 종목만 수집. 미국 종목은 직전 signals.json 값을 그대로 유지한다.
 #        15:40 KST = 뉴욕 02:40 이라 미국장은 닫혀 있어 새 종가가 없다.
 #        그래도 다시 부르면 (1) 야후 사후 정정으로 장전에 점수가 흔들리고
-#        (2) 불필요한 71건 요청이 레이트리밋을 유발해 종목이 통째로 사라진다.
+#        (2) 불필요한 요청이 레이트리밋을 유발해 종목이 통째로 사라질 수 있다.
 # 카드 타임라인용 — 최근 며칠치 지표를 함께 내려준다.
 # 키를 반복하는 객체 대신 위치 기반 배열이라 용량이 절반 이하다.
 HIST_DAYS = 10
@@ -35,7 +37,7 @@ HIST_FIELDS = ["date","price","change_1d","ma5","ma10","ma20","ma50","ma60","rsi
                "res_short","ret20","rs20"]
 
 RUN_SCOPE = os.environ.get("RUN_SCOPE", "all").strip().lower()
-if RUN_SCOPE not in ("all", "kr"):
+if RUN_SCOPE not in ("all", "us", "kr"):
     RUN_SCOPE = "all"
 
 def is_kr_ticker(t):
@@ -361,7 +363,7 @@ WATCHLIST = {
     "경기방어": {"KO":"코카콜라", "MCD":"맥도날드"},
     "헬스케어": {"LLY":"일라이릴리", "UNH":"유나이티드헬스", "HIMS":"힘스앤허스"},
     "금융": {"JPM":"JP모건", "MA":"마스터카드"},
-    "산업재": {"CAT":"캐터필러"},
+    "산업재": {"CAT":"캐터필러", "ETN":"이튼"},
     "반도체·메모리":  {"MU":"마이크론", "SNDK":"샌디스크", "STX":"씨게이트"},
     "반도체·파운드리":{"TSM":"TSMC", "INTC":"인텔"},
     "반도체·GPU":     {"NVDA":"엔비디아", "AMD":"AMD", "SOXL":"반도체 3x",
@@ -373,7 +375,7 @@ WATCHLIST = {
                       "CRDO":"크레도테크놀로지", "COHR":"코히런트"},
     "전기차·자율주행":{"TSLA":"테슬라", "PONY":"포니AI"},
     "에너지·원전":   {"CEG":"컨스텔레이션에너지", "VST":"비스트라", "BE":"블룸에너지",
-                      "SMR":"뉴스케일파워", "OKLO":"오클로"},
+                      "SMR":"뉴스케일파워", "OKLO":"오클로", "GEV":"GE버노바"},
     "원자재·금":     {"GDXU":"금광주 3x", "GLD":"금 현물 ETF"},
     "원자재·유가":   {"XOM":"엑슨모빌", "USO":"미국 원유 ETF"},
     "원자재·희토류": {"MP":"MP머티리얼즈", "UUUU":"에너지퓨얼스"},
@@ -627,25 +629,27 @@ def _storage_row(r, mkt):
     return out
 
 def save_history(results, mkt, now_kst):
-    """미국/한국 이력을 분리한다. all은 미국만, kr은 한국만 저장한다."""
-    region = "kr" if RUN_SCOPE == "kr" else "us"
-    selected = [r for r in results if is_kr_ticker(r.get("ticker", "")) == (region == "kr")]
-    dates = [r.get("last_date") for r in selected if r.get("last_date")]
-    if not dates:
-        print(f"이력 저장 건너뜀: {region} last_date 없음"); return
-    day = max(dates)
-    folder=f"history/{region}"; os.makedirs(folder, exist_ok=True)
-    slim=[_storage_row(r,mkt) for r in selected]
-    payload={
-        "date":day, "market":"KR" if region=="kr" else "US",
-        "saved_at":now_kst.strftime("%Y-%m-%d %H:%M")+" KST",
-        "market_state":{k:mkt.get(k) for k in ("ticker","level","below_ma20","ret20") if k in mkt},
-        "stocks":slim,
-    }
-    path=f"{folder}/{day}.json"; existed=os.path.exists(path)
-    with open(path,"w",encoding="utf-8") as f: json.dump(payload,f,ensure_ascii=False)
-    size=os.path.getsize(path)/1024
-    print(f"이력 저장: {path} ({size:.0f}KB, {len(slim)}종목){' — 덮어씀' if existed else ''}")
+    """미국/한국 이력을 분리한다. us/kr은 해당 시장만, all은 둘 다 저장한다."""
+    regions = ("us", "kr") if RUN_SCOPE == "all" else (RUN_SCOPE,)
+    for region in regions:
+        selected = [r for r in results if is_kr_ticker(r.get("ticker", "")) == (region == "kr")]
+        dates = [r.get("last_date") for r in selected if r.get("last_date")]
+        if not dates:
+            print(f"이력 저장 건너뜀: {region} last_date 없음")
+            continue
+        day = max(dates)
+        folder=f"history/{region}"; os.makedirs(folder, exist_ok=True)
+        slim=[_storage_row(r,mkt) for r in selected]
+        payload={
+            "date":day, "market":"KR" if region=="kr" else "US",
+            "saved_at":now_kst.strftime("%Y-%m-%d %H:%M")+" KST",
+            "market_state":{k:mkt.get(k) for k in ("ticker","level","below_ma20","ret20") if k in mkt},
+            "stocks":slim,
+        }
+        path=f"{folder}/{day}.json"; existed=os.path.exists(path)
+        with open(path,"w",encoding="utf-8") as f: json.dump(payload,f,ensure_ascii=False)
+        size=os.path.getsize(path)/1024
+        print(f"이력 저장: {path} ({size:.0f}KB, {len(slim)}종목){' — 덮어씀' if existed else ''}")
 
 def attach_historical_rs20(results, mkt):
     """각 과거 날짜의 종목 ret20에서 같은 날짜 QQQ ret20을 빼 rs20을 채운다."""
@@ -683,12 +687,13 @@ def main():
             earnings_map[tk]=ev
 
     results, failed, carried = [], [], 0
+    retry_queue = []
     for cat, items in WATCHLIST.items():
         for tk, nm in items.items():
             is_kr = is_kr_ticker(tk)
 
-            # 한국장 실행: 미국 종목은 건드리지 않고 직전 값을 그대로 넘긴다
-            if RUN_SCOPE == "kr" and not is_kr:
+            # 시장별 실행: 대상이 아닌 시장은 건드리지 않고 직전 값을 그대로 넘긴다.
+            if (RUN_SCOPE == "kr" and not is_kr) or (RUN_SCOPE == "us" and is_kr):
                 if tk in prev_rows:
                     kept = dict(prev_rows[tk])
                     kept["name"], kept["category"] = nm, cat  # 가격은 유지, 메타데이터는 현재 WATCHLIST에 맞춘다.
@@ -704,14 +709,38 @@ def main():
                 row["market_weak"] = bool((not is_kr) and mkt_level in ("weak","caution"))
                 results.append(row); print("OK", tk)
             except Exception as e:
-                # 실패해도 대시보드에서 사라지지 않게 직전 값을 유지한다
+                # 1차 실패 종목은 우선 직전 값을 자리에 유지하고, 전 종목 처리 후 5분 뒤 딱 1회 재시도한다.
+                slot = len(results)
                 if tk in prev_rows:
                     kept = dict(prev_rows[tk])
                     kept["name"], kept["category"] = nm, cat
                     results.append(kept); carried += 1
-                    print("SKIP→KEEP", tk, e)
+                    print("WAIT→RETRY", tk, e, "· 직전 값 임시 유지")
                 else:
-                    failed.append(f"{tk} ({nm}) — {e}"); print("SKIP", tk, e)
+                    results.append(None)
+                    print("WAIT→RETRY", tk, e, "· 직전 값 없음")
+                retry_queue.append((slot, cat, tk, nm, is_kr))
+
+    if retry_queue:
+        print(f"재시도 대기: {len(retry_queue)}종목 · 5분 후 1회 재시도")
+        time.sleep(300)
+        for slot, cat, tk, nm, is_kr in retry_queue:
+            try:
+                row = analyze(tk, nm, cat)
+                row["market_level"] = "neutral" if is_kr else mkt_level
+                row["market_weak"] = bool((not is_kr) and mkt_level in ("weak","caution"))
+                if results[slot] is not None:
+                    carried = max(0, carried - 1)
+                results[slot] = row
+                print("RETRY-OK", tk)
+            except Exception as e:
+                if results[slot] is not None:
+                    print("RETRY-FAIL→KEEP", tk, e)
+                else:
+                    failed.append(f"{tk} ({nm}) — 재시도 실패: {e}")
+                    print("RETRY-FAIL", tk, e)
+
+    results = [r for r in results if r is not None]
     # 실적 보류 판정은 가격 수집이 끝난 뒤 한 번만 적용한다.
     attach_earnings_holds(results, earnings_map, now_kst)
     print(f"수집 {len(results)}종목 (직전 값 유지 {carried}건) · 실패 {len(failed)}건 · 실적보류 {sum(1 for r in results if r.get('earnings_hold'))}건")
