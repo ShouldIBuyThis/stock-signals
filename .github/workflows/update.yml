@@ -8,7 +8,17 @@ on:
     # 한국장: 15:40 KST — 장 마감 10분 후
     - cron: '40 15 * * 1-5'
       timezone: 'Asia/Seoul'
-  workflow_dispatch:          # Actions 탭에서 수동 실행
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: '수동 갱신 범위'
+        required: true
+        default: 'us'
+        type: choice
+        options:
+          - us
+          - kr
+          - all
 
 permissions:
   contents: write   # signals.json 커밋
@@ -36,11 +46,10 @@ jobs:
         run: pip install --upgrade yfinance pandas numpy exchange_calendars
 
       - name: 지표 계산
-        # 한국장 슬롯(15:40 KST)에서는 한국 가격만 새로 받고,
-        # 미국 가격은 직전 signals.json 값을 그대로 유지한다.
-        # 단, main.py가 미국 실적 캘린더는 한 번 더 조회해 장 시작 전 변경을 반영한다.
+        # 자동: 한국장 15:40 KST → kr / 미국장 16:10 ET → us
+        # 수동: Run workflow에서 us / kr / all 중 직접 선택
         env:
-          RUN_SCOPE: ${{ github.event.schedule == '40 15 * * 1-5' && 'kr' || 'all' }}
+          RUN_SCOPE: ${{ github.event_name == 'workflow_dispatch' && inputs.scope || (github.event.schedule == '40 15 * * 1-5' && 'kr' || 'us') }}
         run: python main.py
 
       - name: signals.json 커밋
