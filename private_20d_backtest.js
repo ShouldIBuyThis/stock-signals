@@ -65,6 +65,7 @@ for(const [tk,arr] of Object.entries(data.prices||{})){
   priceMap.set(tk,arr);
 }
 const earnMap=new Map(Object.entries(data.earnings_dates||{}).map(([k,v])=>[k,new Set(v)]));
+const coverageMap=new Map(Object.entries(data.earnings_coverage||{}));
 
 function endpoint(tk,signalDate,h=20){
   const arr=priceMap.get(tk)||[];
@@ -85,6 +86,11 @@ const out={
 };
 function add(kind,row){
   out[kind].candidate++;
+  const cov=coverageMap.get(row.ticker);
+  const isKR=(row.ticker||'').endsWith('.KS')||(row.ticker||'').endsWith('.KQ');
+  // 미국 기업 중 coverage 미확인 종목은 실적 없음으로 간주하지 않고 표본 자체를 제외.
+  // ETF(not_applicable_etf)는 기업 실적이 없으므로 정상 포함.
+  if(!isKR && (!cov || cov.coverage==='unverified')){out[kind].excluded++;return;}
   const ep=endpoint(row.ticker,row.last_date,20);
   if(!ep){out[kind].pending++;return;}
   if(earningsTouched(row.ticker,row.last_date,ep.date)){out[kind].excluded++;return;}
@@ -116,16 +122,20 @@ lines.push('PRIVATE 과거 +20거래일 백테스트');
 lines.push(`생성: ${new Date().toISOString()}`);
 lines.push(`신호 구간: ${data.signal_date_from} ~ ${data.signal_date_to} · 현재 산식 소급 적용`);
 lines.push(`현재 main.py 원시지표 + 현재 index.html evaluate()/multiSignalRank() 직접 재사용`);
-lines.push(`과거 실적일 best-effort 제외 · 자동배포/사이트 수정 없음`);
-const ec=data.earnings_coverage||{};
-lines.push(`실적 캘린더 확보: ${ec.tickers_with_dates??0}/${ec.us_tickers_checked??0}개 미국티커 · 과거 실적일 ${ec.total_dates??0}개`);
-if((ec.tickers_with_dates??0)===0) lines.push('⚠ 실적 캘린더 확보 0건 — 실적 제외 수치는 신뢰하지 마세요.');
+lines.push(`고정 실적 CSV로 실적 영향권 제외 · 미검증 종목 표본 제외 · 자동배포/사이트 수정 없음`);
+const ecVals=Object.values(data.earnings_coverage||{});
+const ecVerified=ecVals.filter(x=>x.coverage==='verified').length;
+const ecUnverified=ecVals.filter(x=>x.coverage==='unverified').length;
+const ecETF=ecVals.filter(x=>x.coverage==='not_applicable_etf').length;
+const ecDates=Object.values(data.earnings_dates||{}).reduce((a,v)=>a+(v?.length||0),0);
+lines.push(`고정 실적 CSV: verified ${ecVerified} · unverified ${ecUnverified} · ETF ${ecETF} · 실적 이벤트 ${ecDates}건`);
+lines.push('unverified 종목은 실적 없음으로 간주하지 않고 백테스트 표본 자체에서 제외');
 lines.push('');
 for(const k of ['multi','pull','rev']){
   const s=R[k];
   lines.push(`[${s.label}] +20거래일`);
   lines.push(`  승률: ${s.rate===null?'—':s.rate+'%'} | 평균: ${s.avg===null?'—':(s.avg>=0?'+':'')+s.avg.toFixed(2)+'%'} | 중앙값: ${s.med===null?'—':(s.med>=0?'+':'')+s.med.toFixed(2)+'%'} | 표본 ${s.n}건 (성공 ${s.w} / 실패 ${s.l})`);
-  lines.push(`  전체 후보 ${s.candidate} · 실적 영향권 제외 ${s.excluded} · +20 가격 미도래/누락 ${s.pending}`);
+  lines.push(`  전체 후보 ${s.candidate} · 실적/미검증 제외 ${s.excluded} · +20 가격 미도래/누락 ${s.pending}`);
   lines.push('');
 }
 lines.push('주의: 이것은 현재 산식을 과거 데이터에 소급 적용한 백테스트입니다. 실제 운영 이후 쌓이는 전향검증과 구분해 해석하세요.');
