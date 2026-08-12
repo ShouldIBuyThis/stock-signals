@@ -21,7 +21,7 @@ if not (ROOT/"main.py").exists():
 import main as app
 
 LOOKBACK_PERIOD = "2y"
-BACKTEST_MONTHS = 12
+BACKTEST_DAYS = 60
 MAX_WORKERS = 8
 
 watch = [(cat, tk, nm) for cat, items in app.WATCHLIST.items() for tk, nm in items.items()]
@@ -126,11 +126,9 @@ qqq_dates = [pd.Timestamp(x).strftime("%Y-%m-%d") for x in cache[app.MARKET_TICK
 if len(qqq_dates) < 100:
     raise SystemExit("QQQ 거래일이 부족합니다.")
 
-# 최근 1년을 신호일 백테스트 구간으로 사용하되, +20 결과가 존재하는 날짜까지만.
-latest = pd.Timestamp(qqq_dates[-1])
-approx_start = latest - pd.DateOffset(months=BACKTEST_MONTHS)
-eligible_qqq = qqq_dates[:-20]
-signal_dates = [d for d in eligible_qqq if pd.Timestamp(d) >= approx_start]
+# 초기 seed는 최근 60개 완료 신호일만 만든다. +1/+3/+5 중 가장 긴 +5 결과가 존재하는 날짜까지만.
+eligible_qqq = qqq_dates[:-5]
+signal_dates = eligible_qqq[-BACKTEST_DAYS:]
 if not signal_dates:
     raise SystemExit("백테스트 가능한 날짜가 없습니다.")
 
@@ -178,7 +176,7 @@ for di, day in enumerate(signal_dates, 1):
     if di % 25 == 0 or di == len(signal_dates):
         print(f"  재현 {di}/{len(signal_dates)}일 · 행 {len(rows)}")
 
-# 미래 +20 종가 조회용 전체 가격 캘린더를 함께 저장
+# +1/+3/+5 평가 종가 조회용 가격 캘린더를 함께 저장
 prices = {}
 for tk, df in cache.items():
     if tk == app.MARKET_TICKER:
@@ -191,7 +189,7 @@ for tk, df in cache.items():
 
 payload = {
     "generated_at": datetime.utcnow().isoformat()+"Z",
-    "backtest_months": BACKTEST_MONTHS,
+    "backtest_days": BACKTEST_DAYS,
     "horizons": [1,3,5],
     "signal_date_from": signal_dates[0],
     "signal_date_to": signal_dates[-1],
