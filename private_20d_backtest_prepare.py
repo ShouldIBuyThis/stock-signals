@@ -69,40 +69,43 @@ if app.MARKET_TICKER not in cache:
     raise SystemExit(f"QQQ 데이터 수집 실패: {failed_fetch.get(app.MARKET_TICKER)}")
 
 # 과거 실적일 best-effort 수집. 검증 오염 방지용이며 실패해도 백테스트는 계속한다.
-print("[2/4] 과거 실적일 best-effort 수집")
+print("[2/4] 고정 실적 CSV 읽기 — 외부 earnings API 호출 없음")
+earnings_csv = ROOT / "private_earnings_history.csv"
+coverage_csv = ROOT / "private_earnings_coverage.csv"
+if not earnings_csv.exists() or not coverage_csv.exists():
+    raise SystemExit("private_earnings_history.csv / private_earnings_coverage.csv가 저장소 루트에 없습니다.")
+
+import csv
 earnings_dates = {}
+earnings_timing = {}
+with earnings_csv.open(encoding="utf-8-sig", newline="") as f:
+    for r in csv.DictReader(f):
+        tk=(r.get("ticker") or "").strip().upper()
+        d=(r.get("earnings_date") or "").strip()
+        timing=(r.get("timing") or "UNKNOWN").strip().upper()
+        if not tk or not d:
+            continue
+        earnings_dates.setdefault(tk, []).append(d)
+        earnings_timing[f"{tk}|{d}"] = timing
+for tk in earnings_dates:
+    earnings_dates[tk] = sorted(set(earnings_dates[tk]))
 
-def fetch_earn(tk):
-    if app.is_kr_ticker(tk):
-        return tk, []
-    try:
-        # offset=1: Yahoo/yfinance에서 "가장 최근 실제 발표"부터 과거 방향으로 조회.
-        # 1년 백테스트에는 분기 실적 4~5개면 충분하므로 12개만 받아 호출량을 줄인다.
-        ed = yf.Ticker(tk).get_earnings_dates(limit=12, offset=1)
-        if ed is None or ed.empty:
-            # 일부 티커/시점에서 offset=1 응답이 비면 기본 조회를 한 번만 보조 시도
-            ed = yf.Ticker(tk).get_earnings_dates(limit=12, offset=0)
-        if ed is None or ed.empty:
-            return tk, []
-        ds = []
-        for idx in ed.index:
-            try:
-                ts = pd.Timestamp(idx)
-                if ts.tzinfo is not None:
-                    ts = ts.tz_convert("America/New_York")
-                ds.append(ts.strftime("%Y-%m-%d"))
-            except Exception:
-                pass
-        return tk, sorted(set(ds))
-    except Exception:
-        return tk, []
+earnings_coverage = {}
+with coverage_csv.open(encoding="utf-8-sig", newline="") as f:
+    for r in csv.DictReader(f):
+        tk=(r.get("ticker") or "").strip().upper()
+        if tk:
+            earnings_coverage[tk] = {
+                "coverage": (r.get("coverage") or "unverified").strip(),
+                "verified_from": (r.get("verified_from") or "").strip(),
+                "verified_to": (r.get("verified_to") or "").strip(),
+                "note": (r.get("note") or "").strip(),
+            }
 
-with ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
-    futs = [ex.submit(fetch_earn, tk) for tk in tickers if not app.is_kr_ticker(tk)]
-    for fut in as_completed(futs):
-        tk, ds = fut.result()
-        if ds:
-            earnings_dates[tk] = ds
+verified_count=sum(1 for x in earnings_coverage.values() if x.get("coverage")=="verified")
+unverified_count=sum(1 for x in earnings_coverage.values() if x.get("coverage")=="unverified")
+etf_count=sum(1 for x in earnings_coverage.values() if x.get("coverage")=="not_applicable_etf")
+print(f"  CSV 실적 이벤트 {sum(len(v) for v in earnings_dates.values())}건 · verified {verified_count} · unverified {unverified_count} · ETF {etf_count}")
 
 # main.py가 네트워크를 다시 부르지 않도록 Ticker.history만 캐시 데이터로 교체
 CURRENT_CUTOFF = None
@@ -195,11 +198,8 @@ payload = {
     "rows": rows,
     "prices": prices,
     "earnings_dates": earnings_dates,
-    "earnings_coverage": {
-        "tickers_with_dates": len(earnings_dates),
-        "total_dates": sum(len(v) for v in earnings_dates.values()),
-        "us_tickers_checked": sum(1 for tk in tickers if not app.is_kr_ticker(tk)),
-    },
+    "earnings_timing": earnings_timing,
+    "earnings_coverage": earnings_coverage,
     "failed_fetch": failed_fetch,
     "errors_sample": errors[:100],
 }
@@ -207,4 +207,4 @@ with open("private_20d_backtest_input.json","w",encoding="utf-8") as f:
     json.dump(payload,f,ensure_ascii=False)
 
 app.yf.Ticker = orig_ticker
-print(f"[4/4] 준비 완료 · 신호 입력행 {len(rows)} · 실적일 보유 {len(earnings_dates)}종목/{sum(1 for tk in tickers if not app.is_kr_ticker(tk))}개 미국티커 · 실적일 {sum(len(v) for v in earnings_dates.values())}개 · 수집실패 {len(failed_fetch)}종목")
+print(f"[4/4] 준비 완료 · 신호 입력행 {len(rows)} · 고정 실적 CSV {sum(len(v) for v in earnings_dates.values())}건 · verified {verified_count} · unverified {unverified_count} · ETF {etf_count} · 가격수집실패 {len(failed_fetch)}종목")
