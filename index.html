@@ -1588,7 +1588,7 @@ function currentMultiRanked(){
 /* 추세/반등 순위는 모든 종목에 항상 부여한다.
    단, 메인 "신호"의 의미를 보존하기 위해 해당 전략 매수신호(grade>=4)를 먼저 묶고,
    그 안에서는 raw score 순으로 정렬한다. 비신호 종목은 그 뒤에 raw score 순으로 이어진다.
-   따라서 메인 위젯 순번과 상세카드 배지 순번은 완전히 같고,
+   따라서 메인 위젯도 이 순위표 숫자를 그대로 표시하므로 상세카드 배지와 항상 같고,
    해당 기법 신호가 아닌 종목도 — 대신 실제 숫자 순위가 표시된다. */
 function currentStrategyRanked(kind){
   const isPull = kind==="pull";
@@ -1672,16 +1672,22 @@ function sectorStats(list){
   return [...m.values()].map(o => ({name:o.name, avg: o.n ? o.sum/o.n : null, cnt:o.cnt}))
     .sort((a,b)=>(b.avg ?? -99)-(a.avg ?? -99));
 }
+/* 위젯의 숫자는 목록 내 순번(i+1)이 아니라 computeRanks()의 글로벌 순위를 쓴다.
+   숨김/보유만/테마 필터가 걸려도 상세카드 배지와 항상 같은 숫자가 나온다.
+   rank가 없는 행만 예외적으로 순번으로 떨어진다. */
 function widget(title, sub, rows, emptyMsg){
-  const body = rows.length ? rows.map((r,i)=>`
+  const body = rows.length ? rows.map((r,i)=>{
+    const rnum = Number.isFinite(Number(r.rank)) ? Number(r.rank) : i+1;
+    return `
     <button class="wrow" data-goto="${esc(r.ticker)}">
-      <span class="rk ${i<3?"top":""}">${i+1}</span>
+      <span class="rk ${rnum<=3?"top":""}">${rnum}</span>
       <span class="tk">${esc(r.ticker)}</span>${r._multiStrict?multiBulb(r.ticker):""}
       <span class="nm">${esc(r.name||"")}</span>
       ${(r.val!==undefined && r.val!==null && r.val!=="")?`<span class="val ${r.cls||""}">${esc(String(r.val))}</span>`:""}
       <span class="wquick ${state.favorites.includes(r.ticker)?"on":""}" role="button" tabindex="0" data-qfav="${esc(r.ticker)}" title="관심종목">${state.favorites.includes(r.ticker)?"★":"☆"}</span>
       <span class="wquick ${state.cart.includes(r.ticker)?"on":""}" role="button" tabindex="0" data-qcart="${esc(r.ticker)}" title="모의점검 장바구니">${state.cart.includes(r.ticker)?"🛒✓":"🛒"}</span>
-    </button>`).join("")
+    </button>`;
+  }).join("")
     : `<div class="widget-empty">${emptyMsg||"해당 신호 없음"}</div>`;
   return `<div class="widget">
     <div class="widget-h"><span class="wt">${title}</span><span class="ws">${sub}</span></div>
@@ -1849,13 +1855,18 @@ function renderTheme(){
 
   const strictMeta=new Map(currentMultiRanked().map(s=>[s.ticker,s]));
   const strictFlag=s=>strictMeta.get(s.ticker)?._multiStrict===true;
+  /* 위젯에 찍히는 숫자는 상세카드 배지와 같은 computeRanks() 순위표에서 가져온다.
+     목록 내 순번을 쓰면 숨김/보유만/테마 필터가 걸렸을 때 두 화면이 어긋난다. */
+  const rk = state._ranks || {};
+  const gr = (map,tk)=>{ const v=map&&map[tk]; return Number.isFinite(Number(v)) ? Number(v) : undefined; };
   const byVol = visibleVolumeRanked(list).slice(0,5)
-    .map(s=>({ticker:s.ticker,name:s.name,val:r1(s.vol_ratio)+"배",cls:"up",_multiStrict:strictFlag(s)}));
-  const multi = signalRanked(list).slice(0,5);
+    .map(s=>({ticker:s.ticker,name:s.name,val:r1(s.vol_ratio)+"배",cls:"up",_multiStrict:strictFlag(s),rank:gr(rk.vol,s.ticker)}));
+  const multi = signalRanked(list).slice(0,5)
+    .map(s=>Object.assign({},s,{rank:gr(rk.total,s.ticker)}));
   const pull = visibleStrategyRanked(list,"pull").slice(0,5)
-    .map(s=>({ticker:s.ticker,name:s.name,val:"",_multiStrict:strictFlag(s)}));
+    .map(s=>({ticker:s.ticker,name:s.name,val:"",_multiStrict:strictFlag(s),rank:gr(rk.pull,s.ticker)}));
   const rev = visibleStrategyRanked(list,"reversal").slice(0,5)
-    .map(s=>({ticker:s.ticker,name:s.name,val:"",_multiStrict:strictFlag(s)}));
+    .map(s=>({ticker:s.ticker,name:s.name,val:"",_multiStrict:strictFlag(s),rank:gr(rk.rev,s.ticker)}));
 
   return `
   <div class="section">
