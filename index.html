@@ -907,6 +907,8 @@ function normalize(raw){
       earnings_hold_date: it.earnings_hold_date || "",
       earnings_release_date: it.earnings_release_date || "",
       earnings_release_open_kst: it.earnings_release_open_kst || (it.earnings&&it.earnings.release_open_kst) || "",
+      validation_blocked_dates: Array.isArray(it.validation_blocked_dates) ? it.validation_blocked_dates : [],
+      validation_affected_dates: Array.isArray(it.validation_affected_dates) ? it.validation_affected_dates : [],
       _prevRaw: it.prev || null,
       _hist: Array.isArray(it.hist) && it.hist.length ? it.hist : null
     };
@@ -2683,7 +2685,8 @@ async function fetchData(url, silent){
     const json = await r.json();
     state.data = normalize(json);
     state.dataUrl = url; save();
-    await fetchValidation100(url);
+    // 공개 신뢰도는 validation100_summary.json을 사용하지 않고 현재 history 기반 strategyValidation()만 사용
+    state.validation100 = null;
     render();
     if (!silent) toast(`최신 데이터 ${state.data.stocks.length}종목 · ${state.data.generated_at}`);
     return true;
