@@ -1599,9 +1599,11 @@ function decorateMultiFlags(list){
 }
 /* 전략별 보조순위는 현재 보기 기준, 다중 자격/순위는 signalUniverse 기준으로 고정한다. */
 function computeRanks(){
-  const list = visible();
+  /* 카드의 추세/반등/거래량 순위도 다중 판정과 같은 signalUniverse 기준으로 고정한다.
+     theme/보유/숨김은 보기 필터일 뿐 순위 유니버스를 바꾸지 않는다. */
+  const universe = signalUniverse();
   const mk = (key) => {
-    const sorted = list.slice().sort((a,b)=>key(b)-key(a));
+    const sorted = universe.slice().sort((a,b)=>key(b)-key(a) || a.ticker.localeCompare(b.ticker));
     const m = {}; sorted.forEach((s,i)=>m[s.ticker]=i+1); return m;
   };
   const br=mk(s=>s.sig.breakScore), pu=mk(s=>s.sig.pullScore);
@@ -1611,7 +1613,7 @@ function computeRanks(){
     break: br, pull: pu, trend: pu,
     rev:   mk(s=>s.sig.revScore),
     vol:   mk(s=>has(s.vol_ratio)?s.vol_ratio:-1),
-    n: list.length
+    n: universe.length
   };
 }
 
@@ -1635,7 +1637,7 @@ function sectorStats(list){
 }
 function widget(title, sub, rows, emptyMsg){
   const body = rows.length ? rows.map((r,i)=>`
-    <button class="wrow${r._multiStrict?" multi-strict":""}" data-goto="${esc(r.ticker)}">
+    <button class="wrow" data-goto="${esc(r.ticker)}">
       <span class="rk ${i<3?"top":""}">${i+1}</span>
       <span class="tk">${esc(r.ticker)}</span>${r._multiStrict?multiBulb(r.ticker):""}
       <span class="nm">${esc(r.name||"")}</span>
