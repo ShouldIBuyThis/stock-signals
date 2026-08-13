@@ -1584,6 +1584,26 @@ function overallRanked(list){
 function currentMultiRanked(){
   return multiSignalRank(signalUniverse());
 }
+
+/* 추세/반등 표시 순위도 메인·상세에서 완전히 같은 기준을 쓴다.
+   현재 시장 signalUniverse에서 해당 전략 매수신호(grade>=4)만 추린 뒤 순위를 매긴다. */
+function currentStrategyRanked(kind){
+  return strategyRanked(signalUniverse(), kind, true);
+}
+function visibleStrategyRanked(list, kind){
+  const wanted=new Set((list||[]).map(s=>s.ticker));
+  return currentStrategyRanked(kind).filter(s=>wanted.has(s.ticker));
+}
+
+function currentVolumeRanked(){
+  return signalUniverse().filter(s=>has(s.vol_ratio))
+    .sort((a,b)=>b.vol_ratio-a.vol_ratio || a.ticker.localeCompare(b.ticker));
+}
+function visibleVolumeRanked(list){
+  const wanted=new Set((list||[]).map(s=>s.ticker));
+  return currentVolumeRanked().filter(s=>wanted.has(s.ticker));
+}
+
 function signalRanked(list){
   const wanted=new Set((list||[]).map(s=>s.ticker));
   return currentMultiRanked().filter(s=>wanted.has(s.ticker));
@@ -1599,21 +1619,22 @@ function decorateMultiFlags(list){
 }
 /* 전략별 보조순위는 현재 보기 기준, 다중 자격/순위는 signalUniverse 기준으로 고정한다. */
 function computeRanks(){
-  /* 카드의 추세/반등/거래량 순위도 다중 판정과 같은 signalUniverse 기준으로 고정한다.
-     theme/보유/숨김은 보기 필터일 뿐 순위 유니버스를 바꾸지 않는다. */
-  const universe = signalUniverse();
-  const mk = (key) => {
-    const sorted = universe.slice().sort((a,b)=>key(b)-key(a) || a.ticker.localeCompare(b.ticker));
-    const m = {}; sorted.forEach((s,i)=>m[s.ticker]=i+1); return m;
-  };
-  const br=mk(s=>s.sig.breakScore), pu=mk(s=>s.sig.pullScore);
-  const total={}; currentMultiRanked().forEach((s,i)=>total[s.ticker]=i+1);
+  /* 메인 위젯과 상세카드가 같은 순위표를 공유한다.
+     추세/반등은 해당 전략 매수신호(grade>=4)만의 순위,
+     거래량은 현재 시장 전체의 거래량 순위,
+     다중은 currentMultiRanked() 순위다. */
+  const toMap=(arr)=>{ const m={}; arr.forEach((x,i)=>m[x.ticker]=i+1); return m; };
+  const pu=currentStrategyRanked("pull");
+  const rv=currentStrategyRanked("reversal");
+  const vo=currentVolumeRanked();
+  const total=currentMultiRanked();
+
   return {
-    total,
-    break: br, pull: pu, trend: pu,
-    rev:   mk(s=>s.sig.revScore),
-    vol:   mk(s=>has(s.vol_ratio)?s.vol_ratio:-1),
-    n: universe.length
+    total:toMap(total),
+    pull:toMap(pu), trend:toMap(pu),
+    rev:toMap(rv),
+    vol:toMap(vo),
+    n:signalUniverse().length
   };
 }
 
@@ -1812,12 +1833,12 @@ function renderTheme(){
 
   const strictMeta=new Map(currentMultiRanked().map(s=>[s.ticker,s]));
   const strictFlag=s=>strictMeta.get(s.ticker)?._multiStrict===true;
-  const byVol = list.filter(s=>has(s.vol_ratio)).sort((a,b)=>b.vol_ratio-a.vol_ratio).slice(0,5)
+  const byVol = visibleVolumeRanked(list).slice(0,5)
     .map(s=>({ticker:s.ticker,name:s.name,val:r1(s.vol_ratio)+"배",cls:"up",_multiStrict:strictFlag(s)}));
   const multi = signalRanked(list).slice(0,5);
-  const pull = strategyRanked(list,"pull",true).slice(0,5)
+  const pull = visibleStrategyRanked(list,"pull").slice(0,5)
     .map(s=>({ticker:s.ticker,name:s.name,val:"",_multiStrict:strictFlag(s)}));
-  const rev = strategyRanked(list,"reversal",true).slice(0,5)
+  const rev = visibleStrategyRanked(list,"reversal").slice(0,5)
     .map(s=>({ticker:s.ticker,name:s.name,val:"",_multiStrict:strictFlag(s)}));
 
   return `
