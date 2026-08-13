@@ -1585,14 +1585,30 @@ function currentMultiRanked(){
   return multiSignalRank(signalUniverse());
 }
 
-/* 추세/반등 표시 순위도 메인·상세에서 완전히 같은 기준을 쓴다.
-   현재 시장 signalUniverse에서 해당 전략 매수신호(grade>=4)만 추린 뒤 순위를 매긴다. */
+/* 추세/반등 순위는 모든 종목에 항상 부여한다.
+   단, 메인 "신호"의 의미를 보존하기 위해 해당 전략 매수신호(grade>=4)를 먼저 묶고,
+   그 안에서는 raw score 순으로 정렬한다. 비신호 종목은 그 뒤에 raw score 순으로 이어진다.
+   따라서 메인 위젯 순번과 상세카드 배지 순번은 완전히 같고,
+   해당 기법 신호가 아닌 종목도 — 대신 실제 숫자 순위가 표시된다. */
 function currentStrategyRanked(kind){
-  return strategyRanked(signalUniverse(), kind, true);
+  const isPull = kind==="pull";
+  return signalUniverse().slice().sort((a,b)=>{
+    const qa=(isPull?a.sig.pullGrade:a.sig.revGrade)>=4 ? 1 : 0;
+    const qb=(isPull?b.sig.pullGrade:b.sig.revGrade)>=4 ? 1 : 0;
+    const sa=isPull?a.sig.pullScore:a.sig.revScore;
+    const sb=isPull?b.sig.pullScore:b.sig.revScore;
+    return qb-qa || sb-sa ||
+      Math.abs(b.change_1d||0)-Math.abs(a.change_1d||0) ||
+      a.ticker.localeCompare(b.ticker);
+  });
+}
+function currentStrategySignalRanked(kind){
+  const isPull = kind==="pull";
+  return currentStrategyRanked(kind).filter(s=>(isPull?s.sig.pullGrade:s.sig.revGrade)>=4);
 }
 function visibleStrategyRanked(list, kind){
   const wanted=new Set((list||[]).map(s=>s.ticker));
-  return currentStrategyRanked(kind).filter(s=>wanted.has(s.ticker));
+  return currentStrategySignalRanked(kind).filter(s=>wanted.has(s.ticker));
 }
 
 function currentVolumeRanked(){
@@ -1620,9 +1636,9 @@ function decorateMultiFlags(list){
 /* 전략별 보조순위는 현재 보기 기준, 다중 자격/순위는 signalUniverse 기준으로 고정한다. */
 function computeRanks(){
   /* 메인 위젯과 상세카드가 같은 순위표를 공유한다.
-     추세/반등은 해당 전략 매수신호(grade>=4)만의 순위,
-     거래량은 현재 시장 전체의 거래량 순위,
-     다중은 currentMultiRanked() 순위다. */
+     추세/반등은 "해당 전략 신호 우선 + 전체 종목" 순위라 모든 카드에 숫자가 있다.
+     메인 위젯은 그 순위표 중 실제 전략 신호(grade>=4)만 보여준다.
+     거래량은 현재 시장 전체의 거래량 순위, 다중은 currentMultiRanked() 순위다. */
   const toMap=(arr)=>{ const m={}; arr.forEach((x,i)=>m[x.ticker]=i+1); return m; };
   const pu=currentStrategyRanked("pull");
   const rv=currentStrategyRanked("reversal");
