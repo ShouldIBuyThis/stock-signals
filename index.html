@@ -342,9 +342,9 @@ table.validation-cmp th[colspan="3"]{color:var(--ink);font-weight:800}
 .validation-help-btn:active{transform:scale(.95)}
 .validation-title{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
 .validation-title .live-note{font-size:10px;font-weight:500;color:var(--faint)}
-.example-row{display:block;padding:3px 0 7px}
-.example-row .ex-head{display:block;font-size:12.5px;line-height:1.45}
-.example-row .ex-buy,.example-row .ex-ret{display:block;margin-left:20px;font-size:11.5px;line-height:1.55}
+.example-row{display:block;padding:2px 0 3px}
+.example-row .ex-head{display:block;font-size:12.5px;line-height:1.35}
+.example-row .ex-buy,.example-row .ex-ret{display:block;margin-left:20px;font-size:11.5px;line-height:1.4}
 .example-row .ex-buy{color:var(--muted)}
 .example-row .ex-ret{color:var(--ink);font-weight:700}
 .market-guide td:first-child{white-space:nowrap;word-break:keep-all}
@@ -700,7 +700,7 @@ html[data-theme="dark"] .strategy-info{color:var(--muted)}
     <details>
       <summary>🕘 <b>모든 지표는 장 마감 후 종가 기준입니다</b> · 자세히</summary>
       <div style="margin-top:6px">
-        · <b>05:40~06:40 미국장 · 16:20 한국장</b> 종가 기준 일 1회 갱신<br>
+        · <b>05:40~06:40 미국장 · 16:40 한국장</b> 종가 기준 일 1회 갱신<br>
         · <b id="stamp">—</b> · 마지막 데이터 패치<br>
         · 갱신은 자동 실행이라 <b>정시가 아니라 몇 분에서 수십 분 늦을 수 있습니다.</b><br>
         · 프리장·장중은 반영하지 않고 <b>일봉 종가</b>만 사용합니다.<br>
@@ -2451,7 +2451,7 @@ function validationBlock(){
   const dateShort=d=>{ const m=String(d||"").match(/\d{4}-(\d{2})-(\d{2})/); return m?`${Number(m[1])}/${Number(m[2])}`:String(d||"—"); };
   const priceText=(tk,p)=>{ const st=allStocks().find(x=>x.ticker===tk); if(!has(p)) return "—"; return st&&st.currency==="KRW" ? `₩${Math.round(p).toLocaleString("ko-KR")}` : `$${Number(p).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`; };
   const exRows=(v._examples||[]).map(x=>`<span class="example-row"><span class="ex-head">${x.icon} <b>${esc(x.label)} · ${esc(x.ticker)}</b></span><span class="ex-buy">${esc(dateShort(x.date))} 종가 ${esc(priceText(x.ticker,x.buyPrice))} 매수 →</span><span class="ex-ret">${x.horizon}거래일 뒤 ${x.ret>=0?"+":""}${x.ret.toFixed(2)}% <span style="color:var(--faint);font-weight:500">(${esc(priceText(x.ticker,x.endPrice))})</span></span></span>`);
-  const exampleBlock=exRows.length ? `<details class="acc validation-examples" style="margin-top:8px" open><summary style="cursor:pointer"><b>📌 최근 수익 사례 ${exRows.length}건</b></summary><div class="strip" style="margin-top:6px;line-height:1.9">${exRows.join("<br>")}<div style="margin-top:5px;color:var(--faint);font-size:10.5px">실적 영향권 제외</div></div></details>` : "";
+  const exampleBlock=exRows.length ? `<details class="acc validation-examples" style="margin-top:8px" open><summary style="cursor:pointer"><b>📌 최근 수익 사례 ${exRows.length}건</b></summary><div class="strip" style="margin-top:6px;line-height:1.9">${exRows.join("")}<div style="margin-top:5px;color:var(--faint);font-size:10.5px">실적 영향권 제외</div></div></details>` : "";
   const ex=v._excludedDetails||[];
   const exDetail=ex.length?`<details class="acc" style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:11px"><b>실적 영향권 표본 자동 제외 · ${v._excludedTickers.length}종목 · 자세히</b></summary><div class="strip" style="margin-top:6px">${ex.map(o=>`${esc(o.ticker)} · 신호일 ${esc(o.date)} · 실적 ${esc(o.event||"?")}${timingLabel(o.timing)?` · ${esc(timingLabel(o.timing))}`:""} · +${o.horizons.join("/+")} 제외`).join("<br>")}</div></details>`:"";
 
@@ -2468,7 +2468,7 @@ function validationBlock(){
     const cell=(o)=>{
       if(!o || !o.n) return `—<br><span style="font-size:10.5px;color:var(--faint)">표본 없음</span>`;
       const up=Math.round((Number(o.win)||0)/o.n*100), flat=Math.round((Number(o.flat)||0)/o.n*100), down=Math.round((Number(o.loss)||0)/o.n*100);
-      return `<span class="vrate">${pctExt(o.directional_rate)}</span><br><span class="vavg">평균 ${avExt(o.avg_return)}</span><br><span class="vsplit"><span class="vup">상승 ${up}%</span> · <span class="vdown">하락 ${down}%</span></span><br><span class="vsplit vflat">보합 ${flat}%</span>`;
+      return `<span class="vrate">${pctExt(o.directional_rate)}</span><br><span class="vavg">평균수익 ${avExt(o.avg_return)}</span><br><span class="vsplit"><span class="vup">상승 ${up}%</span> · <span class="vdown">하락 ${down}%</span></span><br><span class="vsplit vflat">보합 ${flat}%</span>`;
     };
     const row=k=>`<tr><td><b>${names[k].label}</b></td><td>${cell(S[k]&&S[k][1])}</td><td>${cell(S[k]&&S[k][3])}</td><td>${cell(S[k]&&S[k][5])}</td></tr>`;
     const diagRows=["multi","trend","reversal"].flatMap(k=>[1,3,5].map(h=>{
@@ -2489,7 +2489,7 @@ function validationBlock(){
   const cell=(o)=>{
     if(o.n===0) return `—<br><span style="font-size:10.5px;color:var(--faint)">표본 없음</span>`;
     const up=Math.round((o.wins||0)/o.n*100), flat=Math.round((o.flats||0)/o.n*100), down=Math.round((o.losses||0)/o.n*100);
-    return `<span class="vrate">${pct(o.rate)}</span><br><span class="vavg">평균 ${av(o.avg)}</span><br><span class="vsplit"><span class="vup">상승 ${up}%</span> · <span class="vdown">하락 ${down}%</span></span><br><span class="vsplit vflat">보합 ${flat}%</span>`;
+    return `<span class="vrate">${pct(o.rate)}</span><br><span class="vavg">평균수익 ${av(o.avg)}</span><br><span class="vsplit"><span class="vup">상승 ${up}%</span> · <span class="vdown">하락 ${down}%</span></span><br><span class="vsplit vflat">보합 ${flat}%</span>`;
   };
   const row=k=>`<tr><td><b>${k==="multi"?"다중":k==="pull"?"추세":"반등"}</b></td><td>${cell(v[k][1])}</td><td>${cell(v[k][3])}</td><td>${cell(v[k][5])}</td></tr>`;
   const diagLabel={multi:"다중",pull:"추세",rev:"반등"};
