@@ -394,6 +394,9 @@ footer b{color:var(--muted)}
 @media (max-width:640px){
   .grid,.stock,.s-top,.s-price,.rankline,.gauges,.stars,.rawind,.tlrow{min-width:0;max-width:100%}
   .stock{width:100%;padding:11px 10px;overflow:hidden}
+  /* 엄격 다중 카드만 예외: 황금 링은 카드 바깥 3px에 그려져서 overflow:hidden이면 통째로 잘린다.
+     내부 말줄임은 .s-nm이 자체 처리하므로 이 카드만 풀어도 레이아웃은 안 밀린다. */
+  .stock.multi-strict{overflow:visible}
   .s-top{flex-wrap:wrap}
   .s-nm{min-width:80px}
   .s-tools{margin-left:auto;flex-shrink:0}
