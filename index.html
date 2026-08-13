@@ -1521,11 +1521,17 @@ function allStocks(){
     return Object.assign(s, {sig, prevSig: pv ? evaluate(pv) : null, _prev: pv});
   });
 }
-function visible(){
+/* 신호 순위의 기준 유니버스.
+   테마/보유/숨김은 "보기 필터"일 뿐 신호 강도 자체를 바꾸면 안 된다.
+   시장 토글만 신호 유니버스에 반영한다. */
+function signalUniverse(){
   return allStocks()
     .filter(s => !s.earnings_hold)
+    .filter(s => state.market==="all" || (state.market==="kr" ? s._kr : !s._kr));
+}
+function visible(){
+  return signalUniverse()
     .filter(s => !state.hidden.includes(s.ticker))
-    .filter(s => state.market==="all" || (state.market==="kr" ? s._kr : !s._kr))
     .filter(s => !state.showHoldings || s._hold)
     .filter(s => !state.themeFilter || s.category===state.themeFilter);
 }
@@ -1575,10 +1581,23 @@ function overallRanked(list){
 }
 /* 전체순위 '다중 신호순'은 테마랭킹 다중신호와 같은 순서를 맨 앞에 사용한다.
    따라서 두 화면의 다중신호 종목/순서는 항상 일치한다. 나머지 종목만 뒤에 이어진다. */
-function signalRanked(list){
-  return multiSignalRank(list);
+function currentMultiRanked(){
+  return multiSignalRank(signalUniverse());
 }
-/* 전략별 순위 계산 (현재 필터 기준). raw score를 서로 합치지 않는다. */
+function signalRanked(list){
+  const wanted=new Set((list||[]).map(s=>s.ticker));
+  return currentMultiRanked().filter(s=>wanted.has(s.ticker));
+}
+function decorateMultiFlags(list){
+  const meta=new Map(currentMultiRanked().map(s=>[s.ticker,s]));
+  return (list||[]).map(s=>{
+    const m=meta.get(s.ticker);
+    return m
+      ? Object.assign({},s,{_multi:m._multi,_multiInfo:m._multiInfo,_multiTier:m._multiTier,_multiStrict:m._multiStrict})
+      : Object.assign({},s,{_multi:null,_multiInfo:null,_multiTier:0,_multiStrict:false});
+  });
+}
+/* 전략별 보조순위는 현재 보기 기준, 다중 자격/순위는 signalUniverse 기준으로 고정한다. */
 function computeRanks(){
   const list = visible();
   const mk = (key) => {
@@ -1586,7 +1605,7 @@ function computeRanks(){
     const m = {}; sorted.forEach((s,i)=>m[s.ticker]=i+1); return m;
   };
   const br=mk(s=>s.sig.breakScore), pu=mk(s=>s.sig.pullScore);
-  const total={}; signalRanked(list).forEach((s,i)=>total[s.ticker]=i+1);
+  const total={}; currentMultiRanked().forEach((s,i)=>total[s.ticker]=i+1);
   return {
     total,
     break: br, pull: pu, trend: pu,
@@ -1789,13 +1808,15 @@ function renderTheme(){
   const hot = secs.filter(x=>has(x.avg)&&x.avg>0).slice(0,3);
   const cold = secs.filter(x=>has(x.avg)&&x.avg<0).slice(-3).reverse();
 
+  const strictMeta=new Map(currentMultiRanked().map(s=>[s.ticker,s]));
+  const strictFlag=s=>strictMeta.get(s.ticker)?._multiStrict===true;
   const byVol = list.filter(s=>has(s.vol_ratio)).sort((a,b)=>b.vol_ratio-a.vol_ratio).slice(0,5)
-    .map(s=>({ticker:s.ticker,name:s.name,val:r1(s.vol_ratio)+"배",cls:"up"}));
-  const multi = multiSignalTop(list);
+    .map(s=>({ticker:s.ticker,name:s.name,val:r1(s.vol_ratio)+"배",cls:"up",_multiStrict:strictFlag(s)}));
+  const multi = signalRanked(list).slice(0,5);
   const pull = strategyRanked(list,"pull",true).slice(0,5)
-    .map(s=>({ticker:s.ticker,name:s.name,val:""}));
+    .map(s=>({ticker:s.ticker,name:s.name,val:"",_multiStrict:strictFlag(s)}));
   const rev = strategyRanked(list,"reversal",true).slice(0,5)
-    .map(s=>({ticker:s.ticker,name:s.name,val:""}));
+    .map(s=>({ticker:s.ticker,name:s.name,val:"",_multiStrict:strictFlag(s)}));
 
   return `
   <div class="section">
@@ -2359,7 +2380,7 @@ function renderAll(){
       <div class="${wrapCls}">${holds.map((s,i)=>compact?compactRow(s,i,true):stockCard(s,i,true)).join("")}</div></div>` : "";
   if (state.sort === "hold") return marketBar() + filterBar() + recentEarningsCalendar() + (holdCards || `<div class="empty-state">현재 보류된 종목이 없어요.</div>`);
 
-  const list = visible();
+  const list = decorateMultiFlags(visible());
   if (!list.length) return marketBar() + filterBar() + holdCards + (state.showHoldings && !state.holdings.length ? noHoldingState() : emptyState());
   let moreBtn = "";
   const item = (s,i) => compact ? compactRow(s,i) : stockCard(s,i);
@@ -3173,15 +3194,46 @@ qRes.addEventListener("click", e=>{
 document.addEventListener("click", e=>{ if(!e.target.closest(".search")) qRes.classList.add("hidden"); });
 
 /* ══════════ 종목으로 이동 ══════════ */
+
+/* 테마 흐름 클릭 시 목적 정렬을 자동 선택한다.
+   다중은 전체 현재시장 유니버스 기준으로만 판정하고,
+   해당 테마에 다중 후보가 없으면 추세/반등/거래량 중
+   그 테마 종목이 가장 상위에 걸리는 축으로 모아본다. */
+function themeBestSort(category){
+  const universe=signalUniverse();
+  const peers=universe.filter(s=>(s.category||"기타")===category);
+  if(!peers.length) return {sort:"category",label:"테마별"};
+
+  const peerSet=new Set(peers.map(s=>s.ticker));
+  const multi=currentMultiRanked().filter(s=>peerSet.has(s.ticker));
+  if(multi.length) return {sort:"signal",label:"다중 신호순"};
+
+  const rankMap=(key)=>{
+    const a=universe.slice().sort((a,b)=>key(b)-key(a)||a.ticker.localeCompare(b.ticker));
+    const m=new Map(); a.forEach((s,i)=>m.set(s.ticker,i+1)); return m;
+  };
+  const axes=[
+    {sort:"pull",label:"추세순",m:rankMap(s=>s.sig.pullScore)},
+    {sort:"reversal",label:"반등순",m:rankMap(s=>s.sig.revScore)},
+    {sort:"volume",label:"거래량순",m:rankMap(s=>has(s.vol_ratio)?s.vol_ratio:-1)}
+  ];
+  axes.forEach(a=>{
+    a.best=Math.min(...peers.map(s=>a.m.get(s.ticker)??9999));
+    a.avg=peers.reduce((sum,s)=>sum+(a.m.get(s.ticker)??universe.length+1),0)/peers.length;
+  });
+  axes.sort((a,b)=>a.best-b.best || a.avg-b.avg || ({pull:0,reversal:1,volume:2}[a.sort]-({pull:0,reversal:1,volume:2}[b.sort])));
+  return axes[0] || {sort:"category",label:"테마별"};
+}
+
 function searchBestDestination(s){
   if(!s) return {sort:"pull",label:"추세"};
   if(s.earnings_hold) return {sort:"hold",label:"실적 보류"};
-  // 전체순위 화면과 같은 유니버스(visible())를 쓴다. 다르면 안내한 "다중신호 N위"와 실제 순위가 어긋난다.
-  const universe=visible();
+  // 다중 자격은 테마/보유/숨김 같은 UI 필터로 재계산하지 않는다.
+  const universe=signalUniverse();
   if(!universe.length) return {sort:"pull",label:"추세"};
 
   // 다중신호 자격이 실제로 있으면 다중신호 탭을 최우선으로 연다.
-  const multi=multiSignalRank(universe);
+  const multi=currentMultiRanked();
   const mi=multi.findIndex(x=>x.ticker===s.ticker);
   if(mi>=0) return {sort:"signal",label:`다중신호 ${mi+1}위`};
 
@@ -3295,9 +3347,15 @@ document.getElementById("main").addEventListener("click", e=>{
   const tf = e.target.closest("[data-themefilter]");
   if(tf){
     e.preventDefault(); e.stopPropagation();
-    state.themeFilter=tf.dataset.themefilter||"";
-    state.tab="all"; state.displayLimit=20;
+    const theme=tf.dataset.themefilter||"";
+    const dest=themeBestSort(theme);
+    state.themeFilter=theme;
+    state.tab="all";
+    state.view="compact";
+    state.sort=dest.sort;
+    state.displayLimit=20;
     save(); render();
+    toast(`${theme} · ${dest.label}으로 모아봤어요`);
     setTimeout(()=>document.getElementById("main")?.scrollIntoView({behavior:"smooth",block:"start"}),40);
     return;
   }
