@@ -32,7 +32,8 @@ HIST_DAYS = 10
 HIST_FIELDS = ["date","price","change_1d","ma5","ma10","ma20","ma50","ma60","rsi","macd_hist","macd_cross","macd_zero",
                "bb_pos","stoch_k","stoch_d","stoch_cross","vol_ratio","near_high","pct_from_high",
                "ma20_slope","run5_max","run3_sum","range3","range10","vol3_ratio",
-               "res_short","ret20","rs20"]
+               "res_short","ret20","rs20",
+               "atr_pct"]
 
 RUN_SCOPE = os.environ.get("RUN_SCOPE", "all").strip().lower()
 if RUN_SCOPE not in ("all", "kr"):
@@ -655,78 +656,119 @@ def save_history(results, mkt, now_kst):
 
 def freeze_signal_hist(results, prev_rows):
     """
-    signals.json의 최근 hist를 append-only 스냅샷으로 고정한다.
+    공개된 종가 스냅샷을 append-only로 고정한다.
 
-    핵심 규칙
-    1) 이미 signals.json에 존재했던 과거 ticker+date 행은 절대 재계산값으로 덮어쓰지 않는다.
-    2) 새 거래일만 오늘 계산된 hist 마지막 행에서 1회 추가한다.
-    3) 같은 거래일에 재실행/수동실행되어도 기존 그 날짜 행을 유지한다.
-    4) 최근 HIST_DAYS개만 유지한다.
-
-    따라서 오늘 화면에서 확정된 과거 신호 입력값이 내일 Yahoo 재조회 때문에
-    강한매수→매수관심처럼 바뀌는 repaint를 막는다.
+    - 이미 존재하는 과거 ticker+date hist는 재계산값으로 덮지 않는다.
+    - 같은 last_date가 이미 history/{us|kr}/YYYY-MM-DD.json에 있으면
+      top-level 현재 카드 입력값도 그 최초 스냅샷으로 복원한다.
+    - 기존 positional hist에 빠져 있던 atr_pct는 Yahoo 재계산값이 아니라
+      immutable 일자별 history snapshot에서만 보강한다.
+    - 새 거래일만 오늘 계산값을 1회 append한다.
     """
     idx = {k:i for i,k in enumerate(HIST_FIELDS)}
-    date_i = idx.get("date")
-    if date_i is None:
-        raise RuntimeError("HIST_FIELDS에 date가 없습니다.")
+    date_i = idx["date"]
+    atr_i = idx["atr_pct"]
+    snap_cache = {}
+
+    def day_snapshot(ticker, day):
+        if not ticker or not day:
+            return None
+        region = "kr" if is_kr_ticker(ticker) else "us"
+        key = (region, day)
+        if key not in snap_cache:
+            path = f"history/{region}/{day}.json"
+            rows = {}
+            try:
+                with open(path, encoding="utf-8") as f:
+                    p = json.load(f)
+                rows = {x.get("ticker"): x for x in (p.get("stocks") or []) if x.get("ticker")}
+            except Exception:
+                rows = {}
+            snap_cache[key] = rows
+        return snap_cache[key].get(ticker)
 
     frozen_count = 0
     appended_count = 0
+    restored_current = 0
+    atr_backfilled = 0
 
     for r in results:
         tk = r.get("ticker")
         last_date = str(r.get("last_date") or "")
         prev = (prev_rows or {}).get(tk) or {}
 
-        # 직전 signals.json에 실제 공개됐던 hist를 원장으로 사용.
+        fixed_today = day_snapshot(tk, last_date)
+        if fixed_today:
+            for k in SNAPSHOT_FIELDS:
+                if k in ("ticker", "last_date"):
+                    continue
+                if k in fixed_today:
+                    r[k] = fixed_today.get(k)
+            restored_current += 1
+
         old_hist = []
         seen = set()
-        for h in (prev.get("hist") or []):
-            if not isinstance(h, list) or len(h) <= date_i:
+        for h0 in (prev.get("hist") or []):
+            if not isinstance(h0, list) or len(h0) <= date_i:
                 continue
+            h = list(h0)
             d = str(h[date_i] or "")
             if not d or d in seen:
                 continue
-            old_hist.append(list(h))
+            while len(h) <= atr_i:
+                h.append(None)
+            if h[atr_i] is None:
+                snap = day_snapshot(tk, d)
+                if snap and snap.get("atr_pct") is not None:
+                    h[atr_i] = snap.get("atr_pct")
+                    atr_backfilled += 1
+            old_hist.append(h)
             seen.add(d)
 
-        # 오늘 새 계산 결과에서 '현재 확정 거래일' 한 줄만 가져온다.
+        if old_hist:
+            frozen_count += len(old_hist)
+
         current_hist_row = None
         for h in (r.get("hist") or []):
             if not isinstance(h, list) or len(h) <= date_i:
                 continue
             if str(h[date_i] or "") == last_date:
                 current_hist_row = list(h)
+                while len(current_hist_row) <= atr_i:
+                    current_hist_row.append(None)
+                if current_hist_row[atr_i] is None:
+                    current_hist_row[atr_i] = r.get("atr_pct")
 
-        if old_hist:
-            frozen_count += len(old_hist)
-
-        # 이미 그 날짜가 공개 이력에 있으면 절대 덮어쓰지 않는다.
         if last_date and last_date not in seen and current_hist_row is not None:
             old_hist.append(current_hist_row)
             seen.add(last_date)
             appended_count += 1
 
-        # 최초 도입 시 직전 hist가 전혀 없으면 현재 파일의 hist를 기준선으로 1회 채택.
-        # 이후 실행부터는 위 append-only 규칙으로 고정된다.
         if not old_hist:
-            seed = []
-            seed_seen = set()
-            for h in (r.get("hist") or []):
-                if not isinstance(h, list) or len(h) <= date_i:
+            seed=[]
+            seed_seen=set()
+            for h0 in (r.get("hist") or []):
+                if not isinstance(h0,list) or len(h0)<=date_i:
                     continue
-                d = str(h[date_i] or "")
+                h=list(h0)
+                while len(h)<=atr_i:
+                    h.append(None)
+                d=str(h[date_i] or "")
                 if not d or d in seed_seen:
                     continue
-                seed.append(list(h))
-                seed_seen.add(d)
-            old_hist = seed[-HIST_DAYS:]
+                if h[atr_i] is None:
+                    snap=day_snapshot(tk,d)
+                    h[atr_i]=(snap or {}).get("atr_pct")
+                seed.append(h); seed_seen.add(d)
+            old_hist=seed[-HIST_DAYS:]
 
         old_hist.sort(key=lambda h: str(h[date_i] or ""))
         r["hist"] = old_hist[-HIST_DAYS:]
 
-    print(f"hist 고정: 기존 스냅샷 {frozen_count}행 유지 · 새 거래일 {appended_count}행 추가")
+    print(
+        f"hist 고정: 기존 {frozen_count}행 유지 · 새 거래일 {appended_count}행 추가 · "
+        f"현재카드 스냅샷 복원 {restored_current}종목 · ATR 보강 {atr_backfilled}행"
+    )
 
 
 def attach_historical_rs20(results, mkt):
