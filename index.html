@@ -337,6 +337,19 @@ table.cmp tr:last-child td{border-bottom:none}
 table.validation-cmp{table-layout:fixed}
 table.validation-cmp th:first-child,table.validation-cmp td:first-child{width:48px;white-space:nowrap;word-break:keep-all;padding-left:8px;padding-right:6px}
 table.validation-cmp th:not(:first-child),table.validation-cmp td:not(:first-child){padding-left:7px;padding-right:7px}
+table.validation-cmp th[colspan="3"]{color:var(--ink);font-weight:800}
+.validation-help-btn{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;margin-left:4px;border:1px solid var(--line);border-radius:50%;background:var(--surface);color:var(--muted);font-size:10px;font-weight:800;vertical-align:1px;cursor:pointer}
+.validation-help-btn:active{transform:scale(.95)}
+.vrate{font-size:15px;color:var(--ink);line-height:1.25}
+.vavg{font-size:10.5px;color:var(--ink);font-weight:600;white-space:nowrap}
+.vsplit{font-size:9px;line-height:1.45;white-space:nowrap}
+.vup{color:var(--up);font-weight:600}.vdown{color:var(--down);font-weight:600}.vflat{color:var(--faint);font-weight:500}
+@media(max-width:640px){
+  table.validation-cmp th:first-child,table.validation-cmp td:first-child{width:50px}
+  table.validation-cmp th:not(:first-child),table.validation-cmp td:not(:first-child){padding-left:5px;padding-right:5px}
+  .vrate{font-size:14px}.vavg{font-size:9.8px}.vsplit{font-size:8.7px}
+}
+
 details.acc{background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:11px 13px;margin-top:9px}
 details.acc summary{cursor:pointer;font-size:13px;font-weight:700;list-style:none}
 details.acc summary::-webkit-details-marker{display:none}
@@ -2446,7 +2459,7 @@ function validationBlock(){
     const cell=(o)=>{
       if(!o || !o.n) return `—<br><span style="font-size:10.5px;color:var(--faint)">표본 없음</span>`;
       const up=Math.round((Number(o.win)||0)/o.n*100), flat=Math.round((Number(o.flat)||0)/o.n*100), down=Math.round((Number(o.loss)||0)/o.n*100);
-      return `${pctExt(o.directional_rate)}<br><span style="font-size:10.5px;color:var(--faint)">평균 ${avExt(o.avg_return)} · ${o.n}건</span><br><span style="font-size:9.5px;color:var(--faint);white-space:nowrap">상승 ${up}% vs 하락 ${down}%</span><br><span style="font-size:8.5px;color:var(--faint)">보합 ${flat}%</span>`;
+      return `<span class="vrate">${pctExt(o.directional_rate)}</span><br><span class="vavg">평균 ${avExt(o.avg_return)}</span><br><span class="vsplit"><span class="vup">상승 ${up}%</span> · <span class="vdown">하락 ${down}%</span></span><br><span class="vsplit vflat">보합 ${flat}%</span>`;
     };
     const row=k=>`<tr><td><b>${names[k].label}</b></td><td>${cell(S[k]&&S[k][1])}</td><td>${cell(S[k]&&S[k][3])}</td><td>${cell(S[k]&&S[k][5])}</td></tr>`;
     const diagRows=["multi","trend","reversal"].flatMap(k=>[1,3,5].map(h=>{
@@ -2455,8 +2468,8 @@ function validationBlock(){
     })).filter(Boolean);
     const diagDetail=`<details class="acc" style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:11px"><b>🔎 표본 구성 자세히</b></summary><div class="strip" style="margin-top:6px;line-height:1.9">${diagRows.join("<br>")}<div style="margin-top:5px;color:var(--faint);font-size:10.5px">실패·보합 표본도 최종 평가에 그대로 포함됩니다. ‘최근 수익 사례’ 3줄만 별도의 예시 영역입니다.</div></div></details>`;
     return `<div class="section help-block"><h3>🧪 신뢰도 검증 결과</h3><div class="strip" style="margin-bottom:8px"><b>매수 신호가 뜬 날 종가에 샀다고 가정하고, 1·3·5거래일 뒤 종가를 확인한 결과입니다.</b><div style="margin-top:5px;color:var(--faint);font-size:11px;font-weight:400;line-height:1.65">다중·추세·반등 신호가 발생하고 <b>매수관심 또는 강한매수 수준 이상</b>이 나온 경우만 검증 대상에 포함합니다.</div></div>
-      <div style="margin:0 2px 7px;font-size:12px;font-weight:800;color:var(--ink)">종가에 매수했다면? <span style="font-weight:600;color:var(--muted)">· 상승 vs 하락 (보합 제외)</span><div style="margin-top:3px;font-size:10px;font-weight:500;color:var(--faint)">승률 = 상승 ÷ (상승 + 하락) · 상 +1% 초과 · 보 -1%~+1% · 하 -1% 미만</div></div>
-      <table class="cmp validation-cmp"><tr><th>구분</th><th colspan="3">상승이 하락을 이길 확률</th></tr><tr><th>전략</th><th>+1거래일</th><th>+3거래일</th><th>+5거래일</th></tr>
+      <div style="margin:0 2px 7px;font-size:12px;font-weight:800;color:var(--ink)">종가에 매수했다면? <span style="font-weight:600;color:var(--muted)">· 상승 vs 하락 (보합 제외)</span></div>
+      <table class="cmp validation-cmp"><tr><th>구분</th><th colspan="3">상승이 하락을 이길 확률 <button type="button" class="validation-help-btn" onclick="openValidationHelp()" aria-label="승률 계산 설명">?</button></th></tr><tr><th>전략</th><th>+1거래일</th><th>+3거래일</th><th>+5거래일</th></tr>
         ${row("multi")}${row("trend")}${row("reversal")}
       </table>${exampleBlock}${diagDetail}${exDetail}
       <div class="strip" style="margin-top:9px">
@@ -2467,7 +2480,7 @@ function validationBlock(){
   const cell=(o)=>{
     if(o.n===0) return `—<br><span style="font-size:10.5px;color:var(--faint)">표본 없음</span>`;
     const up=Math.round((o.wins||0)/o.n*100), flat=Math.round((o.flats||0)/o.n*100), down=Math.round((o.losses||0)/o.n*100);
-    return `${pct(o.rate)}<br><span style="font-size:10.5px;color:var(--faint)">평균 ${av(o.avg)} · ${o.n}건</span><br><span style="font-size:9.5px;color:var(--faint);white-space:nowrap">상승 ${up}% vs 하락 ${down}%</span><br><span style="font-size:8.5px;color:var(--faint)">보합 ${flat}%</span>`;
+    return `<span class="vrate">${pct(o.rate)}</span><br><span class="vavg">평균 ${av(o.avg)}</span><br><span class="vsplit"><span class="vup">상승 ${up}%</span> · <span class="vdown">하락 ${down}%</span></span><br><span class="vsplit vflat">보합 ${flat}%</span>`;
   };
   const row=k=>`<tr><td><b>${k==="multi"?"다중":k==="pull"?"추세":"반등"}</b></td><td>${cell(v[k][1])}</td><td>${cell(v[k][3])}</td><td>${cell(v[k][5])}</td></tr>`;
   const diagLabel={multi:"다중",pull:"추세",rev:"반등"};
@@ -2479,8 +2492,8 @@ function validationBlock(){
   }));
   const diagDetail=`<details class="acc" style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:11px"><b>🔎 표본 구성 자세히</b></summary><div class="strip" style="margin-top:6px;line-height:1.9">${diagRows.join("<br>")}<div style="margin-top:5px;color:var(--faint);font-size:10.5px">실패·보합 표본도 최종 평가에 그대로 포함됩니다. ‘최근 수익 사례’ 3줄만 별도의 예시 영역입니다.</div></div></details>`;
   return `<div class="section help-block"><h3>🧪 신뢰도 검증 결과</h3><div class="strip" style="margin-bottom:8px"><b>매수 신호가 뜬 날 종가에 샀다고 가정하고, 1·3·5거래일 뒤 종가를 확인한 결과입니다.</b><div style="margin-top:5px;color:var(--faint);font-size:11px;font-weight:400;line-height:1.65">다중·추세·반등 신호가 발생하고 <b>매수관심 또는 강한매수 수준 이상</b>이 나온 경우만 검증 대상에 포함합니다.</div></div>
-    <div style="margin:0 2px 7px;font-size:12px;font-weight:800;color:var(--ink)">종가에 매수했다면? <span style="font-weight:600;color:var(--muted)">· 상승 vs 하락 (보합 제외)</span><div style="margin-top:3px;font-size:10px;font-weight:500;color:var(--faint)">승률 = 상승 ÷ (상승 + 하락) · 상 +1% 초과 · 보 -1%~+1% · 하 -1% 미만</div></div>
-    <table class="cmp validation-cmp"><tr><th>구분</th><th colspan="3">상승이 하락을 이길 확률</th></tr><tr><th>전략</th><th>+1거래일</th><th>+3거래일</th><th>+5거래일</th></tr>
+    <div style="margin:0 2px 7px;font-size:12px;font-weight:800;color:var(--ink)">종가에 매수했다면? <span style="font-weight:600;color:var(--muted)">· 상승 vs 하락 (보합 제외)</span></div>
+    <table class="cmp validation-cmp"><tr><th>구분</th><th colspan="3">상승이 하락을 이길 확률 <button type="button" class="validation-help-btn" onclick="openValidationHelp()" aria-label="승률 계산 설명">?</button></th></tr><tr><th>전략</th><th>+1거래일</th><th>+3거래일</th><th>+5거래일</th></tr>
       ${row("multi")}${row("pull")}${row("rev")}
     </table>${exampleBlock}${diagDetail}${exDetail}
     <div class="strip" style="margin-top:9px">
@@ -2792,6 +2805,17 @@ function explainStyle(kind){
     <p style="font-size:13px;color:var(--reason);line-height:1.85">${isTrend
       ? `이미 상승 추세가 형성된 종목에서 <b>되돌림 · Pullback · 눌림목 · 매물 소화 구간의 유리한 진입 타이밍</b>입니다.`
       : `하락 또는 바닥권에 있는 종목에서 <b>과매도 완화 · 지지 회복 · 모멘텀 전환</b>을 확인한 단기 반등 구간의 좋은 진입 타이밍입니다.`}</p>` + close);
+}
+function openValidationHelp(){
+  openModal(`<h3>상승이 하락을 이길 확률</h3>
+    <p style="font-size:13px;color:var(--reason);line-height:1.8">
+      <b>승률 = 상승 ÷ (상승 + 하락)</b><br>
+      보합은 승률 계산에서 제외합니다.<br><br>
+      · 상승: <b>+1% 초과</b><br>
+      · 보합: <b>-1%~+1%</b><br>
+      · 하락: <b>-1% 미만</b>
+    </p>
+    <div class="modal-actions"><button class="primary" onclick="closeModal()">닫기</button></div>`);
 }
 function openMaterialModal(){
   openModal(`<h3>🔍 외부 재료 필터링</h3>
