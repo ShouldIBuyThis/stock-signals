@@ -628,6 +628,71 @@ html[data-theme="dark"] .mkswitch button.on{background:#37456a;box-shadow:none}
 .cartstock p{margin:2px 0;font-size:11.8px;line-height:1.65;color:var(--reason)}
 .risk-ticker{border-bottom:1px dotted currentColor;cursor:pointer}
 .risk-note{margin-top:7px;padding:8px 10px;border:1px dashed var(--line);border-radius:9px;font-size:11px;line-height:1.55;color:var(--reason);background:var(--surface2)}
+
+/* 엄격 다중 — 시계방향으로 도는 황금 광택 테두리.
+   마스크로 테두리 바깥쪽만 그린다. 카드 배경과 등급 좌측 색띠는 건드리지 않는다. */
+@property --goldAngle{ syntax:'<angle>'; initial-value:0deg; inherits:false }
+.multi-strict{
+  position:relative;
+  isolation:isolate;
+}
+.multi-strict::before{
+  content:"";
+  position:absolute;
+  inset:-3px;
+  z-index:-1;
+  border-radius:inherit;
+  padding:3px;
+  pointer-events:none;
+  background:conic-gradient(from var(--goldAngle),
+    rgba(255,215,80,.20),
+    rgba(255,196,56,.95),
+    rgba(255,241,168,.35),
+    rgba(214,159,28,.95),
+    rgba(255,215,80,.20));
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;
+          mask-composite:exclude;
+  animation:multiGoldSpin 2.8s linear infinite;
+}
+/* 위젯 행은 .widget{overflow:hidden} 안이라 바깥 3px이 잘린다. 링을 행 안쪽에 그린다. */
+.wrow.multi-strict::before{inset:0}
+@keyframes multiGoldSpin{to{--goldAngle:360deg}}
+@media (prefers-reduced-motion: reduce){
+  .multi-strict::before{animation:none}
+}
+/* 엄격 다중 전구 — 이 버튼을 눌렀을 때만 설명 말풍선이 뜬다 */
+.multi-bulb{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:18px;height:18px;margin-left:4px;flex-shrink:0;
+  font-size:11px;line-height:1;vertical-align:middle;
+  border-radius:50%;background:rgba(255,196,56,.18);
+  cursor:pointer;user-select:none;
+}
+.multi-bulb:active{transform:scale(.92)}
+.multi-toast{
+  position:fixed;
+  left:50%;
+  bottom:112px;
+  transform:translate(-50%,8px);
+  z-index:99999;
+  max-width:min(84vw,320px);
+  padding:10px 14px;
+  border-radius:999px;
+  background:rgba(31,38,52,.95);
+  color:#fff;
+  font-size:13px;
+  font-weight:800;
+  line-height:1.35;
+  box-shadow:0 8px 24px rgba(0,0,0,.18);
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .22s ease, transform .22s ease;
+}
+.multi-toast.on{opacity:1;transform:translate(-50%,0)}
+.multi-toast.fade{opacity:0;transform:translate(-50%,-4px)}
+
 </style>
 
 <style>
@@ -1548,9 +1613,9 @@ function sectorStats(list){
 }
 function widget(title, sub, rows, emptyMsg){
   const body = rows.length ? rows.map((r,i)=>`
-    <button class="wrow" data-goto="${esc(r.ticker)}">
+    <button class="wrow${r._multiStrict?" multi-strict":""}" data-goto="${esc(r.ticker)}">
       <span class="rk ${i<3?"top":""}">${i+1}</span>
-      <span class="tk">${esc(r.ticker)}</span>
+      <span class="tk">${esc(r.ticker)}</span>${r._multiStrict?multiBulb(r.ticker):""}
       <span class="nm">${esc(r.name||"")}</span>
       ${(r.val!==undefined && r.val!==null && r.val!=="")?`<span class="val ${r.cls||""}">${esc(String(r.val))}</span>`:""}
       <span class="wquick ${state.favorites.includes(r.ticker)?"on":""}" role="button" tabindex="0" data-qfav="${esc(r.ticker)}" title="관심종목">${state.favorites.includes(r.ticker)?"★":"☆"}</span>
@@ -1639,9 +1704,11 @@ function multiSignalRank(list){
   };
 
   /* 다중 핵심 = 눌림·반등 2축, 거래량 = 보조 확인축.
-     1단계(엄격): 3축 중 TOP5 2개 이상 + 눌림/반등 TOP5 최소 1개
-     2단계(일반): 1단계 탈락 중 3축 TOP10 2개 이상 + 눌림/반등 TOP10 최소 1개
-     최종 순서는 1단계를 전부 먼저, 그 다음 2단계를 이어 붙인다. */
+     1단계(엄격): 눌림·반등·거래량 3축 중 TOP5 2개 이상
+                   + 그중 눌림 또는 반등 TOP5 최소 1개
+     2단계(일반): 1단계 탈락 종목 중 3축 TOP10 2개 이상
+                   + 눌림/반등/거래량 중 TOP7 최소 1개
+     최종 순서는 엄격 다중을 전부 먼저, 그 다음 일반 다중을 이어 붙인다. */
   const R={
     pull:rank(s=>s.sig.pullScore),
     rev:rank(s=>s.sig.revScore),
@@ -1654,11 +1721,14 @@ function multiSignalRank(list){
     const core5=core.filter(x=>x<=5).length;
     const core10=core.filter(x=>x<=10).length;
     const all5=all.filter(x=>x<=5).length;
+    const all7=all.filter(x=>x<=7).length;
     const all10=all.filter(x=>x<=10).length;
+
     const strict=(all5>=2 && core5>=1);
-    const general=(!strict && all10>=2 && core10>=1);
+    const general=(!strict && all10>=2 && all7>=1);
+
     return {
-      s,pu,rv,vo,core5,core10,all5,all10,
+      s,pu,rv,vo,core5,core10,all5,all7,all10,
       bestCore:Math.min(...core),
       bestAll:Math.min(...all),
       tier:strict?1:(general?2:0)
@@ -1668,6 +1738,7 @@ function multiSignalRank(list){
   const cmpWithin=(a,b)=>
     b.s.sig.grade-a.s.sig.grade ||
     b.core5-a.core5 || b.all5-a.all5 ||
+    b.all7-a.all7 ||
     b.core10-a.core10 || b.all10-a.all10 ||
     a.bestCore-b.bestCore || a.bestAll-b.bestAll ||
     a.s.ticker.localeCompare(b.s.ticker);
@@ -1680,7 +1751,13 @@ function multiSignalRank(list){
     if(x.pu<=10)bits.push(`눌림 ${x.pu}위`);
     if(x.rv<=10)bits.push(`반등 ${x.rv}위`);
     if(x.vo<=10)bits.push(`거래량 ${x.vo}위`);
-    return Object.assign({},x.s,{_multi:bits,_multiInfo:x,_multiTier:x.tier,val:""});
+    return Object.assign({},x.s,{
+      _multi:bits,
+      _multiInfo:x,
+      _multiTier:x.tier,
+      _multiStrict:x.tier===1,
+      val:""
+    });
   });
 }
 function multiSignalTop(list){ return multiSignalRank(list).slice(0,5); }
@@ -1825,10 +1902,10 @@ function gauge(label,pct,val,opts={}){
 function compactRow(s, i, rankless=false){
   const g = s.sig.grade;
   const key = displayTags(s.sig.tags, 1)[0];
-  return `<button class="crow2 g${g}${s.earnings_hold?" hold-card":""}" data-goto="${esc(s.ticker)}">
+  return `<button class="crow2 g${g}${s.earnings_hold?" hold-card":""}${s._multiStrict?" multi-strict":""}" data-goto="${esc(s.ticker)}">
     <span class="c-main">
       <span class="c-rank">${rankless || state.sort==="category" || state.sort==="hold" ? "" : (i<3 ? ["🥇","🥈","🥉"][i] : `<span class="num">${i+1}</span>`)}</span>
-      <span class="c-name"><b>${esc(s.ticker)}${levMark(s.ticker)}</b><em>${esc(s.name||"")}</em></span>
+      <span class="c-name"><b>${esc(s.ticker)}${levMark(s.ticker)}</b>${s._multiStrict?multiBulb(s.ticker):""}<em>${esc(s.name||"")}</em></span>
       <span class="c-badge ${stockGradeCls(s)}">${stockGradeLabel(s)}</span>
       <span class="c-price num">${fmtPrice(s)}<em class="${chgCls(s.change_1d)}">${fmtChg(s.change_1d)}</em></span>
       <span class="c-flag">${key?`<span class="tag ${key.c}">${key.t.replace(/\(.*\)/,"")}</span>`:""}</span>
@@ -2218,10 +2295,10 @@ function stockCard(s, i, rankless=false){
     ? `<button class="timeline-cta" data-timeline="${esc(s.ticker)}"><span>📈 최근 10거래일 신호 흐름<small>중립 → 매수 전환 시점을 한눈에</small></span><b>›</b></button>`
     : `<button class="timeline-cta disabled" type="button"><span>📈 최근 10거래일 신호 흐름<small>히스토리가 쌓이는 중이에요</small></span><b>·</b></button>`;
   const expandBtn=open?"":`<button class="expand" data-act="expand">▾ 자세히 보기 (기술 상태·가격 위치)</button>`;
-  return `<div class="stock g${g}${s.earnings_hold?" hold-card":""}${LEVERAGED[s.ticker]?" lev-card":""}" data-tk="${esc(s.ticker)}">
+  return `<div class="stock g${g}${s.earnings_hold?" hold-card":""}${LEVERAGED[s.ticker]?" lev-card":""}${s._multiStrict?" multi-strict":""}" data-tk="${esc(s.ticker)}">
     <div class="s-top">
       ${rankMark(i, rankless)}
-      <span class="s-tk${externalRiskInfo(s)?" risk-ticker":""}"${riskTickerAttrs(s)}>${esc(s.ticker)}</span>${levMark(s.ticker)}
+      <span class="s-tk${externalRiskInfo(s)?" risk-ticker":""}"${riskTickerAttrs(s)}>${esc(s.ticker)}</span>${levMark(s.ticker)}${s._multiStrict?multiBulb(s.ticker):""}
       <span class="s-nm">${esc(s.name||"")}${LEVERAGED[s.ticker]?` <span class="levnote">(고변동 레버리지)</span>`:""}</span>
       <span class="s-tools">
         <button data-act="own" class="own ${s._hold?"on":""}" title="보유 종목으로 표시">보유${s._hold?"★":"☆"}</button>
@@ -2243,6 +2320,31 @@ function stockCard(s, i, rankless=false){
 function emptyState(){
   return `<div class="empty-state">표시할 종목이 없어요.<br>필터(보유만·시장)를 확인해 보세요.</div>`;
 }
+
+/* 엄격 다중 표시용 전구. 카드 안 다른 버튼과 겹치지 않도록 span(role=button)으로 둔다. */
+function multiBulb(tk){
+  return `<span class="multi-bulb" role="button" tabindex="0" data-multibulb="${esc(tk)}" title="엄격 다중 신호" aria-label="엄격 다중 신호 설명">\u{1F4A1}</span>`;
+}
+
+let _multiToastTimer=null;
+function showStrictMultiToast(){
+  let el=document.getElementById("multiStrictToast");
+  if(!el){
+    el=document.createElement("div");
+    el.id="multiStrictToast";
+    el.className="multi-toast";
+    el.textContent="오늘의 신호가 강하게 겹치는 종목이에요";
+    document.body.appendChild(el);
+  }
+  clearTimeout(_multiToastTimer);
+  el.classList.remove("fade");
+  requestAnimationFrame(()=>el.classList.add("on"));
+  _multiToastTimer=setTimeout(()=>{
+    el.classList.add("fade");
+    setTimeout(()=>el.classList.remove("on","fade"),260);
+  },2000);
+}
+
 function renderAll(){
   if(state.sort==="break") state.sort="pull";
   if (state.badge) return filterBar() + badgeList();
@@ -3071,7 +3173,8 @@ document.addEventListener("click", e=>{ if(!e.target.closest(".search")) qRes.cl
 function searchBestDestination(s){
   if(!s) return {sort:"pull",label:"추세"};
   if(s.earnings_hold) return {sort:"hold",label:"실적 보류"};
-  const universe=allStocks().filter(x=>!x.earnings_hold);
+  // 전체순위 화면과 같은 유니버스(visible())를 쓴다. 다르면 안내한 "다중신호 N위"와 실제 순위가 어긋난다.
+  const universe=visible();
   if(!universe.length) return {sort:"pull",label:"추세"};
 
   // 다중신호 자격이 실제로 있으면 다중신호 탭을 최우선으로 연다.
@@ -3122,6 +3225,23 @@ function gotoStock(tk){
     }
   }, 60);
 }
+
+/* 엄격 다중 전구 전용 핸들러.
+   캡처 단계에서 먼저 잡고 전파를 끊는다. 전구 이외의 클릭(보유·장바구니·상세·뱃지)에는
+   이 핸들러가 아예 반응하지 않고, 전구를 눌렀을 때는 카드 이동 등 기존 동작도 일어나지 않는다. */
+document.addEventListener("click",(e)=>{
+  const bulb=e.target.closest("[data-multibulb]");
+  if(!bulb) return;
+  e.preventDefault(); e.stopPropagation();
+  showStrictMultiToast();
+}, true);
+document.addEventListener("keydown",(e)=>{
+  if(e.key!=="Enter" && e.key!==" ") return;
+  const bulb=e.target.closest && e.target.closest("[data-multibulb]");
+  if(!bulb) return;
+  e.preventDefault(); e.stopPropagation();
+  showStrictMultiToast();
+}, true);
 
 /* ══════════ 이벤트 ══════════ */
 document.getElementById("tabs").addEventListener("click", e=>{
