@@ -626,6 +626,8 @@ html[data-theme="dark"] .mkswitch button.on{background:#37456a;box-shadow:none}
 .cartstock-h{display:flex;align-items:center;gap:7px;margin-bottom:4px;font-size:12.5px}
 .cartstock-h b{font-weight:900}
 .cartstock p{margin:2px 0;font-size:11.8px;line-height:1.65;color:var(--reason)}
+.risk-ticker{border-bottom:1px dotted currentColor;cursor:pointer}
+.risk-note{margin-top:7px;padding:8px 10px;border:1px dashed var(--line);border-radius:9px;font-size:11px;line-height:1.55;color:var(--reason);background:var(--surface2)}
 </style>
 
 <style>
@@ -2028,7 +2030,7 @@ function openCartReview(){
       저항이 <b>—</b>면 이미 그 구간 고점을 넘어선 상태입니다. 52주 고가는 카드에서 확인하세요. 손절선은 진입가와 보유 기간에 따라 달라지므로 직접 정하셔야 합니다.</p>
 
     <div class="cf-h" style="margin-top:14px">🔎 종목별 체크</div>
-    ${F.mine.map(s=>`<div class="cartstock"><div class="cartstock-h"><b>${esc(s.ticker)}</b><span class="badge ${stockGradeCls(s)} mini">${stockGradeLabel(s)}</span></div>${cartStockNotes(s).map(t=>`<p>· ${t}</p>`).join("")}</div>`).join("")}
+    ${F.mine.map(s=>`<div class="cartstock"><div class="cartstock-h"><b>${esc(s.ticker)}</b><span class="badge ${stockGradeCls(s)} mini">${stockGradeLabel(s)}</span></div>${cartStockNotes(s).map(t=>`<p>· ${t}</p>`).join("")}${riskNoticeHtml(s)}</div>`).join("")}
 
     <div class="bub good"><div class="bub-h">💚 전체 구성에서 괜찮은 점</div>${B.good.map(t=>`<p>${t}</p>`).join("")}</div>
     <div class="bub care"><div class="bub-h">⚠️ 놓치기 쉬운 점</div>${B.care.map(t=>`<p>${t}</p>`).join("")}</div>
@@ -2143,6 +2145,21 @@ function closeDateLabel(d){
   return m ? `${Number(m[1])}/${Number(m[2])}종가` : "";
 }
 
+/* 특수 업종 외부변수 안내 — UI 전용, 산식에는 사용하지 않음 */
+function externalRiskInfo(s){
+  const cat=String(s?.category||"");
+  const tk=String(s?.ticker||"").toUpperCase();
+  if(cat.includes("원자재·유가") || ["XOM","USO"].includes(tk))
+    return {title:"원유 관련 종목 안내",text:"원유주는 유가·OPEC·지정학적 변수의 영향이 커 기술적 신호와 다르게 움직일 수 있어요."};
+  if(cat.includes("암호화폐") || ["MSTR","BMNR","COIN"].includes(tk))
+    return {title:"코인 관련 종목 안내",text:"코인 관련주는 BTC 가격과 24시간 코인시장 영향을 크게 받아 일봉 기술신호와 다르게 움직일 수 있어요."};
+  if(cat.includes("헬스케어") || cat.includes("바이오"))
+    return {title:"헬스케어·바이오 안내",text:"헬스케어, 특히 바이오는 임상·FDA·실적 등 개별 이벤트 영향이 커 기술적 신호가 갑자기 무력화될 수 있어요."};
+  return null;
+}
+function riskTickerAttrs(s){ return externalRiskInfo(s) ? ` data-risk-tk="${esc(s.ticker)}" title="외부 변수 안내"` : ""; }
+function riskNoticeHtml(s){ const r=externalRiskInfo(s); return r?`<div class="risk-note">※ ${esc(r.text)}</div>`:""; }
+
 function stockCard(s, i, rankless=false){
   const g = s.sig.grade, open = state.expanded.includes(s.ticker);
   const shownTags = s.earnings_hold ? [{c:"t-warn",t:"실적 이벤트 영향권 · 기술등급 보류"}] : displayTags(s.sig.tags, open ? 5 : 3);
@@ -2178,7 +2195,7 @@ function stockCard(s, i, rankless=false){
   return `<div class="stock g${g}${s.earnings_hold?" hold-card":""}${LEVERAGED[s.ticker]?" lev-card":""}" data-tk="${esc(s.ticker)}">
     <div class="s-top">
       ${rankMark(i, rankless)}
-      <span class="s-tk">${esc(s.ticker)}</span>${levMark(s.ticker)}
+      <span class="s-tk${externalRiskInfo(s)?" risk-ticker":""}"${riskTickerAttrs(s)}>${esc(s.ticker)}</span>${levMark(s.ticker)}
       <span class="s-nm">${esc(s.name||"")}${LEVERAGED[s.ticker]?` <span class="levnote">(고변동 레버리지)</span>`:""}</span>
       <span class="s-tools">
         <button data-act="own" class="own ${s._hold?"on":""}" title="보유 종목으로 표시">보유${s._hold?"★":"☆"}</button>
@@ -2465,6 +2482,8 @@ function strategyValidation(){
       .flatMap(h=>(out[k][h]||[])
         .filter(x=>x.ret>1)
         .filter(exampleTransitionOK)
+        // 공개 수익사례에서만 레버리지 ETF 제외. 신뢰도/등급/점수에는 영향 없음.
+        .filter(x=>!LEVERAGED[x.ticker])
         .map(x=>Object.assign({kind:k,label,icon},x)))
       .sort((a,b)=>b.ret-a.ret)
       .filter(x=>{
@@ -2507,7 +2526,7 @@ function validationBlock(){
   const exampleBlock=exGroups ? `<details class="acc validation-examples" style="margin-top:8px" open>
     <summary style="cursor:pointer"><b>📌 최근 수익 사례 6건</b></summary>
     <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px">${exGroups}</div>
-    <div style="margin-top:7px;color:var(--faint);font-size:10.5px">실적 영향권 제외</div>
+    <div style="margin-top:7px;color:var(--faint);font-size:10.5px">실적 영향권 · 레버리지 ETF 제외</div>
   </details>` : "";
   const ex=v._excludedDetails||[];
   const exDetail=ex.length?`<details class="acc" style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:11px"><b>실적 영향권 표본 자동 제외 · ${v._excludedTickers.length}종목 · 자세히</b></summary><div class="strip" style="margin-top:6px">${ex.map(o=>`${esc(o.ticker)} · 신호일 ${esc(o.date)} · 실적 ${esc(o.event||"?")}${timingLabel(o.timing)?` · ${esc(timingLabel(o.timing))}`:""} · +${o.horizons.join("/+")} 제외`).join("<br>")}</div></details>`:"";
@@ -3272,6 +3291,14 @@ boot();
  x?.addEventListener("click",close); d?.addEventListener("click",close);
  document.addEventListener("click",close);
  document.addEventListener("keydown",e=>{if(e.key==="Escape")close();});
-})();</script>
+})();document.addEventListener("click",(e)=>{
+  const el=e.target.closest("[data-risk-tk]");
+  if(!el) return;
+  e.preventDefault(); e.stopPropagation();
+  const s=allStocks().find(x=>x.ticker===el.dataset.riskTk);
+  const r=externalRiskInfo(s);
+  if(r) openModal(`<h3>${esc(r.title)}</h3><p style="font-size:13px;color:var(--reason);line-height:1.8">${esc(r.text)}</p><div class="modal-actions"><button class="primary" onclick="document.getElementById('modal').classList.remove('on')">닫기</button></div>`);
+});
+</script>
 </body>
 </html>
