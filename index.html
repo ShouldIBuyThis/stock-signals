@@ -2436,16 +2436,24 @@ function strategyValidation(){
   result._excludedDetails=[...excludedDetails.values()].map(o=>({ticker:o.ticker,date:o.date,event:o.event,timing:o.timing,kinds:[...o.kinds],horizons:[...o.horizons].sort((a,b)=>a-b)})).sort((a,b)=>a.date.localeCompare(b.date)||a.ticker.localeCompare(b.ticker));
   result._diag=diag;
 
-  // 공개 사례는 전체 승률 계산과 분리된 '최근 수익 사례'다.
-  // +3/+5거래일 검증 통과 표본 중 성공(ret>1)이 난 사례만 무작위로 보여준다. 보합(-1%~+1%)은 제외한다.
-  // +1거래일은 공개 사례에서 사용하지 않으며, 동일 티커는 중복하지 않는다.
-  const usedExampleTickers=new Set(), examples=[];
-  [["multi","다중 신호","🔵"],["pull","추세","📈"],["rev","반등","🔄"]].forEach(([k,label,icon])=>{
-    const profitable=[3,5]
-      .flatMap(h=>(out[k][h]||[]).filter(x=>x.ret>1))
-      .filter(x=>!usedExampleTickers.has(x.ticker));
-    const pick=profitable.length ? profitable[Math.floor(Math.random()*profitable.length)] : null;
-    if(pick){ usedExampleTickers.add(pick.ticker); examples.push(Object.assign({kind:k,label,icon},pick)); }
+  // 공개 사례는 전체 승률 계산과 완전히 분리된 '최근 수익 사례 6건'이다.
+  // 다중 → 추세 → 반등 순으로, 각 전략에서 +3/+5거래일 검증 통과 성공(ret>1) 사례 중 수익률 TOP2를 표시한다.
+  // 동일 전략 안에서는 같은 티커가 중복되지 않도록 한다.
+  const examples=[];
+  [["multi","다중","🔵"],["pull","추세","📈"],["rev","반등","🔄"]].forEach(([k,label,icon])=>{
+    const usedTickers=new Set();
+    const top2=[3,5]
+      .flatMap(h=>(out[k][h]||[])
+        .filter(x=>x.ret>1)
+        .map(x=>Object.assign({kind:k,label,icon},x)))
+      .sort((a,b)=>b.ret-a.ret)
+      .filter(x=>{
+        if(usedTickers.has(x.ticker)) return false;
+        usedTickers.add(x.ticker);
+        return true;
+      })
+      .slice(0,2);
+    examples.push(...top2);
   });
   result._examples=examples;
   return result;
@@ -2457,8 +2465,30 @@ function validationBlock(){
   const pct=x=>x==null?"—":x+"%"; const av=x=>x==null?"—":`${x>=0?"+":""}${x.toFixed(2)}%`;
   const dateShort=d=>{ const m=String(d||"").match(/\d{4}-(\d{2})-(\d{2})/); return m?`${Number(m[1])}/${Number(m[2])}`:String(d||"—"); };
   const priceText=(tk,p)=>{ const st=allStocks().find(x=>x.ticker===tk); if(!has(p)) return "—"; return st&&st.currency==="KRW" ? `₩${Math.round(p).toLocaleString("ko-KR")}` : `$${Number(p).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`; };
-  const exRows=(v._examples||[]).map(x=>`<span class="example-row"><span class="ex-head">${x.icon} <b>${esc(x.label)} · ${esc(x.ticker)}</b></span><span class="ex-buy">${esc(dateShort(x.date))} 종가 ${esc(priceText(x.ticker,x.buyPrice))} 매수 →</span><span class="ex-ret">${x.horizon}거래일 뒤 ${x.ret>=0?"+":""}${x.ret.toFixed(2)}% <span style="color:var(--faint);font-weight:500">(${esc(priceText(x.ticker,x.endPrice))})</span></span></span>`);
-  const exampleBlock=exRows.length ? `<details class="acc validation-examples" style="margin-top:8px" open><summary style="cursor:pointer"><b>📌 최근 수익 사례 ${exRows.length}건</b></summary><div class="strip" style="margin-top:6px;line-height:1.9">${exRows.join("")}<div style="margin-top:5px;color:var(--faint);font-size:10.5px">실적 영향권 제외</div></div></details>` : "";
+  const exGroups=["multi","pull","rev"].map(k=>{
+    const label=k==="multi"?"다중":k==="pull"?"추세":"반등";
+    const icon=k==="multi"?"🔵":k==="pull"?"📈":"🔄";
+    const rows=(v._examples||[]).filter(x=>x.kind===k).slice(0,2);
+    if(!rows.length) return "";
+    return `<div style="border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--surface)">
+      <div style="font-size:12.5px;font-weight:900;margin-bottom:7px">${icon} ${label}</div>
+      ${rows.map((x,i)=>`<div style="${i?"margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)":""}">
+        <div style="display:flex;align-items:baseline;gap:7px;flex-wrap:wrap">
+          <b style="font-size:13.5px">${i+1}. ${esc(x.ticker)}</b>
+          <span style="font-size:11.5px;color:var(--muted)">매수가 ${esc(priceText(x.ticker,x.buyPrice))}</span>
+        </div>
+        <div style="margin-top:3px;padding-left:18px;font-size:11.8px;color:var(--reason);line-height:1.55">
+          ${esc(dateShort(x.date))} 종가 매수 → <b>${x.horizon}거래일 뒤 ${x.ret>=0?"+":""}${x.ret.toFixed(2)}%</b>
+          <span style="color:var(--faint)">(${esc(priceText(x.ticker,x.endPrice))})</span>
+        </div>
+      </div>`).join("")}
+    </div>`;
+  }).filter(Boolean).join("");
+  const exampleBlock=exGroups ? `<details class="acc validation-examples" style="margin-top:8px" open>
+    <summary style="cursor:pointer"><b>📌 최근 수익 사례 6건</b></summary>
+    <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px">${exGroups}</div>
+    <div style="margin-top:7px;color:var(--faint);font-size:10.5px">실적 영향권 제외</div>
+  </details>` : "";
   const ex=v._excludedDetails||[];
   const exDetail=ex.length?`<details class="acc" style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:11px"><b>실적 영향권 표본 자동 제외 · ${v._excludedTickers.length}종목 · 자세히</b></summary><div class="strip" style="margin-top:6px">${ex.map(o=>`${esc(o.ticker)} · 신호일 ${esc(o.date)} · 실적 ${esc(o.event||"?")}${timingLabel(o.timing)?` · ${esc(timingLabel(o.timing))}`:""} · +${o.horizons.join("/+")} 제외`).join("<br>")}</div></details>`:"";
 
