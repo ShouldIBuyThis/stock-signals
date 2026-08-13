@@ -340,6 +340,15 @@ table.validation-cmp th:not(:first-child),table.validation-cmp td:not(:first-chi
 table.validation-cmp th[colspan="3"]{color:var(--ink);font-weight:800}
 .validation-help-btn{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;margin-left:4px;border:1px solid var(--line);border-radius:50%;background:var(--surface);color:var(--muted);font-size:10px;font-weight:800;vertical-align:1px;cursor:pointer}
 .validation-help-btn:active{transform:scale(.95)}
+.validation-title{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.validation-title .live-note{font-size:10px;font-weight:500;color:var(--faint)}
+.example-row{display:block;padding:3px 0 7px}
+.example-row .ex-head{display:block;font-size:12.5px;line-height:1.45}
+.example-row .ex-buy,.example-row .ex-ret{display:block;margin-left:20px;font-size:11.5px;line-height:1.55}
+.example-row .ex-buy{color:var(--muted)}
+.example-row .ex-ret{color:var(--ink);font-weight:700}
+.market-guide td:first-child{white-space:nowrap;word-break:keep-all}
+@media(max-width:640px){.market-guide th,.market-guide td{font-size:10.5px;padding-left:6px!important;padding-right:6px!important}.market-guide td:first-child{font-size:10px}}
 .vrate{font-size:15px;color:var(--ink);line-height:1.25}
 .vavg{font-size:10.5px;color:var(--ink);font-weight:600;white-space:nowrap}
 .vsplit{font-size:9px;line-height:1.45;white-space:nowrap}
@@ -2441,7 +2450,7 @@ function validationBlock(){
   const pct=x=>x==null?"—":x+"%"; const av=x=>x==null?"—":`${x>=0?"+":""}${x.toFixed(2)}%`;
   const dateShort=d=>{ const m=String(d||"").match(/\d{4}-(\d{2})-(\d{2})/); return m?`${Number(m[1])}/${Number(m[2])}`:String(d||"—"); };
   const priceText=(tk,p)=>{ const st=allStocks().find(x=>x.ticker===tk); if(!has(p)) return "—"; return st&&st.currency==="KRW" ? `₩${Math.round(p).toLocaleString("ko-KR")}` : `$${Number(p).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`; };
-  const exRows=(v._examples||[]).map(x=>`${x.icon} <b>${esc(x.label)} · ${esc(x.ticker)}</b> · ${esc(dateShort(x.date))} 종가 ${esc(priceText(x.ticker,x.buyPrice))} 매수 → <b>${x.horizon}거래일 뒤 ${x.ret>=0?"+":""}${x.ret.toFixed(2)}%</b> <span style="color:var(--faint)">(${esc(priceText(x.ticker,x.endPrice))})</span>`);
+  const exRows=(v._examples||[]).map(x=>`<span class="example-row"><span class="ex-head">${x.icon} <b>${esc(x.label)} · ${esc(x.ticker)}</b></span><span class="ex-buy">${esc(dateShort(x.date))} 종가 ${esc(priceText(x.ticker,x.buyPrice))} 매수 →</span><span class="ex-ret">${x.horizon}거래일 뒤 ${x.ret>=0?"+":""}${x.ret.toFixed(2)}% <span style="color:var(--faint);font-weight:500">(${esc(priceText(x.ticker,x.endPrice))})</span></span></span>`);
   const exampleBlock=exRows.length ? `<details class="acc validation-examples" style="margin-top:8px" open><summary style="cursor:pointer"><b>📌 최근 수익 사례 ${exRows.length}건</b></summary><div class="strip" style="margin-top:6px;line-height:1.9">${exRows.join("<br>")}<div style="margin-top:5px;color:var(--faint);font-size:10.5px">실적 영향권 제외</div></div></details>` : "";
   const ex=v._excludedDetails||[];
   const exDetail=ex.length?`<details class="acc" style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:11px"><b>실적 영향권 표본 자동 제외 · ${v._excludedTickers.length}종목 · 자세히</b></summary><div class="strip" style="margin-top:6px">${ex.map(o=>`${esc(o.ticker)} · 신호일 ${esc(o.date)} · 실적 ${esc(o.event||"?")}${timingLabel(o.timing)?` · ${esc(timingLabel(o.timing))}`:""} · +${o.horizons.join("/+")} 제외`).join("<br>")}</div></details>`:"";
@@ -2467,7 +2476,7 @@ function validationBlock(){
       return `${names[k].icon} <b>${names[k].label} +${h}</b> · <b>최종 평가 ${o.n||0}건 (성공 ${o.win||0} / 보합 ${o.flat||0} / 실패 ${o.loss||0})</b>`;
     })).filter(Boolean);
     const diagDetail=`<details class="acc" style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:11px"><b>🔎 표본 구성 자세히</b></summary><div class="strip" style="margin-top:6px;line-height:1.9">${diagRows.join("<br>")}<div style="margin-top:5px;color:var(--faint);font-size:10.5px">실패·보합 표본도 최종 평가에 그대로 포함됩니다. ‘최근 수익 사례’ 3줄만 별도의 예시 영역입니다.</div></div></details>`;
-    return `<div class="section help-block"><h3>🧪 신뢰도 검증 결과</h3><div class="strip" style="margin-bottom:8px"><b>매수 신호가 뜬 날 종가에 샀다고 가정하고, 1·3·5거래일 뒤 종가를 확인한 결과입니다.</b><div style="margin-top:5px;color:var(--faint);font-size:11px;font-weight:400;line-height:1.65">다중·추세·반등 신호가 발생하고 <b>매수관심 또는 강한매수 수준 이상</b>이 나온 경우만 검증 대상에 포함합니다.</div></div>
+    return `<div class="section help-block"><h3 class="validation-title">🧪 신뢰도 검증 결과 <button type="button" class="validation-help-btn" onclick="openValidationIntro()" aria-label="신뢰도 검증 설명">?</button><span class="live-note">(표본 수급에 따라 실시간 변동)</span></h3>
       <div style="margin:0 2px 7px;font-size:12px;font-weight:800;color:var(--ink)">종가에 매수했다면? <span style="font-weight:600;color:var(--muted)">· 상승 vs 하락 (보합 제외)</span></div>
       <table class="cmp validation-cmp"><tr><th>구분</th><th colspan="3">상승이 하락을 이길 확률 <button type="button" class="validation-help-btn" onclick="openValidationHelp()" aria-label="승률 계산 설명">?</button></th></tr><tr><th>전략</th><th>+1거래일</th><th>+3거래일</th><th>+5거래일</th></tr>
         ${row("multi")}${row("trend")}${row("reversal")}
@@ -2491,7 +2500,7 @@ function validationBlock(){
     return `${diagIcon[k]} <b>${diagLabel[k]} +${h}</b> · 전체 후보 ${d.candidate}건 · 아직 +${h} 미도래 ${d.pending}건 · 실적 제외 ${exn}건 · <b>최종 평가 ${fin.n}건 (성공 ${fin.wins||0} / 보합 ${fin.flats||0} / 실패 ${fin.losses||0})</b>`;
   }));
   const diagDetail=`<details class="acc" style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:11px"><b>🔎 표본 구성 자세히</b></summary><div class="strip" style="margin-top:6px;line-height:1.9">${diagRows.join("<br>")}<div style="margin-top:5px;color:var(--faint);font-size:10.5px">실패·보합 표본도 최종 평가에 그대로 포함됩니다. ‘최근 수익 사례’ 3줄만 별도의 예시 영역입니다.</div></div></details>`;
-  return `<div class="section help-block"><h3>🧪 신뢰도 검증 결과</h3><div class="strip" style="margin-bottom:8px"><b>매수 신호가 뜬 날 종가에 샀다고 가정하고, 1·3·5거래일 뒤 종가를 확인한 결과입니다.</b><div style="margin-top:5px;color:var(--faint);font-size:11px;font-weight:400;line-height:1.65">다중·추세·반등 신호가 발생하고 <b>매수관심 또는 강한매수 수준 이상</b>이 나온 경우만 검증 대상에 포함합니다.</div></div>
+  return `<div class="section help-block"><h3 class="validation-title">🧪 신뢰도 검증 결과 <button type="button" class="validation-help-btn" onclick="openValidationIntro()" aria-label="신뢰도 검증 설명">?</button><span class="live-note">(표본 수급에 따라 실시간 변동)</span></h3>
     <div style="margin:0 2px 7px;font-size:12px;font-weight:800;color:var(--ink)">종가에 매수했다면? <span style="font-weight:600;color:var(--muted)">· 상승 vs 하락 (보합 제외)</span></div>
     <table class="cmp validation-cmp"><tr><th>구분</th><th colspan="3">상승이 하락을 이길 확률 <button type="button" class="validation-help-btn" onclick="openValidationHelp()" aria-label="승률 계산 설명">?</button></th></tr><tr><th>전략</th><th>+1거래일</th><th>+3거래일</th><th>+5거래일</th></tr>
       ${row("multi")}${row("pull")}${row("rev")}
@@ -2531,7 +2540,7 @@ function renderHelp(){
     </div>
     <div class="strategy-mini-note"><b>승률</b> = 상승한 종목의 비율 · <b>수익률</b> = 신호 이후 실제 가격 변동폭의 평균<br>
       단기는 실제 운영 이후 전향검증, +20일은 현재 산식을 과거 데이터에 소급 적용한 테스트 결과로 <b>표본이 쌓이면 결과가 달라질 수 있습니다.</b></div>
-    <table class="cmp">
+    <table class="cmp market-guide">
       <tr><th>시장 상황</th><th>우선 참고 전략</th><th>해석</th></tr>
       <tr><td><b>상승추세·숨고르기</b></td><td>📈 추세</td><td>추격보다 되돌림 진입</td></tr>
       <tr><td><b>하락·바닥권 전환</b></td><td>🔄 반등</td><td>과매도 완화·지지 회복 확인</td></tr>
@@ -2540,12 +2549,7 @@ function renderHelp(){
   </div>
 
   <div class="section help-block">
-    <h3>신호는 어떻게 매겨지나요</h3>
-    <div class="help-grid">
-      <div class="help-card"><b>두 전략은 따로 계산합니다</b><br><b>추세</b>는 상승추세 속 되돌림 진입, <b>반등</b>은 하락·바닥권의 역추세 전환을 봅니다. 서로 다른 매매법이라 각각의 조건과 신호 강도를 따로 판단합니다.</div>
-      <div class="help-card"><b>신호 강도도 전략별로 판단합니다</b><br>각 전략에서 필요한 조건이 충분히 겹치면 <b>강한매수</b>, 일부가 확인되면 <b>매수관심</b>으로 분류합니다. 서로 다른 전략 점수를 단순 합산해 등급을 만들지 않습니다.</div>
-      <div class="help-card"><b>다중신호는 어떻게 계산될까요?</b><br><b>강한매수·매수관심</b> 종목 중 추세·반등·돌파 포착·거래량처럼 서로 다른 기술 신호가 <b>여러 방향에서 함께 강하게 포착되는 종목</b>을 우선합니다. 한 가지 신호만 두드러진 종목보다 여러 조건이 함께 확인되는 종목을 앞에 둡니다.</div>
-    </div>
+    <h3 class="validation-title">신호는 어떻게 매겨지나요 <button type="button" class="validation-help-btn" onclick="openSignalScoringHelp()" aria-label="신호 산정 설명">?</button></h3>
     <p style="font-size:11px;color:var(--faint);margin:8px 2px 0">추세와 반등은 서로 다른 매매법이므로 각각 따로 해석합니다.</p>
 <details class="acc"><summary>추세 전략 — 상승추세 중 되돌림 진입</summary>
       <div class="help-grid" style="margin-top:10px">
@@ -2806,6 +2810,26 @@ function explainStyle(kind){
       ? `이미 상승 추세가 형성된 종목에서 <b>되돌림 · Pullback · 눌림목 · 매물 소화 구간의 유리한 진입 타이밍</b>입니다.`
       : `하락 또는 바닥권에 있는 종목에서 <b>과매도 완화 · 지지 회복 · 모멘텀 전환</b>을 확인한 단기 반등 구간의 좋은 진입 타이밍입니다.`}</p>` + close);
 }
+function openValidationIntro(){
+  openModal(`<h3>신뢰도 검증 결과</h3>
+    <p style="font-size:13px;color:var(--reason);line-height:1.8">
+      매수 신호가 뜬 날 종가에 샀다고 가정하고, <b>1·3·5거래일 뒤 종가</b>를 확인한 결과입니다.<br><br>
+      다중·추세·반등 신호가 발생하고 <b>매수관심 또는 강한매수 수준 이상</b>이 나온 경우만 검증 대상에 포함합니다.
+    </p>
+    <div class="modal-actions"><button class="primary" onclick="closeModal()">닫기</button></div>`);
+}
+function openSignalScoringHelp(){
+  openModal(`<h3>신호는 어떻게 매겨지나요</h3>
+    <p style="font-size:13px;color:var(--reason);line-height:1.8">
+      <b>두 전략은 따로 계산합니다</b><br>
+      추세는 상승추세 속 되돌림 진입, 반등은 하락·바닥권의 역추세 전환을 봅니다. 서로 다른 매매법이라 각각의 조건과 신호 강도를 따로 판단합니다.<br><br>
+      <b>신호 강도도 전략별로 판단합니다</b><br>
+      각 전략에서 필요한 조건이 충분히 겹치면 <b>강한매수</b>, 일부가 확인되면 <b>매수관심</b>으로 분류합니다. 서로 다른 전략 점수를 단순 합산해 등급을 만들지 않습니다.<br><br>
+      <b>다중신호는 어떻게 계산될까요?</b><br>
+      강한매수·매수관심 종목 중 추세·반등·돌파 포착·거래량처럼 서로 다른 기술 신호가 여러 방향에서 함께 강하게 포착되는 종목을 우선합니다. 한 가지 신호만 두드러진 종목보다 여러 조건이 함께 확인되는 종목을 앞에 둡니다.
+    </p>
+    <div class="modal-actions"><button class="primary" onclick="closeModal()">닫기</button></div>`);
+}
 function openValidationHelp(){
   openModal(`<h3>상승이 하락을 이길 확률</h3>
     <p style="font-size:13px;color:var(--reason);line-height:1.8">
@@ -3006,6 +3030,7 @@ function gotoStock(tk){
 document.getElementById("tabs").addEventListener("click", e=>{
   const b = e.target.closest("button[data-tab]"); if(!b) return;
   if (b.dataset.tab==="all" && state.tab!=="all"){ state.view="compact"; state.sort="signal"; }
+  if (b.dataset.tab==="theme") { state.themeFilter=""; state.displayLimit=20; }
   state.tab = b.dataset.tab; save(); render();
   try{ window.scrollTo({top:0,behavior:"smooth"}); }catch(e){ window.scrollTo(0,0); }
 });
@@ -3164,6 +3189,7 @@ sheet.addEventListener("click", e=>{
   const t = e.target.closest("[data-tab]");
   if (t){
     if (t.dataset.tab==="all" && state.tab!=="all"){ state.view="compact"; state.sort="signal"; }
+    if (t.dataset.tab==="theme") { state.themeFilter=""; state.displayLimit=20; }
     state.tab=t.dataset.tab; save(); render(); closeSheet(); window.scrollTo(0,0); return; }
   const v = e.target.closest("[data-view]");
   if (v){ state.view=v.dataset.view; state.tab="all"; state.displayLimit=20; save(); render(); closeSheet(); return; }
