@@ -2437,14 +2437,34 @@ function strategyValidation(){
   result._diag=diag;
 
   // 공개 사례는 전체 승률 계산과 완전히 분리된 '최근 수익 사례 6건'이다.
-  // 다중 → 추세 → 반등 순으로, 각 전략에서 +3/+5거래일 검증 통과 성공(ret>1) 사례 중 수익률 TOP2를 표시한다.
-  // 동일 전략 안에서는 같은 티커가 중복되지 않도록 한다.
+  // 후보는 ① 강한매수였던 사례 또는 ② 바로 전 거래일 중립 → 당일 매수관심으로 전환된 사례만 사용한다.
+  // 그 후보 중 다중 → 추세 → 반등 순으로, 각 전략의 +3/+5거래일 성공(ret>1) 사례 수익률 TOP2를 표시한다.
+  // 신뢰도 표본/승률 계산에는 이 필터를 사용하지 않는다.
+  const exampleTransitionOK=(x)=>{
+    const hs=(state.data.find(s=>s.ticker===x.ticker)?._hist||[]).slice().sort((a,b)=>String(a.last_date).localeCompare(String(b.last_date)));
+    const i=hs.findIndex(r=>r.last_date===x.date);
+    if(i<0) return false;
+
+    const cur=normalize(Object.assign({},state.data.find(s=>s.ticker===x.ticker)||{},hs[i],{ticker:x.ticker}));
+    const curSig=evaluate(cur);
+
+    // 강한매수는 바로 허용
+    if(curSig.grade>=5) return true;
+
+    // 중립 → 매수관심 전환만 허용
+    if(curSig.grade!==4 || i<1) return false;
+    const prev=normalize(Object.assign({},state.data.find(s=>s.ticker===x.ticker)||{},hs[i-1],{ticker:x.ticker}));
+    const prevSig=evaluate(prev);
+    return prevSig.grade===3;
+  };
+
   const examples=[];
   [["multi","다중","🔵"],["pull","추세","📈"],["rev","반등","🔄"]].forEach(([k,label,icon])=>{
     const usedTickers=new Set();
     const top2=[3,5]
       .flatMap(h=>(out[k][h]||[])
         .filter(x=>x.ret>1)
+        .filter(exampleTransitionOK)
         .map(x=>Object.assign({kind:k,label,icon},x)))
       .sort((a,b)=>b.ret-a.ret)
       .filter(x=>{
