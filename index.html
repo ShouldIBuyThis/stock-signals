@@ -1477,7 +1477,7 @@ function sortKey(s){
   if (state.sort==="pull") return s.sig.pullScore;
   if (state.sort==="reversal") return s.sig.revScore;
   if (state.sort==="volume") return has(s.vol_ratio) ? s.vol_ratio : -1;
-  return 0; // 다중신호순은 raw score가 아니라 overallRanked()를 사용
+  return 0; // 다중신호순은 raw score가 아니라 multiSignalRank()를 사용
 }
 
 function strategyRanked(list, kind, buyOnly=false){
@@ -1493,14 +1493,15 @@ function strategyRanked(list, kind, buyOnly=false){
 function overallRanked(list){
   if(!list.length) return [];
   const rank=(key)=>{const a=list.slice().sort((a,b)=>key(b)-key(a));const m={};a.forEach((s,i)=>m[s.ticker]=i+1);return m;};
-  const R={br:rank(s=>s.sig.breakScore),pu:rank(s=>s.sig.pullScore),rv:rank(s=>s.sig.revScore),vo:rank(s=>has(s.vol_ratio)?s.vol_ratio:-1)};
-  const info=s=>{const core=[R.br[s.ticker],R.pu[s.ticker],R.rv[s.ticker]],all=[...core,R.vo[s.ticker]];return {s,
+  /* 전체/테마 내부 정렬도 다중과 같은 철학: 눌림·반등 2축 + 거래량 보조축. */
+  const R={pu:rank(s=>s.sig.pullScore),rv:rank(s=>s.sig.revScore),vo:rank(s=>has(s.vol_ratio)?s.vol_ratio:-1)};
+  const info=s=>{const core=[R.pu[s.ticker],R.rv[s.ticker]],all=[...core,R.vo[s.ticker]];return {s,
     core5:core.filter(x=>x<=5).length,core10:core.filter(x=>x<=10).length,
     all5:all.filter(x=>x<=5).length,all10:all.filter(x=>x<=10).length,
     bestCore:Math.min(...core),bestAll:Math.min(...all)};};
   return list.map(info).sort((a,b)=>
-    b.s.sig.grade-a.s.sig.grade || b.core5-a.core5 || b.core10-a.core10 ||
-    b.all5-a.all5 || b.all10-a.all10 || a.bestCore-b.bestCore || a.bestAll-b.bestAll ||
+    b.s.sig.grade-a.s.sig.grade || b.core5-a.core5 || b.all5-a.all5 ||
+    b.core10-a.core10 || b.all10-a.all10 || a.bestCore-b.bestCore || a.bestAll-b.bestAll ||
     Math.abs(b.s.change_1d||0)-Math.abs(a.s.change_1d||0)
   ).map(x=>x.s);
 }
@@ -1626,7 +1627,7 @@ function earningsHoldSection(title="실적발표 보류"){
   </details>`;
 }
 
-/* 다중 신호: raw 점수 합산 없이 '등급 → 핵심 3신호축 중복 → 전체 4축 중복 → 최고순위'만 사용 */
+/* 다중 신호: raw 점수 합산 없이 '등급 → 핵심 2축(눌림·반등) 중복 → 거래량 포함 3축 중복 → 최고순위'만 사용 */
 function multiSignalRank(list){
   if(!list.length) return [];
   const eligible=list.filter(s=>s.sig.grade>=4); // 강한매수/매수관심만
@@ -1636,18 +1637,19 @@ function multiSignalRank(list){
     const a=list.slice().sort((a,b)=>key(b)-key(a));
     const m={}; a.forEach((s,i)=>m[s.ticker]=i+1); return m;
   };
+  /* 다중의 핵심전략은 최종 등급을 실제로 만드는 눌림·반등 2축만 사용한다.
+     돌파는 독립 등급축이 아니므로 다중 중첩 계산에서는 제외하고, 거래량은 보조 확인축으로 둔다. */
   const R={
-    break:rank(s=>s.sig.breakScore),
     pull:rank(s=>s.sig.pullScore),
     rev:rank(s=>s.sig.revScore),
     vol:rank(s=>has(s.vol_ratio)?s.vol_ratio:-1)
   };
 
   const xs=eligible.map(s=>{
-    const br=R.break[s.ticker], pu=R.pull[s.ticker], rv=R.rev[s.ticker], vo=R.vol[s.ticker];
-    const core=[br,pu,rv], all=[br,pu,rv,vo];
+    const pu=R.pull[s.ticker], rv=R.rev[s.ticker], vo=R.vol[s.ticker];
+    const core=[pu,rv], all=[pu,rv,vo];
     return {
-      s,br,pu,rv,vo,
+      s,pu,rv,vo,
       core5:core.filter(x=>x<=5).length,
       core10:core.filter(x=>x<=10).length,
       all5:all.filter(x=>x<=5).length,
@@ -1655,7 +1657,7 @@ function multiSignalRank(list){
       bestCore:Math.min(...core),
       bestAll:Math.min(...all)
     };
-  }).filter(x=>x.all10>=2 && x.core10>=1); // 후보 B: 4축 중 2개 + 핵심전략 최소1
+  }).filter(x=>x.all10>=2 && x.core10>=1); // 3축 중 TOP10 최소2 + 핵심(눌림·반등) 최소1
 
   const cmp=(a,b)=>
     b.s.sig.grade-a.s.sig.grade ||
@@ -1666,7 +1668,6 @@ function multiSignalRank(list){
 
   return xs.sort(cmp).map(x=>{
     const bits=[];
-    if(x.br<=10)bits.push(`돌파 ${x.br}위`);
     if(x.pu<=10)bits.push(`눌림 ${x.pu}위`);
     if(x.rv<=10)bits.push(`반등 ${x.rv}위`);
     if(x.vo<=10)bits.push(`거래량 ${x.vo}위`);
@@ -3328,4 +3329,3 @@ boot();
 </script>
 </body>
 </html>
- 
