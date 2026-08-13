@@ -2,12 +2,13 @@ name: 관심종목 자동 갱신
 
 on:
   schedule:
-    # 미국장: 뉴욕 현지 16:10 — 장 마감 10분 후, DST 자동 반영
-    - cron: '10 16 * * 1-5'
+    # 미국장: 뉴욕 현지 16:40 — 장 마감 40분 후, DST 자동 반영
+    - cron: '40 16 * * 1-5'
       timezone: 'America/New_York'
-    # 한국장: 15:45 KST — 무료 시세의 종가 반영 지연을 감안해 여유 있게 실행
-    - cron: '45 15 * * 1-5'
+    # 한국장: 16:20 KST — 무료 시세 종가 반영 지연을 감안한 확정 슬롯
+    - cron: '20 16 * * 1-5'
       timezone: 'Asia/Seoul'
+
   workflow_dispatch:
     inputs:
       scope:
@@ -19,11 +20,16 @@ on:
           - us
           - kr
           - all
+      force_resnap:
+        description: '현재 scope의 당일 스냅샷/hist를 강제로 다시 확정'
+        required: true
+        default: false
+        type: boolean
 
 permissions:
-  contents: write   # signals.json 커밋
-  pages: write      # Pages 배포
-  id-token: write   # Pages 배포 인증
+  contents: write
+  pages: write
+  id-token: write
 
 concurrency:
   group: pages
@@ -35,6 +41,7 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -43,18 +50,46 @@ jobs:
           python-version: '3.11'
 
       - name: 라이브러리 설치
-        run: pip install --upgrade yfinance pandas numpy exchange_calendars
+        # snapshot 재현성을 위해 yfinance만 버전을 고정한다.
+        run: pip install "yfinance==1.5.2" pandas numpy exchange_calendars
 
       - name: 갱신 범위 결정
         id: scope
         shell: bash
         run: |
+          set -euo pipefail
+
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "value=${{ inputs.scope }}" >> "$GITHUB_OUTPUT"
-          elif [ "${{ github.event.schedule }}" = "45 15 * * 1-5" ]; then
+            echo "수동 실행 scope=${{ inputs.scope }}"
+            exit 0
+          fi
+
+          # cron 문자열 자체를 비교하지 않는다.
+          # 실제 실행 시각의 현지 hour로 KR/US를 구분한다.
+          KST_HOUR="$(TZ=Asia/Seoul date +%H)"
+          NY_HOUR="$(TZ=America/New_York date +%H)"
+
+          if [ "$KST_HOUR" = "16" ] && [ "$NY_HOUR" != "16" ]; then
             echo "value=kr" >> "$GITHUB_OUTPUT"
-          else
+            echo "자동 실행 → KR (KST ${KST_HOUR}시)"
+          elif [ "$NY_HOUR" = "16" ] && [ "$KST_HOUR" != "16" ]; then
             echo "value=us" >> "$GITHUB_OUTPUT"
+            echo "자동 실행 → US (NY ${NY_HOUR}시)"
+          else
+            echo "::error::자동 scope 판정 실패 (KST=$KST_HOUR, NY=$NY_HOUR). 잘못된 시장을 고정하는 것보다 실행을 중단합니다."
+            exit 1
+          fi
+
+      - name: 재촬영 요청 확인
+        id: resnap
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.force_resnap }}" = "true" ]; then
+            echo "value=true" >> "$GITHUB_OUTPUT"
+            echo "⚠ FORCE_RESNAP=true — scope=${{ steps.scope.outputs.value }}"
+          else
+            echo "value=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: 지표 계산 1차
@@ -62,23 +97,38 @@ jobs:
         continue-on-error: true
         env:
           RUN_SCOPE: ${{ steps.scope.outputs.value }}
+          FORCE_RESNAP: ${{ steps.resnap.outputs.value }}
         run: python main.py
 
       - name: 실패 시 10분 뒤 1회 재시도
         if: steps.calc.outcome == 'failure'
         env:
           RUN_SCOPE: ${{ steps.scope.outputs.value }}
+          FORCE_RESNAP: ${{ steps.resnap.outputs.value }}
         run: |
-          echo "1차 갱신 실패 — 10분 뒤 같은 범위만 다시 시도합니다."
+          echo "1차 갱신 실패 — 10분 뒤 같은 범위로 1회 재시도합니다."
           sleep 600
           python main.py
 
-      - name: signals.json 커밋
+      - name: 산출물 기본 검증
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os
+          with open("signals.json", encoding="utf-8") as f:
+              p=json.load(f)
+          stocks=p.get("stocks") or []
+          assert stocks, "signals.json stocks가 비었습니다."
+          assert isinstance(p.get("hist_fields"), list) and "atr_pct" in p["hist_fields"], "hist_fields/atr_pct 누락"
+          print(f"signals.json 검증 PASS — {len(stocks)}종목")
+          PY
+
+      - name: signals.json / history 커밋
         run: |
           git config user.name  "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
           git add signals.json history/
-          git commit -m "auto: signals 갱신" || echo "변경 없음"
+          git commit -m "auto: signals 갱신 (${{ steps.scope.outputs.value }})" || echo "변경 없음"
           git pull --rebase --autostash
           git push
 
@@ -93,4 +143,3 @@ jobs:
       - name: Pages 배포
         id: deploy
         uses: actions/deploy-pages@v4
- 
