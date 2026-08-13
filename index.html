@@ -2426,7 +2426,7 @@ function validationBlock(){
   const dateShort=d=>{ const m=String(d||"").match(/\d{4}-(\d{2})-(\d{2})/); return m?`${Number(m[1])}/${Number(m[2])}`:String(d||"—"); };
   const priceText=(tk,p)=>{ const st=allStocks().find(x=>x.ticker===tk); if(!has(p)) return "—"; return st&&st.currency==="KRW" ? `₩${Math.round(p).toLocaleString("ko-KR")}` : `$${Number(p).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`; };
   const exRows=(v._examples||[]).map(x=>`${x.icon} <b>${esc(x.label)} · ${esc(x.ticker)}</b> · ${esc(dateShort(x.date))} 종가 ${esc(priceText(x.ticker,x.buyPrice))} 매수 → <b>${x.horizon}거래일 뒤 ${x.ret>=0?"+":""}${x.ret.toFixed(2)}%</b> <span style="color:var(--faint)">(${esc(priceText(x.ticker,x.endPrice))})</span>`);
-  const exampleBlock=exRows.length ? `<details class="acc validation-examples" style="margin-top:8px" open><summary style="cursor:pointer"><b>📌 최근 수익 사례 ${exRows.length}건</b></summary><div class="strip" style="margin-top:6px;line-height:1.9">${exRows.join("<br>")}<div style="margin-top:5px;color:var(--faint);font-size:10.5px">+3·+5거래일 성공 사례만 무작위 표시 · 실적 영향권 제외 · 전체 성과는 위 적중률·평균수익률을 참고하세요.</div></div></details>` : "";
+  const exampleBlock=exRows.length ? `<details class="acc validation-examples" style="margin-top:8px" open><summary style="cursor:pointer"><b>📌 최근 수익 사례 ${exRows.length}건</b></summary><div class="strip" style="margin-top:6px;line-height:1.9">${exRows.join("<br>")}<div style="margin-top:5px;color:var(--faint);font-size:10.5px">실적 영향권 제외</div></div></details>` : "";
   const ex=v._excludedDetails||[];
   const exDetail=ex.length?`<details class="acc" style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:11px"><b>실적 영향권 표본 자동 제외 · ${v._excludedTickers.length}종목 · 자세히</b></summary><div class="strip" style="margin-top:6px">${ex.map(o=>`${esc(o.ticker)} · 신호일 ${esc(o.date)} · 실적 ${esc(o.event||"?")}${timingLabel(o.timing)?` · ${esc(timingLabel(o.timing))}`:""} · +${o.horizons.join("/+")} 제외`).join("<br>")}</div></details>`:"";
 
@@ -2434,7 +2434,7 @@ function validationBlock(){
   if(ext && ext.strategies){
     const S=ext.strategies;
     const names={
-      multi:{label:"다중 신호",icon:"🔵"},
+      multi:{label:"다중",icon:"🔵"},
       trend:{label:"추세",icon:"📈"},
       reversal:{label:"반등",icon:"🔄"}
     };
@@ -2443,7 +2443,7 @@ function validationBlock(){
     const cell=(o)=>{
       if(!o || !o.n) return `—<br><span style="font-size:10.5px;color:var(--faint)">표본 없음</span>`;
       const up=Math.round((Number(o.win)||0)/o.n*100), flat=Math.round((Number(o.flat)||0)/o.n*100), down=Math.round((Number(o.loss)||0)/o.n*100);
-      return `${pctExt(o.directional_rate)}<br><span style="font-size:10.5px;color:var(--faint)">평균 ${avExt(o.avg_return)} · ${o.n}건</span><br><span style="font-size:9.5px;color:var(--faint);white-space:nowrap">상 ${up}% · 보 ${flat}% · 하 ${down}%</span>`;
+      return `${pctExt(o.directional_rate)}<br><span style="font-size:10.5px;color:var(--faint)">평균 ${avExt(o.avg_return)} · ${o.n}건</span><br><span style="font-size:9.5px;color:var(--faint);white-space:nowrap">상승 ${up}% vs 하락 ${down}%</span><br><span style="font-size:8.5px;color:var(--faint)">보합 ${flat}%</span>`;
     };
     const row=k=>`<tr><td><b>${names[k].icon} ${names[k].label}</b></td><td>${cell(S[k]&&S[k][1])}</td><td>${cell(S[k]&&S[k][3])}</td><td>${cell(S[k]&&S[k][5])}</td></tr>`;
     const diagRows=["multi","trend","reversal"].flatMap(k=>[1,3,5].map(h=>{
@@ -2452,8 +2452,8 @@ function validationBlock(){
     })).filter(Boolean);
     const diagDetail=`<details class="acc" style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:11px"><b>🔎 표본 구성 자세히</b></summary><div class="strip" style="margin-top:6px;line-height:1.9">${diagRows.join("<br>")}<div style="margin-top:5px;color:var(--faint);font-size:10.5px">실패·보합 표본도 최종 평가에 그대로 포함됩니다. ‘최근 수익 사례’ 3줄만 별도의 예시 영역입니다.</div></div></details>`;
     return `<div class="section help-block"><h3>🧪 신뢰도 검증 결과</h3><div class="strip" style="margin-bottom:8px"><b>매수 신호가 뜬 날 종가에 샀다고 가정하고, 1·3·5거래일 뒤 종가를 확인한 결과입니다.</b><div style="margin-top:5px;color:var(--faint);font-size:11px;font-weight:400;line-height:1.65">다중·추세·반등 신호가 발생하고 <b>매수관심 또는 강한매수 수준 이상</b>이 나온 경우만 검증 대상에 포함합니다.</div></div>
-      <div style="margin:0 2px 7px;font-size:12px;font-weight:800;color:var(--ink)">종가에 매수했다면? <span style="font-weight:600;color:var(--muted)">· 상승 vs 하락 (보합 제외)</span><div style="margin-top:3px;font-size:10px;font-weight:500;color:var(--faint)">상 +1% 초과 · 보 -1%~+1% · 하 -1% 미만</div></div>
-      <table class="cmp"><tr><th>전략</th><th>+1거래일</th><th>+3거래일</th><th>+5거래일</th></tr>
+      <div style="margin:0 2px 7px;font-size:12px;font-weight:800;color:var(--ink)">종가에 매수했다면? <span style="font-weight:600;color:var(--muted)">· 상승 vs 하락 (보합 제외)</span><div style="margin-top:3px;font-size:10px;font-weight:500;color:var(--faint)">승률 = 상승 ÷ (상승 + 하락) · 상 +1% 초과 · 보 -1%~+1% · 하 -1% 미만</div></div>
+      <table class="cmp"><tr><th>구분</th><th colspan="3">상승이 하락을 이길 확률</th></tr><tr><th>전략</th><th>+1거래일</th><th>+3거래일</th><th>+5거래일</th></tr>
         ${row("multi")}${row("trend")}${row("reversal")}
       </table>${exampleBlock}${diagDetail}${exDetail}
       <div class="strip" style="margin-top:9px">
@@ -2464,10 +2464,10 @@ function validationBlock(){
   const cell=(o)=>{
     if(o.n===0) return `—<br><span style="font-size:10.5px;color:var(--faint)">표본 없음</span>`;
     const up=Math.round((o.wins||0)/o.n*100), flat=Math.round((o.flats||0)/o.n*100), down=Math.round((o.losses||0)/o.n*100);
-    return `${pct(o.rate)}<br><span style="font-size:10.5px;color:var(--faint)">평균 ${av(o.avg)} · ${o.n}건</span><br><span style="font-size:9.5px;color:var(--faint);white-space:nowrap">상 ${up}% · 보 ${flat}% · 하 ${down}%</span>`;
+    return `${pct(o.rate)}<br><span style="font-size:10.5px;color:var(--faint)">평균 ${av(o.avg)} · ${o.n}건</span><br><span style="font-size:9.5px;color:var(--faint);white-space:nowrap">상승 ${up}% vs 하락 ${down}%</span><br><span style="font-size:8.5px;color:var(--faint)">보합 ${flat}%</span>`;
   };
   const row=k=>`<tr><td><b>${v[k].icon} ${v[k].label}</b></td><td>${cell(v[k][1])}</td><td>${cell(v[k][3])}</td><td>${cell(v[k][5])}</td></tr>`;
-  const diagLabel={multi:"다중 신호",pull:"추세",rev:"반등"};
+  const diagLabel={multi:"다중",pull:"추세",rev:"반등"};
   const diagIcon={multi:"🔵",pull:"📈",rev:"🔄"};
   const diagRows=["multi","pull","rev"].flatMap(k=>[1,3,5].map(h=>{
     const d=(v._diag&&v._diag[k]&&v._diag[k][h])||{candidate:0,pending:0};
@@ -2476,8 +2476,8 @@ function validationBlock(){
   }));
   const diagDetail=`<details class="acc" style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:11px"><b>🔎 표본 구성 자세히</b></summary><div class="strip" style="margin-top:6px;line-height:1.9">${diagRows.join("<br>")}<div style="margin-top:5px;color:var(--faint);font-size:10.5px">실패·보합 표본도 최종 평가에 그대로 포함됩니다. ‘최근 수익 사례’ 3줄만 별도의 예시 영역입니다.</div></div></details>`;
   return `<div class="section help-block"><h3>🧪 신뢰도 검증 결과</h3><div class="strip" style="margin-bottom:8px"><b>매수 신호가 뜬 날 종가에 샀다고 가정하고, 1·3·5거래일 뒤 종가를 확인한 결과입니다.</b><div style="margin-top:5px;color:var(--faint);font-size:11px;font-weight:400;line-height:1.65">다중·추세·반등 신호가 발생하고 <b>매수관심 또는 강한매수 수준 이상</b>이 나온 경우만 검증 대상에 포함합니다.</div></div>
-    <div style="margin:0 2px 7px;font-size:12px;font-weight:800;color:var(--ink)">종가에 매수했다면? <span style="font-weight:600;color:var(--muted)">· 상승 vs 하락 (보합 제외)</span><div style="margin-top:3px;font-size:10px;font-weight:500;color:var(--faint)">상 +1% 초과 · 보 -1%~+1% · 하 -1% 미만</div></div>
-    <table class="cmp"><tr><th>전략</th><th>+1거래일</th><th>+3거래일</th><th>+5거래일</th></tr>
+    <div style="margin:0 2px 7px;font-size:12px;font-weight:800;color:var(--ink)">종가에 매수했다면? <span style="font-weight:600;color:var(--muted)">· 상승 vs 하락 (보합 제외)</span><div style="margin-top:3px;font-size:10px;font-weight:500;color:var(--faint)">승률 = 상승 ÷ (상승 + 하락) · 상 +1% 초과 · 보 -1%~+1% · 하 -1% 미만</div></div>
+    <table class="cmp"><tr><th>구분</th><th colspan="3">상승이 하락을 이길 확률</th></tr><tr><th>전략</th><th>+1거래일</th><th>+3거래일</th><th>+5거래일</th></tr>
       ${row("multi")}${row("pull")}${row("rev")}
     </table>${exampleBlock}${diagDetail}${exDetail}
     <div class="strip" style="margin-top:9px">
