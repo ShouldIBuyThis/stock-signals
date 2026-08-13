@@ -21,7 +21,8 @@ from zoneinfo import ZoneInfo
 PERIOD = "1y"    # 52주 신고가 계산 위해 1년
 
 # ── 실행 범위 ────────────────────────────────────────────────
-#  all : 전 종목 수집 (미국장 마감 후 실행)
+#  all : 전 종목 수집 (수동 점검용)
+#  us  : 미국 종목만 수집. 한국 종목은 직전 signals.json 값을 그대로 유지한다.
 #  kr  : 한국 종목만 수집. 미국 종목은 직전 signals.json 값을 그대로 유지한다.
 #        15:40 KST = 뉴욕 02:40 이라 미국장은 닫혀 있어 새 종가가 없다.
 #        그래도 다시 부르면 (1) 야후 사후 정정으로 장전에 점수가 흔들리고
@@ -36,8 +37,14 @@ HIST_FIELDS = ["date","price","change_1d","ma5","ma10","ma20","ma50","ma60","rsi
                "atr_pct"]
 
 RUN_SCOPE = os.environ.get("RUN_SCOPE", "all").strip().lower()
-if RUN_SCOPE not in ("all", "kr"):
+if RUN_SCOPE not in ("all", "kr", "us"):
     RUN_SCOPE = "all"
+
+# 수동 복구 전용. 자동 실행에서는 반드시 false.
+# 켜면 현재 RUN_SCOPE의 "오늘 거래일" 스냅샷과 signals.json의 당일 hist 행만 다시 확정한다.
+FORCE_RESNAP = os.environ.get("FORCE_RESNAP", "").strip().lower() in ("1", "true", "yes", "on")
+if FORCE_RESNAP:
+    print(f"⚠ FORCE_RESNAP ON ({RUN_SCOPE}) — 현재 범위의 당일 스냅샷/hist를 재확정합니다.")
 
 def is_kr_ticker(t):
     return t.endswith(".KS") or t.endswith(".KQ")
@@ -660,7 +667,9 @@ def _storage_row(r, mkt):
     return out
 
 def save_history(results, mkt, now_kst):
-    """미국/한국 이력을 분리한다. all은 미국만, kr은 한국만 저장한다."""
+    """미국/한국 이력을 분리한다. kr은 KR, us/all은 US snapshot을 저장한다."""
+    # 수동 all은 기존 동작을 유지해 US snapshot만 저장한다.
+    # KR 재촬영이 필요하면 workflow_dispatch에서 scope=kr로 명시한다.
     region = "kr" if RUN_SCOPE == "kr" else "us"
     selected = [r for r in results if is_kr_ticker(r.get("ticker", "")) == (region == "kr")]
     dates = [r.get("last_date") for r in selected if r.get("last_date")]
@@ -676,10 +685,12 @@ def save_history(results, mkt, now_kst):
         "stocks":slim,
     }
     path=f"{folder}/{day}.json"; existed=os.path.exists(path)
-    if existed:
-        # 같은 거래일 재실행에서도 최초 확정 스냅샷을 보존한다.
+    if existed and not FORCE_RESNAP:
+        # 자동/일반 수동 재실행은 최초 확정 스냅샷을 보존한다.
         print(f"이력 고정 유지: {path} — 기존 파일 보존")
         return
+    if existed and FORCE_RESNAP:
+        print(f"⚠ 재촬영: {path} — 기존 당일 스냅샷을 명시적으로 교체")
     with open(path,"w",encoding="utf-8") as f:
         json.dump(payload,f,ensure_ascii=False)
     size=os.path.getsize(path)/1024
@@ -729,7 +740,9 @@ def freeze_signal_hist(results, prev_rows):
         last_date = str(r.get("last_date") or "")
         prev = (prev_rows or {}).get(tk) or {}
 
-        fixed_today = day_snapshot(tk, last_date)
+        # 수동 재촬영 때는 기존 "오늘" snapshot으로 top-level 값을 되돌리지 않는다.
+        # 방금 수집한 값을 그대로 사용해 당일 snapshot/hist를 새로 확정한다.
+        fixed_today = None if FORCE_RESNAP else day_snapshot(tk, last_date)
         if fixed_today:
             for k in SNAPSHOT_FIELDS:
                 if k in ("ticker", "last_date"):
@@ -746,6 +759,15 @@ def freeze_signal_hist(results, prev_rows):
             h = list(h0)
             d = str(h[date_i] or "")
             if not d or d in seen:
+                continue
+            active_market = (
+                RUN_SCOPE == "all" or
+                (RUN_SCOPE == "kr" and is_kr_ticker(tk)) or
+                (RUN_SCOPE == "us" and not is_kr_ticker(tk))
+            )
+            # 수동 재촬영 시 현재 갱신 범위의 당일 기존 행만 버린다.
+            # 반대 시장 carry 행은 절대 건드리지 않는다.
+            if FORCE_RESNAP and active_market and last_date and d == last_date:
                 continue
             while len(h) <= atr_i:
                 h.append(None)
@@ -843,8 +865,9 @@ def main():
         for tk, nm in items.items():
             is_kr = is_kr_ticker(tk)
 
-            # 한국장 실행: 미국 종목은 건드리지 않고 직전 값을 그대로 넘긴다
-            if RUN_SCOPE == "kr" and not is_kr:
+            # 스코프 밖 종목은 건드리지 않고 직전 값을 그대로 넘긴다.
+            # kr 실행: 미국 carry / us 실행: 한국 carry / all 실행: 전 종목 재수집
+            if (RUN_SCOPE == "kr" and not is_kr) or (RUN_SCOPE == "us" and is_kr):
                 if tk in prev_rows:
                     kept = dict(prev_rows[tk])
                     kept["name"], kept["category"] = nm, cat  # 가격은 유지, 메타데이터는 현재 WATCHLIST에 맞춘다.
