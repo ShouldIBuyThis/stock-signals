@@ -1575,7 +1575,7 @@ function recentEarningsCalendar(){
     : "";
   return `<details class="acc earnings-calendar">
     <summary><b>실적 일정</b> · ${esc(lo)} ~ ${esc(hi)} · 자세히</summary>
-    <div class="strip" style="margin-top:8px">${body}</div>
+    <div class="strip" style="margin-top:8px">${body}${quality}</div>
   </details>`;
 }
 
@@ -2355,7 +2355,7 @@ function strategyValidation(){
         }
         const endRow=hs[i+h];
         const ret=(endRow.price/row.price-1)*100;
-        out[k][h].push({ret,hit:ret>0,date:row.last_date,endDate:endRow.last_date,ticker:row.ticker,
+        out[k][h].push({ret,hit:ret>1,date:row.last_date,endDate:endRow.last_date,ticker:row.ticker,
           buyPrice:row.price,endPrice:endRow.price,horizon:h});
       });
     });
@@ -2383,15 +2383,18 @@ function strategyValidation(){
         }
         const endRow=hs[i+h];
         const ret=(endRow.price/p0-1)*100;
-        out.multi[h].push({ret,hit:ret>0,date:ent.row.last_date,endDate:endRow.last_date,ticker:sel.ticker,
+        out.multi[h].push({ret,hit:ret>1,date:ent.row.last_date,endDate:endRow.last_date,ticker:sel.ticker,
           buyPrice:p0,endPrice:endRow.price,horizon:h});
       });
     });
   });
 
   const stat=a=>{
-    const wins=a.filter(x=>x.hit).length;
-    return {n:a.length,rate:a.length?Math.round(wins/a.length*100):null,avg:a.length?a.reduce((z,x)=>z+x.ret,0)/a.length:null,wins,losses:a.length-wins};
+    const wins=a.filter(x=>x.ret>1).length;
+    const losses=a.filter(x=>x.ret< -1).length;
+    const flats=a.length-wins-losses;
+    const decided=wins+losses;
+    return {n:a.length,rate:decided?Math.round(wins/decided*100):null,avg:a.length?a.reduce((z,x)=>z+x.ret,0)/a.length:null,wins,losses,flats};
   };
   const result={multi:{label:"다중 신호",icon:"🔵"}};
   Object.entries(kinds).forEach(([k,def])=>result[k]={label:def.label,icon:def.icon});
@@ -2402,12 +2405,12 @@ function strategyValidation(){
   result._diag=diag;
 
   // 공개 사례는 전체 승률 계산과 분리된 '최근 수익 사례'다.
-  // +3/+5거래일 검증 통과 표본 중 수익(ret>0)이 난 사례만 무작위로 보여준다.
+  // +3/+5거래일 검증 통과 표본 중 성공(ret>1)이 난 사례만 무작위로 보여준다. 보합(-1%~+1%)은 제외한다.
   // +1거래일은 공개 사례에서 사용하지 않으며, 동일 티커는 중복하지 않는다.
   const usedExampleTickers=new Set(), examples=[];
   [["multi","다중 신호","🔵"],["pull","추세","📈"],["rev","반등","🔄"]].forEach(([k,label,icon])=>{
     const profitable=[3,5]
-      .flatMap(h=>(out[k][h]||[]).filter(x=>x.ret>0))
+      .flatMap(h=>(out[k][h]||[]).filter(x=>x.ret>1))
       .filter(x=>!usedExampleTickers.has(x.ticker));
     const pick=profitable.length ? profitable[Math.floor(Math.random()*profitable.length)] : null;
     if(pick){ usedExampleTickers.add(pick.ticker); examples.push(Object.assign({kind:k,label,icon},pick)); }
@@ -2417,6 +2420,16 @@ function strategyValidation(){
 }
 
 function validationBlock(){
+  const v=strategyValidation();
+  const timingLabel=t=>t==="BMO"?"장전(BMO)":t==="AMC"?"장후(AMC)":"";
+  const pct=x=>x==null?"—":x+"%"; const av=x=>x==null?"—":`${x>=0?"+":""}${x.toFixed(2)}%`;
+  const dateShort=d=>{ const m=String(d||"").match(/\d{4}-(\d{2})-(\d{2})/); return m?`${Number(m[1])}/${Number(m[2])}`:String(d||"—"); };
+  const priceText=(tk,p)=>{ const st=allStocks().find(x=>x.ticker===tk); if(!has(p)) return "—"; return st&&st.currency==="KRW" ? `₩${Math.round(p).toLocaleString("ko-KR")}` : `$${Number(p).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`; };
+  const exRows=(v._examples||[]).map(x=>`${x.icon} <b>${esc(x.label)} · ${esc(x.ticker)}</b> · ${esc(dateShort(x.date))} 종가 ${esc(priceText(x.ticker,x.buyPrice))} 매수 → <b>${x.horizon}거래일 뒤 ${x.ret>=0?"+":""}${x.ret.toFixed(2)}%</b> <span style="color:var(--faint)">(${esc(priceText(x.ticker,x.endPrice))})</span>`);
+  const exampleBlock=exRows.length ? `<details class="acc validation-examples" style="margin-top:8px"><summary style="cursor:pointer"><b>📌 최근 수익 사례 ${exRows.length}건</b> · 펼쳐보기</summary><div class="strip" style="margin-top:6px;line-height:1.9">${exRows.join("<br>")}<div style="margin-top:5px;color:var(--faint);font-size:10.5px">+3·+5거래일 수익 사례만 무작위 표시 · 실적 영향권 제외 · 전체 성과는 위 승률·평균수익률을 참고하세요.</div></div></details>` : "";
+  const ex=v._excludedDetails||[];
+  const exDetail=ex.length?`<details class="acc" style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:11px"><b>실적 영향권 표본 자동 제외 · ${v._excludedTickers.length}종목 · 자세히</b></summary><div class="strip" style="margin-top:6px">${ex.map(o=>`${esc(o.ticker)} · 신호일 ${esc(o.date)} · 실적 ${esc(o.event||"?")}${timingLabel(o.timing)?` · ${esc(timingLabel(o.timing))}`:""} · +${o.horizons.join("/+")} 제외`).join("<br>")}</div></details>`:"";
+
   const ext=state.validation100;
   if(ext && ext.strategies){
     const S=ext.strategies;
@@ -2425,81 +2438,45 @@ function validationBlock(){
       trend:{label:"추세",icon:"📈"},
       reversal:{label:"반등",icon:"🔄"}
     };
-    const pct=x=>x==null?"—":`${Number(x).toFixed(1).replace(/\.0$/,"")}%`;
-    const av=x=>x==null?"—":`${x>=0?"+":""}${Number(x).toFixed(2)}%`;
+    const pctExt=x=>x==null?"—":`${Number(x).toFixed(1).replace(/\.0$/,"")}%`;
+    const avExt=x=>x==null?"—":`${x>=0?"+":""}${Number(x).toFixed(2)}%`;
     const cell=(o)=>{
       if(!o || !o.n) return `—<br><span style="font-size:10.5px;color:var(--faint)">표본 없음</span>`;
-      return `${pct(o.directional_rate)}<br>
-        <span style="font-size:10.5px;color:var(--faint)">평균 ${av(o.avg_return)} · ${o.n}건</span>`;
+      return `${pctExt(o.directional_rate)}<br><span style="font-size:10.5px;color:var(--faint)">평균 ${avExt(o.avg_return)} · ${o.n}건</span><br><span style="font-size:10px;color:var(--faint)">성공 ${o.win||0} · 보합 ${o.flat||0} · 실패 ${o.loss||0}</span>`;
     };
-    const row=k=>`<tr><td><b>${names[k].icon} ${names[k].label}</b></td>
-      <td>${cell(S[k]&&S[k][1])}</td><td>${cell(S[k]&&S[k][3])}</td><td>${cell(S[k]&&S[k][5])}</td></tr>`;
-
-    /* 기존 최근 10거래일 검증에서 쓰던 상세 정보는 표시용으로만 재사용한다.
-       validation100 승률/표본 계산 자체는 건드리지 않는다. */
-    const v=strategyValidation();
-    const dateShort=d=>{ const m=String(d||"").match(/\d{4}-(\d{2})-(\d{2})/); return m?`${Number(m[1])}/${Number(m[2])}`:String(d||"—"); };
-    const priceText=(tk,p)=>{ const st=allStocks().find(x=>x.ticker===tk); if(!has(p)) return "—"; return st&&st.currency==="KRW" ? `₩${Math.round(p).toLocaleString("ko-KR")}` : `$${Number(p).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`; };
-
-    const exRows=(v._examples||[]).map(x=>`${x.icon} <b>${esc(x.label)} · ${esc(x.ticker)}</b> · ${esc(dateShort(x.date))} 종가 ${esc(priceText(x.ticker,x.buyPrice))} 매수 → <b>${x.horizon}거래일 뒤 ${x.ret>=0?"+":""}${x.ret.toFixed(2)}%</b> <span style="color:var(--faint)">(${esc(priceText(x.ticker,x.endPrice))})</span>`);
-    const exampleBlock=exRows.length ? `<details class="acc validation-examples" style="margin-top:8px"><summary style="cursor:pointer"><b>📌 최근 수익 사례 ${exRows.length}건</b> · 펼쳐보기</summary><div class="strip" style="margin-top:6px;line-height:1.9">${exRows.join("<br>")}<div style="margin-top:5px;color:var(--faint);font-size:10.5px">+3·+5거래일 수익 사례만 무작위 표시 · 실적 영향권 제외 · 전체 성과는 위 승률·평균수익률을 참고하세요.</div></div></details>` : "";
-
-    const detailRows=["multi","trend","reversal"].flatMap(k=>[1,3,5].map(h=>{
+    const row=k=>`<tr><td><b>${names[k].icon} ${names[k].label}</b></td><td>${cell(S[k]&&S[k][1])}</td><td>${cell(S[k]&&S[k][3])}</td><td>${cell(S[k]&&S[k][5])}</td></tr>`;
+    const diagRows=["multi","trend","reversal"].flatMap(k=>[1,3,5].map(h=>{
       const o=S[k]&&S[k][h]; if(!o) return null;
-      const pending=(o.pending ?? o.not_matured ?? o.pending_count);
-      const ptxt=pending==null ? "미도래 —" : `미도래 ${pending}건`;
-      return `${names[k].icon} <b>${names[k].label} +${h}</b> · ${ptxt} · <b>최종 평가 ${o.n||0}건 (성공 ${o.win||0} / 보합 ${o.flat||0} / 실패 ${o.loss||0})</b>`;
+      return `${names[k].icon} <b>${names[k].label} +${h}</b> · <b>최종 평가 ${o.n||0}건 (성공 ${o.win||0} / 보합 ${o.flat||0} / 실패 ${o.loss||0})</b>`;
     })).filter(Boolean);
-    const diagDetail=detailRows.length ? `<details class="acc" style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:11px"><b>🔎 표본 구성 자세히</b></summary><div class="strip" style="margin-top:6px;line-height:1.9">${detailRows.join("<br>")}<div style="margin-top:5px;color:var(--faint);font-size:10.5px">실패·보합 표본도 숨기지 않고 함께 표시합니다.</div></div></details>` : "";
-
-    const timingLabel=t=>t==="BMO"?"장전(BMO)":t==="AMC"?"장후(AMC)":"시간 미확인";
-    const ex=v._excludedDetails||[];
-    const exDetail=ex.length ? `<details class="acc" style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:11px"><b>실적 영향권 표본 자동 제외 · ${v._excludedTickers.length}종목 · 자세히</b></summary><div class="strip" style="margin-top:6px">${ex.map(o=>`${esc(o.ticker)} · 신호일 ${esc(o.date)} · 실적 ${esc(o.event||"?")} ${esc(timingLabel(o.timing))} · +${o.horizons.join("/+")} 제외`).join("<br>")}</div></details>` : "";
-
-    return `<div class="section help-block"><h3>🧪 신뢰도 검증 결과</h3>
-      <div class="strip" style="margin-bottom:8px">
-        <b>매수 신호가 뜬 날 종가에 샀다고 가정하고, 1·3·5거래일 뒤 종가가 올랐는지 확인한 결과입니다.</b>
-        <div style="margin-top:5px;color:var(--faint);font-size:11px;font-weight:400;line-height:1.65">추세·반등 신호는 매수관심 또는 강한매수 수준 이상이 나온 경우만 검증 대상에 포함합니다. 다중 신호도 같은 방식으로, 그날 실제 다중 신호 조건을 충족한 종목만 검증합니다.</div>
-      </div>
+    const diagDetail=`<details class="acc" style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:11px"><b>🔎 표본 구성 자세히</b></summary><div class="strip" style="margin-top:6px;line-height:1.9">${diagRows.join("<br>")}<div style="margin-top:5px;color:var(--faint);font-size:10.5px">실패·보합 표본도 최종 평가에 그대로 포함됩니다. ‘최근 수익 사례’ 3줄만 별도의 예시 영역입니다.</div></div></details>`;
+    return `<div class="section help-block"><h3>🧪 신뢰도 검증 결과</h3><div class="strip" style="margin-bottom:8px"><b>매수 신호가 뜬 날 종가에 샀다고 가정하고, 1·3·5거래일 뒤 종가가 올랐는지 확인한 결과입니다.</b><br><b>추세·반등</b> 신호는 <b>매수관심 또는 강한매수 수준 이상</b>이 나온 경우만 검증 대상에 포함합니다. <b>다중 신호</b>도 같은 방식으로, <b>그날 실제 다중 신호 조건을 충족한 종목만</b> 검증합니다.<br><b>+1% 초과는 성공, -1%~+1%는 보합, -1% 미만은 실패</b>로 구분합니다.</div>
       <table class="cmp"><tr><th>전략</th><th>+1거래일</th><th>+3거래일</th><th>+5거래일</th></tr>
         ${row("multi")}${row("trend")}${row("reversal")}
-      </table>
-      <div style="margin:7px 2px 0;color:var(--faint);font-size:10.5px;line-height:1.6">수익률 +1% 초과는 성공, -1%~+1%는 보합, -1% 미만은 실패로 구분하며, 승률은 보합을 제외한 성공/(성공+실패) 기준입니다.</div>
-      ${exampleBlock}${diagDetail}${exDetail}
+      </table>${exampleBlock}${diagDetail}${exDetail}
+      <div class="strip" style="margin-top:9px">
+        전략·기간별 최근 <b>유효 최대 100건</b>을 사용합니다. 실적 영향권 표본은 자동 제외합니다.</div>
     </div>`;
   }
 
-  /* validation100_summary.json이 없을 때의 기존 최근 10거래일 검증 화면 */
-  const v=strategyValidation();
-  const timingLabel=t=>t==="BMO"?"장전(BMO)":t==="AMC"?"장후(AMC)":"시간 미확인";
-  const pct=x=>x==null?"—":x+"%"; const av=x=>x==null?"—":`${x>=0?"+":""}${x.toFixed(2)}%`;
-  const dateShort=d=>{ const m=String(d||"").match(/\d{4}-(\d{2})-(\d{2})/); return m?`${Number(m[1])}/${Number(m[2])}`:String(d||"—"); };
-  const priceText=(tk,p)=>{ const st=allStocks().find(x=>x.ticker===tk); if(!has(p)) return "—"; return st&&st.currency==="KRW" ? `₩${Math.round(p).toLocaleString("ko-KR")}` : `$${Number(p).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`; };
-  const exRows=(v._examples||[]).map(x=>`${x.icon} <b>${esc(x.label)} · ${esc(x.ticker)}</b> · ${esc(dateShort(x.date))} 종가 ${esc(priceText(x.ticker,x.buyPrice))} 매수 → <b>${x.horizon}거래일 뒤 ${x.ret>=0?"+":""}${x.ret.toFixed(2)}%</b> <span style="color:var(--faint)">(${esc(priceText(x.ticker,x.endPrice))})</span>`);
-  const exampleBlock=exRows.length ? `<details class="acc validation-examples" style="margin-top:8px"><summary style="cursor:pointer"><b>📌 최근 수익 사례 ${exRows.length}건</b> · 펼쳐보기</summary><div class="strip" style="margin-top:6px;line-height:1.9">${exRows.join("<br>")}<div style="margin-top:5px;color:var(--faint);font-size:10.5px">+3·+5거래일 수익 사례만 무작위 표시 · 실적 영향권 제외 · 전체 성과는 위 승률·평균수익률을 참고하세요.</div></div></details>` : "";
   const cell=(o)=>o.n===0
     ? `—<br><span style="font-size:10.5px;color:var(--faint)">표본 없음</span>`
     : `${pct(o.rate)}<br><span style="font-size:10.5px;color:var(--faint)">평균 ${av(o.avg)} · ${o.n}건</span>`;
   const row=k=>`<tr><td><b>${v[k].icon} ${v[k].label}</b></td><td>${cell(v[k][1])}</td><td>${cell(v[k][3])}</td><td>${cell(v[k][5])}</td></tr>`;
-  const ex=v._excludedDetails||[];
-  const exDetail=ex.length?`<details class="acc" style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:11px"><b>실적 영향권 표본 자동 제외 · ${v._excludedTickers.length}종목 · 자세히</b></summary><div class="strip" style="margin-top:6px">${ex.map(o=>`${esc(o.ticker)} · 신호일 ${esc(o.date)} · 실적 ${esc(o.event||"?")} ${esc(timingLabel(o.timing))} · +${o.horizons.join("/+")} 제외`).join("<br>")}</div></details>`:"";
   const diagLabel={multi:"다중 신호",pull:"추세",rev:"반등"};
   const diagIcon={multi:"🔵",pull:"📈",rev:"🔄"};
   const diagRows=["multi","pull","rev"].flatMap(k=>[1,3,5].map(h=>{
     const d=(v._diag&&v._diag[k]&&v._diag[k][h])||{candidate:0,pending:0};
     const fin=v[k][h]; const exn=(v._excluded&&v._excluded[k]&&v._excluded[k][h])||0;
-    return `${diagIcon[k]} <b>${diagLabel[k]} +${h}</b> · 전체 후보 ${d.candidate}건 · 아직 +${h} 미도래 ${d.pending}건 · 실적 제외 ${exn}건 · <b>최종 평가 ${fin.n}건 (성공 ${fin.wins||0} / 실패 ${fin.losses||0})</b>`;
+    return `${diagIcon[k]} <b>${diagLabel[k]} +${h}</b> · 전체 후보 ${d.candidate}건 · 아직 +${h} 미도래 ${d.pending}건 · 실적 제외 ${exn}건 · <b>최종 평가 ${fin.n}건 (성공 ${fin.wins||0} / 보합 ${fin.flats||0} / 실패 ${fin.losses||0})</b>`;
   }));
-  const diagDetail=`<details class="acc" style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:11px"><b>🔎 표본 구성 자세히</b></summary><div class="strip" style="margin-top:6px;line-height:1.9">${diagRows.join("<br>")}<div style="margin-top:5px;color:var(--faint);font-size:10.5px">실패 표본도 최종 평가에 그대로 포함됩니다. ‘최근 수익 사례’ 3줄만 별도의 예시 영역입니다.</div></div></details>`;
-  return `<div class="section help-block"><h3>🧪 신뢰도 검증 결과</h3>
-    <div class="strip" style="margin-bottom:8px">
-      <b>매수 신호가 뜬 날 종가에 샀다고 가정하고, 1·3·5거래일 뒤 종가가 올랐는지 확인한 결과입니다.</b>
-      <div style="margin-top:5px;color:var(--faint);font-size:11px;font-weight:400;line-height:1.65">추세·반등 신호는 매수관심 또는 강한매수 수준 이상이 나온 경우만 검증 대상에 포함합니다. 다중 신호도 같은 방식으로, 그날 실제 다중 신호 조건을 충족한 종목만 검증합니다.</div>
-    </div>
+  const diagDetail=`<details class="acc" style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:11px"><b>🔎 표본 구성 자세히</b></summary><div class="strip" style="margin-top:6px;line-height:1.9">${diagRows.join("<br>")}<div style="margin-top:5px;color:var(--faint);font-size:10.5px">실패·보합 표본도 최종 평가에 그대로 포함됩니다. ‘최근 수익 사례’ 3줄만 별도의 예시 영역입니다.</div></div></details>`;
+  return `<div class="section help-block"><h3>🧪 신뢰도 검증 결과</h3><div class="strip" style="margin-bottom:8px"><b>매수 신호가 뜬 날 종가에 샀다고 가정하고, 1·3·5거래일 뒤 종가가 올랐는지 확인한 결과입니다.</b><br><b>추세·반등</b> 신호는 <b>매수관심 또는 강한매수 수준 이상</b>이 나온 경우만 검증 대상에 포함합니다. <b>다중 신호</b>도 같은 방식으로, <b>그날 실제 다중 신호 조건을 충족한 종목만</b> 검증합니다.</div>
     <table class="cmp"><tr><th>전략</th><th>+1거래일</th><th>+3거래일</th><th>+5거래일</th></tr>
       ${row("multi")}${row("pull")}${row("rev")}
     </table>${exampleBlock}${diagDetail}${exDetail}
-    <div class="strip" style="margin-top:9px">카드 데이터는 최근 <b>10거래일</b>을 사용하므로 아직 표본이 짧습니다. 장기 승률처럼 해석하지 않습니다.</div>
+    <div class="strip" style="margin-top:9px">
+      카드 데이터는 최근 <b>10거래일</b>을 사용하므로 아직 표본이 짧습니다. 장기 승률처럼 해석하지 않습니다.</div>
   </div>`;
 }
 
@@ -2997,8 +2974,6 @@ function gotoStock(tk){
 document.getElementById("tabs").addEventListener("click", e=>{
   const b = e.target.closest("button[data-tab]"); if(!b) return;
   if (b.dataset.tab==="all" && state.tab!=="all"){ state.view="compact"; state.sort="signal"; }
-  // 테마랭킹으로 돌아오면 직전 테마 필터를 반드시 해제한다.
-  if (b.dataset.tab==="theme") state.themeFilter="";
   state.tab = b.dataset.tab; save(); render();
   try{ window.scrollTo({top:0,behavior:"smooth"}); }catch(e){ window.scrollTo(0,0); }
 });
@@ -3044,8 +3019,7 @@ document.getElementById("main").addEventListener("click", e=>{
   if(tf){
     e.preventDefault(); e.stopPropagation();
     state.themeFilter=tf.dataset.themefilter||"";
-    // 테마 흐름 클릭은 해당 테마의 전체순위 '모아보기'로 이동한다.
-    state.tab="all"; state.view="compact"; state.displayLimit=20;
+    state.tab="all"; state.displayLimit=20;
     save(); render();
     setTimeout(()=>document.getElementById("main")?.scrollIntoView({behavior:"smooth",block:"start"}),40);
     return;
@@ -3158,8 +3132,6 @@ sheet.addEventListener("click", e=>{
   const t = e.target.closest("[data-tab]");
   if (t){
     if (t.dataset.tab==="all" && state.tab!=="all"){ state.view="compact"; state.sort="signal"; }
-    // 모바일 메뉴에서도 테마랭킹 복귀 시 직전 테마 필터를 해제한다.
-    if (t.dataset.tab==="theme") state.themeFilter="";
     state.tab=t.dataset.tab; save(); render(); closeSheet(); window.scrollTo(0,0); return; }
   const v = e.target.closest("[data-view]");
   if (v){ state.view=v.dataset.view; state.tab="all"; state.displayLimit=20; save(); render(); closeSheet(); return; }
