@@ -2418,10 +2418,15 @@ function strategyValidation(){
 
   const stat=a=>{
     const wins=a.filter(x=>x.ret>1).length;
-    const losses=a.filter(x=>x.ret< -1).length;
-    const flats=a.length-wins-losses;
-    const decided=wins+losses;
-    return {n:a.length,rate:decided?Math.round(wins/decided*100):null,avg:a.length?a.reduce((z,x)=>z+x.ret,0)/a.length:null,wins,losses,flats};
+    const flats=a.filter(x=>x.ret>=-1 && x.ret<=1).length;
+    const losses=a.filter(x=>x.ret<-1).length;
+    const directional=wins+losses;
+    return {
+      n:a.length,
+      rate:directional?Math.round(wins/directional*100):null,
+      avg:a.length?a.reduce((z,x)=>z+x.ret,0)/a.length:null,
+      wins, flats, losses
+    };
   };
   const result={multi:{label:"다중 신호",icon:"🔵"}};
   Object.entries(kinds).forEach(([k,def])=>result[k]={label:def.label,icon:def.icon});
@@ -2540,7 +2545,7 @@ function renderHelp(){
         <tr><td><b>↪️ 반등</b></td><td><b>1~5일</b></td><td>🚀 <b>+3+5일 평균수익률 1위</b></td><td><b>빠른 스윙 · 중수 이상</b></td></tr>
       </table>
     </div>
-    <div class="strategy-mini-note"><b>승률</b> = 상승한 종목의 비율 · <b>수익률</b> = 신호 이후 실제 가격 변동폭의 평균<br>
+    <div class="strategy-mini-note"><b>승률</b> = 상승 ÷ (상승+하락), 보합 제외 · <b>수익률</b> = 신호 이후 실제 가격 변동폭의 평균<br>
       단기는 실제 운영 이후 전향검증, +20일은 현재 산식을 과거 데이터에 소급 적용한 테스트 결과로 <b>표본이 쌓이면 결과가 달라질 수 있습니다.</b></div>
     <table class="cmp market-guide">
       <tr><th>시장 상황</th><th>우선 참고 전략</th><th>해석</th></tr>
@@ -2660,23 +2665,7 @@ const FALLBACK_URLS = [
 ];
 let bootLog = [];
 
-async function fetchValidation100(signalsUrl){
-  try{
-    const clean=String(signalsUrl||"signals.json").replace(/[?#].*$/,"");
-    const target=/signals\.json$/i.test(clean)
-      ? clean.replace(/signals\.json$/i,"validation100_summary.json")
-      : "validation100_summary.json";
-    const r=await fetch(target+(target.includes("?")?"&":"?")+"_="+Date.now(),{cache:"no-store"});
-    if(!r.ok) throw new Error("HTTP "+r.status);
-    const j=await r.json();
-    if(!j || !j.strategies) throw new Error("invalid validation100");
-    state.validation100=j;
-    return true;
-  }catch(e){
-    state.validation100=null;
-    return false;
-  }
-}
+async function fetchValidation100(signalsUrl){ state.validation100=null; return false; }
 
 async function fetchData(url, silent){
   try{
