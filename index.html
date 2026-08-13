@@ -2533,10 +2533,10 @@ function validationBlock(){
   }).filter(Boolean).join("");
   const exampleBlock=exGroups ? `<details class="acc validation-examples" style="margin-top:8px" open>
     <summary style="cursor:pointer"><b>📌 최근 수익 사례 6건</b></summary>
-    <div style="margin:6px 0 2px;font-size:10.8px;color:var(--faint);line-height:1.7">
-      <span class="badge buy mini" style="vertical-align:middle">강한매수</span> 신호 발생일 ·
-      <span class="badge neutral mini" style="vertical-align:middle">중립</span> →
-      <span class="badge buy mini" style="vertical-align:middle">매수관심</span>으로 전환된 실제 사례
+    <div style="margin:6px 0 2px;font-size:10.8px;color:var(--faint);line-height:1.7;font-weight:500">
+      <span style="font-size:10.8px;font-weight:700;color:var(--buy)">강한매수</span> 신호 발생일 /
+      <span style="font-size:10.8px;font-weight:500;color:var(--faint)">중립</span> →
+      <span style="font-size:10.8px;font-weight:700;color:var(--buy)">매수관심</span> 전환일 종가기준 실제 사례
     </div>
     <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px">${exGroups}</div>
     <div style="margin-top:7px;color:var(--faint);font-size:10.5px">실적 영향권 · 레버리지 ETF 제외</div>
@@ -2722,7 +2722,7 @@ function save(){
     localStorage.setItem(LS, JSON.stringify({
       sort:state.sort, market:state.market, showHoldings:state.showHoldings,
       holdings:state.holdings, favorites:state.favorites, hidden:state.hidden, expanded:state.expanded, cart:state.cart,
-      overrides:state.overrides, placeholders:state.placeholders, dataUrl:state.dataUrl, theme:state.theme, view:state.view,
+      overrides:state.overrides, placeholders:state.placeholders, theme:state.theme, view:state.view,
       themeFilter:state.themeFilter
     }));
   }catch(e){}
@@ -2731,7 +2731,7 @@ function load(){
   try{
     const p = JSON.parse(localStorage.getItem(LS)||"null");
     if (!p) return;
-    ["sort","market","dataUrl","theme","view"].forEach(k=>{ if(p[k]) state[k]=p[k]; });
+    ["sort","market","theme","view"].forEach(k=>{ if(p[k]) state[k]=p[k]; });
     state.showHoldings = !!p.showHoldings;
     ["holdings","favorites","hidden","expanded","placeholders","cart"].forEach(k=>{ if(Array.isArray(p[k])) state[k]=p[k]; });
     state.themeFilter = typeof p.themeFilter==="string" ? p.themeFilter : "";
@@ -2743,8 +2743,7 @@ function load(){
 /* ══════════ 데이터 로드 ══════════ */
 const FALLBACK_URLS = [
   "https://raw.githubusercontent.com/ShouldIBuyThis/stock-signals/main/signals.json",
-  "https://raw.githubusercontent.com/zzz797911-dev/stock-signals/main/signals.json"
-];
+  ];
 let bootLog = [];
 
 async function fetchValidation100(signalsUrl){ state.validation100=null; return false; }
@@ -2755,7 +2754,7 @@ async function fetchData(url, silent){
     if (!r.ok) throw new Error("HTTP "+r.status);
     const json = await r.json();
     state.data = normalize(json);
-    state.dataUrl = url; save();
+    save();
     // 공개 신뢰도는 validation100_summary.json을 사용하지 않고 현재 history 기반 strategyValidation()만 사용
     state.validation100 = null;
     render();
@@ -2769,7 +2768,6 @@ async function fetchData(url, silent){
 async function boot(){
   bootLog = [];
   const tries = [];
-  if (state.dataUrl) tries.push(state.dataUrl);
   if (location.protocol.startsWith("http")){
     const base = location.href.split("?")[0].split("#")[0].replace(/[^/]*$/,"");
     tries.push(base+"signals.json", "signals.json");
@@ -2777,7 +2775,6 @@ async function boot(){
   FALLBACK_URLS.forEach(u=>tries.push(u));
   for (const u of tries){ if (await fetchData(u, true)) return; }
 
-  state.dataUrl = "";  // 잘못 저장된 주소 정리
   save();
   document.getElementById("main").innerHTML =
     `<div class="empty-state" style="text-align:left">
