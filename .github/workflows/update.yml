@@ -5,8 +5,8 @@ on:
     # 미국장: 뉴욕 현지 16:10 — 장 마감 10분 후, DST 자동 반영
     - cron: '10 16 * * 1-5'
       timezone: 'America/New_York'
-    # 한국장: 15:40 KST — 장 마감 10분 후
-    - cron: '40 15 * * 1-5'
+    # 한국장: 16:40 KST — 무료 시세의 종가 반영 지연을 감안해 여유 있게 실행
+    - cron: '40 16 * * 1-5'
       timezone: 'Asia/Seoul'
   workflow_dispatch:
     inputs:
@@ -45,12 +45,33 @@ jobs:
       - name: 라이브러리 설치
         run: pip install --upgrade yfinance pandas numpy exchange_calendars
 
-      - name: 지표 계산
-        # 자동: 한국장 15:40 KST → kr / 미국장 16:10 ET → us
-        # 수동: Run workflow에서 us / kr / all 중 직접 선택
+      - name: 갱신 범위 결정
+        id: scope
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "value=${{ inputs.scope }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "40 16 * * 1-5" ]; then
+            echo "value=kr" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=us" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 지표 계산 1차
+        id: calc
+        continue-on-error: true
         env:
-          RUN_SCOPE: ${{ github.event_name == 'workflow_dispatch' && inputs.scope || (github.event.schedule == '40 15 * * 1-5' && 'kr' || 'us') }}
+          RUN_SCOPE: ${{ steps.scope.outputs.value }}
         run: python main.py
+
+      - name: 실패 시 5분 뒤 1회 재시도
+        if: steps.calc.outcome == 'failure'
+        env:
+          RUN_SCOPE: ${{ steps.scope.outputs.value }}
+        run: |
+          echo "1차 갱신 실패 — 5분 뒤 같은 범위만 다시 시도합니다."
+          sleep 300
+          python main.py
 
       - name: signals.json 커밋
         run: |
@@ -58,18 +79,16 @@ jobs:
           git config user.email "github-actions@users.noreply.github.com"
           git add signals.json history/
           git commit -m "auto: signals 갱신" || echo "변경 없음"
-          # 같은 시간대에 두 스케줄이 겹칠 수 있으므로 원격 변경분을 먼저 당겨온다
           git pull --rebase --autostash
           git push
 
-      # ── 여기서부터 사이트 재배포 (데이터 갱신과 같은 워크플로우에서 처리) ──
       - name: Pages 설정
         uses: actions/configure-pages@v5
 
       - name: 사이트 파일 업로드
         uses: actions/upload-pages-artifact@v3
         with:
-          path: '.'     # 저장소 전체(index.html + signals.json)
+          path: '.'
 
       - name: Pages 배포
         id: deploy
