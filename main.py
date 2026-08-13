@@ -643,9 +643,91 @@ def save_history(results, mkt, now_kst):
         "stocks":slim,
     }
     path=f"{folder}/{day}.json"; existed=os.path.exists(path)
-    with open(path,"w",encoding="utf-8") as f: json.dump(payload,f,ensure_ascii=False)
+    if existed:
+        # 같은 거래일 재실행에서도 최초 확정 스냅샷을 보존한다.
+        print(f"이력 고정 유지: {path} — 기존 파일 보존")
+        return
+    with open(path,"w",encoding="utf-8") as f:
+        json.dump(payload,f,ensure_ascii=False)
     size=os.path.getsize(path)/1024
-    print(f"이력 저장: {path} ({size:.0f}KB, {len(slim)}종목){' — 덮어씀' if existed else ''}")
+    print(f"이력 저장: {path} ({size:.0f}KB, {len(slim)}종목) — 최초 스냅샷 고정")
+
+
+def freeze_signal_hist(results, prev_rows):
+    """
+    signals.json의 최근 hist를 append-only 스냅샷으로 고정한다.
+
+    핵심 규칙
+    1) 이미 signals.json에 존재했던 과거 ticker+date 행은 절대 재계산값으로 덮어쓰지 않는다.
+    2) 새 거래일만 오늘 계산된 hist 마지막 행에서 1회 추가한다.
+    3) 같은 거래일에 재실행/수동실행되어도 기존 그 날짜 행을 유지한다.
+    4) 최근 HIST_DAYS개만 유지한다.
+
+    따라서 오늘 화면에서 확정된 과거 신호 입력값이 내일 Yahoo 재조회 때문에
+    강한매수→매수관심처럼 바뀌는 repaint를 막는다.
+    """
+    idx = {k:i for i,k in enumerate(HIST_FIELDS)}
+    date_i = idx.get("date")
+    if date_i is None:
+        raise RuntimeError("HIST_FIELDS에 date가 없습니다.")
+
+    frozen_count = 0
+    appended_count = 0
+
+    for r in results:
+        tk = r.get("ticker")
+        last_date = str(r.get("last_date") or "")
+        prev = (prev_rows or {}).get(tk) or {}
+
+        # 직전 signals.json에 실제 공개됐던 hist를 원장으로 사용.
+        old_hist = []
+        seen = set()
+        for h in (prev.get("hist") or []):
+            if not isinstance(h, list) or len(h) <= date_i:
+                continue
+            d = str(h[date_i] or "")
+            if not d or d in seen:
+                continue
+            old_hist.append(list(h))
+            seen.add(d)
+
+        # 오늘 새 계산 결과에서 '현재 확정 거래일' 한 줄만 가져온다.
+        current_hist_row = None
+        for h in (r.get("hist") or []):
+            if not isinstance(h, list) or len(h) <= date_i:
+                continue
+            if str(h[date_i] or "") == last_date:
+                current_hist_row = list(h)
+
+        if old_hist:
+            frozen_count += len(old_hist)
+
+        # 이미 그 날짜가 공개 이력에 있으면 절대 덮어쓰지 않는다.
+        if last_date and last_date not in seen and current_hist_row is not None:
+            old_hist.append(current_hist_row)
+            seen.add(last_date)
+            appended_count += 1
+
+        # 최초 도입 시 직전 hist가 전혀 없으면 현재 파일의 hist를 기준선으로 1회 채택.
+        # 이후 실행부터는 위 append-only 규칙으로 고정된다.
+        if not old_hist:
+            seed = []
+            seed_seen = set()
+            for h in (r.get("hist") or []):
+                if not isinstance(h, list) or len(h) <= date_i:
+                    continue
+                d = str(h[date_i] or "")
+                if not d or d in seed_seen:
+                    continue
+                seed.append(list(h))
+                seed_seen.add(d)
+            old_hist = seed[-HIST_DAYS:]
+
+        old_hist.sort(key=lambda h: str(h[date_i] or ""))
+        r["hist"] = old_hist[-HIST_DAYS:]
+
+    print(f"hist 고정: 기존 스냅샷 {frozen_count}행 유지 · 새 거래일 {appended_count}행 추가")
+
 
 def attach_historical_rs20(results, mkt):
     """각 과거 날짜의 종목 ret20에서 같은 날짜 QQQ ret20을 빼 rs20을 채운다."""
@@ -739,6 +821,10 @@ def main():
         else:
             _s["rs20"] = None
     attach_historical_rs20(results, mkt)
+
+    # 신뢰도용 최근 hist는 여기서 고정한다.
+    # 과거 날짜는 직전 signals.json 값을 그대로 유지하고 새 거래일만 append한다.
+    freeze_signal_hist(results, prev_rows)
 
     payload = {
         "generated_at": now_kst.strftime("%Y-%m-%d %H:%M") + " KST",
