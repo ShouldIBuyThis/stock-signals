@@ -348,6 +348,38 @@ def attach_earnings_holds(results, earnings, now_kst):
             r["earnings_release_open_kst"] = ev.get("release_open_kst") or us_session_open_kst(release)
     return results
 
+def freeze_validation_earnings_dates(results, prev_rows):
+    """신뢰도 검증용 실적 제외 날짜를 append-only로 고정한다.
+
+    과거에 이미 제외했던 날짜는 Yahoo 실적 메타데이터가 나중에 바뀌어도 제거하지 않는다.
+    반대로 새로 실제 신호/성과 날짜가 된 실적 영향권은 이후 실행에서 추가한다.
+    미래 날짜를 미리 얼리지 않아 일정 정정이 과거 검증을 불필요하게 오염시키지 않게 한다.
+    """
+    for r in results:
+        tk = r.get("ticker")
+        prev = (prev_rows or {}).get(tk) or {}
+        old_b = set(prev.get("validation_blocked_dates") or [])
+        old_a = set(prev.get("validation_affected_dates") or [])
+
+        ev = r.get("earnings") or {}
+        cur_b = set(ev.get("blocked_signal_dates") or [])
+        cur_a = set(ev.get("affected_close_dates") or [])
+        if ev.get("date") and not (cur_b or cur_a):
+            b, a, _, _ = _earnings_windows(ev)
+            cur_b.update(b); cur_a.update(a)
+
+        # 이 종목 데이터가 실제로 도달한 날짜까지만 확정한다.
+        cutoff = str(r.get("last_date") or "")
+        if cutoff:
+            cur_b = {d for d in cur_b if d and str(d) <= cutoff}
+            cur_a = {d for d in cur_a if d and str(d) <= cutoff}
+        else:
+            cur_b, cur_a = set(), set()
+
+        r["validation_blocked_dates"] = sorted(old_b | cur_b)
+        r["validation_affected_dates"] = sorted(old_a | cur_a)
+    return results
+
 def load_previous():
     """직전 signals.json을 티커별로 읽어둔다. 없으면 빈 dict."""
     try:
@@ -838,6 +870,8 @@ def main():
                     failed.append(f"{tk} ({nm}) — {e}"); print("SKIP", tk, e)
     # 실적 보류 판정은 가격 수집이 끝난 뒤 한 번만 적용한다.
     attach_earnings_holds(results, earnings_map, now_kst)
+    # 신뢰도 검증의 실적 제외일도 과거 기록처럼 append-only로 고정한다.
+    freeze_validation_earnings_dates(results, prev_rows)
     print(f"수집 {len(results)}종목 (직전 값 유지 {carried}건) · 실패 {len(failed)}건 · 실적보류 {sum(1 for r in results if r.get('earnings_hold'))}건")
 
     # ── 섹터별 평균 등락률 (핫/약세 섹터 표시용) ──
