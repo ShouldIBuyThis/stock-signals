@@ -1850,16 +1850,29 @@ function badgeIndex(){
   return [...m.entries()].sort((a,b)=>b[1].length-a[1].length);
 }
 
+/* 카드의 전환 칩/비교 팝업은 신호 히스토리와 같은 frozen hist 원장을 사용한다.
+   현재 top-level 재계산값과 과거 hist를 섞지 않아 '중립→강한매수' vs 히스토리 '중립→매수관심'
+   같은 표시 불일치를 막는다. 표시 전용이며 순위/등급 산식에는 영향 없음. */
+function frozenTrendPair(s){
+  const hs=histStocks(s);
+  if(!hs || hs.length<2) return null;
+  const prev=hs[hs.length-2], cur=hs[hs.length-1];
+  return {prev,cur,prevSig:evaluate(prev),curSig:evaluate(cur)};
+}
+
 /* 어제 → 오늘 점수 변화 칩 */
 function trendChip(s){
-  if (!s.prevSig) return "";
-  const d = Math.round((s.sig.score - s.prevSig.score)*10)/10;
-  const gUp = s.sig.grade - s.prevSig.grade;
+  const fp=frozenTrendPair(s);
+  const prevSig=fp ? fp.prevSig : s.prevSig;
+  const curSig=fp ? fp.curSig : s.sig;
+  if (!prevSig || !curSig) return "";
+  const d = Math.round((curSig.score - prevSig.score)*10)/10;
+  const gUp = curSig.grade - prevSig.grade;
   const arrow = d > 0 ? "↑" : d < 0 ? "↓" : "→";
   const cls = gUp > 0 ? "up strong" : gUp < 0 ? "down strong" : d > 0 ? "up" : d < 0 ? "down" : "flat";
-  const label = gUp !== 0 ? `${arrow} ${gradeLabel(s.prevSig)}→${gradeLabel(s.sig)}`
+  const label = gUp !== 0 ? `${arrow} ${gradeLabel(prevSig)}→${gradeLabel(curSig)}`
                           : `${arrow} ${d > 0 ? "+" : ""}${d}`;
-  return `<button class="trendchip ${cls}" data-trend="${esc(s.ticker)}" title="어제 대비 변화">${label}</button>`;
+  return `<button class="trendchip ${cls}" data-trend="${esc(s.ticker)}" title="직전 거래일 대비 변화">${label}</button>`;
 }
 
 /* ══════════ 🛒 모의구매 점검 ══════════ */
@@ -2080,26 +2093,29 @@ function openTimeline(tk){
     <div class="modal-actions"><button class="primary" onclick="document.getElementById('modal').classList.remove('on')">닫기</button></div>`);
 }
 function openTrendModal(tk){
-  const s = allStocks().find(x=>x.ticker===tk); if(!s||!s.prevSig) return;
+  const s = allStocks().find(x=>x.ticker===tk); if(!s) return;
+  const fp=frozenTrendPair(s);
+  const prevSig=fp ? fp.prevSig : s.prevSig;
+  const curSig=fp ? fp.curSig : s.sig;
+  const prevRow=fp ? fp.prev : s._prev;
+  const curRow=fp ? fp.cur : s;
+  if(!prevSig || !curSig) return;
   const row = (lab,a,b) => {
     const d = Math.round((b-a)*10)/10;
     const c = d>0?"var(--buy)":d<0?"var(--sell)":"var(--muted)";
     return `<tr><td>${lab}</td><td class="num">${a}</td><td class="num">${b}</td>
       <td class="num" style="color:${c};font-weight:800">${d>0?"+":""}${d}</td></tr>`;
   };
-  openModal(`<h3>📅 어제 → 오늘</h3>
-    <p style="font-size:12.5px;color:var(--muted);margin-bottom:10px">
-      ${esc(s._prev.last_date||"직전 거래일")} → ${esc(s.last_date||"오늘")} · 직전 <b>거래일</b> 기준이라
-      월요일에는 금요일 종가와 비교됩니다.</p>
+  openModal(`<h3>📈 ${esc(s.ticker)} 신호 변화</h3>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:10px">${esc(prevRow?.last_date||"직전 거래일")} → ${esc(curRow?.last_date||"오늘")} · 직전 <b>거래일</b> 기준입니다.</p>
     <table class="cmp">
       <tr><th></th><th>어제</th><th>오늘</th><th>변화</th></tr>
-      ${row("추세", s.prevSig.pullScore, s.sig.pullScore)}
-      ${row("반등", s.prevSig.revScore, s.sig.revScore)}
+      ${row("추세", prevSig.pullScore, curSig.pullScore)}
+      ${row("반등", prevSig.revScore, curSig.revScore)}
     </table>
     <p style="font-size:13px;color:var(--reason);margin-top:12px;line-height:1.7">
-      등급 <b>${gradeLabel(s.prevSig)}</b> → <b>${gradeLabel(s.sig)}</b><br><br>
-      점수 자체보다 <b>어느 방향으로 움직이는 중인지</b>가 자리를 잡는 데 더 도움이 됩니다.
-      다만 하루치 변화는 흔들림이 크니 한 번의 변화로 결론 내지 마세요.</p>
+      등급 <b>${gradeLabel(prevSig)}</b> → <b>${gradeLabel(curSig)}</b><br><br>
+      카드의 변화 칩과 신호 히스토리는 같은 고정 스냅샷 기준입니다.</p>
     <div class="modal-actions"><button class="primary" onclick="document.getElementById('modal').classList.remove('on')">닫기</button></div>`);
 }
 
