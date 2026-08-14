@@ -649,6 +649,18 @@ html[data-theme="dark"] .mkswitch button.on{background:#37456a;box-shadow:none}
 .cartstock p{margin:2px 0;font-size:11.8px;line-height:1.65;color:var(--reason)}
 .risk-ticker{border-bottom:1px dotted currentColor;cursor:pointer}
 .risk-note{margin-top:7px;padding:8px 10px;border:1px dashed var(--line);border-radius:9px;font-size:11px;line-height:1.55;color:var(--reason);background:var(--surface2)}
+/* QQQ 시장 기준카드 + 시장이벤트 경고. 랭킹/점수 산식과 무관한 표시 전용 */
+.market-bench{margin:0 0 12px;padding:12px 13px;border:1px solid var(--line);border-radius:14px;background:var(--surface);box-shadow:var(--shadow)}
+.market-bench-h{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:6px}
+.market-bench-h b{font-size:14px}.market-bench-h .sub{font-size:10.5px;color:var(--muted)}
+.market-bench-main{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:12px;color:var(--reason)}
+.market-bench-main .score{font-weight:900;color:var(--ink)}
+.market-bench-reason{margin-top:5px;font-size:11.5px;line-height:1.55;color:var(--reason)}
+.market-bench-actions{margin-top:7px}
+.market-bench-actions button{border:1px solid var(--line);background:var(--surface2);color:var(--ink);border-radius:999px;padding:4px 9px;font-size:10.5px;font-weight:800;cursor:pointer}
+.market-event-warn{margin-top:7px;padding:7px 9px;border:1px dashed rgba(240,135,43,.45);border-radius:9px;background:rgba(240,135,43,.08);color:#a9570c;font-size:10.8px;font-weight:750;line-height:1.55}
+html[data-theme="dark"] .market-event-warn{color:#f0a95a;background:rgba(240,135,43,.10)}
+.tl-event{font-weight:800;color:#a9570c}html[data-theme="dark"] .tl-event{color:#f0a95a}
 
 /* 엄격 다중 — 시계방향으로 도는 황금 광택 테두리.
    마스크로 테두리 바깥쪽만 그린다. 카드 배경과 등급 좌측 색띠는 건드리지 않는다. */
@@ -1003,11 +1015,13 @@ function normalize(raw){
       earnings_release_open_kst: it.earnings_release_open_kst || (it.earnings&&it.earnings.release_open_kst) || "",
       validation_blocked_dates: Array.isArray(it.validation_blocked_dates) ? it.validation_blocked_dates : [],
       validation_affected_dates: Array.isArray(it.validation_affected_dates) ? it.validation_affected_dates : [],
+      market_events: Array.isArray(it.market_events) ? it.market_events : [],
       _prevRaw: it.prev || null,
       _hist: Array.isArray(it.hist) && it.hist.length ? it.hist : null
     };
   });
   return { generated_at: stamp, stocks, failed: raw.failed||[], market: raw.market||null,
+           qqq_card: raw.qqq_card || null,
            market_events: Array.isArray(raw.market_events) ? raw.market_events : [],
            calendar_status: raw.calendar_status || null,
            sectors: raw.sectors||null, hist_fields: raw.hist_fields||null };
@@ -1445,7 +1459,7 @@ function decorate(s){
 const HIST_FIELDS_DEFAULT = ["date","price","change_1d","ma5","ma10","ma20","ma50","ma60","rsi","macd_hist","macd_cross","macd_zero",
   "bb_pos","stoch_k","stoch_d","stoch_cross","vol_ratio","near_high","pct_from_high",
   "ma20_slope","run5_max","run3_sum","range3","range10","vol3_ratio","res_short","ret20","rs20","atr_pct",
-  "market_level","market_weak","market_ret20"];
+  "market_level","market_weak","market_ret20","market_events"];
 function histFields(){
   const f = state.data && state.data.hist_fields;
   return Array.isArray(f) && f.length ? f : HIST_FIELDS_DEFAULT;
@@ -1485,7 +1499,8 @@ function histRow(s, row, i, total){
     market_ret20: marketRet20,
     range3: num(o.range3), range10: num(o.range10), vol3_ratio: num(o.vol3_ratio),
     market_level: s._kr ? "neutral" : lvl,
-    market_weak: frozenWeak !== null ? frozenWeak : (!s._kr && (lvl === "weak" || lvl === "caution"))
+    market_weak: frozenWeak !== null ? frozenWeak : (!s._kr && (lvl === "weak" || lvl === "caution")),
+    market_events: Array.isArray(o.market_events) ? o.market_events : marketEventsOnDate(o.date)
   };
 }
 /* 어제 값을 붙여준다 — '던진 다음날'을 눌림목으로 오인하지 않기 위해 */
@@ -1792,7 +1807,83 @@ function widget(title, sub, rows, emptyMsg, jumpSort="overall"){
     ${body}
   </div>`;
 }
-function marketBar(){ return ""; }
+function marketEventItems(v){
+  return (Array.isArray(v)?v:[]).map(x=>typeof x==="string"?{type:x,name:x}:x).filter(Boolean);
+}
+function marketEventsOnDate(date){
+  if(!date) return [];
+  const xs=(state.data&&Array.isArray(state.data.market_events))?state.data.market_events:[];
+  return marketEventItems(xs.filter(x=>String((x||{}).date||"")===String(date)));
+}
+function marketEventsForRow(s){
+  const frozen=marketEventItems(s&&s.market_events);
+  return frozen.length ? frozen : marketEventsOnDate(s&&s.last_date);
+}
+function marketEventTypes(events){
+  return [...new Set(marketEventItems(events).map(x=>String(x.type||x.name||"시장 이벤트").trim()).filter(Boolean))];
+}
+function marketEventWarnHtml(s, compact=false){
+  const types=marketEventTypes(marketEventsForRow(s));
+  if(!types.length) return "";
+  const t=types.join(" · ");
+  if(compact) return ` · ⚠ ${esc(t)} 시장이벤트`;
+  return `<div class="market-event-warn">⚠ <b>${esc(t)}</b> 시장 이벤트일 · 기술적 신호가 평소보다 빗나갈 수 있어요. <b>점수·랭킹은 그대로</b> 두고 경고만 표시합니다.</div>`;
+}
+/* QQQ는 랭킹 유니버스 밖의 시장 기준카드다. evaluate()는 그대로 쓰되 자기 자신에 QQQ 시장필터는 적용하지 않는다. */
+function qqqBenchmarkStock(){
+  const r=state.data&&state.data.qqq_card; if(!r) return null;
+  const s=decorate({
+    ticker:"QQQ", name:r.name||"나스닥100 ETF", category:"시장 기준", currency:"USD",
+    price:num(r.price), change_1d:num(r.change_1d), volume:num(r.volume), vol_ratio:num(r.vol_ratio),
+    ma5:num(r.ma5), ma10:num(r.ma10), ma20:num(r.ma20), ma50:num(r.ma50), ma60:num(r.ma60),
+    rsi:num(r.rsi), macd:num(r.macd_hist??r.macd), macd_cross:r.macd_cross||"none", macd_zero:r.macd_zero||"above",
+    bb_pos:num(r.bb_pos), stoch_k:num(r.stoch_k), stoch_d:num(r.stoch_d), stoch_cross:r.stoch_cross||"none",
+    near_high:!!r.near_high, pct_from_high:num(r.pct_from_high), atr_pct:num(r.atr_pct),
+    ma20_slope:num(r.ma20_slope), run5_max:num(r.run5_max), run3_sum:num(r.run3_sum),
+    range3:num(r.range3), range10:num(r.range10), vol3_ratio:num(r.vol3_ratio),
+    res_short:num(r.res_short), res_mid:num(r.res_mid), sup_short:num(r.sup_short), sup_mid:num(r.sup_mid),
+    high_52w:num(r.high_52w), ret20:num(r.ret20), rs20:0,
+    market_level:"neutral", market_weak:false, market_ret20:num(r.ret20),
+    market_events:Array.isArray(r.market_events)?r.market_events:[], last_date:r.last_date||"",
+    _prevRaw:r.prev||null, _hist:Array.isArray(r.hist)&&r.hist.length?r.hist:null,
+    earnings:null, earnings_hold:false, validation_blocked_dates:[], validation_affected_dates:[]
+  });
+  if(s._hist&&s._hist.length>=2){
+    const F=histFields(), y=s._hist[s._hist.length-2];
+    s.prev_change_1d=y[F.indexOf("change_1d")]; s.prev_vol_ratio=y[F.indexOf("vol_ratio")];
+    s.prev_macd_hist=y[F.indexOf("macd_hist")]; s.prev_price=y[F.indexOf("price")];
+    s.prev_ma5=y[F.indexOf("ma5")]; s.prev_ma20=y[F.indexOf("ma20")];
+  }
+  const sig=evaluate(s), pv=prevStock(s);
+  return Object.assign(s,{sig,prevSig:pv?evaluate(pv):null,_prev:pv,_benchmark:true});
+}
+function marketBar(){
+  const mk=(state.data&&state.data.market)||{};
+  const levelLabel={strong:"강세",neutral:"중립",caution:"주의",weak:"약세"}[mk.level]||"중립";
+  const s=qqqBenchmarkStock();
+
+  /* 새 main.py가 아직 한 번도 실행되지 않아 signals.json에 qqq_card가 없는 경우에도
+     시장 기준 카드의 위치 자체는 숨기지 않는다. 시장 국면은 기존 market 데이터로 보여주고,
+     기술점수는 다음 데이터 갱신 뒤 자동으로 채워진다. */
+  if(!s){
+    const px=has(mk.price)?` · $${Number(mk.price).toFixed(2)}`:"";
+    const r20=has(mk.ret20)?` · 20일 ${Number(mk.ret20)>=0?"+":""}${Number(mk.ret20).toFixed(1)}%`:"";
+    return `<div class="market-bench">
+      <div class="market-bench-h"><b>🌐 QQQ · 나스닥100 시장 기준</b><span class="sub">랭킹 제외</span></div>
+      <div class="market-bench-main"><span>시장국면 <b>${esc(levelLabel)}</b>${px}${r20}</span></div>
+      <div class="market-bench-reason">QQQ 기술점수 준비 중 · 새 main.py 데이터 갱신 후 추세·반등·매수강도가 자동 표시됩니다.</div>
+    </div>`;
+  }
+
+  const histBtn=(s._hist&&s._hist.length>=2)?`<button data-timeline="QQQ">📈 QQQ 신호 히스토리</button>`:"";
+  return `<div class="market-bench">
+    <div class="market-bench-h"><b>🌐 QQQ · 나스닥100 시장 기준</b><span class="sub">랭킹 제외 · QQQ 시장필터 자기적용 없음</span></div>
+    <div class="market-bench-main"><span class="badge ${gradeCls(s.sig)}">${gradeLabel(s.sig)}</span><span class="score">매수강도 ${r1(s.sig.buyScore)}</span><span>추세 ${r1(s.sig.pullScore)} · 반등 ${r1(s.sig.revScore)}</span><span>시장국면 ${esc(levelLabel)}</span></div>
+    <div class="market-bench-reason">${esc(s.sig.line)}${s.last_date?` · ${esc(closeDateLabel(s.last_date))}`:""}</div>
+    ${marketEventWarnHtml(s)}
+    ${histBtn?`<div class="market-bench-actions">${histBtn}</div>`:""}
+  </div>`;
+}
 
 function isoAddDays(iso,n){
   const d=new Date(iso+"T12:00:00Z"); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10);
@@ -1941,7 +2032,7 @@ function noHoldingState(){
 function renderTheme(){
   const list = visible();
   if (!list.length){
-    return marketBar() + earningsHoldSection() + themeHoldBar() + (state.showHoldings && !state.holdings.length ? noHoldingState() : emptyState());
+    return earningsHoldSection() + themeHoldBar() + (state.showHoldings && !state.holdings.length ? noHoldingState() : emptyState()) + marketBar();
   }
   const secs = sectorStats(list);
   const hot = secs.filter(x=>has(x.avg)&&x.avg>0).slice(0,3);
@@ -2003,7 +2094,8 @@ function renderTheme(){
       🔥 <b>강한 테마</b> ${hot.length?hot.map(x=>`${esc(x.name)} <span class="up num">+${x.avg.toFixed(1)}%</span>`).join(" · "):"없음"}<br>
       🧊 <b>약한 테마</b> ${cold.length?cold.map(x=>`${esc(x.name)} <span class="down num">${x.avg.toFixed(1)}%</span>`).join(" · "):"없음"}
     </div>
-  </div>`;
+  </div>
+  ${marketBar()}`;
 }
 
 /* ══════════ VIEW 2 · 전체순위 ══════════ */
@@ -2098,7 +2190,7 @@ function compactRow(s, i, rankless=false){
       <span class="c-price num">${fmtPrice(s)}<em class="${chgCls(s.change_1d)}">${fmtChg(s.change_1d)}</em></span>
       <span class="c-flag">${key?`<span class="tag ${key.c}">${key.t.replace(/\(.*\)/,"")}</span>`:""}</span>
     </span>
-    <span class="c-reason">${esc(s.earnings_hold ? (s.earnings_hold_reason||"실적 이벤트 영향권 — 기술등급 보류") : s.sig.line)}</span>
+    <span class="c-reason">${esc(s.earnings_hold ? (s.earnings_hold_reason||"실적 이벤트 영향권 — 기술등급 보류") : s.sig.line)}${s.earnings_hold?"":marketEventWarnHtml(s,true)}</span>
   </button>`;
 }
 
@@ -2350,7 +2442,7 @@ function openCartReview(){
 }
 
 function openTimeline(tk){
-  const s = allStocks().find(x=>x.ticker===tk); if(!s) return;
+  const s = tk==="QQQ" ? qqqBenchmarkStock() : allStocks().find(x=>x.ticker===tk); if(!s) return;
   const hs = histStocks(s);
   if (!hs || hs.length < 2){ toast("아직 이력이 충분하지 않아요"); return; }
   /* 신호일 자체가 실적 영향권이면 기술점수는 투명하게 남기되 신규진입/검증 제외임을 표시한다. */
@@ -2358,7 +2450,7 @@ function openTimeline(tk){
   const rows = hs.map(h => {
     // 과거 원시지표를 현재 산식으로 재평가한다. 히스토리 게이지는 변화칩과 같은 buyScore 기준.
     const sig = evaluate(h);
-    return Object.assign({d:h.last_date, historyScore:sig.buyScore, earningsBlocked:blocked.has(h.last_date)}, sig);
+    return Object.assign({d:h.last_date, historyScore:sig.buyScore, earningsBlocked:blocked.has(h.last_date), marketEvents:marketEventsForRow(h)}, sig);
   });
   const vals = rows.map(r=>r.historyScore);
   const lo = Math.min(...vals, 0), hi = Math.max(...vals, 1);
@@ -2377,7 +2469,7 @@ function openTimeline(tk){
       <span class="tlnum">${r.historyScore}${dd}</span>
       <span class="tlg ${gradeCls(r)}">${gradeLabel(r)}</span>
     </div>
-    <div class="tlsub">추세 ${r.pullScore} · 반등 ${r.revScore}${r.earningsBlocked ? ` · <b>💤 실적 영향권 · 신규진입/검증 제외</b>` : ""}</div>`;
+    <div class="tlsub">추세 ${r.pullScore} · 반등 ${r.revScore}${r.earningsBlocked ? ` · <b>💤 실적 영향권 · 신규진입/검증 제외</b>` : ""}${marketEventTypes(r.marketEvents).length ? ` · <span class="tl-event">⚠ ${esc(marketEventTypes(r.marketEvents).join(" · "))} 시장이벤트 · 기술신호 오차 가능</span>` : ""}</div>`;
   }).join("");
   openModal(`<h3>📈 ${esc(s.ticker)} 신호 히스토리</h3>
     <p style="font-size:12px;color:var(--muted);margin-bottom:9px">최근 ${rows.length}거래일 · 매수강도 = 추세·반등 중 높은 쪽</p>
@@ -2386,7 +2478,8 @@ function openTimeline(tk){
       점수가 <b>어느 방향으로 쌓여왔는지</b>를 보는 화면이에요. 오르는 중이면 신호가 만들어지는 과정,
       떨어지는 중이면 식어가는 과정일 수 있습니다. 며칠치 흐름이라 그 자체로 매매 근거는 되지 않아요.<br><br>
       <span style="color:var(--faint)">과거 원시지표를 <b>현재 산식으로 재평가</b>합니다. 산식이 바뀌면 과거 신호와 등급도 함께 바뀔 수 있어요.<br>
-      💤 실적 영향권 날짜는 기술점수는 그대로 보여주되 <b>신규진입·신뢰도 검증에서는 제외</b>합니다.</span></p>
+      💤 실적 영향권 날짜는 기술점수는 그대로 보여주되 <b>신규진입·신뢰도 검증에서는 제외</b>합니다.<br>
+      ⚠ FOMC·CPI·PCE·주요 고용지표 같은 <b>시장 이벤트 날짜는 기술신호가 평소보다 빗나갈 수 있어 경고만 표시</b>하며, 점수·랭킹은 바꾸지 않습니다.</span></p>
     <div class="modal-actions"><button class="primary" onclick="document.getElementById('modal').classList.remove('on')">닫기</button></div>`);
 }
 function openTrendModal(tk){
@@ -2525,6 +2618,7 @@ function stockCard(s, i, rankless=false){
       <span class="badge ${stockGradeCls(s)}">${stockGradeLabel(s)}</span>${s.earnings_hold?"":trendChip(s)}
     </div>
     <div class="s-reason">${esc(s.earnings_hold ? (s.earnings_hold_reason||"실적 이벤트 영향권 — 기술등급 보류") : s.sig.line)}</div>
+    ${s.earnings_hold?"":marketEventWarnHtml(s)}
     <div class="tags">${tags}</div>
     ${rankLine}
     ${timelineCta}${detail}${expandBtn}
@@ -2567,10 +2661,10 @@ function renderAll(){
   const holdCards = holds.length ? `<div class="section earnings-hold">
       <div class="section-h"><h2>보류 ${holds.length}종목</h2><span class="sub">실적 영향권 · 순위 산정 안 함</span></div>
       <div class="${wrapCls}">${holds.map((s,i)=>compact?compactRow(s,i,true):stockCard(s,i,true)).join("")}</div></div>` : "";
-  if (state.sort === "hold") return marketBar() + filterBar() + recentEarningsCalendar() + (holdCards || `<div class="empty-state">현재 보류된 종목이 없어요.</div>`);
+  if (state.sort === "hold") return filterBar() + recentEarningsCalendar() + (holdCards || `<div class="empty-state">현재 보류된 종목이 없어요.</div>`);
 
   const list = decorateMultiFlags(visible());
-  if (!list.length) return marketBar() + filterBar() + holdCards + (state.showHoldings && !state.holdings.length ? noHoldingState() : emptyState());
+  if (!list.length) return filterBar() + holdCards + (state.showHoldings && !state.holdings.length ? noHoldingState() : emptyState());
   let moreBtn = "";
   const item = (s,i) => compact ? compactRow(s,i) : stockCard(s,i);
   let body = "";
@@ -2606,7 +2700,7 @@ function renderAll(){
     hid = `<div class="strip">🙈 숨긴 종목 (눌러서 복원): ${state.hidden.map(t=>`<button class="chip" data-restore="${esc(t)}" style="margin:2px">${esc(t)} ↩︎</button>`).join("")}</div>`;
   }
   // 보류 종목은 사라지지 않고 모든 일반 정렬의 맨 끝에 순위 없이 남긴다.
-  return marketBar() + filterBar() + body + moreBtn + holdCards + hid;
+  return filterBar() + body + moreBtn + holdCards + hid;
 }
 function filterBar(){
   const sorts = [["signal","다중"],["overall","종합"],["pull","추세"],["reversal","반등"],["volume","거래량"],["category","테마"],["hold","보류"]];
