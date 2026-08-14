@@ -831,11 +831,13 @@ html[data-theme="dark"] .strategy-info{color:var(--muted)}
     </div>
     <div class="sheet-label">정렬 (전체순위)</div>
     <div class="sheet-grid" id="sheetSort">
-      <button class="sheet-btn" data-sort="signal">다중 신호순</button>
+      <button class="sheet-btn" data-sort="signal">다중</button>
+      <button class="sheet-btn" data-sort="overall">종합</button>
       <button class="sheet-btn" data-sort="pull">추세</button>
-      <button class="sheet-btn" data-sort="reversal">반등신호</button>
-      <button class="sheet-btn" data-sort="volume">거래량순</button>
-      <button class="sheet-btn" data-sort="category">테마별</button>
+      <button class="sheet-btn" data-sort="reversal">반등</button>
+      <button class="sheet-btn" data-sort="volume">거래량</button>
+      <button class="sheet-btn" data-sort="category">테마</button>
+      <button class="sheet-btn" data-sort="hold">보류</button>
     </div>
     <div class="sheet-label">필터</div>
     <div class="sheet-grid" id="sheetFilter">
@@ -1667,6 +1669,25 @@ function overallRanked(list){
     Math.abs(b.s.change_1d||0)-Math.abs(a.s.change_1d||0)
   ).map(x=>x.s);
 }
+/* 종합순 = 최종 매수등급 우선 → 사용자에게 보이는 매수강도(buyScore) 순.
+   같은 등급/강도면 내부 진단 score와 티커를 안정적인 tie-break로만 쓴다.
+   돌파를 별도 최종축으로 되살리지 않고 현재 눌림·반등 2전략 최종등급 철학을 그대로 따른다. */
+function currentOverallRanked(){
+  return signalUniverse().slice().sort((a,b)=>
+    b.sig.grade-a.sig.grade ||
+    b.sig.buyScore-a.sig.buyScore ||
+    b.sig.score-a.sig.score ||
+    a.ticker.localeCompare(b.ticker)
+  );
+}
+function overallRankMap(){
+  const m={}; currentOverallRanked().forEach((s,i)=>m[s.ticker]=i+1); return m;
+}
+function visibleOverallOrdered(list){
+  const wanted=new Set((list||[]).map(s=>s.ticker));
+  return currentOverallRanked().filter(s=>wanted.has(s.ticker));
+}
+
 /* 전체순위 '다중 신호순'은 테마랭킹 다중신호와 같은 순서를 맨 앞에 사용한다.
    따라서 두 화면의 다중신호 종목/순서는 항상 일치한다. 나머지 종목만 뒤에 이어진다. */
 function currentMultiRanked(){
@@ -1723,6 +1744,7 @@ function computeRanks(){
   const R=rankMapsFor(signalUniverse());
   return {
     total:toMultiMap(currentMultiRanked()),
+    overall:overallRankMap(),
     pull:R.pull, trend:R.pull,
     rev:R.rev,
     vol:R.vol,
@@ -1751,11 +1773,11 @@ function sectorStats(list){
 /* 위젯의 숫자는 목록 내 순번(i+1)이 아니라 computeRanks()의 글로벌 순위를 쓴다.
    숨김/보유만/테마 필터가 걸려도 상세카드 배지와 항상 같은 숫자가 나온다.
    rank가 없는 행만 예외적으로 순번으로 떨어진다. */
-function widget(title, sub, rows, emptyMsg){
+function widget(title, sub, rows, emptyMsg, jumpSort="overall"){
   const body = rows.length ? rows.map((r,i)=>{
     const rnum = Number.isFinite(Number(r.rank)) ? Number(r.rank) : i+1;
     return `
-    <button class="wrow" data-goto="${esc(r.ticker)}">
+    <button class="wrow" data-rankgoto="${esc(r.ticker)}" data-rank-sort="${esc(jumpSort)}">
       <span class="rk ${rnum<=3?"top":""}">${rnum}</span>
       <span class="tk">${esc(r.ticker)}</span>${r._multiStrict?multiBulb(r.ticker):""}
       <span class="nm">${esc(r.name||"")}</span>
@@ -1935,6 +1957,8 @@ function renderTheme(){
     .map(s=>({ticker:s.ticker,name:s.name,val:r1(s.vol_ratio)+"배",cls:"up",_multiStrict:strictFlag(s),rank:gr(rk.vol,s.ticker)}));
   const multi = signalRanked(list).slice(0,5)
     .map(s=>Object.assign({},s,{rank:gr(rk.total,s.ticker)}));
+  const overall = visibleOverallOrdered(list).slice(0,5)
+    .map(s=>({ticker:s.ticker,name:s.name,val:gradeLabel(s.sig),_multiStrict:strictFlag(s),rank:gr(rk.overall,s.ticker)}));
   const pull = visibleStrategyRanked(list,"pull").slice(0,5)
     .map(s=>({ticker:s.ticker,name:s.name,val:"",_multiStrict:strictFlag(s),rank:gr(rk.pull,s.ticker)}));
   const rev = visibleStrategyRanked(list,"reversal").slice(0,5)
@@ -1951,10 +1975,11 @@ function renderTheme(){
       <button class="chip tgl mini2 ${state.showHoldings?"on":""}" data-hold="1">⭐ 보유종목</button>
       ${basisNote()}</div>
     <div class="widgets">
-      ${widget("🔵 다중 신호","<button class=\"swinglink\" data-swing=\"1\">3~20일 스윙 관점</button>",multi,"오늘은 매수 신호가 없어요")}
-      ${widget("🔄 반등 신호","<button class=\"strategy-info\" data-strategyinfo=\"reversal\">저점매수 — 바닥권 전환</button>",rev,"반등 신호 없음")}
-      ${widget("📈 추세 신호","<button class=\"strategy-info\" data-strategyinfo=\"trend\">상승추세 중 좋은 눌림목</button>",pull,"추세 신호 없음")}
-      ${widget("⚡ 거래량 폭발","20일 평균 대비",byVol,"—")}
+      ${widget("🔵 다중 신호","<button class=\"swinglink\" data-swing=\"1\">3~20일 스윙 관점</button>",multi,"오늘은 매수 신호가 없어요","signal")}
+      ${widget("🏆 종합 신호","최종 등급 · 매수강도",overall,"종합 신호 없음","overall")}
+      ${widget("🔄 반등 신호","<button class=\"strategy-info\" data-strategyinfo=\"reversal\">저점매수 — 바닥권 전환</button>",rev,"반등 신호 없음","overall")}
+      ${widget("📈 추세 신호","<button class=\"strategy-info\" data-strategyinfo=\"trend\">상승추세 중 좋은 눌림목</button>",pull,"추세 신호 없음","overall")}
+      ${widget("⚡ 거래량 폭발","20일 평균 대비",byVol,"—","overall")}
       <div class="widget">
         <div class="widget-h"><span class="wt">🗂 테마별 종목</span><span class="ws">${list.length}종목</span></div>
         <div class="sectorlist">
@@ -1986,6 +2011,7 @@ function renderTheme(){
 function sortRankOf(s){
   const rk=state._ranks||{};
   const m = state.sort==="signal" ? rk.total
+    : state.sort==="overall" ? rk.overall
     : (state.sort==="pull"||state.sort==="trend") ? rk.pull
     : state.sort==="reversal" ? rk.rev
     : state.sort==="volume" ? rk.vol : null;
@@ -2091,12 +2117,31 @@ function basisNote(){
   return txt ? `<span class="basis">${esc(txt)}</span>` : "";
 }
 const badgeKey = t => String(t).replace(/\(오늘[^)]*\)/,"").replace(/[\d.]+배/,"").replace(/—.*$/,"").trim();
+const BADGE_STRONG_BUY = "🔥 강한매수";
+const BADGE_BUY_TURN   = "✨ 중립→매수신호";
+/* 등급형 가상 뱃지. 카드의 실제 태그를 추가/변경하지 않고 모아보기에서만 쓴다. */
+function isBuySignalTransition(s){
+  const fp=frozenTrendPair(s);
+  const prevSig=fp ? fp.prevSig : s.prevSig;
+  const curSig =fp ? fp.curSig  : s.sig;
+  return !!(prevSig && curSig && prevSig.grade===3 && curSig.grade>=4);
+}
+function badgeMatches(s, key){
+  if(key===BADGE_STRONG_BUY) return !!(s.sig && s.sig.grade===5);
+  if(key===BADGE_BUY_TURN)   return isBuySignalTransition(s);
+  return !!(s.sig && s.sig.tags && s.sig.tags.some(t=>badgeKey(t.t)===key));
+}
 function badgeIndex(){
+  const pool = visible();
+  const special = [
+    [BADGE_STRONG_BUY, pool.filter(s=>s.sig && s.sig.grade===5)],
+    [BADGE_BUY_TURN,   pool.filter(isBuySignalTransition)]
+  ].filter(([,arr])=>arr.length);
   const m = new Map();
-  visible().forEach(s => new Set(s.sig.tags.map(t=>badgeKey(t.t))).forEach(k=>{
+  pool.forEach(s => new Set(s.sig.tags.map(t=>badgeKey(t.t))).forEach(k=>{
     if(!m.has(k)) m.set(k, []); m.get(k).push(s);
   }));
-  return [...m.entries()].sort((a,b)=>b[1].length-a[1].length);
+  return special.concat([...m.entries()].sort((a,b)=>b[1].length-a[1].length));
 }
 
 /* 카드의 전환 칩/비교 팝업은 신호 히스토리와 같은 frozen hist 원장을 사용한다.
@@ -2308,10 +2353,12 @@ function openTimeline(tk){
   const s = allStocks().find(x=>x.ticker===tk); if(!s) return;
   const hs = histStocks(s);
   if (!hs || hs.length < 2){ toast("아직 이력이 충분하지 않아요"); return; }
+  /* 신호일 자체가 실적 영향권이면 기술점수는 투명하게 남기되 신규진입/검증 제외임을 표시한다. */
+  const blocked = earningsWindowsForValidation(s,hs).blocked;
   const rows = hs.map(h => {
     // 과거 원시지표를 현재 산식으로 재평가한다. 히스토리 게이지는 변화칩과 같은 buyScore 기준.
     const sig = evaluate(h);
-    return Object.assign({d:h.last_date, historyScore:sig.buyScore}, sig);
+    return Object.assign({d:h.last_date, historyScore:sig.buyScore, earningsBlocked:blocked.has(h.last_date)}, sig);
   });
   const vals = rows.map(r=>r.historyScore);
   const lo = Math.min(...vals, 0), hi = Math.max(...vals, 1);
@@ -2330,7 +2377,7 @@ function openTimeline(tk){
       <span class="tlnum">${r.historyScore}${dd}</span>
       <span class="tlg ${gradeCls(r)}">${gradeLabel(r)}</span>
     </div>
-    <div class="tlsub">추세 ${r.pullScore} · 반등 ${r.revScore}</div>`;
+    <div class="tlsub">추세 ${r.pullScore} · 반등 ${r.revScore}${r.earningsBlocked ? ` · <b>💤 실적 영향권 · 신규진입/검증 제외</b>` : ""}</div>`;
   }).join("");
   openModal(`<h3>📈 ${esc(s.ticker)} 신호 히스토리</h3>
     <p style="font-size:12px;color:var(--muted);margin-bottom:9px">최근 ${rows.length}거래일 · 매수강도 = 추세·반등 중 높은 쪽</p>
@@ -2338,7 +2385,8 @@ function openTimeline(tk){
     <p style="font-size:12px;color:var(--reason);line-height:1.75;margin-top:11px">
       점수가 <b>어느 방향으로 쌓여왔는지</b>를 보는 화면이에요. 오르는 중이면 신호가 만들어지는 과정,
       떨어지는 중이면 식어가는 과정일 수 있습니다. 며칠치 흐름이라 그 자체로 매매 근거는 되지 않아요.<br><br>
-      <span style="color:var(--faint)">과거 원시지표를 <b>현재 산식으로 재평가</b>합니다. 산식이 바뀌면 과거 신호와 등급도 함께 바뀔 수 있어요.</span></p>
+      <span style="color:var(--faint)">과거 원시지표를 <b>현재 산식으로 재평가</b>합니다. 산식이 바뀌면 과거 신호와 등급도 함께 바뀔 수 있어요.<br>
+      💤 실적 영향권 날짜는 기술점수는 그대로 보여주되 <b>신규진입·신뢰도 검증에서는 제외</b>합니다.</span></p>
     <div class="modal-actions"><button class="primary" onclick="document.getElementById('modal').classList.remove('on')">닫기</button></div>`);
 }
 function openTrendModal(tk){
@@ -2530,17 +2578,18 @@ function renderAll(){
     const m = new Map();
     list.forEach(s => { const c=s.category||"기타"; if(!m.has(c)) m.set(c,[]); m.get(c).push(s); });
     for (const [cat, arr] of m){
-      arr.splice(0,arr.length,...overallRanked(arr));
+      arr.splice(0,arr.length,...visibleOverallOrdered(arr));
       body += `<div class="section"><div class="section-h"><h2>${esc(cat)}</h2><span class="sub">${arr.length}종목</span></div>
         <div class="${wrapCls}">${arr.map(item).join("")}</div></div>`;
     }
   } else {
     const sorted = state.sort==="signal" ? signalRanked(list)
+      : state.sort==="overall" ? visibleOverallOrdered(list)
       : (state.sort==="pull"||state.sort==="trend") ? visibleStrategyOrdered(list,"pull")
       : state.sort==="reversal" ? visibleStrategyOrdered(list,"reversal")
       : state.sort==="volume" ? visibleVolumeOrdered(list)
       : list.slice().sort((a,b)=>sortKey(b)-sortKey(a) || Math.abs(b.change_1d||0)-Math.abs(a.change_1d||0));
-    const label = state.sort==="pull" ? "추세 순" : state.sort==="reversal" ? "반등 순" : state.sort==="volume" ? "거래량 순" : "다중 신호순";
+    const label = state.sort==="overall" ? "종합 순" : state.sort==="pull" ? "추세 순" : state.sort==="reversal" ? "반등 순" : state.sort==="volume" ? "거래량 순" : "다중 신호순";
     const limit = Math.max(20, state.displayLimit || 20);
     const shown = sorted.slice(0, limit);
     body = `<div class="section"><div class="section-h"><h2>${label}</h2><span class="sub">${sorted.length}종목${compact?" · 누르면 상세보기":""}</span></div>
@@ -2560,7 +2609,7 @@ function renderAll(){
   return marketBar() + filterBar() + body + moreBtn + holdCards + hid;
 }
 function filterBar(){
-  const sorts = [["signal","다중신호순"],["pull","추세순"],["reversal","반등순"],["volume","거래량순"],["category","테마별"],["hold","보류"]];
+  const sorts = [["signal","다중"],["overall","종합"],["pull","추세"],["reversal","반등"],["volume","거래량"],["category","테마"],["hold","보류"]];
   const on = v => state.market===v ? "on" : "";
   const foldNow = visible().map(x=>x.ticker);
   const allExpanded = foldNow.length>0 && foldNow.every(t=>state.expanded.includes(t));
@@ -2596,7 +2645,7 @@ function badgePicker(){
 }
 /* 뱃지로 고른 결과는 티커 + 회사명만 간단히 */
 function badgeList(){
-  const hit = visible().filter(s => s.sig.tags.some(t => badgeKey(t.t) === state.badge));
+  const hit = visible().filter(s => badgeMatches(s, state.badge));
   if (!hit.length) return `<div class="empty-state">이 뱃지에 해당하는 종목이 없어요.</div>`;
   return `<div class="section-h"><h2>${esc(state.badge)}</h2><span class="sub">${hit.length}종목 · 누르면 상세 카드로 이동</span></div>
     <div class="tklist">${hit.map(s=>`<button data-goto2="${esc(s.ticker)}">
@@ -2648,6 +2697,8 @@ function strategyValidation(){
   const horizons=[1,3,5];
   const out={pull:{},rev:{},multi:{}};
   Object.keys(out).forEach(k=>horizons.forEach(h=>out[k][h]=[]));
+  // 최종 초록뱃지(강한매수, grade 5)만 별도 집계. 기존 전략/다중 통계에는 영향 없음.
+  const strongBuyOut={1:[],3:[],5:[]};
   // 검증 표본 투명성용 진단 카운터. 승률/수익률 계산에는 사용하지 않는다.
   const diag={pull:{},rev:{},multi:{}};
   Object.keys(diag).forEach(k=>horizons.forEach(h=>diag[k][h]={candidate:0,pending:0}));
@@ -2655,6 +2706,7 @@ function strategyValidation(){
   const excludedTickers=new Set();
   const excludedSignalSamples=new Set(); // 전략+티커+신호일: +1/+3/+5 중복은 1개로 센다.
   const excludedDetails=new Map();
+  const blockedSignalDetails=new Map(); // 신호일 자체가 실적 영향권이라 후보 생성 전 제외된 매수신호
   const noteExcluded=(kind,row,h)=>{
     const key=`${row.ticker}|${row.last_date}`;
     if(!excludedDetails.has(key)) excludedDetails.set(key,{ticker:row.ticker,date:row.last_date,event:(row.earnings||{}).date||"",timing:(row.earnings||{}).timing||"UNKNOWN",kinds:new Set(),horizons:new Set()});
@@ -2667,10 +2719,22 @@ function strategyValidation(){
     const ew=earningsWindowsForValidation(s,hs), blocked=ew.blocked, affected=ew.affected;
     stockHist.set(s.ticker,{hs,blocked,affected});
     hs.forEach((h,i)=>{
-      if(!h.last_date || blocked.has(h.last_date) || !has(h.price) || !h.price) return;
+      if(!h.last_date || !has(h.price) || !h.price) return;
       const row=Object.assign({},s,h);
       if(i>0) withPrev(row,hs[i-1]);
       row.sig=evaluate(row);
+      if(blocked.has(h.last_date)){
+        const kindsBlocked=[];
+        if(row.sig.pullGrade>=4) kindsBlocked.push("추세");
+        if(row.sig.revGrade>=4) kindsBlocked.push("반등");
+        if(kindsBlocked.length){
+          const key=`${row.ticker}|${row.last_date}`;
+          blockedSignalDetails.set(key,{ticker:row.ticker,date:row.last_date,event:(row.earnings||{}).date||"",timing:(row.earnings||{}).timing||"UNKNOWN",kinds:kindsBlocked,grade:row.sig.grade});
+          excludedTickers.add(row.ticker);
+          kindsBlocked.forEach(k=>excludedSignalSamples.add(`blocked-${k}|${row.ticker}|${row.last_date}`));
+        }
+        return;
+      }
       if(!byDate.has(h.last_date)) byDate.set(h.last_date,[]);
       byDate.get(h.last_date).push({row,i});
     });
@@ -2696,6 +2760,22 @@ function strategyValidation(){
         out[k][h].push({ret,hit:ret>1,date:row.last_date,endDate:endRow.last_date,ticker:row.ticker,
           buyPrice:row.price,endPrice:endRow.price,horizon:h});
       });
+    });
+  }));
+
+  // 초록 강한매수(최종 grade 5) 성과. 신호일 blocked는 위 byDate 생성 단계에서 이미 제외됐고,
+  // 이후 +1/+3/+5 구간이 실적 영향권을 지나면 기존 검증과 똑같이 제외한다.
+  byDate.forEach(entries=>entries.forEach(({row,i})=>{
+    if(row.sig.grade!==5) return;
+    const pack=stockHist.get(row.ticker); if(!pack) return;
+    const hs=pack.hs, affected=pack.affected;
+    horizons.forEach(h=>{
+      if(i+h>=hs.length || !has(hs[i+h].price)) return;
+      if(validationWindowTouchesEarnings(affected,hs,i,h)) return;
+      const endRow=hs[i+h];
+      const ret=(endRow.price/row.price-1)*100;
+      strongBuyOut[h].push({ret,hit:ret>1,date:row.last_date,endDate:endRow.last_date,ticker:row.ticker,
+        buyPrice:row.price,endPrice:endRow.price,horizon:h});
     });
   }));
 
@@ -2746,11 +2826,14 @@ function strategyValidation(){
   result._excludedSignalSamples=excludedSignalSamples.size;
   result._excludedTickers=[...excludedTickers].sort();
   result._excludedDetails=[...excludedDetails.values()].map(o=>({ticker:o.ticker,date:o.date,event:o.event,timing:o.timing,kinds:[...o.kinds],horizons:[...o.horizons].sort((a,b)=>a-b)})).sort((a,b)=>a.date.localeCompare(b.date)||a.ticker.localeCompare(b.ticker));
+  result._blockedSignalDetails=[...blockedSignalDetails.values()].sort((a,b)=>a.date.localeCompare(b.date)||a.ticker.localeCompare(b.ticker));
   result._diag=diag;
   /* 황금테두리(엄격 다중)만 따로 집계한다. 표의 "다중" 행은 엄격+일반 합산이므로
      엄격만의 성과를 그 숫자로 대신 쓰면 사실과 다르다. 같은 stat()을 그대로 쓴다. */
   result._strict={};
   horizons.forEach(h=>{ result._strict[h]=stat(out.multi[h].filter(x=>x.tier===1)); });
+  result._strongBuy={};
+  horizons.forEach(h=>{ result._strongBuy[h]=stat(strongBuyOut[h]); });
 
   // 공개 사례는 전체 승률 계산과 완전히 분리된 '전략별 수익 사례 TOP2'다. 최신순 목록이 아니다.
   // 후보는 ① 강한매수였던 사례 또는 ② 바로 전 거래일 중립 → 당일 매수관심으로 전환된 사례만 사용한다.
@@ -2843,7 +2926,12 @@ function validationBlock(){
     <div style="margin-top:7px;color:var(--faint);font-size:10.5px">위 검증 표본 중 <b>수익률 상위</b>만 고른 예시입니다 · 실적 영향권 · 레버리지 ETF 제외<br>실패·보합 사례는 아래 통계에 모두 포함됩니다.</div>
   </details>` : "";
   const ex=v._excludedDetails||[];
-  const exDetail=ex.length?`<details class="acc" style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:11px"><b>실적 영향권 표본 자동 제외 · ${v._excludedTickers.length}종목 · 자세히</b></summary><div class="strip" style="margin-top:6px">${ex.map(o=>`${esc(o.ticker)} · 신호일 ${esc(o.date)} · 실적 ${esc(o.event||"?")}${timingLabel(o.timing)?` · ${esc(timingLabel(o.timing))}`:""} · +${o.horizons.join("/+")} 제외`).join("<br>")}</div></details>`:"";
+  const blockedEx=v._blockedSignalDetails||[];
+  const exLines=[
+    ...blockedEx.map(o=>`${esc(o.ticker)} · 신호일 ${esc(o.date)} · 실적 ${esc(o.event||"?")}${timingLabel(o.timing)?` · ${esc(timingLabel(o.timing))}`:""} · <b>신호 자체 제외</b>${o.kinds&&o.kinds.length?` (${o.kinds.map(esc).join("/")})`:""}`),
+    ...ex.map(o=>`${esc(o.ticker)} · 신호일 ${esc(o.date)} · 실적 ${esc(o.event||"?")}${timingLabel(o.timing)?` · ${esc(timingLabel(o.timing))}`:""} · +${o.horizons.join("/+")} 성과구간 제외`)
+  ];
+  const exDetail=exLines.length?`<details class="acc" style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:11px"><b>실적 영향권 표본 자동 제외 · ${v._excludedTickers.length}종목 · 자세히</b></summary><div class="strip" style="margin-top:6px;line-height:1.9">${exLines.join("<br>")}<div style="margin-top:5px;color:var(--faint);font-size:10.5px"><b>신호 자체 제외</b>는 해당 종가의 기술점수는 계산되었지만 실적 영향권이라 신규진입 후보와 검증 표본에서 처음부터 뺀 경우입니다.</div></div></details>`:"";
 
   const cell=(o)=>{
     if(o.n===0) return `—<br><span style="font-size:10.5px;color:var(--faint)">표본 없음</span>`;
@@ -3182,10 +3270,11 @@ function openSignalScoringHelp(){
 function openStrictMultiPerf(){
   const v=strategyValidation();
   const S=(v && v._strict) || {};
+  const G=(v && v._strongBuy) || {};
   const pct=x=>x==null?"—":`${x}%`;
   const av=x=>x==null?"—":`${x>=0?"+":""}${Number(x).toFixed(2)}%`;
-  const block=h=>{
-    const o=S[h];
+  const perfBlock=(src,h)=>{
+    const o=src[h];
     if(!o || !o.n) return `<div style="margin:9px 0;padding-bottom:8px;border-bottom:1px dashed var(--line)"><b>+${h}거래일</b> · <span style="color:var(--faint)">표본 없음</span></div>`;
     const up=Math.round((o.wins||0)/o.n*100), down=Math.round((o.losses||0)/o.n*100), flat=Math.round((o.flats||0)/o.n*100);
     return `<div style="margin:9px 0;padding-bottom:8px;border-bottom:1px dashed var(--line)">
@@ -3194,19 +3283,15 @@ function openStrictMultiPerf(){
       <span style="font-size:12px"><span style="color:#e5484d">상승 ${up}%</span> · <span style="color:#2f6fd0">하락 ${down}%</span> · <span style="color:var(--faint)">보합 ${flat}%</span> · <span style="color:var(--faint)">표본 ${o.n}건</span></span>
     </div>`;
   };
-  /* 100만원 예시. 평균수익이 마이너스일 수도 있으므로 문구를 분기한다. */
-  const o5=S[5];
-  let story;
-  if(!o5 || !o5.n){
-    story = `<div class="perf-story">아직 +5거래일 표본이 없어 예시를 보여드릴 수 없어요.</div>`;
-  } else {
+  const perfStory=(src,lead)=>{
+    const o5=src[5];
+    if(!o5 || !o5.n) return `<div class="perf-story">아직 +5거래일 표본이 없어 예시를 보여드릴 수 없어요.</div>`;
     const after = 100*(1+(Number(o5.avg)||0)/100);
     const gained = after>=100;
-    const money = `<b>${after.toFixed(1)}만원</b>`;
-    story = `<div class="perf-story">
+    return `<div class="perf-story">
       <span class="ex-badge">예시</span> <b>개미투자자 이지금 👩</b><br>
-      💡 신호를 보고 <b>100만원</b>을 투자했다면?<br>
-      평균적으로는 5거래일 뒤 100만원이 ${money}${gained?"으로 늘어났어요!":"으로 줄어들었어요."}
+      ${lead} <b>100만원</b>을 투자했다면?<br>
+      평균적으로는 5거래일 뒤 100만원이 <b>${after.toFixed(1)}만원</b>${gained?"으로 늘어났어요!":"으로 줄어들었어요."}
       <div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);color:var(--muted)">
         같은 신호를 보고 투자했지만 <b>5거래일 뒤 하락</b>한 김나중 투자자는
         <b>${o5.n}명 중 ${o5.losses||0}명</b>이에요.
@@ -3214,16 +3299,29 @@ function openStrictMultiPerf(){
       <div style="margin-top:6px;font-size:11px;color:var(--faint)">
         실제 표본의 평균값으로 계산한 예시입니다. 수수료·세금은 빼지 않았고, 앞으로의 수익을 보장하지 않아요.</div>
     </div>`;
-  }
+  };
+  const strictStory=perfStory(S,"💡 신호를 보고");
+  const strongStory=perfStory(G,"🟢 강한매수 신호를 보고");
   openModal(`<h3>강한 다중신호(💡) 성과</h3>
     <p style="font-size:12.5px;color:var(--reason);line-height:1.7;margin:0 0 4px">
       💡에 해당하는 <b>강한 다중 신호</b>만 따로 집계한 결과입니다.
       위 표의 &lsquo;다중&rsquo; 행은 일반 다중 신호까지 포함하므로 숫자가 다를 수 있습니다.</p>
-    ${[1,3,5].map(block).join("")}
+    ${[1,3,5].map(h=>perfBlock(S,h)).join("")}
     <p style="font-size:11px;color:var(--faint);line-height:1.7;margin:8px 0 0">
       종가 기준 · 실적 영향 구간 제외 · 승률은 상승 ÷ (상승 + 하락)<br>
       표본이 짧으니 장기 승률처럼 해석하지 않습니다.</p>
-    ${story}
+    ${strictStory}
+
+    <div style="margin:18px 0 12px;border-top:1px solid var(--line)"></div>
+    <h3 style="margin-top:0">🟢 강한매수(초록뱃지) 성과</h3>
+    <p style="font-size:12.5px;color:var(--reason);line-height:1.7;margin:0 0 4px">
+      현재 산식에서 최종등급이 <b>강한매수</b>인 모든 초록뱃지 신호를 따로 집계한 결과입니다.
+      추세·반등 중 어느 전략에서 강한매수가 되었든 최종 초록뱃지 기준으로 한 번만 셉니다.</p>
+    ${[1,3,5].map(h=>perfBlock(G,h)).join("")}
+    <p style="font-size:11px;color:var(--faint);line-height:1.7;margin:8px 0 0">
+      종가 기준 · 실적 영향 구간 제외 · 승률은 상승 ÷ (상승 + 하락)<br>
+      같은 종목이 여러 거래일 연속 강한매수면 각 신호일을 각각 표본으로 봅니다.</p>
+    ${strongStory}
     <div class="modal-actions perf-sticky"><button class="primary" onclick="closeModal()">닫기</button></div>`);
 }
 function openValidationHelp(){
@@ -3432,7 +3530,22 @@ function searchBestDestination(s){
   choice.sort((a,b)=>a.ratio-b.ratio || a.rank-b.rank || ({pull:0,reversal:1,volume:2,category:3}[a.sort]??9)-({pull:0,reversal:1,volume:2,category:3}[b.sort]??9));
   return choice[0] || {sort:"pull",label:"추세"};
 }
-function gotoStock(tk){
+function preferredDestination(s, sort){
+  if(!s || !sort) return null;
+  if(sort==="signal"){
+    const multi=currentMultiRanked();
+    const i=multi.findIndex(x=>x.ticker===s.ticker);
+    if(i>=0) return {sort:"signal",label:`다중신호 ${multi[i]._multiRankNo||(i+1)}위`};
+    // 다중랭킹에서 넘어온 종목이 예외적으로 자격을 잃었으면 종합으로 안전하게 보낸다.
+  }
+  if(sort==="overall" || sort==="signal"){
+    const m=overallRankMap();
+    const r=m[s.ticker];
+    return {sort:"overall",label:Number.isFinite(Number(r))?`종합 ${r}위`:"종합"};
+  }
+  return null;
+}
+function gotoStock(tk, preferredSort=null){
   state.tab = "all";
   state.view = "cards";
   if (!state.expanded.includes(tk)) state.expanded.push(tk);
@@ -3443,7 +3556,9 @@ function gotoStock(tk){
   state.badge=null; state._badgeOpen=false;
   if(state.showHoldings) state.showHoldings=false;
   if(state.market!=="all") state.market="all";
-  const dest=searchBestDestination(s);
+  // 랭킹에서 이동할 때는 글로벌 본인 순위를 보여줘야 하므로 테마 필터도 해제한다.
+  if(preferredSort && state.themeFilter) state.themeFilter="";
+  const dest=preferredDestination(s, preferredSort) || searchBestDestination(s);
   if(s) state.sort=dest.sort;
   // 검색 결과는 20개 표시 제한보다 우선한다. 목적 카드가 반드시 DOM에 있도록 이번 보기만 충분히 연다.
   state.displayLimit = Math.max(state.displayLimit || 20, allStocks().length);
@@ -3487,18 +3602,26 @@ document.getElementById("tabs").addEventListener("click", e=>{
   try{ window.scrollTo({top:0,behavior:"smooth"}); }catch(e){ window.scrollTo(0,0); }
 });
 
+function guideKosdaq730Example(){
+  /* 도움말 예시도 현재 evaluate()로 계산한다. 숫자를 HTML에 박아두면 산식 변경 뒤 예시만 옛 점수로 남기 때문이다.
+     2026-07-30/31 229200.KS 당시 원시지표를 교육용 예시 snapshot으로 보관한다. */
+  const r730={ticker:"229200.KS",price:10605,change_1d:-4.67,ma5:11807,ma10:12380,ma20:13354,ma50:15906,ma60:16540,rsi:29.66,macd:-146.3839,macd_cross:"none",macd_zero:"below",bb_pos:-3.52,stoch_k:8.89,stoch_d:12.64,stoch_cross:"none",vol_ratio:1.72,near_high:false,pct_from_high:-51.19,ma20_slope:-7.61,run5_max:3.52,run3_sum:-18.11,range3:10.04,range10:6.06,vol3_ratio:1.53,res_short:16165,ret20:-36.21,rs20:-30.47,atr_pct:9.55,market_level:"neutral",market_weak:false,market_ret20:null};
+  const r731={ticker:"229200.KS",price:12100,change_1d:14.10,ma5:11725,ma10:12232,ma20:13185,ma50:15785,ma60:16405,rsi:40.64,macd:-65.9627,macd_cross:"none",macd_zero:"below",bb_pos:27.58,stoch_k:18.21,stoch_d:14.2,stoch_cross:"golden",vol_ratio:1.26,near_high:false,pct_from_high:-44.3,ma20_slope:-7.71,run5_max:14.1,run3_sum:2.15,range3:10.51,range10:5.8,vol3_ratio:1.56,res_short:15600,ret20:-21.83,rs20:-18.38,atr_pct:8.84,market_level:"neutral",market_weak:false,market_ret20:null};
+  withPrev(r731,r730);
+  const a=evaluate(r730), b=evaluate(r731);
+  const max=Math.max(Math.abs(a.buyScore),Math.abs(b.buyScore),1);
+  const row=(d,sig,extra="")=>`<div class="mini-row ${sig.grade>=5?"hot":""}"><span>${d}</span><span class="mini-bar"><i style="width:${Math.max(4,Math.round(Math.abs(sig.buyScore)/max*100))}%"></i></span><span>${sig.buyScore} ${gradeLabel(sig)}${extra}</span></div>`;
+  return `${row("7/30",a,"")}${row("7/31",b," · +14.1% 급반등")}`;
+}
+
 document.getElementById("recoGuideBtn")?.addEventListener("click", ()=>{
   openModal(`<div class="reco-guide">
     <div class="guide-title">✨ 처음 왔다면 이것만 꼭 써보세요</div>
     <div class="guide-block"><b>🛒 장바구니 모의점검</b><br><span style="font-size:13px;color:var(--reason)">관심 종목을 담으면 개별 기술상태와 여러 종목의 구성까지 한 번에 점검할 수 있어요.</span><br><span class="scribble">↗ 종목 카드의 🛒를 눌러 담아보세요!</span></div>
-    <div class="guide-block"><b>📈 최근 10거래일 신호 흐름</b><br><span style="font-size:13px;color:var(--reason)">중립·관심 수준이던 신호가 갑자기 강해지는 순간을 눈으로 확인해보세요.</span>
-      <div style="font-size:12px;font-weight:800;margin-top:9px">실제 신호 사례 · 229200.KS</div>
-      <div class="mini-history">
-        <div class="mini-row"><span>8/3</span><span class="mini-bar"><i style="width:50%"></i></span><span>3 매수관심</span></div>
-        <div class="mini-row hot"><span>8/4</span><span class="mini-bar"><i style="width:100%"></i></span><span>6 강한매수</span></div>
-        <div class="mini-row"><span>8/5</span><span class="mini-bar"><i style="width:30%"></i></span><span>1.8 관심</span></div>
-      </div>
-      <span class="scribble">↑ 여기서 신호가 확 강해졌어요!</span>
+    <div class="guide-block"><b>📈 최근 신호 흐름</b><br><span style="font-size:13px;color:var(--reason)">같은 산식으로 과거 원시지표를 다시 보면, 바닥에서 신호가 켜지고 급반등 뒤 추격 신호가 식는 흐름도 확인할 수 있어요.</span>
+      <div style="font-size:12px;font-weight:800;margin-top:9px">현재 산식 재평가 사례 · 229200.KS · 2026-07-30</div>
+      <div class="mini-history">${guideKosdaq730Example()}</div>
+      <span class="scribble">↑ 7/30 바닥 강한 신호 → 다음 거래일 급반등 후 추격 신호 완화</span>
     </div>
     <p style="font-size:12px;color:var(--muted);margin:8px 2px 0">신호 흐름은 매매 근거 하나가 아니라, 신호가 만들어지고 식어가는 과정을 보는 보조 화면이에요.</p>
     <div class="modal-actions"><button class="primary" onclick="closeModal()">닫기</button></div>
@@ -3528,14 +3651,13 @@ document.getElementById("main").addEventListener("click", e=>{
   if(tf){
     e.preventDefault(); e.stopPropagation();
     const theme=tf.dataset.themefilter||"";
-    const dest=themeBestSort(theme);
     state.themeFilter=theme;
     state.tab="all";
     state.view="compact";
-    state.sort=dest.sort;
+    state.sort="overall";
     state.displayLimit=20;
     save(); render();
-    toast(`${theme} · ${dest.label}으로 모아봤어요`);
+    toast(`${theme} · 종합순으로 모아봤어요`);
     setTimeout(()=>document.getElementById("main")?.scrollIntoView({behavior:"smooth",block:"start"}),40);
     return;
   }
@@ -3543,12 +3665,20 @@ document.getElementById("main").addEventListener("click", e=>{
     e.preventDefault(); e.stopPropagation();
     state.themeFilter=""; state.displayLimit=20; save(); render(); return;
   }
+  const rankGoto = e.target.closest("[data-rankgoto]");
+  if (rankGoto){
+    gotoStock(rankGoto.dataset.rankgoto, rankGoto.dataset.rankSort || "overall");
+    return;
+  }
   const goto = e.target.closest("[data-goto]");
   if (goto){ gotoStock(goto.dataset.goto); return; }
   const sec = e.target.closest("[data-sector]");
-  if (sec){ state.tab="all"; state.sort="category"; save(); render();
-    setTimeout(()=>{ [...document.querySelectorAll(".section-h h2")]
-      .find(h=>h.textContent===sec.dataset.sector)?.scrollIntoView({behavior:"smooth",block:"start"}); },60);
+  if (sec){
+    state.themeFilter=sec.dataset.sector||"";
+    state.tab="all"; state.view="compact"; state.sort="overall"; state.displayLimit=20;
+    save(); render();
+    toast(`${sec.dataset.sector} · 종합순으로 모아봤어요`);
+    setTimeout(()=>document.getElementById("main")?.scrollIntoView({behavior:"smooth",block:"start"}),40);
     return; }
   const ex = e.target.closest("[data-explain]");
   if (ex){ explainStyle(ex.dataset.explain); return; }
