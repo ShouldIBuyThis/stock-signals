@@ -524,6 +524,16 @@ html[data-theme="dark"] .swinglink{color:var(--muted)}
   text-decoration:underline dotted;text-decoration-thickness:1.5px;text-underline-offset:3px}
 .strictlink:active{opacity:.6}
 html[data-theme="dark"] .strictlink{color:#7fb0ff}
+/* 표 헤더의 "강한 신호를 보고 투자했다면 💡" — 헤더와 같은 글씨체 */
+.bulbperf{display:inline;background:none;border:0;padding:0;margin-left:7px;cursor:pointer;
+  font:inherit;color:var(--link,#2f6fd0);
+  text-decoration:underline dotted;text-decoration-thickness:1.5px;text-underline-offset:3px}
+.bulbperf:active{opacity:.6}
+html[data-theme="dark"] .bulbperf{color:#7fb0ff}
+/* 성과 팝업: 닫기 고정 + 본문 스크롤 */
+.perf-sticky{position:sticky;bottom:-20px;background:var(--surface);padding:10px 0 0;margin-top:14px}
+.perf-story{margin-top:12px;padding:11px 12px;border-radius:12px;background:var(--surface2);
+  border:1px solid var(--line);font-size:12.5px;line-height:1.85}
 /* ── 기술 상태 별점 (UI 번역 전용) ── */
 .stars{margin-top:9px;padding-top:9px;border-top:1px dashed var(--line)}
 .sthead{font-size:11.5px;font-weight:800;color:var(--ink);margin-bottom:6px}
@@ -784,7 +794,7 @@ html[data-theme="dark"] .strategy-info{color:var(--muted)}
       </div>
     </details>
   </div>
-  <div class="principle">💡 신호를 봤다면 → <b>①</b> <span class="plink" id="matLink" role="button" tabindex="0">외부 재료 필터링</span> → <b>② 정찰병</b> → <b>③ 분할 매수/매도</b></div>
+  <div class="principle">💡 신호를 봤다면 → <b>①</b> <span class="plink" id="matLink" role="button" tabindex="0">장바구니 점검</span> → <b>② 정찰병</b> → <b>③ 분할 매수/매도</b></div>
 </div>
 
 <main class="wrap" id="main"></main>
@@ -2848,7 +2858,7 @@ function validationBlock(){
     const diagDetail=`<details class="acc" style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:11px"><b>🔎 표본 구성 자세히</b></summary><div class="strip" style="margin-top:6px;line-height:1.9">${diagRows.join("<br>")}<div style="margin-top:5px;color:var(--faint);font-size:10.5px">실패·보합 표본도 최종 평가에 그대로 포함됩니다. ‘최근 수익 사례’ 3줄만 별도의 예시 영역입니다.</div></div></details>`;
     return `<div class="section help-block"><h3 class="validation-title">🧪 신뢰도 검증 결과 <button type="button" class="validation-help-btn" onclick="openValidationIntro()" aria-label="신뢰도 검증 설명">?</button><span class="live-note">(표본 수급에 따라 실시간 변동)</span></h3>
       <div style="margin:0 2px 7px;font-size:12px;font-weight:800;color:var(--ink)">종가에 매수했다면? <span style="font-weight:600;color:var(--muted)">· 상승 vs 하락 (보합 제외)</span></div>
-      <table class="cmp validation-cmp"><tr><th>구분</th><th colspan="3">상승이 하락을 이길 확률 <button type="button" class="validation-help-btn" onclick="openValidationHelp()" aria-label="승률 계산 설명">?</button></th></tr><tr><th>전략</th><th>+1거래일</th><th>+3거래일</th><th>+5거래일</th></tr>
+      <table class="cmp validation-cmp"><tr><th>구분</th><th colspan="3">상승이 하락을 이길 확률 <button type="button" class="validation-help-btn" onclick="openValidationHelp()" aria-label="승률 계산 설명">?</button><button type="button" class="bulbperf" onclick="openStrictMultiPerf()" title="강한 다중신호(💡)의 최근 성과 보기">강한 신호를 보고 투자했다면 💡</button></th></tr><tr><th>전략</th><th>+1거래일</th><th>+3거래일</th><th>+5거래일</th></tr>
         ${row("multi")}${row("trend")}${row("reversal")}
       </table>${exampleBlock}${diagDetail}${exDetail}
       <div class="strip" style="margin-top:9px">
@@ -2861,10 +2871,7 @@ function validationBlock(){
     const up=Math.round((o.wins||0)/o.n*100), flat=Math.round((o.flats||0)/o.n*100), down=Math.round((o.losses||0)/o.n*100);
     return `<span class="vrate">${pct(o.rate)}</span><br><span class="vavg">평균수익 ${av(o.avg)}</span><br><span class="vsplit"><span class="vup">상승 ${up}%</span> · <span class="vdown">하락 ${down}%</span></span><br><span class="vsplit vflat">보합 ${flat}%</span>`;
   };
-  const rowLabel=k=>k==="multi"
-    ? `<button type="button" class="strictlink" onclick="openStrictMultiPerf()" title="황금테두리 카드 신호의 최근 성과 보기">다중</button>`
-    : `<b>${k==="pull"?"추세":"반등"}</b>`;
-  const row=k=>`<tr><td>${rowLabel(k)}</td><td>${cell(v[k][1])}</td><td>${cell(v[k][3])}</td><td>${cell(v[k][5])}</td></tr>`;
+  const row=k=>`<tr><td><b>${k==="multi"?"다중":k==="pull"?"추세":"반등"}</b></td><td>${cell(v[k][1])}</td><td>${cell(v[k][3])}</td><td>${cell(v[k][5])}</td></tr>`;
   const diagLabel={multi:"다중",pull:"추세",rev:"반등"};
   const diagIcon={multi:"🔵",pull:"📈",rev:"🔄"};
   const diagRows=["multi","pull","rev"].flatMap(k=>[1,3,5].map(h=>{
@@ -2875,7 +2882,7 @@ function validationBlock(){
   const diagDetail=`<details class="acc" style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:11px"><b>🔎 표본 구성 자세히</b></summary><div class="strip" style="margin-top:6px;line-height:1.9">${diagRows.join("<br>")}<div style="margin-top:5px;color:var(--faint);font-size:10.5px">실패·보합 표본도 최종 평가에 그대로 포함됩니다. ‘최근 수익 사례’ 3줄만 별도의 예시 영역입니다.</div></div></details>`;
   return `<div class="section help-block"><h3 class="validation-title">🧪 신뢰도 검증 결과 <button type="button" class="validation-help-btn" onclick="openValidationIntro()" aria-label="신뢰도 검증 설명">?</button><span class="live-note">(표본 수급에 따라 실시간 변동)</span></h3>
     <div style="margin:0 2px 7px;font-size:12px;font-weight:800;color:var(--ink)">종가에 매수했다면? <span style="font-weight:600;color:var(--muted)">· 상승 vs 하락 (보합 제외)</span></div>
-    <table class="cmp validation-cmp"><tr><th>구분</th><th colspan="3">상승이 하락을 이길 확률 <button type="button" class="validation-help-btn" onclick="openValidationHelp()" aria-label="승률 계산 설명">?</button></th></tr><tr><th>전략</th><th>+1거래일</th><th>+3거래일</th><th>+5거래일</th></tr>
+    <table class="cmp validation-cmp"><tr><th>구분</th><th colspan="3">상승이 하락을 이길 확률 <button type="button" class="validation-help-btn" onclick="openValidationHelp()" aria-label="승률 계산 설명">?</button><button type="button" class="bulbperf" onclick="openStrictMultiPerf()" title="강한 다중신호(💡)의 최근 성과 보기">강한 신호를 보고 투자했다면 💡</button></th></tr><tr><th>전략</th><th>+1거래일</th><th>+3거래일</th><th>+5거래일</th></tr>
       ${row("multi")}${row("pull")}${row("rev")}
     </table>${exampleBlock}${diagDetail}${exDetail}
     <div class="strip" style="margin-top:9px">
@@ -3193,24 +3200,45 @@ function openStrictMultiPerf(){
   const av=x=>x==null?"—":`${x>=0?"+":""}${Number(x).toFixed(2)}%`;
   const block=h=>{
     const o=S[h];
-    if(!o || !o.n) return `<div style="margin:8px 0"><b>+${h}거래일</b> · <span style="color:var(--faint)">표본 없음</span></div>`;
+    if(!o || !o.n) return `<div style="margin:9px 0;padding-bottom:8px;border-bottom:1px dashed var(--line)"><b>+${h}거래일</b> · <span style="color:var(--faint)">표본 없음</span></div>`;
     const up=Math.round((o.wins||0)/o.n*100), down=Math.round((o.losses||0)/o.n*100), flat=Math.round((o.flats||0)/o.n*100);
     return `<div style="margin:9px 0;padding-bottom:8px;border-bottom:1px dashed var(--line)">
       <b>+${h}거래일</b> · <b style="font-size:17px">${pct(o.rate)}</b>
       <span style="color:var(--muted)">평균수익 ${av(o.avg)}</span><br>
-      <span style="font-size:12px"><span style="color:#e5484d">상승 ${up}%</span> · <span style="color:#2f6fd0">하락 ${down}%</span> · <span style="color:var(--faint)">보합 ${flat}%</span></span>
-      <span style="font-size:11px;color:var(--faint)"> · 표본 ${o.n}건</span>
+      <span style="font-size:12px"><span style="color:#e5484d">상승 ${up}%</span> · <span style="color:#2f6fd0">하락 ${down}%</span> · <span style="color:var(--faint)">보합 ${flat}%</span> · <span style="color:var(--faint)">표본 ${o.n}건</span></span>
     </div>`;
   };
-  openModal(`<h3>다중 최근 성과</h3>
+  /* 100만원 예시. 평균수익이 마이너스일 수도 있으므로 문구를 분기한다. */
+  const o5=S[5];
+  let story;
+  if(!o5 || !o5.n){
+    story = `<div class="perf-story">아직 +5거래일 표본이 없어 예시를 보여드릴 수 없어요.</div>`;
+  } else {
+    const after = 100*(1+(Number(o5.avg)||0)/100);
+    const gained = after>=100;
+    const money = `<b>${after.toFixed(1)}만원</b>`;
+    story = `<div class="perf-story">
+      <b>개미투자자 이지금 👩</b><br>
+      💡 신호를 보고 <b>100만원</b>을 투자했다면?<br>
+      5거래일 뒤 100만원이 ${money}${gained?"으로 늘어났어요!":"으로 줄어들었어요."}
+      <div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);color:var(--muted)">
+        같은 신호를 보고 투자했지만 <b>하락</b>한 김나중 투자자는
+        <b>${o5.n}명 중 ${o5.losses||0}명</b>이에요.
+      </div>
+      <div style="margin-top:6px;font-size:11px;color:var(--faint)">
+        실제 표본의 평균값으로 계산한 예시입니다. 수수료·세금은 빼지 않았고, 앞으로의 수익을 보장하지 않아요.</div>
+    </div>`;
+  }
+  openModal(`<h3>강한 다중신호(💡) 성과</h3>
     <p style="font-size:12.5px;color:var(--reason);line-height:1.7;margin:0 0 4px">
-      황금테두리 카드에 해당하는 다중 신호만 따로 집계한 결과입니다.
-      위 표의 &lsquo;다중&rsquo; 행은 황금테두리가 아닌 다중 신호까지 포함하므로 숫자가 다를 수 있습니다.</p>
+      💡에 해당하는 <b>강한 다중 신호</b>만 따로 집계한 결과입니다.
+      위 표의 &lsquo;다중&rsquo; 행은 일반 다중 신호까지 포함하므로 숫자가 다를 수 있습니다.</p>
     ${[1,3,5].map(block).join("")}
     <p style="font-size:11px;color:var(--faint);line-height:1.7;margin:8px 0 0">
       종가 기준 · 실적 영향 구간 제외 · 승률은 상승 ÷ (상승 + 하락)<br>
       표본이 짧으니 장기 승률처럼 해석하지 않습니다.</p>
-    <div class="modal-actions"><button class="primary" onclick="closeModal()">닫기</button></div>`);
+    ${story}
+    <div class="modal-actions perf-sticky"><button class="primary" onclick="closeModal()">닫기</button></div>`);
 }
 function openValidationHelp(){
   openModal(`<h3>상승이 하락을 이길 확률</h3>
@@ -3680,4 +3708,3 @@ boot();
 </script>
 </body>
 </html>
- 
