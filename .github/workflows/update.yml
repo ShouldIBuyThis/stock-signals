@@ -9,13 +9,9 @@ on:
     - cron: '20 17 * * 1-5'
       timezone: 'America/New_York'
 
-    # 한국장 1차: 16:20 KST
-    - cron: '20 16 * * 1-5'
+    # 한국장 1차: 15:45 KST
+    - cron: '45 15 * * 1-5'
       timezone: 'Asia/Seoul'
-    # 한국장 백업: 16:50 KST — 1차 schedule 누락/지연 대비
-    - cron: '50 16 * * 1-5'
-      timezone: 'Asia/Seoul'
-
   workflow_dispatch:
     inputs:
       scope:
@@ -82,7 +78,7 @@ jobs:
               echo "value=us" >> "$GITHUB_OUTPUT"
               echo "자동 실행 → US ($SCHEDULE_EXPR)"
               ;;
-            "20 16 * * 1-5"|"50 16 * * 1-5")
+            "45 15 * * 1-5")
               echo "value=kr" >> "$GITHUB_OUTPUT"
               echo "자동 실행 → KR ($SCHEDULE_EXPR)"
               ;;
@@ -114,7 +110,7 @@ jobs:
           FORCE_RESNAP: ${{ steps.resnap.outputs.value }}
         run: python main.py
 
-      - name: 실패 시 10분 뒤 1회 재시도
+      - name: 지표 계산 실패 시 10분 뒤 1회 재시도
         if: steps.calc.outcome == 'failure'
         env:
           RUN_SCOPE: ${{ steps.scope.outputs.value }}
