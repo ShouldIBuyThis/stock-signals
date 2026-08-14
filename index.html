@@ -860,8 +860,11 @@ const CART_MAX = 5;   // 모의구매 점검이 의미를 가지는 상한
    history/ 에는 '원본 지표'만 쌓이므로, 어느 버전으로도 과거를 다시 채점할 수 있다.
    필요한 건 "언제부터 어느 산식이 돌았는가"의 기록이다. 코드 자체는 git이 보관한다.
    나중에 소급 채점할 때: git show <커밋>:index.html 로 그 시점 evaluate()를 꺼내 쓴다. */
+/* LOGIC_VERSION은 '점수 산식'의 버전이다. 순위·표시 정합성 패치로는 올리지 않는다. */
 const LOGIC_VERSION = "v5";
 const LOGIC_LOG = [
+  {v:"v5", from:"2026-08-14", t:"[정합성 패치] 순위 통일 · 매수강도 기준 통일 — 점수 산식 무변경",
+   d:"눌림·반등 순위를 strategyOrdinalRank() 하나로 통일해 카드·위젯·다중신호 💡·테마·검색이 전부 같은 rankMap을 공유한다. 이전에는 다중신호가 내부에서 raw score로 순위를 다시 매겨 카드와 다른 숫자가 찍혔다. 사용자에게 보이는 매수강도 변화는 score(돌파 포함)가 아니라 buyScore=max(눌림,반등) 기준으로 바꿨다. 점수식·임계값·시장 필터 구조는 건드리지 않았으므로 과거 백테스트 점수는 그대로 유효하다. 다만 다중신호 자격 판정이 정확해진 순위를 쓰므로 다중 후보 구성은 달라질 수 있다."},
   {v:"v5", from:"2026-08-11", t:"최종등급 2전략 고정 · 돌파 보조축화",
    d:"A/B 검증 후 최종 매수등급을 추세·반등 중 높은 등급으로만 결정한다. 돌파 점수는 삭제하지 않고 돌파 포착 뱃지에만 사용한다. 다중신호 축에서는 제외한다. 추세·반등 점수식 자체는 변경하지 않았다."},
   {v:"v4", from:"2026-08-10", t:"초기 반등 가점 · 당일 급등 반등 감점",
@@ -879,7 +882,7 @@ let state = {
   data: null, tab: "theme", sort: "signal", market: "all",
   showHoldings: false, holdings: [], favorites: [], hidden: [], expanded: [], cart: [], badge: null,
   overrides: {}, placeholders: [], dataUrl: "", theme: "light", view: "compact",
-  displayLimit: 20, themeFilter: "", validation100: null
+  displayLimit: 20, themeFilter: ""
 };
 
 /* ══════════ 유틸 ══════════ */
@@ -981,7 +984,8 @@ function normalize(raw){
       stoch_k: num(it.stoch_k ?? it.stochK), stoch_d: num(it.stoch_d ?? it.stochD),
       stoch_cross: it.stoch_cross || "none",
       near_high: !!it.near_high, pct_from_high: num(it.pct_from_high),
-      market_weak: !!it.market_weak, market_level: it.market_level || null, atr_pct: num(it.atr_pct),
+      market_weak: !!it.market_weak, market_level: it.market_level || null,
+      market_ret20: num(it.market_ret20), atr_pct: num(it.atr_pct),
       /* 진입 위치(Positioning) 파생값 — 빠뜨리면 오늘 카드에서만 관련 로직이 통째로 죽는다 */
       ma20_slope: num(it.ma20_slope), run5_max: num(it.run5_max), run3_sum: num(it.run3_sum),
       range3: num(it.range3), range10: num(it.range10), vol3_ratio: num(it.vol3_ratio),
@@ -1303,11 +1307,16 @@ function evaluate(s){
   else if (lv==="strong"){ bPos+=0.3; pPos+=0.3; }
   else if (s.market_weak){ cNeg-=0.5; tags.push({c:"t-warn",t:"⚠ 시장 약세"}); reasons.push({w:0.7,t:"시장(QQQ) 20일선 아래 — 감점"}); }
 
-  /* 점수 및 등급 */
-  const breakScore=Math.round((bPos+tNeg+cNeg)*10)/10;   // 🚀 돌파·추세추종
-  const pullScore =Math.round((pPos+tNeg+cNeg)*10)/10;   // 📉 눌림목
-  const revScore  =Math.round((rPos+rNeg+cNeg)*10)/10;   // 🔄 역추세 반등
-  const trendScore=Math.max(breakScore, pullScore);      // 기존 호환용
+  /* 점수 및 등급
+     최종 매수판정은 눌림·반등 2전략만 사용한다. 돌파는 보조 뱃지 전용이다. */
+  const breakScore=Math.round((bPos+tNeg+cNeg)*10)/10;   // 🚀 돌파 — 보조 뱃지 판정에만 사용
+  const pullScore =Math.round((pPos+tNeg+cNeg)*10)/10;   // 📉 눌림목 — 최종 판정 축
+  const revScore  =Math.round((rPos+rNeg+cNeg)*10)/10;   // 🔄 역추세 반등 — 최종 판정 축
+  /* 사용자에게 보여주는 '매수강도'. 최종 등급 max(눌림,반등)과 같은 두 축만 쓴다.
+     돌파 점수만 크게 움직였는데 변화칩이 ↑ +1.4로 튀는 일을 여기서 막는다.
+     변화칩·신호 히스토리 게이지는 전부 이 값을 기준으로 한다. */
+  const buyScore  =Math.round(Math.max(pullScore, revScore)*10)/10;
+  const trendScore=Math.max(breakScore, pullScore);      // '⚠ 장기 추세 약세' 경고 판정용
   const baseScore=Math.max(breakScore, pullScore, revScore);
   const isTrendType = trendScore >= revScore;
 
@@ -1341,17 +1350,14 @@ function evaluate(s){
     }
   }
 
+  /* score는 세부 분석·정렬 보조용 내부값이다(돌파 포함).
+     사용자에게 보이는 매수강도 변화는 score가 아니라 buyScore를 쓴다. */
   const score = Math.round((baseScore + resAdj + ldrAdj) * 10) / 10;
 
-  /* 등급 컷오프 — 2026-08-10 기준 73종목 실제 점수 분포로 재조정.
-     이전 값(3.2/1.5/-1.3/-3)은 감점 항목이 늘기 전 스케일에 맞춘 것이라,
-     지금 분포(최저 -1.6 · 중앙 1.2 · 최고 4.3)에서는 경계가 구조적으로 나올 수 없었다.
-     ※ 하루치 분포에 맞춘 잠정값이다. history가 쌓이면 다시 잡아야 한다. */
-  /* 시장 국면에 따라 매도 컷만 낮춘다.
-     약세장에서는 QQQ 감점(-0.5~-1.0)이 모든 미국 종목에 똑같이 걸려 점수가 통째로 내려간다.
-     컷을 고정해두면 그날 하루에 경계가 쏟아진다. 그 감점폭만큼 매도 컷도 내린다.
-     매수 컷은 그대로 둔다 — 약세장에서 매수 신호가 줄어드는 것은 의도한 동작이다. */
-  // 매수 로직은 그대로 유지한다. 전략별 컷으로 강한매수/매수관심만 판정.
+  /* 등급 컷오프 — 전략별 컷으로 강한매수/매수관심만 판정한다. 매도 등급은 없다.
+     ※ 하루치 분포에 맞춘 잠정값이다. history가 쌓이면 다시 잡아야 한다.
+     약세장에서 QQQ 감점(-0.5~-1.0)이 미국 종목 전체에 걸려 매수 신호가 줄어드는 것은 의도한 동작이다.
+     최종 등급 = max(눌림 Grade, 반등 Grade). 돌파 Grade는 뱃지 표시에만 쓰고 여기에 넣지 않는다. */
   const breakGrade = breakScore>=2.5 ? 5 : breakScore>=1.2 ? 4 : 3;
   const pullGrade  = pullScore >=1.5 ? 5 : pullScore >=0.8 ? 4 : 3;
   const revGrade   = revScore  >=3.0 ? 5 : revScore  >=2.0 ? 4 : 3;
@@ -1374,21 +1380,15 @@ function evaluate(s){
     );
   const cautionBadge = nearResistance && (hotMomentum || weakAtResistance);
 
-  let sellScore=0, sellGrade=3;
-  const trendCaution=false, hotCaution=cautionBadge;
-
   // 경계는 등급을 내리지 않는다. 매수 등급은 그대로 유지.
-  let g=buyGrade>=4 ? buyGrade : 3;
+  const g=buyGrade>=4 ? buyGrade : 3;
 
-  const brokeSup = !a20 && (( has(ma5)&&has(ma20)&&ma5<ma20 ) || s.macd_cross==="dead");
-  const trendAlive = a20 && has(ma5) && has(ma20) && ma5 > ma20 && s.macd_cross !== "dead";
   const overheat = (has(rsi)&&rsi>=70) || (has(bb)&&bb>=95);
-  const overheatOnly = g <= 2 && !brokeSup && trendAlive;
 
-  /* ⑩ 매수 유형 */
+  /* ⑩ 매수 유형 — 눌림/반등 2전략 중 자기 컷을 더 크게 넘긴 쪽 */
   let type=null;
   if (g>=4){
-    const cut = g===5 ? {돌파:2.5,눌림:1.5,반등:3.0} : {돌파:1.2,눌림:0.8,반등:2.0};
+    const cut = g===5 ? {눌림:1.5,반등:3.0} : {눌림:0.8,반등:2.0};
     const candidates=[
       {t:"눌림",gr:pullGrade,v:pullScore/cut.눌림},
       {t:"반등",gr:revGrade,v:revScore/cut.반등}
@@ -1401,7 +1401,6 @@ function evaluate(s){
   if (breakGrade>=4) tags.push({c:"t-buy",t:"🚀 돌파 포착",click:"돌파"});
 
   /* 경계는 등급이 아니라 저항 임박 뱃지만 사용한다. */
-  let sellType=null;
   if (overheat){
     tags.push({c:"t-warn",t:(g>=4?"⚠ 과열 — 익절 구간 주의":"🔥 과열 분할익절"),click:g>=4?"과열주의":"과열익절"});
   }
@@ -1418,14 +1417,14 @@ function evaluate(s){
   if (has(vr)&&vr>=1.5) tags.push({c:"t-vol",t:`⚡ 거래량 ${r1(vr)}배`});
 
   reasons.sort((a,b)=>b.w-a.w);
-  const displayType = type==="반등" ? "반등" : ((type==="돌파" || type==="눌림") ? "추세" : null);
+  const displayType = type==="반등" ? "반등" : (type==="눌림" ? "추세" : null);
   const line = reasons.length
     ? (displayType?`[${displayType}] `:"") + reasons.slice(0,2).map(x=>x.t).join(" · ")
     : "뚜렷한 신호 없음";
 
   /* 검증용 내역 — 나중에 "저항 보정이 실제로 도움이 됐나"를 사후 비교할 수 있게 남긴다 */
   const adj = { base: baseScore, res: resAdj, resGap, leader, ldr: ldrAdj, final: score };
-  return { score, trendScore, breakScore, pullScore, revScore, breakGrade, pullGrade, revGrade, sellScore, sellGrade, trendCaution, hotCaution, cautionBadge, grade:g, type, sellType, line, tags, adj, overheat, overheatOnly };
+  return { score, buyScore, trendScore, breakScore, pullScore, revScore, breakGrade, pullGrade, revGrade, cautionBadge, grade:g, type, line, tags, adj, overheat };
 }
   
 /* ══════════ 종목 가공 ══════════ */
@@ -1443,7 +1442,8 @@ function decorate(s){
    산식을 파이썬으로 옮기지 않는 이유: 두 곳에 두면 반드시 어긋난다. */
 const HIST_FIELDS_DEFAULT = ["date","price","change_1d","ma5","ma10","ma20","ma50","ma60","rsi","macd_hist","macd_cross","macd_zero",
   "bb_pos","stoch_k","stoch_d","stoch_cross","vol_ratio","near_high","pct_from_high",
-  "ma20_slope","run5_max","run3_sum","range3","range10","vol3_ratio","res_short","ret20","rs20","atr_pct"];
+  "ma20_slope","run5_max","run3_sum","range3","range10","vol3_ratio","res_short","ret20","rs20","atr_pct",
+  "market_level","market_weak","market_ret20"];
 function histFields(){
   const f = state.data && state.data.hist_fields;
   return Array.isArray(f) && f.length ? f : HIST_FIELDS_DEFAULT;
@@ -1460,8 +1460,15 @@ function histRow(s, row, i, total){
          (mh.length===total ? mh[i] : null);
   }
   const modern = Array.isArray(md) && md.length>=4;
-  const lvl = md ? (modern ? md[1] : md[0]) : (mk.level || null);
-  const marketRet20 = md ? (modern ? num(md[3]) : num(mk.ret20)) : null;
+  /* 이 행이 '그날의 시장 입력'을 직접 갖고 있으면 그 값을 그대로 쓴다.
+     main.py가 hist에 고정해 둔 값이라 이후 QQQ가 재계산돼도 과거 신호가 흔들리지 않는다.
+     값이 없는 행(이 기능 이전에 쌓인 행)만 예전처럼 market.hist에서 날짜로 찾아본다. */
+  const hasFrozen = o.market_level !== undefined && o.market_level !== null;
+  const frozenRet = num(o.market_ret20);
+  const lvl = hasFrozen ? o.market_level : (md ? (modern ? md[1] : md[0]) : (mk.level || null));
+  const marketRet20 = frozenRet !== null ? frozenRet
+    : (md ? (modern ? num(md[3]) : num(mk.ret20)) : null);
+  const frozenWeak = (o.market_weak === undefined || o.market_weak === null) ? null : !!o.market_weak;
   return {
     ticker: s.ticker, last_date: o.date || "",
     price: num(o.price), ma5: num(o.ma5), ma10: num(o.ma10), ma20: num(o.ma20), ma50: num(o.ma50), ma60: num(o.ma60),
@@ -1476,7 +1483,7 @@ function histRow(s, row, i, total){
     market_ret20: marketRet20,
     range3: num(o.range3), range10: num(o.range10), vol3_ratio: num(o.vol3_ratio),
     market_level: s._kr ? "neutral" : lvl,
-    market_weak: !s._kr && (lvl === "weak" || lvl === "caution")
+    market_weak: frozenWeak !== null ? frozenWeak : (!s._kr && (lvl === "weak" || lvl === "caution"))
   };
 }
 /* 어제 값을 붙여준다 — '던진 다음날'을 눌림목으로 오인하지 않기 위해 */
@@ -1531,8 +1538,11 @@ function allStocks(){
       s.prev_ma20 = y[F.indexOf("ma20")];
     }
     {
+      /* 종목 행이 자기 시장 입력을 갖고 있으면 그것이 그날 고정값이다.
+         없을 때만(구버전 데이터) 현재 시장값으로 대체한다. */
       const mk = (state.data && state.data.market) || {};
-      s.market_ret20 = num(mk.ret20);
+      const stored = num(s.market_ret20);
+      s.market_ret20 = stored !== null ? stored : num(mk.ret20);
     }
     const sig = evaluate(s);
     const pv = prevStock(s);
@@ -1540,12 +1550,11 @@ function allStocks(){
   });
 }
 /* 신호 순위의 기준 유니버스.
-   테마/보유/숨김은 "보기 필터"일 뿐 신호 강도 자체를 바꾸면 안 된다.
-   시장 토글만 신호 유니버스에 반영한다. */
-/* 신호 유니버스에는 보기 필터를 넣지 않는다. 시장 토글(전체/US/KR)도 보기 필터다.
+   시장 탭(전체/US/KR)·테마·보유·숨김은 전부 "보여줄 종목만 거르는" 표시 전용 필터다.
    여기에 시장을 걸면 KR만 볼 때 2종목 안에서 순위가 매겨져 코스피 ETF가 TOP5가 되고,
    전체 화면에서는 없던 💡가 국장 화면에서만 켜진다.
-   순위·💡 기준은 항상 전체 종목이고, 시장 토글은 무엇을 보여줄지만 정한다. */
+   따라서 유니버스는 항상 전체 종목(실적 보류만 제외)이고,
+   NVDA 눌림 3위는 전체 탭에서도·미국 탭에서도·검색에서도 3위다. */
 function signalUniverse(){
   return allStocks().filter(s => !s.earnings_hold);
 }
@@ -1556,41 +1565,32 @@ function visible(){
     .filter(s => !state.showHoldings || s._hold)
     .filter(s => !state.themeFilter || s.category===state.themeFilter);
 }
-/* 모든 순위의 단일 구현. 다중 내부 축 순위 / 카드 추세·반등·거래량 배지 / 메인 위젯이
-   전부 이 함수를 공유한다. 어디서 보든 같은 숫자가 나오는 이유가 이것이다.
 
-   동점 처리는 서수(1,2,3,4,5). 동일 점수를 같은 순위로 묶는 경쟁 순위를 한 번 넣어봤으나,
+/* ── 순위 계산은 이 블록이 전부다 ─────────────────────────────────
+   같은 종목 + 같은 전략이면 사이트 어디에서 보든 같은 숫자여야 한다.
+   그래서 메인 카드 · 순위 위젯 · 다중신호 💡 상세 · 테마 모아보기 ·
+   검색 이동 라벨 · 상세보기가 전부 rankMapsFor()가 만든 하나의 rankMap을 공유한다.
+   화면별로 raw score를 다시 정렬해 순위를 새로 만드는 코드를 추가하지 말 것.
+
+   순위는 공동순위가 아닌 서수(1,2,3...)다. 동일 점수를 같은 순위로 묶어봤으나
    눌림·반등 점수가 0.1 단위라 상위권 동점이 많아 "TOP5"가 실질 8~10종목이 되면서
-   엄격 다중의 선별력이 사라졌다. 그래서 서수로 되돌렸다.
-   동점은 티커 알파벳순으로 가른다 — 자의적이지만 실행마다 동일하고 재현 가능하다. */
-/* 순위는 공동순위가 아닌 서수(1,2,3...)를 유지한다.
-   다만 같은 눌림/반등 점수라면 티커 알파벳이 아니라 단기 저항까지 남은 상승여유(res_short)를
-   금융적 tie-break로 사용한다. 거래량축은 raw vol_ratio만 쓰고 완전 동점이면 입력 순서를 유지한다. */
-function rankResGap(s){
-  const p=s&&s.price;
-  if(!s || !has(s.res_short) || !has(p) || !p) return Infinity; // 위 저항 없음 = 가장 여유 큼
-  return (s.res_short/p-1)*100;
-}
-function competitionRank(list, key, tieBreaker=null){
+   엄격 다중의 선별력이 사라졌다. 완전 동점은 입력 순서(WATCHLIST 순)를 유지한다 —
+   자의적이지만 실행마다 동일하고 재현 가능하다. */
+const RANK_NONE = 9999;   // 해당 축에 순위가 없는 종목(거래량 미집계 등)
+
+function competitionRank(list, key){
   const q=v=>Math.round((Number(v)||0)*1e6)/1e6;
-  const ordered=(list||[]).slice().sort((x,y)=>{
-    const d=q(key(y))-q(key(x));
-    if(d) return d;
-    return tieBreaker ? (tieBreaker(x,y)||0) : 0; // JS 안정 정렬: 완전 동점은 입력 순서 유지
-  });
+  const ordered=(list||[]).slice().sort((x,y)=>q(key(y))-q(key(x))); // 완전 동점은 입력 순서 유지(stable sort)
   const rankMap={};
   ordered.forEach((s,i)=>{ rankMap[s.ticker]=i+1; });
   return {ordered, rankMap};
 }
-/* 추세/반등 축은 해당 전략의 매수신호(강한매수·매수관심)를 중립/매도보다 먼저 둔다.
-   그 안에서 raw 전략점수 → res_short 상승여유 순으로 서수를 매긴다.
-   이 함수는 화면 순위와 다중 내부 축 순위가 같은 기준을 쓰도록 공용으로 사용한다. */
+/* 눌림/반등 순위의 유일한 구현.
+   해당 전략의 매수신호(강한매수·매수관심)를 중립보다 먼저 묶고, 그 안에서 raw 전략점수 순.
+   비신호 종목도 뒤에 이어 붙이므로 모든 종목에 숫자가 있다. */
 function strategyOrdinalRank(list, kind){
   const isPull = kind==="pull";
   const q=v=>Math.round((Number(v)||0)*1e6)/1e6;
-  /* 화면용 추세/반등 순위만 해당 전략 매수신호를 우선한다.
-     동점에서 res_short를 넣으면 순번이 크게 재배치될 수 있어 제거하고,
-     완전 동점은 기존 입력 순서를 유지한다(stable sort). */
   const ordered=(list||[]).slice().sort((x,y)=>{
     const gx=(isPull?x.sig.pullGrade:x.sig.revGrade)>=4 ? 1 : 0;
     const gy=(isPull?y.sig.pullGrade:y.sig.revGrade)>=4 ? 1 : 0;
@@ -1604,11 +1604,30 @@ function strategyOrdinalRank(list, kind){
   ordered.forEach((s,i)=>{ rankMap[s.ticker]=i+1; });
   return {ordered,rankMap};
 }
+/* 거래량 보조축. 거래량비가 없는 종목은 순위를 받지 않는다(RANK_NONE으로 취급). */
+function volumeOrdinalRank(list){
+  return competitionRank((list||[]).filter(s=>has(s.vol_ratio)), s=>s.vol_ratio);
+}
+/* 임의의 유니버스에 대한 3축 rankMap. 실시간 화면과 신뢰도 검증(과거 날짜 유니버스)이
+   같은 함수를 쓰기 때문에 "화면에서 본 순위"와 "검증에 쓴 순위"가 갈라지지 않는다. */
+function rankMapsFor(list){
+  const uni=list||[];
+  return {
+    pull: strategyOrdinalRank(uni,"pull").rankMap,
+    rev:  strategyOrdinalRank(uni,"reversal").rankMap,
+    vol:  volumeOrdinalRank(uni).rankMap,
+    n:    uni.length
+  };
+}
+function rankOf(map, tk){
+  const v=map && map[tk];
+  return Number.isFinite(Number(v)) ? Number(v) : RANK_NONE;
+}
 function strategyRankOf(kind){
   return strategyOrdinalRank(signalUniverse(), kind);
 }
 function volumeRankOf(){
-  return competitionRank(signalUniverse().filter(s=>has(s.vol_ratio)), s=>s.vol_ratio);
+  return volumeOrdinalRank(signalUniverse());
 }
 function fmtPrice(s){
   if (!has(s.price)) return "—";
@@ -1621,7 +1640,6 @@ function fmtChg(v){
 }
 function chgCls(v){ return has(v) ? (v>0?"up":v<0?"down":"") : ""; }
 function sortKey(s){
-  if (state.sort==="break") return s.sig.breakScore;
   if (state.sort==="trend") return s.sig.pullScore;
   if (state.sort==="pull") return s.sig.pullScore;
   if (state.sort==="reversal") return s.sig.revScore;
@@ -1629,15 +1647,20 @@ function sortKey(s){
   return 0; // 다중신호순은 raw score가 아니라 multiSignalRank()를 사용
 }
 
+/* 테마 묶음 안에서의 나열 순서.
+   여기서도 순위를 새로 만들지 않고 전역 rankMap을 그대로 읽는다.
+   테마 화면에서만 눌림 2위가 3위로 보이는 일을 막기 위한 것이다. */
 function overallRanked(list){
-  if(!list.length) return [];
-  const rank=(key)=>{const a=list.slice().sort((a,b)=>key(b)-key(a));const m={};a.forEach((s,i)=>m[s.ticker]=i+1);return m;};
-  /* 전체/테마 내부 정렬도 다중과 같은 철학: 눌림·반등 2축 + 거래량 보조축. */
-  const R={pu:rank(s=>s.sig.pullScore),rv:rank(s=>s.sig.revScore),vo:rank(s=>has(s.vol_ratio)?s.vol_ratio:-1)};
-  const info=s=>{const core=[R.pu[s.ticker],R.rv[s.ticker]],all=[...core,R.vo[s.ticker]];return {s,
-    core5:core.filter(x=>x<=5).length,core10:core.filter(x=>x<=10).length,
-    all5:all.filter(x=>x<=5).length,all10:all.filter(x=>x<=10).length,
-    bestCore:Math.min(...core),bestAll:Math.min(...all)};};
+  if(!list || !list.length) return [];
+  const R=rankMapsFor(signalUniverse());
+  const info=s=>{
+    const core=[rankOf(R.pull,s.ticker), rankOf(R.rev,s.ticker)];
+    const all=[...core, rankOf(R.vol,s.ticker)];
+    return {s,
+      core5:core.filter(x=>x<=5).length, core10:core.filter(x=>x<=10).length,
+      all5:all.filter(x=>x<=5).length, all10:all.filter(x=>x<=10).length,
+      bestCore:Math.min(...core), bestAll:Math.min(...all)};
+  };
   return list.map(info).sort((a,b)=>
     b.s.sig.grade-a.s.sig.grade || b.core5-a.core5 || b.all5-a.all5 ||
     b.core10-a.core10 || b.all10-a.all10 || a.bestCore-b.bestCore || a.bestAll-b.bestAll ||
@@ -1650,14 +1673,8 @@ function currentMultiRanked(){
   return multiSignalRank(signalUniverse());
 }
 
-/* 추세/반등 순위는 모든 종목에 항상 부여한다.
-   단, 메인 "신호"의 의미를 보존하기 위해 해당 전략 매수신호(grade>=4)를 먼저 묶고,
-   그 안에서는 raw score 순으로 정렬한다. 비신호 종목은 그 뒤에 raw score 순으로 이어진다.
-   따라서 메인 위젯도 이 순위표 숫자를 그대로 표시하므로 상세카드 배지와 항상 같고,
-   해당 기법 신호가 아닌 종목도 — 대신 실제 숫자 순위가 표시된다. */
-/* 카드/위젯/다중 내부 축이 모두 strategyOrdinalRank()를 공유한다.
-   따라서 해당 전략 강한매수·매수관심이 중립보다 뒤로 밀리지 않고,
-   화면에 찍힌 추세/반등 순위와 다중 판정에 사용한 순위도 일치한다. */
+/* 아래 함수들은 순위를 만들지 않는다. 전역 순위표에서 "지금 보여줄 종목"만 걸러낸다.
+   시장 탭·테마·보유·숨김이 걸려도 카드에 찍힌 숫자와 나열 순서가 어긋나지 않는 이유가 이것이다. */
 function currentStrategyRanked(kind){ return strategyRankOf(kind).ordered; }
 function currentStrategySignalRanked(kind){
   const isPull = kind==="pull";
@@ -1698,24 +1715,18 @@ function decorateMultiFlags(list){
       : Object.assign({},s,{_multi:null,_multiInfo:null,_multiTier:0,_multiStrict:false});
   });
 }
-/* 전략별 보조순위는 현재 보기 기준, 다중 자격/순위는 signalUniverse 기준으로 고정한다. */
+/* 화면 전체가 참조하는 순위표. signalUniverse() 기준으로 한 번만 만든다.
+   메인 카드 · 위젯 · 다중신호 상세 · 테마 · 검색 이동이 모두 이 결과를 읽는다. */
 function computeRanks(){
-  /* 메인 위젯과 상세카드가 같은 순위표를 공유한다.
-     추세/반등은 "해당 전략 신호 우선 + 전체 종목" 순위라 모든 카드에 숫자가 있다.
-     메인 위젯은 그 순위표 중 실제 전략 신호(grade>=4)만 보여준다.
-     거래량은 현재 시장 전체의 거래량 순위, 다중은 currentMultiRanked() 순위다. */
   /* 배열 위치(i+1)로 다시 번호를 매기면 동순위가 깨진다. 반드시 rankMap을 그대로 쓴다. */
   const toMultiMap=(arr)=>{ const m={}; arr.forEach((x,i)=>m[x.ticker]=x._multiRankNo||(i+1)); return m; };
-  const pu=strategyRankOf("pull").rankMap;
-  const rv=strategyRankOf("reversal").rankMap;
-  const vo=volumeRankOf().rankMap;
-
+  const R=rankMapsFor(signalUniverse());
   return {
     total:toMultiMap(currentMultiRanked()),
-    pull:pu, trend:pu,
-    rev:rv,
-    vol:vo,
-    n:signalUniverse().length
+    pull:R.pull, trend:R.pull,
+    rev:R.rev,
+    vol:R.vol,
+    n:R.n
   };
 }
 
@@ -1795,9 +1806,11 @@ function recentEarningsCalendar(){
     body=rows.map(x=>`${esc(x.e.date)} · <b>${esc(x.s.ticker)}</b> ${esc(x.s.name||"")} · ${esc(earningTimingKst(x.e))}`).join("<br>");
   }
 
+  /* '일정 미확인'은 실적 조회 대상(=ETF·지수 제외) 대비로만 센다.
+     ETF를 분모에 넣으면 실제보다 미확인 종목이 부풀어 보인다. */
   const quality = cs&&cs.ok
     ? (Number(cs.quality_version||0)>=2
-      ? `<div style="margin-top:7px;color:var(--faint);font-size:10.5px">캘린더 품질 · 매칭 ${cs.matched??"—"} · 시간확인 ${cs.time_confirmed??"—"} · 시간미확인 ${cs.time_unknown??"—"} · fallback 해결 ${cs.fallback_resolved??"—"} · 기간 내 일정 미확인 ${cs.missing??"—"}</div>`
+      ? `<div style="margin-top:7px;color:var(--faint);font-size:10.5px">캘린더 품질 · 매칭 ${cs.matched??"—"} · 시간확인 ${cs.time_confirmed??"—"} · 시간미확인 ${cs.time_unknown??"—"} · fallback 해결 ${cs.fallback_resolved??"—"} · 기간 내 일정 미확인 ${cs.missing??"—"}${cs.eligible!=null?`/${cs.eligible}`:""}${cs.skipped_no_earnings?`<br>실적 조회 비대상 ETF·지수 ${cs.skipped_no_earnings}종목은 위 집계에서 제외`:""}</div>`
       : `<div style="margin-top:7px;color:var(--faint);font-size:10.5px">캘린더 품질 · 매칭 ${cs.matched??"—"} · <b>상세 품질은 새 패치 데이터 생성 후 표시</b></div>`)
     : "";
   return `<details class="acc earnings-calendar">
@@ -1824,38 +1837,21 @@ function earningsHoldSection(title="실적발표 보류"){
   </details>`;
 }
 
-/* 다중 신호: 눌림·반등 핵심 2축 + 거래량 보조축. 엄격 TOP5 티어를 먼저, 일반 TOP10 티어를 그 다음에 잇는다. */
+/* 다중 신호: 눌림·반등 핵심 2축 + 거래량 보조축.
+   돌파는 여기에 독립 축으로 들어가지 않는다(보조 뱃지 전용).
+   엄격 TOP5 티어를 먼저, 일반 TOP10 티어를 그 다음에 잇는다. */
 function multiSignalRank(list){
-  if(!list.length) return [];
+  if(!list || !list.length) return [];
   const eligible=list.filter(s=>s.sig.grade>=4); // 최종 강한매수/매수관심만 후보
   if(!eligible.length) return [];
 
-  /* 다중 판정은 B(TOP7) + raw 3축을 그대로 유지한다.
-     순위 변경은 'raw 점수가 완전히 같은 경우'에만 해당 전략 grade를 tie-break로 사용한다.
-     그마저 같으면 기존 B 계열처럼 ticker를 최종 deterministic fallback으로 쓴다.
-     거래량축은 raw vol_ratio -> ticker만 사용한다. */
-  const rank=(key)=>{
-    const a=list.slice().sort((x,y)=>key(y)-key(x) || x.ticker.localeCompare(y.ticker));
-    const m={}; a.forEach((s,i)=>m[s.ticker]=i+1); return m;
-  };
-  const strategyRank=(scoreKey, gradeKey)=>{
-    const a=list.slice().sort((x,y)=>{
-      const d=scoreKey(y)-scoreKey(x);
-      if(d) return d;
-      const gd=(Number(gradeKey(y))||0)-(Number(gradeKey(x))||0);
-      if(gd) return gd;
-      return x.ticker.localeCompare(y.ticker);
-    });
-    const m={}; a.forEach((s,i)=>m[s.ticker]=i+1); return m;
-  };
-  const R={
-    pull:strategyRank(s=>s.sig.pullScore, s=>s.sig.pullGrade),
-    rev:strategyRank(s=>s.sig.revScore, s=>s.sig.revGrade),
-    vol:rank(s=>has(s.vol_ratio)?s.vol_ratio:-1)
-  };
+  /* 내부 축 순위를 따로 만들지 않고 화면과 같은 rankMapsFor()를 쓴다.
+     예전에는 여기서 raw score 기준으로 순위를 다시 매겨서
+     카드에는 "눌림 2위", 💡 상세에는 "눌림 3위"가 동시에 찍힐 수 있었다. */
+  const R=rankMapsFor(list);
 
   const info=eligible.map(s=>{
-    const pu=R.pull[s.ticker], rv=R.rev[s.ticker], vo=R.vol[s.ticker];
+    const pu=rankOf(R.pull,s.ticker), rv=rankOf(R.rev,s.ticker), vo=rankOf(R.vol,s.ticker);
     const core=[pu,rv], all=[pu,rv,vo];
     const core5=core.filter(x=>x<=5).length;
     const core10=core.filter(x=>x<=10).length;
@@ -1871,7 +1867,7 @@ function multiSignalRank(list){
     };
   }).filter(x=>x.tier>0);
 
-  /* 최종 나열도 당시 B 계열의 우선순위로 복구. */
+  /* 티어 안에서의 나열 순서. 완전 동점은 ticker로 갈라 실행마다 같은 결과가 나오게 한다. */
   const cmpWithin=(a,b)=>
     b.s.sig.grade-a.s.sig.grade ||
     b.core5-a.core5 || b.all5-a.all5 ||
@@ -2007,7 +2003,8 @@ function rankMark(i, rankless=false, s=null){
 /* ══════════ 기술 상태 번역 (UI 전용) ══════════
    새 점수 체계가 아니다. 이미 계산된 지표를 초보자가 읽을 수 있는 말로 옮기기만 한다.
    종합점수·등급·순위에는 전혀 영향을 주지 않는다. */
-/* 등급 표시명. 단기과열은 새 등급이 아니라 매도 판정의 사유 표시다. */
+/* 등급 표시명. 등급은 강한매수/매수관심/중립 3단계뿐이고 매도 등급은 없다.
+   과열·경계는 등급이 아니라 뱃지로만 표시한다. */
 function gradeLabel(sig){ return GRADES[sig ? sig.grade : 3]; }
 function gradeCls(sig){ return "g"+(sig ? sig.grade : 3); }
 function stockGradeLabel(s){ return s&&s.earnings_hold ? "보류" : gradeLabel(s&&s.sig); }
@@ -2112,13 +2109,15 @@ function frozenTrendPair(s){
   return {prev,cur,prevSig:evaluate(prev),curSig:evaluate(cur)};
 }
 
-/* 어제 → 오늘 점수 변화 칩 */
+/* 어제 → 오늘 매수강도 변화 칩.
+   기준은 score(돌파 포함)가 아니라 buyScore = max(눌림, 반등)이다.
+   돌파 점수만 크게 움직였는데 ↑ +1.4가 뜨고 매수등급은 그대로인 상황을 막는다. */
 function trendChip(s){
   const fp=frozenTrendPair(s);
   const prevSig=fp ? fp.prevSig : s.prevSig;
   const curSig=fp ? fp.curSig : s.sig;
   if (!prevSig || !curSig) return "";
-  const d = Math.round((curSig.score - prevSig.score)*10)/10;
+  const d = Math.round((curSig.buyScore - prevSig.buyScore)*10)/10;
   const gUp = curSig.grade - prevSig.grade;
   const arrow = d > 0 ? "↑" : d < 0 ? "↓" : "→";
   const cls = gUp > 0 ? "up strong" : gUp < 0 ? "down strong" : d > 0 ? "up" : d < 0 ? "down" : "flat";
@@ -2259,9 +2258,7 @@ function openCartReview(){
   if (!state.cart.length){ toast("장바구니가 비어 있어요"); return; }
   const F = cartFacts(); const B = cartBubbles(F);
   const n = F.mine.length, activeN=F.activeMine.length;
-  const ohN = F.activeMine.filter(x=>x.sig.overheatOnly).length;
-  const baseG = [5,4,3,2,1].filter(g=>F.gradeCnt[g]).map(g=>`${GRADES[g]} ${F.gradeCnt[g]}`).join(" · ");
-  const gline = (baseG || "평가 가능 종목 없음") + (ohN ? ` <span class="lv2">(그중 단기과열 ${ohN})</span>` : "");
+  const gline = [5,4,3,2,1].filter(g=>F.gradeCnt[g]).map(g=>`${GRADES[g]} ${F.gradeCnt[g]}`).join(" · ") || "평가 가능 종목 없음";
   const holdLine = F.holdMine.length ? `<div class="cf-r"><b>실적 보류 ${F.holdMine.length}종목</b> · ${F.holdMine.map(s=>esc(s.ticker)).join(" · ")}<br><span class="lv2">실적 영향권이라 매수등급 평가에서 제외했어요.</span></div>` : "";
   const catLine = F.cats.map(c =>
     `${esc(c.name)} <b>${c.n}</b>${c.flow!=null?` <span class="cflow ${c.flow>=0?"up":"down"}">${c.flow>=0?"+":""}${r1(c.flow)}%</span>`:""}`).join(" · ");
@@ -2312,10 +2309,9 @@ function openTimeline(tk){
   const hs = histStocks(s);
   if (!hs || hs.length < 2){ toast("아직 이력이 충분하지 않아요"); return; }
   const rows = hs.map(h => {
-    const sig = evaluate(h); // overheatOnly 포함
-    // 히스토리 대표 게이지는 최종 매수등급과 같은 두 전략(추세/반등)만 사용한다.
-    sig.historyScore = Math.max(sig.pullScore, sig.revScore);
-    return Object.assign({d:h.last_date}, sig);
+    // 과거 원시지표를 현재 산식으로 재평가한다. 히스토리 게이지는 변화칩과 같은 buyScore 기준.
+    const sig = evaluate(h);
+    return Object.assign({d:h.last_date, historyScore:sig.buyScore}, sig);
   });
   const vals = rows.map(r=>r.historyScore);
   const lo = Math.min(...vals, 0), hi = Math.max(...vals, 1);
@@ -2337,11 +2333,12 @@ function openTimeline(tk){
     <div class="tlsub">추세 ${r.pullScore} · 반등 ${r.revScore}</div>`;
   }).join("");
   openModal(`<h3>📈 ${esc(s.ticker)} 신호 히스토리</h3>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:9px">최근 ${rows.length}거래일</p>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:9px">최근 ${rows.length}거래일 · 매수강도 = 추세·반등 중 높은 쪽</p>
     <div class="tl">${body}</div>
     <p style="font-size:12px;color:var(--reason);line-height:1.75;margin-top:11px">
       점수가 <b>어느 방향으로 쌓여왔는지</b>를 보는 화면이에요. 오르는 중이면 신호가 만들어지는 과정,
-      떨어지는 중이면 식어가는 과정일 수 있습니다. 며칠치 흐름이라 그 자체로 매매 근거는 되지 않아요.</p>
+      떨어지는 중이면 식어가는 과정일 수 있습니다. 며칠치 흐름이라 그 자체로 매매 근거는 되지 않아요.<br><br>
+      <span style="color:var(--faint)">과거 원시지표를 <b>현재 산식으로 재평가</b>합니다. 산식이 바뀌면 과거 신호와 등급도 함께 바뀔 수 있어요.</span></p>
     <div class="modal-actions"><button class="primary" onclick="document.getElementById('modal').classList.remove('on')">닫기</button></div>`);
 }
 function openTrendModal(tk){
@@ -2364,9 +2361,12 @@ function openTrendModal(tk){
       <tr><th></th><th>어제</th><th>오늘</th><th>변화</th></tr>
       ${row("추세", prevSig.pullScore, curSig.pullScore)}
       ${row("반등", prevSig.revScore, curSig.revScore)}
+      ${row("매수강도", prevSig.buyScore, curSig.buyScore)}
     </table>
     <p style="font-size:13px;color:var(--reason);margin-top:12px;line-height:1.7">
       등급 <b>${gradeLabel(prevSig)}</b> → <b>${gradeLabel(curSig)}</b><br><br>
+      <b>매수강도</b>는 추세·반등 중 높은 쪽이며, 카드의 변화 칩이 보여주는 값입니다.
+      돌파 점수는 보조 뱃지 전용이라 여기에 포함되지 않습니다.<br><br>
       카드의 변화 칩과 신호 히스토리는 같은 고정 스냅샷 기준입니다.</p>
     <div class="modal-actions"><button class="primary" onclick="document.getElementById('modal').classList.remove('on')">닫기</button></div>`);
 }
@@ -2752,10 +2752,10 @@ function strategyValidation(){
   result._strict={};
   horizons.forEach(h=>{ result._strict[h]=stat(out.multi[h].filter(x=>x.tier===1)); });
 
-  // 공개 사례는 전체 승률 계산과 완전히 분리된 '최근 수익 사례 6건'이다.
+  // 공개 사례는 전체 승률 계산과 완전히 분리된 '전략별 수익 사례 TOP2'다. 최신순 목록이 아니다.
   // 후보는 ① 강한매수였던 사례 또는 ② 바로 전 거래일 중립 → 당일 매수관심으로 전환된 사례만 사용한다.
   // 그 후보 중 다중 → 추세 → 반등 순으로, 각 전략의 +3/+5거래일 성공(ret>1) 사례 수익률 TOP2를 표시한다.
-  // 신뢰도 표본/승률 계산에는 이 필터를 사용하지 않는다.
+  // 레버리지 ETF도 여기서만 제외한다. 신뢰도 표본/승률 계산에는 이 필터를 전혀 사용하지 않는다.
   const exampleTransitionOK=(x)=>{
     // strategyValidation()에서 이미 만든 정규화 히스토리를 사용한다.
     const pack=stockHist.get(x.ticker);
@@ -2830,49 +2830,20 @@ function validationBlock(){
       </div>`).join("")}
     </div>`;
   }).filter(Boolean).join("");
+  /* 이름 그대로 "전략별 수익 사례 TOP2"다. 최신순 목록이 아니라
+     검증 표본 중 수익률 상위만 골라 보여주는 예시 영역이다. 승률 통계와는 완전히 분리돼 있다. */
   const exampleBlock=exGroups ? `<details class="acc validation-examples" style="margin-top:8px" open>
-    <summary style="cursor:pointer"><b>📌 최근 수익 사례 6건</b></summary>
+    <summary style="cursor:pointer"><b>📌 전략별 수익 사례 TOP2</b></summary>
     <div style="margin:6px 0 2px;font-size:10.8px;color:var(--faint);line-height:1.7;font-weight:500">
       <span style="font-size:10.8px;font-weight:700;color:var(--buy)">강한매수</span> 신호 발생일 /
       <span style="font-size:10.8px;font-weight:500;color:var(--faint)">중립</span> →
       <span style="font-size:10.8px;font-weight:700;color:var(--buy)">매수관심</span> 전환일 종가기준 실제 사례
     </div>
     <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px">${exGroups}</div>
-    <div style="margin-top:7px;color:var(--faint);font-size:10.5px">실적 영향권 · 레버리지 ETF 제외</div>
+    <div style="margin-top:7px;color:var(--faint);font-size:10.5px">위 검증 표본 중 <b>수익률 상위</b>만 고른 예시입니다 · 실적 영향권 · 레버리지 ETF 제외<br>실패·보합 사례는 아래 통계에 모두 포함됩니다.</div>
   </details>` : "";
   const ex=v._excludedDetails||[];
   const exDetail=ex.length?`<details class="acc" style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:11px"><b>실적 영향권 표본 자동 제외 · ${v._excludedTickers.length}종목 · 자세히</b></summary><div class="strip" style="margin-top:6px">${ex.map(o=>`${esc(o.ticker)} · 신호일 ${esc(o.date)} · 실적 ${esc(o.event||"?")}${timingLabel(o.timing)?` · ${esc(timingLabel(o.timing))}`:""} · +${o.horizons.join("/+")} 제외`).join("<br>")}</div></details>`:"";
-
-  const ext=state.validation100;
-  if(ext && ext.strategies){
-    const S=ext.strategies;
-    const names={
-      multi:{label:"다중",icon:"🔵"},
-      trend:{label:"추세",icon:"📈"},
-      reversal:{label:"반등",icon:"🔄"}
-    };
-    const pctExt=x=>x==null?"—":`${Number(x).toFixed(1).replace(/\.0$/,"")}%`;
-    const avExt=x=>x==null?"—":`${x>=0?"+":""}${Number(x).toFixed(2)}%`;
-    const cell=(o)=>{
-      if(!o || !o.n) return `—<br><span style="font-size:10.5px;color:var(--faint)">표본 없음</span>`;
-      const up=Math.round((Number(o.win)||0)/o.n*100), flat=Math.round((Number(o.flat)||0)/o.n*100), down=Math.round((Number(o.loss)||0)/o.n*100);
-      return `<span class="vrate">${pctExt(o.directional_rate)}</span><br><span class="vavg">평균수익 ${avExt(o.avg_return)}</span><br><span class="vsplit"><span class="vup">상승 ${up}%</span> · <span class="vdown">하락 ${down}%</span></span><br><span class="vsplit vflat">보합 ${flat}% · 표본 ${o.n}건</span>`;
-    };
-    const row=k=>`<tr><td><b>${names[k].label}</b></td><td>${cell(S[k]&&S[k][1])}</td><td>${cell(S[k]&&S[k][3])}</td><td>${cell(S[k]&&S[k][5])}</td></tr>`;
-    const diagRows=["multi","trend","reversal"].flatMap(k=>[1,3,5].map(h=>{
-      const o=S[k]&&S[k][h]; if(!o) return null;
-      return `${names[k].icon} <b>${names[k].label} +${h}</b> · <b>최종 평가 ${o.n||0}건 (상승 ${o.win||0} / 보합 ${o.flat||0} / 하락 ${o.loss||0})</b>`;
-    })).filter(Boolean);
-    const diagDetail=`<details class="acc" style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:11px"><b>🔎 표본 구성 자세히</b></summary><div class="strip" style="margin-top:6px;line-height:1.9">${diagRows.join("<br>")}<div style="margin-top:5px;color:var(--faint);font-size:10.5px">실패·보합 표본도 최종 평가에 그대로 포함됩니다. ‘최근 수익 사례’ 3줄만 별도의 예시 영역입니다.</div></div></details>`;
-    return `<div class="section help-block"><h3 class="validation-title">🧪 신뢰도 검증 결과 <button type="button" class="validation-help-btn" onclick="openValidationIntro()" aria-label="신뢰도 검증 설명">?</button><span class="live-note">(표본 수급에 따라 실시간 변동)</span></h3>
-      <div style="margin:0 2px 7px;font-size:12px;font-weight:800;color:var(--ink)">종가에 매수했다면? <span style="font-weight:600;color:var(--muted)">· 상승 vs 하락 (보합 제외)</span></div>
-      <table class="cmp validation-cmp"><tr><th>구분</th><th colspan="3">상승이 하락을 이길 확률 <button type="button" class="validation-help-btn" onclick="openValidationHelp()" aria-label="승률 계산 설명">?</button><button type="button" class="bulbperf" onclick="openStrictMultiPerf()" title="강한 다중신호(💡)의 최근 성과 보기">강한 신호를 보고 투자했다면 💡</button></th></tr><tr><th>전략</th><th>+1거래일</th><th>+3거래일</th><th>+5거래일</th></tr>
-        ${row("multi")}${row("trend")}${row("reversal")}
-      </table>${exampleBlock}${diagDetail}${exDetail}
-      <div class="strip" style="margin-top:9px">
-        전략·기간별 최근 <b>유효 최대 100건</b>을 사용합니다. 실적 영향권 표본은 자동 제외합니다.</div>
-    </div>`;
-  }
 
   const cell=(o)=>{
     if(o.n===0) return `—<br><span style="font-size:10.5px;color:var(--faint)">표본 없음</span>`;
@@ -2887,13 +2858,14 @@ function validationBlock(){
     const fin=v[k][h]; const exn=(v._excluded&&v._excluded[k]&&v._excluded[k][h])||0;
     return `${diagIcon[k]} <b>${diagLabel[k]} +${h}</b> · 전체 후보 ${d.candidate}건 · 아직 +${h} 미도래 ${d.pending}건 · 실적 제외 ${exn}건 · <b>최종 평가 ${fin.n}건 (상승 ${fin.wins||0} / 보합 ${fin.flats||0} / 하락 ${fin.losses||0})</b>`;
   }));
-  const diagDetail=`<details class="acc" style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:11px"><b>🔎 표본 구성 자세히</b></summary><div class="strip" style="margin-top:6px;line-height:1.9">${diagRows.join("<br>")}<div style="margin-top:5px;color:var(--faint);font-size:10.5px">실패·보합 표본도 최종 평가에 그대로 포함됩니다. ‘최근 수익 사례’ 3줄만 별도의 예시 영역입니다.</div></div></details>`;
-  return `<div class="section help-block"><h3 class="validation-title">🧪 신뢰도 검증 결과 <button type="button" class="validation-help-btn" onclick="openValidationIntro()" aria-label="신뢰도 검증 설명">?</button><span class="live-note">(표본 수급에 따라 실시간 변동)</span></h3>
+  const diagDetail=`<details class="acc" style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:11px"><b>🔎 표본 구성 자세히</b></summary><div class="strip" style="margin-top:6px;line-height:1.9">${diagRows.join("<br>")}<div style="margin-top:5px;color:var(--faint);font-size:10.5px">실패·보합 표본도 최종 평가에 그대로 포함됩니다. ‘전략별 수익 사례’만 별도의 예시 영역입니다.</div></div></details>`;
+  return `<div class="section help-block"><h3 class="validation-title">🧪 최근 10거래일 현재 산식 재검증 <button type="button" class="validation-help-btn" onclick="openValidationIntro()" aria-label="신뢰도 검증 설명">?</button><span class="live-note">(표본 수급에 따라 실시간 변동)</span></h3>
     <div style="margin:0 2px 7px;font-size:12px;font-weight:800;color:var(--ink)">종가에 매수했다면? <span style="font-weight:600;color:var(--muted)">· 상승 vs 하락 (보합 제외)</span></div>
     <table class="cmp validation-cmp"><tr><th>구분</th><th colspan="3">상승이 하락을 이길 확률 <button type="button" class="validation-help-btn" onclick="openValidationHelp()" aria-label="승률 계산 설명">?</button><button type="button" class="bulbperf" onclick="openStrictMultiPerf()" title="강한 다중신호(💡)의 최근 성과 보기">강한 신호를 보고 투자했다면 💡</button></th></tr><tr><th>전략</th><th>+1거래일</th><th>+3거래일</th><th>+5거래일</th></tr>
       ${row("multi")}${row("pull")}${row("rev")}
     </table>${exampleBlock}${diagDetail}${exDetail}
     <div class="strip" style="margin-top:9px">
+      <b>과거 원시지표를 현재 산식으로 재평가한 결과입니다.</b> 산식이 바뀌면 과거 신호와 검증 결과도 함께 바뀔 수 있습니다.<br>
       카드 데이터는 최근 <b>10거래일</b>을 사용하므로 아직 표본이 짧습니다. 장기 승률처럼 해석하지 않습니다.</div>
   </div>`;
 }
@@ -2927,7 +2899,8 @@ function renderHelp(){
       </table>
     </div>
     <div class="strategy-mini-note"><b>승률</b> = 상승 ÷ (상승+하락), 보합 제외 · <b>수익률</b> = 신호 이후 실제 가격 변동폭의 평균<br>
-      단기는 실제 운영 이후 전향검증, +20일은 현재 산식을 과거 데이터에 소급 적용한 테스트 결과로 <b>표본이 쌓이면 결과가 달라질 수 있습니다.</b></div>
+      단기(+1·3·5일)와 +20일 모두 <b>과거 원시지표를 현재 산식으로 재평가</b>한 결과입니다.
+      산식이 바뀌거나 표본이 쌓이면 <b>결과가 달라질 수 있습니다.</b></div>
     <table class="cmp market-guide">
       <tr><th>시장 상황</th><th>우선 참고 전략</th><th>해석</th></tr>
       <tr><td><b>상승추세·숨고르기</b></td><td>📈 추세</td><td>추격보다 되돌림 진입</td></tr>
@@ -3045,8 +3018,8 @@ const FALLBACK_URLS = [
   ];
 let bootLog = [];
 
-async function fetchValidation100(signalsUrl){ state.validation100=null; return false; }
-
+/* 신뢰도 검증은 signals.json의 frozen hist만 사용한다.
+   외부 validation100_summary.json을 읽던 경로는 제거했다. */
 async function fetchData(url, silent){
   try{
     const r = await fetch(url + (url.includes("?")?"&":"?") + "_=" + Date.now(), {cache:"no-store"});
@@ -3054,8 +3027,6 @@ async function fetchData(url, silent){
     const json = await r.json();
     state.data = normalize(json);
     save();
-    // 공개 신뢰도는 validation100_summary.json을 사용하지 않고 현재 history 기반 strategyValidation()만 사용
-    state.validation100 = null;
     render();
     if (!silent) toast(`최신 데이터 ${state.data.stocks.length}종목 · ${state.data.generated_at}`);
     return true;
@@ -3181,10 +3152,17 @@ function explainStyle(kind){
       : `하락 또는 바닥권에 있는 종목에서 <b>과매도 완화 · 지지 회복 · 모멘텀 전환</b>을 확인한 단기 반등 구간의 좋은 진입 타이밍입니다.`}</p>` + close);
 }
 function openValidationIntro(){
-  openModal(`<h3>신뢰도 검증 결과</h3>
+  openModal(`<h3>최근 10거래일 현재 산식 재검증</h3>
     <p style="font-size:13px;color:var(--reason);line-height:1.8">
       매수 신호가 뜬 날 종가에 샀다고 가정하고, <b>1·3·5거래일 뒤 종가</b>를 확인한 결과입니다.<br><br>
-      다중·추세·반등 신호가 발생하고 <b>매수관심 또는 강한매수 수준 이상</b>이 나온 경우만 검증 대상에 포함합니다.
+      다중·추세·반등 신호가 발생하고 <b>매수관심 또는 강한매수 수준 이상</b>이 나온 경우만 검증 대상에 포함합니다.<br><br>
+      <b>어떻게 계산하나요</b><br>
+      그날 저장해 둔 <b>원시지표</b>(가격·이동평균·RSI·MACD·거래량 등)를 <b>지금 쓰는 산식으로 다시 채점</b>해서
+      당시 신호를 복원합니다. 과거 등급을 그대로 얼려두는 방식이 아닙니다.<br><br>
+      따라서 <b>산식이 바뀌면 과거 신호와 검증 결과도 함께 바뀝니다.</b>
+      예전에 강한매수였던 날이 현재 기준으로 중립이 되는 것은 정상 동작입니다.<br><br>
+      ‘실제 운영 이후 전향검증(forward test)’이 아니라 <b>현재 산식 기준의 재검증</b>이라는 점을 감안해서 보세요.
+      성공·보합·실패 표본은 전부 그대로 공개합니다.
     </p>
     <div class="modal-actions"><button class="primary" onclick="closeModal()">닫기</button></div>`);
 }
@@ -3255,7 +3233,10 @@ function openValidationHelp(){
       보합은 승률 계산에서 제외합니다.<br><br>
       · 상승: <b>+1% 초과</b><br>
       · 보합: <b>-1%~+1%</b><br>
-      · 하락: <b>-1% 미만</b>
+      · 하락: <b>-1% 미만</b><br><br>
+      <span style="color:var(--faint)">±1%를 보합으로 빼두는 이유는 일봉 노이즈 때문입니다.
+      ‘0% 초과면 성공’으로 계산하는 방식과는 다른 지표이니, 다른 곳의 승률과 직접 비교하지 마세요.
+      보합 표본 수도 표에 함께 공개합니다.</span>
     </p>
     <div class="modal-actions"><button class="primary" onclick="closeModal()">닫기</button></div>`);
 }
@@ -3403,20 +3384,17 @@ function themeBestSort(category){
   const multi=currentMultiRanked().filter(s=>peerSet.has(s.ticker));
   if(multi.length) return {sort:"signal",label:"다중 신호순"};
 
-  // 목적지 판정도 카드/다중과 같은 축 순위를 쓴다.
-  const rankMap=(key,tieBreaker=null)=>{
-    const rm=competitionRank(universe,key,tieBreaker).rankMap;
-    return new Map(Object.entries(rm));
-  };
-  const resTie=(x,y)=>rankResGap(y)-rankResGap(x);
+  // 목적지 판정도 카드/다중과 완전히 같은 rankMap을 쓴다.
+  const R=rankMapsFor(universe);
   const axes=[
-    {sort:"pull",label:"추세순",m:rankMap(s=>s.sig.pullScore,resTie)},
-    {sort:"reversal",label:"반등순",m:rankMap(s=>s.sig.revScore,resTie)},
-    {sort:"volume",label:"거래량순",m:rankMap(s=>has(s.vol_ratio)?s.vol_ratio:-1)}
+    {sort:"pull",label:"추세순",m:R.pull},
+    {sort:"reversal",label:"반등순",m:R.rev},
+    {sort:"volume",label:"거래량순",m:R.vol}
   ];
   axes.forEach(a=>{
-    a.best=Math.min(...peers.map(s=>a.m.get(s.ticker)??9999));
-    a.avg=peers.reduce((sum,s)=>sum+(a.m.get(s.ticker)??universe.length+1),0)/peers.length;
+    const rs=peers.map(s=>rankOf(a.m,s.ticker));
+    a.best=Math.min(...rs);
+    a.avg=rs.reduce((sum,x)=>sum+x,0)/rs.length;
   });
   axes.sort((a,b)=>a.best-b.best || a.avg-b.avg || ({pull:0,reversal:1,volume:2}[a.sort]-({pull:0,reversal:1,volume:2}[b.sort])));
   return axes[0] || {sort:"category",label:"테마별"};
@@ -3434,18 +3412,23 @@ function searchBestDestination(s){
   const mi=multi.findIndex(x=>x.ticker===s.ticker);
   if(mi>=0) return {sort:"signal",label:`다중신호 ${multi[mi]._multiRankNo||(mi+1)}위`};
 
-  // 다중신호가 없으면 추세·반등·거래량·해당 테마에서의 "상대 순위"를 비교한다.
-  const ranked=(arr,key)=>arr.slice().sort((a,b)=>key(b)-key(a));
+  /* 다중신호가 없으면 추세·반등·거래량·해당 테마에서의 "상대 순위"를 비교한다.
+     여기서 보여주는 "○위"는 카드에 찍힌 숫자와 반드시 같아야 하므로
+     전역 rankMap을 그대로 읽는다. 목록을 다시 정렬해 순번을 세지 않는다. */
+  const R=rankMapsFor(universe);
   const choice=[];
-  const add=(sort,label,arr)=>{
-    const i=arr.findIndex(x=>x.ticker===s.ticker); if(i<0||!arr.length) return;
-    choice.push({sort,label:`${label} ${i+1}위`,rank:i+1,n:arr.length,ratio:(i+1)/arr.length});
+  const addByMap=(sort,label,map,n)=>{
+    const r=rankOf(map,s.ticker); if(r>=RANK_NONE || !n) return;
+    choice.push({sort,label:`${label} ${r}위`,rank:r,n,ratio:r/n});
   };
-  add("pull","추세",ranked(universe,x=>x.sig.pullScore));
-  add("reversal","반등",ranked(universe,x=>x.sig.revScore));
-  add("volume","거래량",ranked(universe,x=>has(x.vol_ratio)?x.vol_ratio:-1));
-  const peers=universe.filter(x=>(x.category||"기타")===(s.category||"기타"));
-  add("category",s.category||"테마",overallRanked(peers));
+  const volN=universe.filter(x=>has(x.vol_ratio)).length;
+  addByMap("pull","추세",R.pull,universe.length);
+  addByMap("reversal","반등",R.rev,universe.length);
+  addByMap("volume","거래량",R.vol,volN);
+  const peers=overallRanked(universe.filter(x=>(x.category||"기타")===(s.category||"기타")));
+  const pi=peers.findIndex(x=>x.ticker===s.ticker);
+  if(pi>=0) choice.push({sort:"category",label:`${s.category||"테마"} ${pi+1}위`,
+                         rank:pi+1,n:peers.length,ratio:(pi+1)/peers.length});
   choice.sort((a,b)=>a.ratio-b.ratio || a.rank-b.rank || ({pull:0,reversal:1,volume:2,category:3}[a.sort]??9)-({pull:0,reversal:1,volume:2,category:3}[b.sort]??9));
   return choice[0] || {sort:"pull",label:"추세"};
 }
