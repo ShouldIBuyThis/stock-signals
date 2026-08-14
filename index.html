@@ -3463,7 +3463,9 @@ qEl.addEventListener("input", runSearch);
 qEl.addEventListener("focus", runSearch);
 qRes.addEventListener("click", e=>{
   const b = e.target.closest("[data-goto]");
-  if (b){ e.stopPropagation(); gotoStock(b.dataset.goto); }
+  // 검색창 결과는 항상 글로벌 종합순의 해당 종목 위치로 이동한다.
+  // 다중신호 랭킹 클릭만 별도로 signal 목적지를 넘기므로 이 규칙과 충돌하지 않는다.
+  if (b){ e.stopPropagation(); gotoStock(b.dataset.goto, "overall"); }
 });
 document.addEventListener("click", e=>{ if(!e.target.closest(".search")) qRes.classList.add("hidden"); });
 
