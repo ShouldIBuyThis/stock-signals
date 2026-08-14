@@ -601,6 +601,10 @@ html[data-theme="dark"] .bub.care .bub-h{color:#f0a95a}
   font-size:12px;font-weight:700;text-decoration:underline dotted;cursor:pointer;padding:0}
 html[data-theme="dark"] .linkbtn{color:#8fb4ff}
 .basis{margin-left:auto;font-size:10.5px;color:var(--faint);font-weight:600;white-space:nowrap;padding-left:8px}
+.basis-event{border:0;background:none;padding:0 0 0 7px;margin:0;color:var(--faint);font:inherit;font-size:inherit;font-weight:600;cursor:pointer;white-space:nowrap}
+.basis-event.on{color:#a9570c;font-weight:850}
+html[data-theme="dark"] .basis-event.on{color:#f0a95a}
+.basis-event:hover{text-decoration:underline;text-underline-offset:2px}
 @media (max-width:640px){ /* 모바일에선 기준일을 아랫줄로 내려 제목이 안 깨지게 */
   .section-h{flex-wrap:wrap}
   .basis{flex:1 0 100%;margin-left:0;padding-left:0;margin-top:1px;text-align:right;font-size:10px}
@@ -650,16 +654,20 @@ html[data-theme="dark"] .mkswitch button.on{background:#37456a;box-shadow:none}
 .risk-ticker{border-bottom:1px dotted currentColor;cursor:pointer}
 .risk-note{margin-top:7px;padding:8px 10px;border:1px dashed var(--line);border-radius:9px;font-size:11px;line-height:1.55;color:var(--reason);background:var(--surface2)}
 /* QQQ 시장 기준카드 + 시장이벤트 경고. 랭킹/점수 산식과 무관한 표시 전용 */
-.market-bench{margin:0 0 12px;padding:12px 13px;border:1px solid var(--line);border-radius:14px;background:var(--surface);box-shadow:var(--shadow)}
+.market-bench{margin:0 0 12px;padding:0;border:1px solid var(--line);border-radius:14px;background:var(--surface);box-shadow:var(--shadow);overflow:hidden}
+.market-bench>summary{list-style:none;display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:11px 13px;cursor:pointer;user-select:none}
+.market-bench>summary::-webkit-details-marker{display:none}
+.market-bench>summary::after{content:"펼치기 ▾";margin-left:auto;font-size:10.5px;font-weight:800;color:var(--muted)}
+.market-bench[open]>summary::after{content:"접기 ▴"}
+.market-bench-body{padding:0 13px 12px;border-top:1px dashed var(--line)}
 .market-bench-h{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:6px}
 .market-bench-h b{font-size:14px}.market-bench-h .sub{font-size:10.5px;color:var(--muted)}
+.market-bench-summary-main{font-size:11.5px;color:var(--reason);font-weight:750}
 .market-bench-main{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:12px;color:var(--reason)}
 .market-bench-main .score{font-weight:900;color:var(--ink)}
 .market-bench-reason{margin-top:5px;font-size:11.5px;line-height:1.55;color:var(--reason)}
 .market-bench-actions{margin-top:7px}
 .market-bench-actions button{border:1px solid var(--line);background:var(--surface2);color:var(--ink);border-radius:999px;padding:4px 9px;font-size:10.5px;font-weight:800;cursor:pointer}
-.market-event-warn{margin-top:7px;padding:7px 9px;border:1px dashed rgba(240,135,43,.45);border-radius:9px;background:rgba(240,135,43,.08);color:#a9570c;font-size:10.8px;font-weight:750;line-height:1.55}
-html[data-theme="dark"] .market-event-warn{color:#f0a95a;background:rgba(240,135,43,.10)}
 .tl-event{font-weight:800;color:#a9570c}html[data-theme="dark"] .tl-event{color:#f0a95a}
 
 /* 엄격 다중 — 시계방향으로 도는 황금 광택 테두리.
@@ -1822,13 +1830,6 @@ function marketEventsForRow(s){
 function marketEventTypes(events){
   return [...new Set(marketEventItems(events).map(x=>String(x.type||x.name||"시장 이벤트").trim()).filter(Boolean))];
 }
-function marketEventWarnHtml(s, compact=false){
-  const types=marketEventTypes(marketEventsForRow(s));
-  if(!types.length) return "";
-  const t=types.join(" · ");
-  if(compact) return ` · ⚠ ${esc(t)} 시장이벤트`;
-  return `<div class="market-event-warn">⚠ <b>${esc(t)}</b> 시장 이벤트일 · 기술적 신호가 평소보다 빗나갈 수 있어요. <b>점수·랭킹은 그대로</b> 두고 경고만 표시합니다.</div>`;
-}
 /* QQQ는 랭킹 유니버스 밖의 시장 기준카드다. evaluate()는 그대로 쓰되 자기 자신에 QQQ 시장필터는 적용하지 않는다. */
 function qqqBenchmarkStock(){
   const r=state.data&&state.data.qqq_card; if(!r) return null;
@@ -1862,29 +1863,30 @@ function marketBar(){
   const levelLabel={strong:"강세",neutral:"중립",caution:"주의",weak:"약세"}[mk.level]||"중립";
   const s=qqqBenchmarkStock();
 
-  /* 새 main.py가 아직 한 번도 실행되지 않아 signals.json에 qqq_card가 없는 경우에도
-     시장 기준 카드의 위치 자체는 숨기지 않는다. 시장 국면은 기존 market 데이터로 보여주고,
-     기술점수는 다음 데이터 갱신 뒤 자동으로 채워진다. */
+  /* 기본은 접힌 상태. 테마 흐름 맨 아래에서 요약 한 줄만 보여주고 사용자가 눌렀을 때 상세를 연다. */
   if(!s){
     const px=has(mk.price)?` · $${Number(mk.price).toFixed(2)}`:"";
     const r20=has(mk.ret20)?` · 20일 ${Number(mk.ret20)>=0?"+":""}${Number(mk.ret20).toFixed(1)}%`:"";
-    return `<div class="market-bench">
-      <div class="market-bench-h"><b>🌐 QQQ · 나스닥100 시장 기준</b><span class="sub">랭킹 제외</span></div>
-      <div class="market-bench-main"><span>시장국면 <b>${esc(levelLabel)}</b>${px}${r20}</span></div>
-      <div class="market-bench-reason">QQQ 기술점수 준비 중 · 새 main.py 데이터 갱신 후 추세·반등·매수강도가 자동 표시됩니다.</div>
-    </div>`;
+    return `<details class="market-bench">
+      <summary><b>🌐 QQQ · 나스닥100 시장 기준</b><span class="market-bench-summary-main">시장국면 ${esc(levelLabel)}${px}${r20}</span></summary>
+      <div class="market-bench-body">
+        <div class="market-bench-main" style="margin-top:10px"><span>시장국면 <b>${esc(levelLabel)}</b>${px}${r20}</span></div>
+        <div class="market-bench-reason">QQQ 기술점수 준비 중 · 새 main.py 데이터 갱신 후 추세·반등·매수강도가 자동 표시됩니다.</div>
+      </div>
+    </details>`;
   }
 
   const histBtn=(s._hist&&s._hist.length>=2)?`<button data-timeline="QQQ">📈 QQQ 신호 히스토리</button>`:"";
-  return `<div class="market-bench">
-    <div class="market-bench-h"><b>🌐 QQQ · 나스닥100 시장 기준</b><span class="sub">랭킹 제외 · QQQ 시장필터 자기적용 없음</span></div>
-    <div class="market-bench-main"><span class="badge ${gradeCls(s.sig)}">${gradeLabel(s.sig)}</span><span class="score">매수강도 ${r1(s.sig.buyScore)}</span><span>추세 ${r1(s.sig.pullScore)} · 반등 ${r1(s.sig.revScore)}</span><span>시장국면 ${esc(levelLabel)}</span></div>
-    <div class="market-bench-reason">${esc(s.sig.line)}${s.last_date?` · ${esc(closeDateLabel(s.last_date))}`:""}</div>
-    ${marketEventWarnHtml(s)}
-    ${histBtn?`<div class="market-bench-actions">${histBtn}</div>`:""}
-  </div>`;
+  return `<details class="market-bench">
+    <summary><b>🌐 QQQ · 나스닥100 시장 기준</b><span class="badge ${gradeCls(s.sig)}">${gradeLabel(s.sig)}</span><span class="market-bench-summary-main">매수강도 ${r1(s.sig.buyScore)} · 시장 ${esc(levelLabel)}</span></summary>
+    <div class="market-bench-body">
+      <div class="market-bench-h" style="margin-top:10px"><span class="sub">QQQ 시장필터 자기적용 없음</span></div>
+      <div class="market-bench-main"><span class="badge ${gradeCls(s.sig)}">${gradeLabel(s.sig)}</span><span class="score">매수강도 ${r1(s.sig.buyScore)}</span><span>추세 ${r1(s.sig.pullScore)} · 반등 ${r1(s.sig.revScore)}</span><span>시장국면 ${esc(levelLabel)}</span></div>
+      <div class="market-bench-reason">${esc(s.sig.line)}${s.last_date?` · ${esc(closeDateLabel(s.last_date))}`:""}</div>
+      ${histBtn?`<div class="market-bench-actions">${histBtn}</div>`:""}
+    </div>
+  </details>`;
 }
-
 function isoAddDays(iso,n){
   const d=new Date(iso+"T12:00:00Z"); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10);
 }
@@ -2190,7 +2192,7 @@ function compactRow(s, i, rankless=false){
       <span class="c-price num">${fmtPrice(s)}<em class="${chgCls(s.change_1d)}">${fmtChg(s.change_1d)}</em></span>
       <span class="c-flag">${key?`<span class="tag ${key.c}">${key.t.replace(/\(.*\)/,"")}</span>`:""}</span>
     </span>
-    <span class="c-reason">${esc(s.earnings_hold ? (s.earnings_hold_reason||"실적 이벤트 영향권 — 기술등급 보류") : s.sig.line)}${s.earnings_hold?"":marketEventWarnHtml(s,true)}</span>
+    <span class="c-reason">${esc(s.earnings_hold ? (s.earnings_hold_reason||"실적 이벤트 영향권 — 기술등급 보류") : s.sig.line)}</span>
   </button>`;
 }
 
@@ -2206,7 +2208,34 @@ function basisNote(){
   let txt = "";
   if (us && kr && us !== kr) txt = `미국 ${md(us)} · 한국 ${md(kr)} 종가 기준`;
   else if (us || kr)         txt = `${md(us||kr)} 종가 기준`;
-  return txt ? `<span class="basis">${esc(txt)}</span>` : "";
+  if(!txt) return "";
+  const events=us ? marketEventsOnDate(us) : [];
+  const warn=marketEventTypes(events).length>0;
+  const eventBtn=us ? `<button type="button" class="basis-event ${warn?"on":""}" data-market-event="${esc(us)}">${warn?"⚠ ":""}시장 이벤트</button>` : "";
+  return `<span class="basis">${esc(txt)}${eventBtn}</span>`;
+}
+
+function openMarketEventModal(date){
+  const events=marketEventsOnDate(date);
+  const types=marketEventTypes(events);
+  const p=String(date||"").split("-");
+  const md=p.length===3?`${+p[1]}/${+p[2]}`:String(date||"");
+  const cal=(state.data&&state.data.calendar_status)||{};
+  const close=`<div class="modal-actions"><button class="primary" onclick="closeModal()">닫기</button></div>`;
+  if(!types.length){
+    const failed=cal.economic_events_ok===false;
+    openModal(`<h3>🗓️ 시장 이벤트</h3>
+      <p style="font-size:13px;color:var(--reason);line-height:1.8"><b>미국 ${esc(md)} 종가 기준</b><br><br>${failed?"주요 경제 이벤트 캘린더를 정상 확인하지 못했어요. 기술적 신호만 보고 판단하지 말고 외부 일정을 한 번 더 확인해 주세요.":"현재 수집된 주요 시장 이벤트 경고가 없어요."}</p>${close}`);
+    return;
+  }
+  const rows=events.map(ev=>{
+    const type=String(ev.type||"시장 이벤트");
+    const name=String(ev.name||type);
+    return `<div class="help-card" style="margin-top:7px"><b>⚠ ${esc(type)}</b>${name&&name!==type?`<br><span style="font-size:11.5px;color:var(--muted)">${esc(name)}</span>`:""}</div>`;
+  }).join("");
+  openModal(`<h3>⚠ 시장 이벤트</h3>
+    <p style="font-size:13px;color:var(--reason);line-height:1.8"><b>미국 ${esc(md)} 종가 기준</b> · ${esc(types.join(" · "))}<br><br>FOMC·CPI·PCE·주요 고용지표 같은 시장 이벤트일에는 변동성이 커져 <b>기술적 신호가 평소보다 빗나갈 수 있어요.</b><br>점수·등급·랭킹은 바꾸지 않고 경고만 표시합니다.</p>
+    ${rows}${close}`);
 }
 const badgeKey = t => String(t).replace(/\(오늘[^)]*\)/,"").replace(/[\d.]+배/,"").replace(/—.*$/,"").trim();
 const BADGE_STRONG_BUY = "🔥 강한매수";
@@ -2618,7 +2647,6 @@ function stockCard(s, i, rankless=false){
       <span class="badge ${stockGradeCls(s)}">${stockGradeLabel(s)}</span>${s.earnings_hold?"":trendChip(s)}
     </div>
     <div class="s-reason">${esc(s.earnings_hold ? (s.earnings_hold_reason||"실적 이벤트 영향권 — 기술등급 보류") : s.sig.line)}</div>
-    ${s.earnings_hold?"":marketEventWarnHtml(s)}
     <div class="tags">${tags}</div>
     ${rankLine}
     ${timelineCta}${detail}${expandBtn}
@@ -3761,6 +3789,8 @@ document.getElementById("main").addEventListener("click", e=>{
     e.preventDefault(); e.stopPropagation();
     state.themeFilter=""; state.displayLimit=20; save(); render(); return;
   }
+  const marketEventBtn = e.target.closest("[data-market-event]");
+  if(marketEventBtn){ e.preventDefault(); e.stopPropagation(); openMarketEventModal(marketEventBtn.dataset.marketEvent); return; }
   const rankGoto = e.target.closest("[data-rankgoto]");
   if (rankGoto){
     gotoStock(rankGoto.dataset.rankgoto, rankGoto.dataset.rankSort || "overall");
