@@ -268,7 +268,12 @@ def fetch_event_calendars(now_kst, wanted_tickers):
         print("이벤트 캘린더:", status["error"])
 
     # 전체 캘린더에서 빠졌거나 timing UNKNOWN인 관심종목만 보강.
-    fallback_targets=[tk for tk in sorted(wanted) if tk not in out_earn or out_earn[tk].get("timing")=="UNKNOWN"]
+    fallback_targets=[tk for tk in sorted(wanted)
+                      if tk not in NO_EARNINGS_TICKERS
+                      and (tk not in out_earn or out_earn[tk].get("timing")=="UNKNOWN")]
+    skipped_etf = sum(1 for tk in wanted if tk in NO_EARNINGS_TICKERS)
+    if skipped_etf:
+        print(f"어닝 캘린더: ETF·지수 {skipped_etf}종목은 실적 조회 생략")
     for tk in fallback_targets:
         status["fallback_attempted"] += 1
         before=out_earn.get(tk)
@@ -429,6 +434,14 @@ WATCHLIST = {
 
 # ── 레버리지(배수) 상품 — 대시보드에서 ❗ 경고 표시 ──────────
 LEVERAGED = {"SOXL", "GDXU", "NAIL"}
+
+# ── 기업 실적발표가 없는 상품(ETF·지수) ────────────────────
+# 실적 조회를 시도해도 404만 돌아오고 응답 대기시간만 낭비한다.
+# 신호 산식·frozen history·검증 표본에는 아무 영향이 없다. 조회를 건너뛸 뿐이다.
+NO_EARNINGS_TICKERS = {
+    "SOXL", "GDXU", "GLD", "USO", "ITB", "NAIL",
+    "069500.KS", "229200.KS",
+}
 
 # ── 시장 필터 기준 지수 (QQQ만) ────────────────────────────
 MARKET_TICKER = "QQQ"
