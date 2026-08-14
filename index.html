@@ -1548,17 +1548,49 @@ function visible(){
    눌림·반등 점수가 0.1 단위라 상위권 동점이 많아 "TOP5"가 실질 8~10종목이 되면서
    엄격 다중의 선별력이 사라졌다. 그래서 서수로 되돌렸다.
    동점은 티커 알파벳순으로 가른다 — 자의적이지만 실행마다 동일하고 재현 가능하다. */
-function competitionRank(list, key){
+/* 순위는 공동순위가 아닌 서수(1,2,3...)를 유지한다.
+   다만 같은 눌림/반등 점수라면 티커 알파벳이 아니라 단기 저항까지 남은 상승여유(res_short)를
+   금융적 tie-break로 사용한다. 거래량축은 raw vol_ratio만 쓰고 완전 동점이면 입력 순서를 유지한다. */
+function rankResGap(s){
+  const p=s&&s.price;
+  if(!s || !has(s.res_short) || !has(p) || !p) return Infinity; // 위 저항 없음 = 가장 여유 큼
+  return (s.res_short/p-1)*100;
+}
+function competitionRank(list, key, tieBreaker=null){
   const q=v=>Math.round((Number(v)||0)*1e6)/1e6;
-  const ordered=(list||[]).slice()
-    .sort((x,y)=>q(key(y))-q(key(x)) || x.ticker.localeCompare(y.ticker));
+  const ordered=(list||[]).slice().sort((x,y)=>{
+    const d=q(key(y))-q(key(x));
+    if(d) return d;
+    return tieBreaker ? (tieBreaker(x,y)||0) : 0; // JS 안정 정렬: 완전 동점은 입력 순서 유지
+  });
   const rankMap={};
   ordered.forEach((s,i)=>{ rankMap[s.ticker]=i+1; });
   return {ordered, rankMap};
 }
-function strategyRankOf(kind){
+/* 추세/반등 축은 해당 전략의 매수신호(강한매수·매수관심)를 중립/매도보다 먼저 둔다.
+   그 안에서 raw 전략점수 → res_short 상승여유 순으로 서수를 매긴다.
+   이 함수는 화면 순위와 다중 내부 축 순위가 같은 기준을 쓰도록 공용으로 사용한다. */
+function strategyOrdinalRank(list, kind){
   const isPull = kind==="pull";
-  return competitionRank(signalUniverse(), s=>isPull?s.sig.pullScore:s.sig.revScore);
+  const q=v=>Math.round((Number(v)||0)*1e6)/1e6;
+  /* 화면용 추세/반등 순위만 해당 전략 매수신호를 우선한다.
+     동점에서 res_short를 넣으면 순번이 크게 재배치될 수 있어 제거하고,
+     완전 동점은 기존 입력 순서를 유지한다(stable sort). */
+  const ordered=(list||[]).slice().sort((x,y)=>{
+    const gx=(isPull?x.sig.pullGrade:x.sig.revGrade)>=4 ? 1 : 0;
+    const gy=(isPull?y.sig.pullGrade:y.sig.revGrade)>=4 ? 1 : 0;
+    if(gy!==gx) return gy-gx;
+    const sx=q(isPull?x.sig.pullScore:x.sig.revScore);
+    const sy=q(isPull?y.sig.pullScore:y.sig.revScore);
+    if(sy!==sx) return sy-sx;
+    return 0;
+  });
+  const rankMap={};
+  ordered.forEach((s,i)=>{ rankMap[s.ticker]=i+1; });
+  return {ordered,rankMap};
+}
+function strategyRankOf(kind){
+  return strategyOrdinalRank(signalUniverse(), kind);
 }
 function volumeRankOf(){
   return competitionRank(signalUniverse().filter(s=>has(s.vol_ratio)), s=>s.vol_ratio);
@@ -1608,11 +1640,9 @@ function currentMultiRanked(){
    그 안에서는 raw score 순으로 정렬한다. 비신호 종목은 그 뒤에 raw score 순으로 이어진다.
    따라서 메인 위젯도 이 순위표 숫자를 그대로 표시하므로 상세카드 배지와 항상 같고,
    해당 기법 신호가 아닌 종목도 — 대신 실제 숫자 순위가 표시된다. */
-/* tie-break를 multiSignalRank() 내부 rank()와 글자 그대로 맞춘다: 점수 내림차순 → 티커.
-   등락률을 끼워 넣으면 동점 그룹의 순서가 달라져, 다중이 판정에 쓴 눌림/반등 순위와
-   카드에 찍히는 "📈 추세 N위 / 🔄 반등 N위"가 서로 다른 숫자가 된다.
-   grade>=4 우선 묶음도 뺐다. pullGrade/revGrade가 점수 컷의 단조 함수라 결과는 같고
-   tie-break만 어긋나게 만들던 원인이다. */
+/* 카드/위젯/다중 내부 축이 모두 strategyOrdinalRank()를 공유한다.
+   따라서 해당 전략 강한매수·매수관심이 중립보다 뒤로 밀리지 않고,
+   화면에 찍힌 추세/반등 순위와 다중 판정에 사용한 순위도 일치한다. */
 function currentStrategyRanked(kind){ return strategyRankOf(kind).ordered; }
 function currentStrategySignalRanked(kind){
   const isPull = kind==="pull";
@@ -1782,38 +1812,31 @@ function earningsHoldSection(title="실적발표 보류"){
 /* 다중 신호: 눌림·반등 핵심 2축 + 거래량 보조축. 엄격 TOP5 티어를 먼저, 일반 TOP10 티어를 그 다음에 잇는다. */
 function multiSignalRank(list){
   if(!list.length) return [];
-  const eligible=list.filter(s=>s.sig.grade>=4); // 강한매수/매수관심만
+  const eligible=list.filter(s=>s.sig.grade>=4); // 최종 강한매수/매수관심만 후보
   if(!eligible.length) return [];
 
-  // 축 순위는 카드 배지·메인 위젯과 완전히 같은 competitionRank()를 쓴다.
-  const rank=(key)=>competitionRank(list, key).rankMap;
-
-  /* 다중의 거래량축은 "긍정적 거래량"만 인정한다.
-     양봉·보합(change_1d >= 0)에서 늘어난 거래량만 축으로 세고, 음봉 대량거래는 제외한다.
-     급락+대량거래는 여기서 칭찬할 일이 아니라 반등점수의 공포투매 가점으로 이미 반영되고,
-     음봉 저거래량 눌림도 눌림점수에서 이미 평가된다.
-     evaluate()의 거래량 가감점은 손대지 않는다. 다중에서 raw 거래량을 독립축으로
-     한 번 더 볼 때만 방향을 맞추는 패치다. */
-  const multiVolEligible = s => has(s.vol_ratio) && has(s.change_1d) && Number(s.change_1d) >= 0;
-  /* 저항까지 남은 여유(%). 위에 저항이 없으면(신고가권) 가장 유리한 것으로 본다.
-     res_short는 과거 hist에도 저장돼 있어 화면과 과거 검증이 같은 값으로 굴러간다.
-     sup_short는 hist에 없으므로 지지선은 tie-break에 쓰지 않는다. */
-  const resGap=s=>{
-    const p=s.price;
-    if(!has(s.res_short) || !has(p) || !p) return Infinity;
-    return (s.res_short/p-1)*100;
+  /* 다중 판정은 B(TOP7) + raw 3축을 그대로 유지한다.
+     순위 변경은 'raw 점수가 완전히 같은 경우'에만 해당 전략 grade를 tie-break로 사용한다.
+     그마저 같으면 기존 B 계열처럼 ticker를 최종 deterministic fallback으로 쓴다.
+     거래량축은 raw vol_ratio -> ticker만 사용한다. */
+  const rank=(key)=>{
+    const a=list.slice().sort((x,y)=>key(y)-key(x) || x.ticker.localeCompare(y.ticker));
+    const m={}; a.forEach((s,i)=>m[s.ticker]=i+1); return m;
   };
-
-  /* 다중 핵심 = 눌림·반등 2축, 거래량 = 보조 확인축.
-     1단계(엄격): 눌림·반등·거래량 3축 중 TOP5 2개 이상
-                   + 그중 눌림 또는 반등 TOP5 최소 1개
-     2단계(일반): 1단계 탈락 종목 중 3축 TOP10 2개 이상
-                   + 눌림/반등/거래량 중 TOP7 최소 1개
-     최종 순서는 엄격 다중을 전부 먼저, 그 다음 일반 다중을 이어 붙인다. */
+  const strategyRank=(scoreKey, gradeKey)=>{
+    const a=list.slice().sort((x,y)=>{
+      const d=scoreKey(y)-scoreKey(x);
+      if(d) return d;
+      const gd=(Number(gradeKey(y))||0)-(Number(gradeKey(x))||0);
+      if(gd) return gd;
+      return x.ticker.localeCompare(y.ticker);
+    });
+    const m={}; a.forEach((s,i)=>m[s.ticker]=i+1); return m;
+  };
   const R={
-    pull:rank(s=>s.sig.pullScore),
-    rev:rank(s=>s.sig.revScore),
-    vol:rank(s=>multiVolEligible(s)?s.vol_ratio:-1)   // 자격 미달은 전부 최하위 동순위
+    pull:strategyRank(s=>s.sig.pullScore, s=>s.sig.pullGrade),
+    rev:strategyRank(s=>s.sig.revScore, s=>s.sig.revGrade),
+    vol:rank(s=>has(s.vol_ratio)?s.vol_ratio:-1)
   };
 
   const info=eligible.map(s=>{
@@ -1824,43 +1847,34 @@ function multiSignalRank(list){
     const all5=all.filter(x=>x<=5).length;
     const all7=all.filter(x=>x<=7).length;
     const all10=all.filter(x=>x<=10).length;
-
     const strict=(all5>=2 && core5>=1);
     const general=(!strict && all10>=2 && all7>=1);
-
     return {
       s,pu,rv,vo,core5,core10,all5,all7,all10,
-      bestCore:Math.min(...core),
-      bestAll:Math.min(...all),
+      bestCore:Math.min(...core), bestAll:Math.min(...all),
       tier:strict?1:(general?2:0)
     };
   }).filter(x=>x.tier>0);
 
-  /* 겹침 강도 → 축 순위 → 저항 여유 순. 여기까지 같으면 0을 반환해 동순위로 둔다.
-     티커로 억지로 가르지 않는다. 배열 순서는 안정 정렬이라 실행마다 동일하다. */
+  /* 최종 나열도 당시 B 계열의 우선순위로 복구. */
   const cmpWithin=(a,b)=>
     b.s.sig.grade-a.s.sig.grade ||
     b.core5-a.core5 || b.all5-a.all5 ||
     b.all7-a.all7 ||
     b.core10-a.core10 || b.all10-a.all10 ||
     a.bestCore-b.bestCore || a.bestAll-b.bestAll ||
-    (resGap(b.s)-resGap(a.s) || 0) ||
     a.s.ticker.localeCompare(b.s.ticker);
 
   const strict=info.filter(x=>x.tier===1).sort(cmpWithin);
   const general=info.filter(x=>x.tier===2).sort(cmpWithin);
-
-  /* 엄격 먼저, 일반 다음. 같은 티어 안에서 cmpWithin이 0이면 동순위로 표기한다.
-     티어가 다르면 항상 다른 순위다(엄격이 일반과 동순위가 될 수 없다). */
   const ordered=strict.concat(general);
   ordered.forEach((x,i)=>{ x.rankNo=i+1; });
-  const capped=ordered.filter(x=>x.rankNo<=10);   // 10위까지만 채택
 
-  return capped.map(x=>{
+  return ordered.map(x=>{
     const bits=[];
     if(x.pu<=10)bits.push(`눌림 ${x.pu}위`);
     if(x.rv<=10)bits.push(`반등 ${x.rv}위`);
-    if(x.vo<=10 && multiVolEligible(x.s))bits.push(`거래량 ${x.vo}위`);
+    if(x.vo<=10)bits.push(`거래량 ${x.vo}위`);
     return Object.assign({},x.s,{
       _multi:bits,
       _multiInfo:x,
@@ -3353,14 +3367,15 @@ function themeBestSort(category){
   const multi=currentMultiRanked().filter(s=>peerSet.has(s.ticker));
   if(multi.length) return {sort:"signal",label:"다중 신호순"};
 
-  // 목적지 판정도 카드 배지와 같은 경쟁 순위를 쓴다.
-  const rankMap=(key)=>{
-    const rm=competitionRank(universe,key).rankMap;
+  // 목적지 판정도 카드/다중과 같은 축 순위를 쓴다.
+  const rankMap=(key,tieBreaker=null)=>{
+    const rm=competitionRank(universe,key,tieBreaker).rankMap;
     return new Map(Object.entries(rm));
   };
+  const resTie=(x,y)=>rankResGap(y)-rankResGap(x);
   const axes=[
-    {sort:"pull",label:"추세순",m:rankMap(s=>s.sig.pullScore)},
-    {sort:"reversal",label:"반등순",m:rankMap(s=>s.sig.revScore)},
+    {sort:"pull",label:"추세순",m:rankMap(s=>s.sig.pullScore,resTie)},
+    {sort:"reversal",label:"반등순",m:rankMap(s=>s.sig.revScore,resTie)},
     {sort:"volume",label:"거래량순",m:rankMap(s=>has(s.vol_ratio)?s.vol_ratio:-1)}
   ];
   axes.forEach(a=>{
