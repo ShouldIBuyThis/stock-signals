@@ -899,6 +899,28 @@ def freeze_signal_hist(results, prev_rows, mkt=None, market_events=None, market_
         if old_hist:
             frozen_count += len(old_hist)
 
+        # 신규 종목은 직전 signals.json에 frozen hist가 없으므로 analyze()가 계산한
+        # 과거 행으로 최대 9일을 먼저 채운다. 오늘 행은 아래에서 반드시 top-level 값으로 만든다.
+        # 이미 오늘 한 줄만 저장된 신규 종목도 immutable 일자 snapshot에 티커가 없으면 1회 복구한다.
+        bootstrap_hist = (
+            not prev or
+            (len(old_hist) <= 1 and last_date and day_snapshot(tk, last_date) is None)
+        )
+        if bootstrap_hist:
+            seed=[]
+            seed_seen=set()
+            for h0 in (r.get("hist") or []):
+                if not isinstance(h0,list) or len(h0)<=date_i:
+                    continue
+                h=list(h0)
+                d=str(h[date_i] or "")
+                # 오늘 값은 analyze() 재계산값이 아니라 실제 카드 top-level 값으로 고정한다.
+                if not d or d == last_date or d in seen or d in seed_seen:
+                    continue
+                seed.append(backfill(h, tk, d)); seed_seen.add(d)
+            old_hist=(seed + old_hist)[-HIST_DAYS:]
+            seen.update(seed_seen)
+
         # 오늘 hist는 analyze()가 따로 계산한 snap(-1)을 믿지 않고,
         # 화면 카드에 쓰는 top-level current row를 그대로 직렬화해서 넣는다.
         # 사용자가 실제로 본 신호와 그날 frozen hist가 갈라지지 않게 하기 위한 것이다.
@@ -909,19 +931,6 @@ def freeze_signal_hist(results, prev_rows, mkt=None, market_events=None, market_
             old_hist.append(current_hist_row)
             seen.add(last_date)
             appended_count += 1
-
-        if not old_hist:
-            seed=[]
-            seed_seen=set()
-            for h0 in (r.get("hist") or []):
-                if not isinstance(h0,list) or len(h0)<=date_i:
-                    continue
-                h=list(h0)
-                d=str(h[date_i] or "")
-                if not d or d in seed_seen:
-                    continue
-                seed.append(backfill(h, tk, d)); seed_seen.add(d)
-            old_hist=seed[-HIST_DAYS:]
 
         old_hist.sort(key=lambda h: str(h[date_i] or ""))
         r["hist"] = old_hist[-HIST_DAYS:]
