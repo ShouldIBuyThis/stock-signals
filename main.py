@@ -30,11 +30,18 @@ PERIOD = "1y"    # 52주 신고가 계산 위해 1년
 # 카드 타임라인용 — 최근 며칠치 지표를 함께 내려준다.
 # 키를 반복하는 객체 대신 위치 기반 배열이라 용량이 절반 이하다.
 HIST_DAYS = 10
+# 뒤에 필드를 덧붙이는 건 안전하다(옛 행은 짧을 뿐이고 freeze 단계에서 보강한다).
+# 순서를 바꾸거나 중간에 끼워 넣으면 이미 저장된 위치 기반 배열이 전부 어긋난다.
 HIST_FIELDS = ["date","price","change_1d","ma5","ma10","ma20","ma50","ma60","rsi","macd_hist","macd_cross","macd_zero",
                "bb_pos","stoch_k","stoch_d","stoch_cross","vol_ratio","near_high","pct_from_high",
                "ma20_slope","run5_max","run3_sum","range3","range10","vol3_ratio",
                "res_short","ret20","rs20",
-               "atr_pct"]
+               "atr_pct",
+               # 그 날짜의 시장 입력. 산식이 그대로인데 QQQ 재계산만으로 과거 신호가 흔들리는 걸 막는다.
+               "market_level","market_weak","market_ret20"]
+
+# freeze 단계에서 옛 행에 뒤늦게 채워 넣는 열. 이미 값이 있으면 절대 덮지 않는다.
+HIST_BACKFILL_FIELDS = ["atr_pct", "market_level", "market_weak", "market_ret20"]
 
 RUN_SCOPE = os.environ.get("RUN_SCOPE", "all").strip().lower()
 if RUN_SCOPE not in ("all", "kr", "us"):
@@ -48,6 +55,29 @@ if FORCE_RESNAP:
 
 def is_kr_ticker(t):
     return t.endswith(".KS") or t.endswith(".KQ")
+
+
+def market_inputs_for(ticker, level, ret20):
+    """그 날짜의 시장 입력 3종을 만든다.
+
+    index.html histRow()의 규칙과 동일해야 한다:
+      · 한국 종목에는 QQQ 국면을 적용하지 않는다(항상 neutral / 약세 아님).
+      · market_weak는 weak·caution 두 국면에서만 True.
+      · market_ret20(QQQ 20일 수익률)은 한국 종목에도 그대로 붙는다(rs20/주도주 보정용).
+    """
+    if is_kr_ticker(ticker or ""):
+        return "neutral", False, ret20
+    lv = level or None
+    return lv, bool(lv in ("weak", "caution")), ret20
+
+
+def market_hist_map(mkt):
+    """QQQ 일자별 국면/20일수익률. market_state()의 hist는 [date, level, below_ma20, ret20]."""
+    out = {}
+    for x in (mkt or {}).get("hist") or []:
+        if isinstance(x, (list, tuple)) and len(x) >= 4 and x[0]:
+            out[str(x[0])] = (x[1], x[3])
+    return out
 
 
 # ── 이벤트 캘린더 ─────────────────────────────────────────────
@@ -227,14 +257,21 @@ def _fallback_earnings(ticker, start_day, end_day, existing=None):
 def fetch_event_calendars(now_kst, wanted_tickers):
     """관심종목 어닝 + 주요 거시 이벤트. 전체 페이지를 끝까지 읽고 누락/UNKNOWN만 티커별 fallback."""
     out_earn, out_market = {}, []
-    status = {"source":"yfinance Calendars + ticker fallback", "ok":False, "earnings_rows":0,
+    status = {"source":"yfinance Calendars + ticker fallback", "ok":False, "quality_version":2,
+              "earnings_rows":0,
               "matched":0, "time_confirmed":0, "time_unknown":0, "fallback_resolved":0,
-              "fallback_attempted":0, "missing":0, "matched_events":[], "error":""}
+              "fallback_attempted":0, "missing":0, "eligible":0, "skipped_no_earnings":0,
+              "matched_events":[], "error":""}
     ny_now = now_kst.astimezone(_NY) if now_kst.tzinfo else now_kst.replace(tzinfo=_KST).astimezone(_NY)
     today_ny = ny_now.date()
     start_day = today_ny - timedelta(days=16)
     end_day   = today_ny + timedelta(days=7)
+    # wanted에는 애초에 미국 종목만 담긴다(한국 종목은 여기서 제외).
+    # 따라서 NO_EARNINGS_TICKERS의 한국 ETF 2종목은 이 집계에 등장하지 않는다.
+    # 실적 조회 '대상'은 그중 ETF·지수를 뺀 나머지다. 누락 집계는 반드시 이 기준으로 센다.
     wanted = {t.upper() for t in wanted_tickers if not is_kr_ticker(t)}
+    no_earn_here = wanted & NO_EARNINGS_TICKERS          # 실제로 스킵되는 미국 ETF·지수만
+    earnings_eligible = wanted - NO_EARNINGS_TICKERS     # 실적 일정이 존재할 수 있는 종목
     cal = None
     if hasattr(yf, "Calendars"):
         try:
@@ -268,12 +305,11 @@ def fetch_event_calendars(now_kst, wanted_tickers):
         print("이벤트 캘린더:", status["error"])
 
     # 전체 캘린더에서 빠졌거나 timing UNKNOWN인 관심종목만 보강.
-    fallback_targets=[tk for tk in sorted(wanted)
-                      if tk not in NO_EARNINGS_TICKERS
-                      and (tk not in out_earn or out_earn[tk].get("timing")=="UNKNOWN")]
-    skipped_etf = sum(1 for tk in wanted if tk in NO_EARNINGS_TICKERS)
-    if skipped_etf:
-        print(f"어닝 캘린더: ETF·지수 {skipped_etf}종목은 실적 조회 생략")
+    fallback_targets=[tk for tk in sorted(earnings_eligible)
+                      if tk not in out_earn or out_earn[tk].get("timing")=="UNKNOWN"]
+    if no_earn_here:
+        print(f"어닝 캘린더: 실적 조회 비대상 ETF·지수 {len(no_earn_here)}종목 "
+              f"({', '.join(sorted(no_earn_here))}) — 누락 집계에서도 제외")
     for tk in fallback_targets:
         status["fallback_attempted"] += 1
         before=out_earn.get(tk)
@@ -298,12 +334,16 @@ def fetch_event_calendars(now_kst, wanted_tickers):
     status["matched"] = len(out_earn)
     status["time_confirmed"] = sum(1 for ev in out_earn.values() if ev.get("timing") in ("BMO","AMC"))
     status["time_unknown"] = sum(1 for ev in out_earn.values() if ev.get("timing") == "UNKNOWN")
-    status["missing"] = max(0, len(wanted) - len(out_earn))
+    # 누락은 '조회 대상' 대비로만 센다. ETF·지수를 분모에 넣으면 실제보다 부풀어 보인다.
+    status["eligible"] = len(earnings_eligible)
+    status["skipped_no_earnings"] = len(no_earn_here)
+    status["missing"] = max(0, len(earnings_eligible) - len(earnings_eligible & set(out_earn)))
     status["matched_events"] = [{"ticker":tk,"date":ev.get("date"),"timing":ev.get("timing"),"source":ev.get("source")}
                                 for tk,ev in sorted(out_earn.items())]
     print(f"어닝 캘린더: 조회 {status['earnings_rows']}행 · 매칭 {status['matched']} · "
           f"시간확인 {status['time_confirmed']} · 시간미확인 {status['time_unknown']} · "
-          f"fallback 해결 {status['fallback_resolved']} · 누락 {status['missing']}")
+          f"fallback 해결 {status['fallback_resolved']} · "
+          f"누락 {status['missing']}/{status['eligible']} · 비대상 ETF {status['skipped_no_earnings']}")
 
     try:
         edf = cal.get_economic_events_calendar(start=start_day, end=end_day, limit=100, force=True) if cal is not None else None
@@ -668,7 +708,9 @@ SNAPSHOT_FIELDS = [
 
 def _storage_row(r, mkt):
     out={k:r.get(k) for k in SNAPSHOT_FIELDS}
-    out["market_ret20"] = mkt.get("ret20") if isinstance(mkt, dict) else None
+    # 행이 자기 시장 입력을 갖고 있으면 그것이 우선이다(그날 고정값).
+    if out.get("market_ret20") is None:
+        out["market_ret20"] = mkt.get("ret20") if isinstance(mkt, dict) else None
     hist=r.get("hist") or []
     if len(hist)>=2:
         prev=hist[-2]; idx={k:i for i,k in enumerate(HIST_FIELDS)}
@@ -721,20 +763,22 @@ def hist_row_from_current(r):
     ]
 
 
-def freeze_signal_hist(results, prev_rows):
+def freeze_signal_hist(results, prev_rows, mkt=None):
     """
     공개된 종가 스냅샷을 append-only로 고정한다.
 
     - 이미 존재하는 과거 ticker+date hist는 재계산값으로 덮지 않는다.
     - 같은 last_date가 이미 history/{us|kr}/YYYY-MM-DD.json에 있으면
       top-level 현재 카드 입력값도 그 최초 스냅샷으로 복원한다.
-    - 기존 positional hist에 빠져 있던 atr_pct는 Yahoo 재계산값이 아니라
-      immutable 일자별 history snapshot에서만 보강한다.
+    - 기존 positional hist에 빠져 있던 열(atr_pct·시장 입력)은 Yahoo 재계산값이 아니라
+      immutable 일자별 history snapshot에서 우선 보강하고, 없으면 그 날짜의
+      QQQ hist 값으로 한 번만 채운 뒤 그대로 고정한다. 이미 값이 있으면 건드리지 않는다.
     - 새 거래일만 오늘 계산값을 1회 append한다.
     """
     idx = {k:i for i,k in enumerate(HIST_FIELDS)}
     date_i = idx["date"]
-    atr_i = idx["atr_pct"]
+    last_i = len(HIST_FIELDS) - 1
+    qmap = market_hist_map(mkt)
     snap_cache = {}
 
     def day_snapshot(ticker, day):
@@ -754,10 +798,39 @@ def freeze_signal_hist(results, prev_rows):
             snap_cache[key] = rows
         return snap_cache[key].get(ticker)
 
+    backfilled = {k: 0 for k in HIST_BACKFILL_FIELDS}
+
+    def backfill(h, tk, d):
+        """빈 칸만 채운다. 채우는 순서는 '고정된 것 → 덜 고정된 것' 순.
+           1) 그날 확정된 immutable 일자별 snapshot
+           2) 이번 실행의 QQQ 일자별 hist (최초 1회만, 이후 실행에서는 이미 값이 있어 건드리지 않음)
+           이미 값이 있으면 어느 경우에도 덮지 않는다."""
+        while len(h) <= last_i:
+            h.append(None)
+        snap = None
+        for f in HIST_BACKFILL_FIELDS:
+            i = idx[f]
+            if h[i] is not None:
+                continue
+            if snap is None:
+                snap = day_snapshot(tk, d) or {}
+            if snap.get(f) is not None:
+                h[i] = snap.get(f)
+                backfilled[f] += 1
+        # snapshot에도 없던 시장 입력만 그날 QQQ 값으로 채우고 이후 영구 고정한다.
+        ilv, iwk, irt = idx["market_level"], idx["market_weak"], idx["market_ret20"]
+        if h[ilv] is None or h[irt] is None:
+            q = qmap.get(str(d))
+            if q:
+                lv, wk, rt = market_inputs_for(tk, q[0], q[1])
+                if h[ilv] is None: h[ilv] = lv;  backfilled["market_level"] += 1
+                if h[iwk] is None: h[iwk] = wk;  backfilled["market_weak"] += 1
+                if h[irt] is None: h[irt] = rt;  backfilled["market_ret20"] += 1
+        return h
+
     frozen_count = 0
     appended_count = 0
     restored_current = 0
-    atr_backfilled = 0
 
     for r in results:
         tk = r.get("ticker")
@@ -793,14 +866,7 @@ def freeze_signal_hist(results, prev_rows):
             # 반대 시장 carry 행은 절대 건드리지 않는다.
             if FORCE_RESNAP and active_market and last_date and d == last_date:
                 continue
-            while len(h) <= atr_i:
-                h.append(None)
-            if h[atr_i] is None:
-                snap = day_snapshot(tk, d)
-                if snap and snap.get("atr_pct") is not None:
-                    h[atr_i] = snap.get("atr_pct")
-                    atr_backfilled += 1
-            old_hist.append(h)
+            old_hist.append(backfill(h, tk, d))
             seen.add(d)
 
         if old_hist:
@@ -824,41 +890,64 @@ def freeze_signal_hist(results, prev_rows):
                 if not isinstance(h0,list) or len(h0)<=date_i:
                     continue
                 h=list(h0)
-                while len(h)<=atr_i:
-                    h.append(None)
                 d=str(h[date_i] or "")
                 if not d or d in seed_seen:
                     continue
-                if h[atr_i] is None:
-                    snap=day_snapshot(tk,d)
-                    h[atr_i]=(snap or {}).get("atr_pct")
-                seed.append(h); seed_seen.add(d)
+                seed.append(backfill(h, tk, d)); seed_seen.add(d)
             old_hist=seed[-HIST_DAYS:]
 
         old_hist.sort(key=lambda h: str(h[date_i] or ""))
         r["hist"] = old_hist[-HIST_DAYS:]
 
+    bf = " · ".join(f"{k} {v}행" for k, v in backfilled.items() if v)
     print(
         f"hist 고정: 기존 {frozen_count}행 유지 · 새 거래일 {appended_count}행 추가 · "
-        f"현재카드 스냅샷 복원 {restored_current}종목 · ATR 보강 {atr_backfilled}행"
+        f"현재카드 스냅샷 복원 {restored_current}종목"
+        + (f" · 보강 {bf}" if bf else " · 보강 없음")
     )
 
 
 def attach_historical_rs20(results, mkt):
-    """각 과거 날짜의 종목 ret20에서 같은 날짜 QQQ ret20을 빼 rs20을 채운다."""
-    mh = (mkt or {}).get("hist") or []
-    qret={}
-    for x in mh:
-        if isinstance(x,(list,tuple)) and len(x)>=4 and x[0]: qret[str(x[0])] = x[3]
-    if not qret: return
+    """각 과거 날짜의 종목 ret20에서 같은 날짜 QQQ ret20을 빼 rs20을 채운다.
+
+    이미 값이 있는 행은 건드리지 않는다. rs20은 그 날짜의 시장 대비 상대강도라
+    나중에 QQQ가 재계산됐다고 과거 값을 다시 쓰면 과거 신호가 바뀐다.
+    """
+    qmap = market_hist_map(mkt)
+    if not qmap: return
     idx={k:i for i,k in enumerate(HIST_FIELDS)}
     idate, iret, irs = idx.get("date"), idx.get("ret20"), idx.get("rs20")
     if None in (idate,iret,irs): return
     for r in results:
         for h in r.get("hist") or []:
             if len(h) <= max(idate,iret,irs): continue
-            d, rr = h[idate], h[iret]; qr=qret.get(str(d))
-            h[irs] = safe(float(rr)-float(qr)) if rr is not None and qr is not None else None
+            if h[irs] is not None: continue          # 이미 고정된 값은 유지
+            rr = h[iret]; qr = (qmap.get(str(h[idate])) or (None, None))[1]
+            if rr is not None and qr is not None:
+                h[irs] = safe(float(rr)-float(qr))
+
+
+def attach_historical_market(results, mkt):
+    """각 hist 행에 '그 날짜의' 시장 입력을 붙인다. 이미 있으면 덮지 않는다.
+
+    이 값이 행 안에 없으면 화면이 매번 최신 QQQ 계산으로 과거를 다시 채점하게 되고,
+    산식을 하나도 안 건드렸는데 어제 신호 등급이 오늘 바뀌는 일이 생긴다.
+    """
+    qmap = market_hist_map(mkt)
+    idx={k:i for i,k in enumerate(HIST_FIELDS)}
+    idate = idx["date"]; ilv = idx["market_level"]; iwk = idx["market_weak"]; irt = idx["market_ret20"]
+    need = max(idate, ilv, iwk, irt)
+    for r in results:
+        tk = r.get("ticker")
+        for h in r.get("hist") or []:
+            while len(h) <= need: h.append(None)
+            if h[ilv] is not None and h[irt] is not None: continue   # 이미 고정됨
+            q = qmap.get(str(h[idate]))
+            if not q: continue
+            lv, wk, rt = market_inputs_for(tk, q[0], q[1])
+            if h[ilv] is None: h[ilv] = lv
+            if h[iwk] is None: h[iwk] = wk
+            if h[irt] is None: h[irt] = rt
 
 def main():
     prev_rows, prev_payload = load_previous()
@@ -898,8 +987,11 @@ def main():
             try:
                 row = analyze(tk, nm, cat)
                 # 시장 필터: 미국 종목이고 QQQ가 약세면 표시 (대시보드가 -0.5 반영)
-                row["market_level"] = "neutral" if is_kr else mkt_level
-                row["market_weak"] = bool((not is_kr) and mkt_level in ("weak","caution"))
+                # 이 값은 오늘 hist 행에도 그대로 실려 그날의 시장 입력으로 고정된다.
+                lv, wk, rt = market_inputs_for(tk, mkt_level, mkt.get("ret20") if isinstance(mkt, dict) else None)
+                row["market_level"] = lv
+                row["market_weak"] = wk
+                row["market_ret20"] = rt
                 results.append(row); print("OK", tk)
             except Exception as e:
                 # 실패해도 대시보드에서 사라지지 않게 직전 값을 유지한다
@@ -939,10 +1031,12 @@ def main():
         else:
             _s["rs20"] = None
     attach_historical_rs20(results, mkt)
+    # 각 hist 행에 '그 날짜의' 시장 입력을 붙인다. 이미 붙어 있으면 그대로 둔다.
+    attach_historical_market(results, mkt)
 
     # 신뢰도용 최근 hist는 여기서 고정한다.
     # 과거 날짜는 직전 signals.json 값을 그대로 유지하고 새 거래일만 append한다.
-    freeze_signal_hist(results, prev_rows)
+    freeze_signal_hist(results, prev_rows, mkt)
 
     payload = {
         "generated_at": now_kst.strftime("%Y-%m-%d %H:%M") + " KST",
