@@ -1535,6 +1535,28 @@ function visible(){
     .filter(s => !state.showHoldings || s._hold)
     .filter(s => !state.themeFilter || s.category===state.themeFilter);
 }
+/* 모든 순위의 단일 구현. 다중 내부 축 순위 / 카드 추세·반등·거래량 배지 / 메인 위젯이
+   전부 이 함수를 공유한다. 어디서 보든 같은 숫자가 나오는 이유가 이것이다.
+
+   동점 처리는 서수(1,2,3,4,5). 동일 점수를 같은 순위로 묶는 경쟁 순위를 한 번 넣어봤으나,
+   눌림·반등 점수가 0.1 단위라 상위권 동점이 많아 "TOP5"가 실질 8~10종목이 되면서
+   엄격 다중의 선별력이 사라졌다. 그래서 서수로 되돌렸다.
+   동점은 티커 알파벳순으로 가른다 — 자의적이지만 실행마다 동일하고 재현 가능하다. */
+function competitionRank(list, key){
+  const q=v=>Math.round((Number(v)||0)*1e6)/1e6;
+  const ordered=(list||[]).slice()
+    .sort((x,y)=>q(key(y))-q(key(x)) || x.ticker.localeCompare(y.ticker));
+  const rankMap={};
+  ordered.forEach((s,i)=>{ rankMap[s.ticker]=i+1; });
+  return {ordered, rankMap};
+}
+function strategyRankOf(kind){
+  const isPull = kind==="pull";
+  return competitionRank(signalUniverse(), s=>isPull?s.sig.pullScore:s.sig.revScore);
+}
+function volumeRankOf(){
+  return competitionRank(signalUniverse().filter(s=>has(s.vol_ratio)), s=>s.vol_ratio);
+}
 function fmtPrice(s){
   if (!has(s.price)) return "—";
   return s.currency==="KRW" ? "₩"+Math.round(s.price).toLocaleString("ko-KR")
@@ -1554,16 +1576,6 @@ function sortKey(s){
   return 0; // 다중신호순은 raw score가 아니라 multiSignalRank()를 사용
 }
 
-function strategyRanked(list, kind, buyOnly=false){
-  const isPull = kind==="pull";
-  let a=list.slice();
-  if(buyOnly) a=a.filter(s => (isPull ? s.sig.pullGrade : s.sig.revGrade) >= 4);
-  return a.sort((x,y)=>{
-    const sx=isPull ? x.sig.pullScore : x.sig.revScore;
-    const sy=isPull ? y.sig.pullScore : y.sig.revScore;
-    return sy-sx || Math.abs(y.change_1d||0)-Math.abs(x.change_1d||0) || x.ticker.localeCompare(y.ticker);
-  });
-}
 function overallRanked(list){
   if(!list.length) return [];
   const rank=(key)=>{const a=list.slice().sort((a,b)=>key(b)-key(a));const m={};a.forEach((s,i)=>m[s.ticker]=i+1);return m;};
@@ -1595,14 +1607,7 @@ function currentMultiRanked(){
    카드에 찍히는 "📈 추세 N위 / 🔄 반등 N위"가 서로 다른 숫자가 된다.
    grade>=4 우선 묶음도 뺐다. pullGrade/revGrade가 점수 컷의 단조 함수라 결과는 같고
    tie-break만 어긋나게 만들던 원인이다. */
-function currentStrategyRanked(kind){
-  const isPull = kind==="pull";
-  return signalUniverse().slice().sort((a,b)=>{
-    const sa=isPull?a.sig.pullScore:a.sig.revScore;
-    const sb=isPull?b.sig.pullScore:b.sig.revScore;
-    return sb-sa || a.ticker.localeCompare(b.ticker);
-  });
-}
+function currentStrategyRanked(kind){ return strategyRankOf(kind).ordered; }
 function currentStrategySignalRanked(kind){
   const isPull = kind==="pull";
   return currentStrategyRanked(kind).filter(s=>(isPull?s.sig.pullGrade:s.sig.revGrade)>=4);
@@ -1623,10 +1628,7 @@ function visibleVolumeOrdered(list){
   return ordered.concat((list||[]).filter(s=>!seen.has(s.ticker)));  // 거래량 없는 종목은 맨 뒤
 }
 
-function currentVolumeRanked(){
-  return signalUniverse().filter(s=>has(s.vol_ratio))
-    .sort((a,b)=>b.vol_ratio-a.vol_ratio || a.ticker.localeCompare(b.ticker));
-}
+function currentVolumeRanked(){ return volumeRankOf().ordered; }
 function visibleVolumeRanked(list){
   const wanted=new Set((list||[]).map(s=>s.ticker));
   return currentVolumeRanked().filter(s=>wanted.has(s.ticker));
@@ -1651,17 +1653,17 @@ function computeRanks(){
      추세/반등은 "해당 전략 신호 우선 + 전체 종목" 순위라 모든 카드에 숫자가 있다.
      메인 위젯은 그 순위표 중 실제 전략 신호(grade>=4)만 보여준다.
      거래량은 현재 시장 전체의 거래량 순위, 다중은 currentMultiRanked() 순위다. */
-  const toMap=(arr)=>{ const m={}; arr.forEach((x,i)=>m[x.ticker]=i+1); return m; };
-  const pu=currentStrategyRanked("pull");
-  const rv=currentStrategyRanked("reversal");
-  const vo=currentVolumeRanked();
-  const total=currentMultiRanked();
+  /* 배열 위치(i+1)로 다시 번호를 매기면 동순위가 깨진다. 반드시 rankMap을 그대로 쓴다. */
+  const toMultiMap=(arr)=>{ const m={}; arr.forEach((x,i)=>m[x.ticker]=x._multiRankNo||(i+1)); return m; };
+  const pu=strategyRankOf("pull").rankMap;
+  const rv=strategyRankOf("reversal").rankMap;
+  const vo=volumeRankOf().rankMap;
 
   return {
-    total:toMap(total),
-    pull:toMap(pu), trend:toMap(pu),
-    rev:toMap(rv),
-    vol:toMap(vo),
+    total:toMultiMap(currentMultiRanked()),
+    pull:pu, trend:pu,
+    rev:rv,
+    vol:vo,
     n:signalUniverse().length
   };
 }
@@ -1777,9 +1779,23 @@ function multiSignalRank(list){
   const eligible=list.filter(s=>s.sig.grade>=4); // 강한매수/매수관심만
   if(!eligible.length) return [];
 
-  const rank=(key)=>{
-    const a=list.slice().sort((a,b)=>key(b)-key(a) || a.ticker.localeCompare(b.ticker));
-    const m={}; a.forEach((s,i)=>m[s.ticker]=i+1); return m;
+  // 축 순위는 카드 배지·메인 위젯과 완전히 같은 competitionRank()를 쓴다.
+  const rank=(key)=>competitionRank(list, key).rankMap;
+
+  /* 다중의 거래량축은 "긍정적 거래량"만 인정한다.
+     양봉·보합(change_1d >= 0)에서 늘어난 거래량만 축으로 세고, 음봉 대량거래는 제외한다.
+     급락+대량거래는 여기서 칭찬할 일이 아니라 반등점수의 공포투매 가점으로 이미 반영되고,
+     음봉 저거래량 눌림도 눌림점수에서 이미 평가된다.
+     evaluate()의 거래량 가감점은 손대지 않는다. 다중에서 raw 거래량을 독립축으로
+     한 번 더 볼 때만 방향을 맞추는 패치다. */
+  const multiVolEligible = s => has(s.vol_ratio) && has(s.change_1d) && Number(s.change_1d) >= 0;
+  /* 저항까지 남은 여유(%). 위에 저항이 없으면(신고가권) 가장 유리한 것으로 본다.
+     res_short는 과거 hist에도 저장돼 있어 화면과 과거 검증이 같은 값으로 굴러간다.
+     sup_short는 hist에 없으므로 지지선은 tie-break에 쓰지 않는다. */
+  const resGap=s=>{
+    const p=s.price;
+    if(!has(s.res_short) || !has(p) || !p) return Infinity;
+    return (s.res_short/p-1)*100;
   };
 
   /* 다중 핵심 = 눌림·반등 2축, 거래량 = 보조 확인축.
@@ -1791,7 +1807,7 @@ function multiSignalRank(list){
   const R={
     pull:rank(s=>s.sig.pullScore),
     rev:rank(s=>s.sig.revScore),
-    vol:rank(s=>has(s.vol_ratio)?s.vol_ratio:-1)
+    vol:rank(s=>multiVolEligible(s)?s.vol_ratio:-1)   // 자격 미달은 전부 최하위 동순위
   };
 
   const info=eligible.map(s=>{
@@ -1814,27 +1830,37 @@ function multiSignalRank(list){
     };
   }).filter(x=>x.tier>0);
 
+  /* 겹침 강도 → 축 순위 → 저항 여유 순. 여기까지 같으면 0을 반환해 동순위로 둔다.
+     티커로 억지로 가르지 않는다. 배열 순서는 안정 정렬이라 실행마다 동일하다. */
   const cmpWithin=(a,b)=>
     b.s.sig.grade-a.s.sig.grade ||
     b.core5-a.core5 || b.all5-a.all5 ||
     b.all7-a.all7 ||
     b.core10-a.core10 || b.all10-a.all10 ||
     a.bestCore-b.bestCore || a.bestAll-b.bestAll ||
+    (resGap(b.s)-resGap(a.s) || 0) ||
     a.s.ticker.localeCompare(b.s.ticker);
 
   const strict=info.filter(x=>x.tier===1).sort(cmpWithin);
   const general=info.filter(x=>x.tier===2).sort(cmpWithin);
 
-  return strict.concat(general).map(x=>{
+  /* 엄격 먼저, 일반 다음. 같은 티어 안에서 cmpWithin이 0이면 동순위로 표기한다.
+     티어가 다르면 항상 다른 순위다(엄격이 일반과 동순위가 될 수 없다). */
+  const ordered=strict.concat(general);
+  ordered.forEach((x,i)=>{ x.rankNo=i+1; });
+  const capped=ordered.filter(x=>x.rankNo<=10);   // 10위까지만 채택
+
+  return capped.map(x=>{
     const bits=[];
     if(x.pu<=10)bits.push(`눌림 ${x.pu}위`);
     if(x.rv<=10)bits.push(`반등 ${x.rv}위`);
-    if(x.vo<=10)bits.push(`거래량 ${x.vo}위`);
+    if(x.vo<=10 && multiVolEligible(x.s))bits.push(`거래량 ${x.vo}위`);
     return Object.assign({},x.s,{
       _multi:bits,
       _multiInfo:x,
       _multiTier:x.tier,
       _multiStrict:x.tier===1,
+      _multiRankNo:x.rankNo,
       val:""
     });
   });
@@ -2245,8 +2271,7 @@ function openCartReview(){
 
 function openTimeline(tk){
   const s = allStocks().find(x=>x.ticker===tk); if(!s) return;
-  // 보관 창이 20거래일로 늘어도 흐름 그래프는 문구대로 최근 10거래일만 그린다.
-  const hs = (histStocks(s) || []).slice(-10);
+  const hs = histStocks(s);
   if (!hs || hs.length < 2){ toast("아직 이력이 충분하지 않아요"); return; }
   const rows = hs.map(h => {
     const sig = evaluate(h); // overheatOnly 포함
@@ -2577,10 +2602,6 @@ function validationWindowTouchesEarnings(affected,hs,startIdx,horizon){
   return false;
 }
 
-/* 표본 창은 전략마다 다르다.
-   다중은 조건이 엄격해 표본이 얇으므로 최근 20거래일, 추세·반등은 최근 10거래일.
-   승률 산식·horizon·실적 제외 규칙은 전부 동일하다. */
-const VAL_WINDOW={multi:20, strat:10};
 function strategyValidation(){
   const kinds={
     pull:{label:"추세", icon:"📈", grade:s=>s.pullGrade},
@@ -2604,8 +2625,7 @@ function strategyValidation(){
 
   const stockHist=new Map(), byDate=new Map();
   allStocks().forEach(s=>{
-    const hsAll=histStocks(s); if(!hsAll||!hsAll.length) return;
-    const hs=hsAll.slice(-VAL_WINDOW.multi);   // 다중 기준 창(최근 20거래일)까지만 사용
+    const hs=histStocks(s); if(!hs||!hs.length) return;
     const ew=earningsWindowsForValidation(s,hs), blocked=ew.blocked, affected=ew.affected;
     stockHist.set(s.ticker,{hs,blocked,affected});
     hs.forEach((h,i)=>{
@@ -2621,8 +2641,6 @@ function strategyValidation(){
   byDate.forEach(entries=>entries.forEach(({row,i})=>{
     const pack=stockHist.get(row.ticker); if(!pack) return;
     const hs=pack.hs, affected=pack.affected;
-    // 추세·반등은 최근 VAL_WINDOW.strat 거래일 안에서 발생한 신호만 표본에 넣는다.
-    if(i < hs.length - VAL_WINDOW.strat) return;
     Object.entries(kinds).forEach(([k,def])=>{
       if(def.grade(row.sig)<4) return;
       horizons.forEach(h=>{
@@ -2833,9 +2851,7 @@ function validationBlock(){
       ${row("multi")}${row("pull")}${row("rev")}
     </table>${exampleBlock}${diagDetail}${exDetail}
     <div class="strip" style="margin-top:9px">
-      <b>다중은 최근 20거래일</b>, <b>추세·반등은 최근 10거래일</b> 기준입니다.
-      다중은 조건이 엄격해 표본이 얇아지는 것을 보완하려고 기간만 넓혔고, 승률 계산식·실적 영향권 제외·+1/+3/+5 기준은 셋 다 같습니다.
-      어느 쪽이든 표본이 짧으니 장기 승률처럼 해석하지 않습니다.</div>
+      카드 데이터는 최근 <b>10거래일</b>을 사용하므로 아직 표본이 짧습니다. 장기 승률처럼 해석하지 않습니다.</div>
   </div>`;
 }
 
@@ -3296,9 +3312,10 @@ function themeBestSort(category){
   const multi=currentMultiRanked().filter(s=>peerSet.has(s.ticker));
   if(multi.length) return {sort:"signal",label:"다중 신호순"};
 
+  // 목적지 판정도 카드 배지와 같은 경쟁 순위를 쓴다.
   const rankMap=(key)=>{
-    const a=universe.slice().sort((a,b)=>key(b)-key(a)||a.ticker.localeCompare(b.ticker));
-    const m=new Map(); a.forEach((s,i)=>m.set(s.ticker,i+1)); return m;
+    const rm=competitionRank(universe,key).rankMap;
+    return new Map(Object.entries(rm));
   };
   const axes=[
     {sort:"pull",label:"추세순",m:rankMap(s=>s.sig.pullScore)},
@@ -3323,7 +3340,7 @@ function searchBestDestination(s){
   // 다중신호 자격이 실제로 있으면 다중신호 탭을 최우선으로 연다.
   const multi=currentMultiRanked();
   const mi=multi.findIndex(x=>x.ticker===s.ticker);
-  if(mi>=0) return {sort:"signal",label:`다중신호 ${mi+1}위`};
+  if(mi>=0) return {sort:"signal",label:`다중신호 ${multi[mi]._multiRankNo||(mi+1)}위`};
 
   // 다중신호가 없으면 추세·반등·거래량·해당 테마에서의 "상대 순위"를 비교한다.
   const ranked=(arr,key)=>arr.slice().sort((a,b)=>key(b)-key(a));
