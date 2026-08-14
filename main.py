@@ -38,10 +38,12 @@ HIST_FIELDS = ["date","price","change_1d","ma5","ma10","ma20","ma50","ma60","rsi
                "res_short","ret20","rs20",
                "atr_pct",
                # 그 날짜의 시장 입력. 산식이 그대로인데 QQQ 재계산만으로 과거 신호가 흔들리는 걸 막는다.
-               "market_level","market_weak","market_ret20"]
+               "market_level","market_weak","market_ret20",
+               # 해당 종가 날짜의 주요 미국 시장 이벤트. 점수에는 쓰지 않고 경고 표시만 한다.
+               "market_events"]
 
 # freeze 단계에서 옛 행에 뒤늦게 채워 넣는 열. 이미 값이 있으면 절대 덮지 않는다.
-HIST_BACKFILL_FIELDS = ["atr_pct", "market_level", "market_weak", "market_ret20"]
+HIST_BACKFILL_FIELDS = ["atr_pct", "market_level", "market_weak", "market_ret20", "market_events"]
 
 RUN_SCOPE = os.environ.get("RUN_SCOPE", "all").strip().lower()
 if RUN_SCOPE not in ("all", "kr", "us"):
@@ -77,6 +79,21 @@ def market_hist_map(mkt):
     for x in (mkt or {}).get("hist") or []:
         if isinstance(x, (list, tuple)) and len(x) >= 4 and x[0]:
             out[str(x[0])] = (x[1], x[3])
+    return out
+
+
+def market_event_map(events):
+    """날짜별 주요 미국 시장 이벤트. 표시/히스토리 경고 전용이며 점수에는 절대 사용하지 않는다."""
+    out = {}
+    for ev in events or []:
+        d = str((ev or {}).get("date") or "")
+        if not d:
+            continue
+        item = {"type": str((ev or {}).get("type") or "시장 이벤트"),
+                "name": str((ev or {}).get("name") or (ev or {}).get("type") or "시장 이벤트")}
+        bucket = out.setdefault(d, [])
+        if not any(x.get("type") == item["type"] and x.get("name") == item["name"] for x in bucket):
+            bucket.append(item)
     return out
 
 
@@ -261,7 +278,7 @@ def fetch_event_calendars(now_kst, wanted_tickers):
               "earnings_rows":0,
               "matched":0, "time_confirmed":0, "time_unknown":0, "fallback_resolved":0,
               "fallback_attempted":0, "missing":0, "eligible":0, "skipped_no_earnings":0,
-              "matched_events":[], "error":""}
+              "matched_events":[], "economic_events_ok":False, "economic_events_error":"", "error":""}
     ny_now = now_kst.astimezone(_NY) if now_kst.tzinfo else now_kst.replace(tzinfo=_KST).astimezone(_NY)
     today_ny = ny_now.date()
     start_day = today_ny - timedelta(days=16)
@@ -347,6 +364,8 @@ def fetch_event_calendars(now_kst, wanted_tickers):
 
     try:
         edf = cal.get_economic_events_calendar(start=start_day, end=end_day, limit=100, force=True) if cal is not None else None
+        # 호출 자체가 정상 완료되면 빈 결과도 정상으로 본다. 실패한 날에는 과거 hist에 '이벤트 없음'을 고정하지 않는다.
+        status["economic_events_ok"] = edf is not None
         if edf is not None and not edf.empty:
             for ev, r in edf.iterrows():
                 name = str(ev); low = name.lower()
@@ -356,6 +375,7 @@ def fetch_event_calendars(now_kst, wanted_tickers):
                 if region and region.upper() not in ("US", "USA"): continue
                 if dt: out_market.append({"type":label, "name":name, "date":dt})
     except Exception as e:
+        status["economic_events_error"] = f"{type(e).__name__}: {e}"
         print("경제 이벤트 캘린더 조회 실패:", e)
 
     uniq=[]; seen=set()
@@ -703,7 +723,7 @@ SNAPSHOT_FIELDS = [
     "ma20_slope", "run5_max", "run3_sum", "range3", "range10", "vol3_ratio",
     "res_short", "ret20", "rs20",
     "prev_change_1d", "prev_vol_ratio", "prev_macd_hist", "prev_price", "prev_ma5", "prev_ma20",
-    "market_level", "market_weak", "market_ret20",
+    "market_level", "market_weak", "market_ret20", "market_events",
 ]
 
 def _storage_row(r, mkt):
@@ -763,7 +783,7 @@ def hist_row_from_current(r):
     ]
 
 
-def freeze_signal_hist(results, prev_rows, mkt=None):
+def freeze_signal_hist(results, prev_rows, mkt=None, market_events=None, market_events_ok=False):
     """
     공개된 종가 스냅샷을 append-only로 고정한다.
 
@@ -779,6 +799,7 @@ def freeze_signal_hist(results, prev_rows, mkt=None):
     date_i = idx["date"]
     last_i = len(HIST_FIELDS) - 1
     qmap = market_hist_map(mkt)
+    emap = market_event_map(market_events)
     snap_cache = {}
 
     def day_snapshot(ticker, day):
@@ -826,6 +847,12 @@ def freeze_signal_hist(results, prev_rows, mkt=None):
                 if h[ilv] is None: h[ilv] = lv;  backfilled["market_level"] += 1
                 if h[iwk] is None: h[iwk] = wk;  backfilled["market_weak"] += 1
                 if h[irt] is None: h[irt] = rt;  backfilled["market_ret20"] += 1
+        # 시장 이벤트는 점수 입력이 아니라 표시용 메타데이터다.
+        # 경제캘린더 조회가 정상 완료된 실행에서만 빈 배열까지 고정해, 조회 실패를 '이벤트 없음'으로 오인하지 않는다.
+        iev = idx.get("market_events")
+        if iev is not None and h[iev] is None and market_events_ok:
+            h[iev] = emap.get(str(d), [])
+            backfilled["market_events"] += 1
         return h
 
     frozen_count = 0
@@ -949,6 +976,36 @@ def attach_historical_market(results, mkt):
             if h[iwk] is None: h[iwk] = wk
             if h[irt] is None: h[irt] = rt
 
+def prepare_qqq_card(row, market_events, market_events_ok):
+    """QQQ를 일반 evaluate() 입력 모양으로 만들되 자기 자신에 QQQ 시장필터는 적용하지 않는다. 랭킹에는 넣지 않는다."""
+    if not row:
+        return None
+    emap = market_event_map(market_events)
+    row["market_level"] = "neutral"
+    row["market_weak"] = False
+    row["market_ret20"] = row.get("ret20")
+    row["rs20"] = 0.0 if row.get("ret20") is not None else None
+    if market_events_ok:
+        row["market_events"] = emap.get(str(row.get("last_date") or ""), [])
+    else:
+        row["market_events"] = row.get("market_events") or []
+
+    idx = {k:i for i,k in enumerate(HIST_FIELDS)}
+    last_i = len(HIST_FIELDS)-1
+    for h in row.get("hist") or []:
+        while len(h) <= last_i:
+            h.append(None)
+        d = str(h[idx["date"]] or "")
+        rt = h[idx["ret20"]]
+        h[idx["rs20"]] = 0.0 if rt is not None else None
+        h[idx["market_level"]] = "neutral"
+        h[idx["market_weak"]] = False
+        h[idx["market_ret20"]] = rt
+        if market_events_ok:
+            h[idx["market_events"]] = emap.get(d, [])
+    return row
+
+
 def main():
     prev_rows, prev_payload = load_previous()
     print(f"실행 범위: {RUN_SCOPE} · 직전 데이터 {len(prev_rows)}종목 보유")
@@ -962,6 +1019,18 @@ def main():
     all_tickers = [tk for items in WATCHLIST.values() for tk in items]
     now_kst = datetime.now(_KST)
     earnings_map, market_events, calendar_status = fetch_event_calendars(now_kst, all_tickers)
+    event_map_now = market_event_map(market_events)
+    market_events_ok = bool((calendar_status or {}).get("economic_events_ok"))
+
+    # QQQ는 시장 기준 미니카드 전용. 일반 종목과 같은 기술입력을 계산하지만 랭킹 유니버스에는 넣지 않는다.
+    # 자기 자신에게 QQQ 시장필터/상대강도 보정을 다시 먹이지 않도록 neutral·rs20=0으로 고정한다.
+    qqq_card = None
+    try:
+        qqq_card = prepare_qqq_card(analyze(MARKET_TICKER, "나스닥100 ETF", "시장 기준"), market_events, market_events_ok)
+        print(f"QQQ 기준카드: {qqq_card.get('last_date')} 종가 · 랭킹 제외")
+    except Exception as e:
+        print("QQQ 기준카드 생성 실패:", e)
+
     # 조회 실패/누락 시 직전 이벤트를 보조적으로 유지한다.
     prev_earn = {r.get("ticker"): r.get("earnings") for r in (prev_payload or {}).get("stocks", []) if r.get("earnings")}
     for tk, ev in prev_earn.items():
@@ -1002,6 +1071,11 @@ def main():
                     print("SKIP→KEEP", tk, e)
                 else:
                     failed.append(f"{tk} ({nm}) — {e}"); print("SKIP", tk, e)
+    # 현재 카드에도 그 종가 날짜의 시장 이벤트를 붙인다. 경고 표시 전용이며 점수에는 사용하지 않는다.
+    if market_events_ok:
+        for r in results:
+            r["market_events"] = event_map_now.get(str(r.get("last_date") or ""), [])
+
     # 실적 보류 판정은 가격 수집이 끝난 뒤 한 번만 적용한다.
     attach_earnings_holds(results, earnings_map, now_kst)
     # 신뢰도 검증의 실적 제외일도 과거 기록처럼 append-only로 고정한다.
@@ -1036,13 +1110,14 @@ def main():
 
     # 신뢰도용 최근 hist는 여기서 고정한다.
     # 과거 날짜는 직전 signals.json 값을 그대로 유지하고 새 거래일만 append한다.
-    freeze_signal_hist(results, prev_rows, mkt)
+    freeze_signal_hist(results, prev_rows, mkt, market_events, market_events_ok)
 
     payload = {
         "generated_at": now_kst.strftime("%Y-%m-%d %H:%M") + " KST",
         "hist_fields": HIST_FIELDS,
         "note": "yfinance 무료 데이터 · 15~20분 지연 · 참고용",
         "market": mkt,
+        "qqq_card": qqq_card,
         "market_events": market_events,
         "calendar_status": calendar_status,
         "sectors": sectors,
