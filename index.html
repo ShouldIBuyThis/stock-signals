@@ -1542,13 +1542,16 @@ function allStocks(){
 /* 신호 순위의 기준 유니버스.
    테마/보유/숨김은 "보기 필터"일 뿐 신호 강도 자체를 바꾸면 안 된다.
    시장 토글만 신호 유니버스에 반영한다. */
+/* 신호 유니버스에는 보기 필터를 넣지 않는다. 시장 토글(전체/US/KR)도 보기 필터다.
+   여기에 시장을 걸면 KR만 볼 때 2종목 안에서 순위가 매겨져 코스피 ETF가 TOP5가 되고,
+   전체 화면에서는 없던 💡가 국장 화면에서만 켜진다.
+   순위·💡 기준은 항상 전체 종목이고, 시장 토글은 무엇을 보여줄지만 정한다. */
 function signalUniverse(){
-  return allStocks()
-    .filter(s => !s.earnings_hold)
-    .filter(s => state.market==="all" || (state.market==="kr" ? s._kr : !s._kr));
+  return allStocks().filter(s => !s.earnings_hold);
 }
 function visible(){
   return signalUniverse()
+    .filter(s => state.market==="all" || (state.market==="kr" ? s._kr : !s._kr))
     .filter(s => !state.hidden.includes(s.ticker))
     .filter(s => !state.showHoldings || s._hold)
     .filter(s => !state.themeFilter || s.category===state.themeFilter);
@@ -1898,6 +1901,8 @@ function multiSignalRank(list){
   });
 }
 function multiSignalTop(list){ return multiSignalRank(list).slice(0,5); }
+/* 결과가 0건일 때 쓰는 축약 바.
+   보유 토글을 빼면 "보유만 보기"로 비운 뒤 되돌릴 버튼이 사라져 갇힌다. 항상 같이 그린다. */
 function themeHoldBar(){
   const on = v => state.market===v ? "on" : "";
   return `<div class="mkbar">
@@ -1906,6 +1911,7 @@ function themeHoldBar(){
       <button class="${on("us")}" data-market="us" title="미국장">🇺🇸</button>
       <button class="${on("kr")}" data-market="kr" title="한국장">🇰🇷</button>
     </span>
+    <button class="chip tgl mini2 ${state.showHoldings?"on":""}" data-hold="1">⭐ 보유종목</button>
   </div>`;
 }
 function noHoldingState(){
