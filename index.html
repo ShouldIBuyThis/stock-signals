@@ -954,7 +954,7 @@ const NAME_MAP = {
   CEG:"컨스텔레이션에너지", VST:"비스트라", BE:"블룸에너지", SMR:"뉴스케일파워", OKLO:"오클로",
   GDXU:"금광주 3x", GLD:"금 현물 ETF", XOM:"엑슨모빌", USO:"미국 원유 ETF", MP:"MP머티리얼즈", UUUU:"에너지퓨얼스",
   MA:"마스터카드",
-  MSTR:"마이크로스트래티지", BMNR:"비트마인", COIN:"코인베이스",
+  ETHU:"이더리움 2x ETF", MSTR:"마이크로스트래티지", BMNR:"비트마인", COIN:"코인베이스",
   IONQ:"아이온큐", QBTS:"디웨이브", INFQ:"인플렉션", RGTI:"리게티컴퓨팅",
   RKLB:"로켓랩", SPCX:"스페이스X", PL:"플래닛랩스", JOBY:"조비에비에이션", RDW:"레드와이어",
   RCAT:"레드캣홀딩스", LMT:"록히드마틴", LHX:"L3해리스", AXON:"액손",
@@ -983,7 +983,7 @@ const CAT_MAP = {
   CEG:"에너지·원전", VST:"에너지·원전", BE:"에너지·원전", SMR:"에너지·원전", OKLO:"에너지·원전",
   GDXU:"원자재·금", GLD:"원자재·금",
   XOM:"원자재·유가", USO:"원자재·유가", MP:"원자재·희토류", UUUU:"원자재·희토류",
-  MSTR:"암호화폐", BMNR:"암호화폐", COIN:"암호화폐",
+  ETHU:"암호화폐", MSTR:"암호화폐", BMNR:"암호화폐", COIN:"암호화폐",
   IONQ:"양자컴퓨팅", QBTS:"양자컴퓨팅", INFQ:"양자컴퓨팅", RGTI:"양자컴퓨팅",
   RKLB:"우주·UAM", SPCX:"우주·UAM", PL:"우주·UAM", JOBY:"우주·UAM", RDW:"우주·UAM",
   RCAT:"방산·드론", LMT:"방산·드론", LHX:"방산·드론", AXON:"방산·드론",
@@ -993,7 +993,7 @@ const CAT_MAP = {
 };
 
 /* 레버리지(배수) 상품 — 손절선 필수 */
-const LEVERAGED = { SOXL:{base:"반도체 지수",x:3}, GDXU:{base:"금광주 지수",x:3}, NAIL:{base:"주택건설 지수",x:3} };
+const LEVERAGED = { SOXL:{base:"반도체 지수",x:3}, GDXU:{base:"금광주 지수",x:3}, NAIL:{base:"주택건설 지수",x:3}, ETHU:{base:"이더리움",x:2} };
 const levX = tk => (LEVERAGED[tk] ? LEVERAGED[tk].x : 1);
 function levMark(tk){
   return LEVERAGED[tk] ? `<span class="lev" data-lev="${esc(tk)}" title="고위험 레버리지 상품">❗</span>` : "";
@@ -2418,7 +2418,7 @@ function cartBubbles(F){
   }
   const w = Object.entries(F.warns);
   if (w.length) care.push(`주의 뱃지가 붙은 게 있어요 — ${w.map(([k,v])=>`${esc(k)} ${v}건`).join(" · ")}. 신규 진입이라면 오늘 자리가 이미 높은 건 아닌지 보세요.`);
-  if (F.lev.length) care.push(`${F.lev.map(s=>esc(s.ticker)).join("·")}는 3배 레버리지예요. 하루 단위로 배수가 다시 계산돼서 오래 들고 있으면 불리해집니다.`);
+  if (F.lev.length) care.push(`${F.lev.map(s=>`${esc(s.ticker)} ${LEVERAGED[s.ticker]?.x||"?"}배`).join(" · ")} 레버리지 상품이에요. 하루 단위로 배수가 다시 계산돼서 오래 들고 있으면 불리해집니다.`);
   const nearRes=F.activeMine.map(s=>{const L=cartLevels(s);return {s,g:L.gap(L.res1)};}).filter(x=>x.g!=null&&x.g>=0&&x.g<=3);
   if(nearRes.length) care.push(`${nearRes.map(x=>esc(x.s.ticker)).join("·")}는 가까운 20일 저항이 현재가에서 3% 안쪽이에요. 추격보다는 돌파 확인이나 저항 부근 분할익절 같은 대응이 더 어울립니다.`);
   if(F.heldPeers&&F.heldPeers.length){
@@ -2636,6 +2636,8 @@ function externalRiskInfo(s){
   const tk=String(s?.ticker||"").toUpperCase();
   if(cat.includes("원자재·유가") || ["XOM","USO"].includes(tk))
     return {title:"원유 관련 종목 안내",text:"원유주는 유가·OPEC·지정학적 변수의 영향이 커 기술적 신호와 다르게 움직일 수 있어요."};
+  if(tk==="ETHU")
+    return {title:"이더리움 2배 ETF 안내",text:"ETHU는 이더리움(ETH)의 하루 등락률을 2배로 추종하는 레버리지 ETF예요. 24시간 코인시장과 일일 배수 재설정의 영향을 크게 받아 일반 주식보다 기술적 신호 변동이 클 수 있어요."};
   if(cat.includes("암호화폐") || ["MSTR","BMNR","COIN"].includes(tk))
     return {title:"코인 관련 종목 안내",text:"코인 관련주는 BTC 가격과 24시간 코인시장 영향을 크게 받아 일봉 기술신호와 다르게 움직일 수 있어요."};
   if(cat.includes("헬스케어") || cat.includes("바이오"))
@@ -3195,7 +3197,7 @@ function renderHelp(){
         · <b>급락 + 거래량 폭증</b> — 공포 투매로 보고 <b>반등 점수 +1.5~2.0</b><br>
         · <b>음봉 + 거래량 0.85배 미만</b> — 건전한 숨고르기로 <b>+0.5</b><br>
         · <b>거래량 없는 상승(0.8배 미만)</b> — <b>−0.7</b><br><br>
-        단, 당일 급등한 날의 거래량 가점은 <b>0.8로 제한</b>합니다. 이미 오른 자리에서 거래량까지 얹어주면 추격 매수가 되기 때문입니다. 3배 레버리지 종목은 등락률을 <b>1배로 환산</b>해서 급등 여부를 판단합니다.</div>
+        단, 당일 급등한 날의 거래량 가점은 <b>0.8로 제한</b>합니다. 이미 오른 자리에서 거래량까지 얹어주면 추격 매수가 되기 때문입니다. 레버리지 상품은 각 상품의 배수로 등락률을 <b>1배 환산</b>해서 급등 여부를 판단합니다.</div>
         <div class="help-card"><b>시장 국면 (QQQ 4단계)</b><br><b>강세</b> 20일선 위 + 20일선 상승 + 60일선 위<br><b>중립</b> 20일선 위이나 추세 약함<br><b>주의</b> 20일선 아래(60일선 유지)<br><b>약세</b> 20·60일선 모두 아래<br>→ 국면이 나쁠수록 미국 종목 전체에 감점 폭이 커집니다.</div>
       </div>
     </details>
