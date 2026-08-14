@@ -601,10 +601,11 @@ html[data-theme="dark"] .bub.care .bub-h{color:#f0a95a}
   font-size:12px;font-weight:700;text-decoration:underline dotted;cursor:pointer;padding:0}
 html[data-theme="dark"] .linkbtn{color:#8fb4ff}
 .basis{margin-left:auto;font-size:10.5px;color:var(--faint);font-weight:600;white-space:nowrap;padding-left:8px}
-.basis-event{border:0;background:none;padding:0 0 0 7px;margin:0;color:var(--faint);font:inherit;font-size:inherit;font-weight:600;cursor:pointer;white-space:nowrap}
-.basis-event.on{color:#a9570c;font-weight:850}
-html[data-theme="dark"] .basis-event.on{color:#f0a95a}
-.basis-event:hover{text-decoration:underline;text-underline-offset:2px}
+.basis-event{border:1px solid #b9e7cb;background:#e7f6ee;padding:2px 7px;margin-left:7px;color:#0f8a4d;font:inherit;font-size:9.5px;font-weight:850;line-height:1.35;border-radius:999px;cursor:pointer;white-space:nowrap;box-shadow:0 1px 2px rgba(15,157,88,.08)}
+.basis-event.on{border-color:#83d5a3;background:#d9f4e5;color:#08783f}
+html[data-theme="dark"] .basis-event{border-color:#285c3d;background:#16301f;color:#63d69a}
+html[data-theme="dark"] .basis-event.on{border-color:#3b7a55;background:#1b3b28;color:#7be0aa}
+.basis-event:hover{transform:translateY(-1px);box-shadow:0 2px 5px rgba(15,157,88,.15)}
 @media (max-width:640px){ /* 모바일에선 기준일을 아랫줄로 내려 제목이 안 깨지게 */
   .section-h{flex-wrap:wrap}
   .basis{flex:1 0 100%;margin-left:0;padding-left:0;margin-top:1px;text-align:right;font-size:10px}
@@ -668,6 +669,22 @@ html[data-theme="dark"] .mkswitch button.on{background:#37456a;box-shadow:none}
 .market-bench-reason{margin-top:5px;font-size:11.5px;line-height:1.55;color:var(--reason)}
 .market-bench-actions{margin-top:7px}
 .market-bench-actions button{border:1px solid var(--line);background:var(--surface2);color:var(--ink);border-radius:999px;padding:4px 9px;font-size:10.5px;font-weight:800;cursor:pointer}
+.market-bench-cardtop{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:10px}
+.market-bench-cardtop .s-price{margin:0;flex:1;min-width:220px}
+.market-bench-cart{margin-left:auto;border:1px solid var(--line);background:var(--surface2);border-radius:9px;padding:5px 9px;font-size:11px;font-weight:850;color:var(--ink)}
+.market-bench-cart.on{border-color:#9bd8b4;background:var(--buy-soft);color:var(--buy)}
+.market-bench-wide{display:grid;grid-template-columns:minmax(320px,1.12fr) minmax(270px,.88fr);gap:12px;margin-top:9px;align-items:start}
+.market-bench-wide .stars{margin-top:0;height:100%}
+.market-bench-indicators{border:1px solid var(--line);border-radius:10px;padding:9px 10px;background:var(--surface2)}
+.market-bench-indicators .gauges{margin:0;padding:0;border-top:0;gap:7px}
+.market-bench-indicators .minor{margin-top:8px;padding-top:7px;border-top:1px dashed var(--line);font-size:10.5px;color:var(--muted);line-height:1.55}
+.market-bench-body .tags{margin-top:7px}
+.market-bench-body .market-bench-reason{margin-top:6px}
+@media(max-width:720px){
+  .market-bench-wide{grid-template-columns:1fr;gap:8px}
+  .market-bench-cardtop .s-price{min-width:0}
+  .market-bench-cart{margin-left:0}
+}
 .tl-event{font-weight:800;color:#a9570c}html[data-theme="dark"] .tl-event{color:#f0a95a}
 
 /* 엄격 다중 — 시계방향으로 도는 황금 광택 테두리.
@@ -1506,8 +1523,9 @@ function histRow(s, row, i, total){
     res_short: num(o.res_short), ret20: num(o.ret20), rs20: num(o.rs20),
     market_ret20: marketRet20,
     range3: num(o.range3), range10: num(o.range10), vol3_ratio: num(o.vol3_ratio),
-    market_level: s._kr ? "neutral" : lvl,
-    market_weak: frozenWeak !== null ? frozenWeak : (!s._kr && (lvl === "weak" || lvl === "caution")),
+    /* QQQ 자체 히스토리는 시장필터를 자기 자신에게 다시 감점하지 않는다. */
+    market_level: (s._kr || s._benchmark) ? "neutral" : lvl,
+    market_weak: s._benchmark ? false : (frozenWeak !== null ? frozenWeak : (!s._kr && (lvl === "weak" || lvl === "caution"))),
     market_events: Array.isArray(o.market_events) ? o.market_events : marketEventsOnDate(o.date)
   };
 }
@@ -1876,13 +1894,36 @@ function marketBar(){
     </details>`;
   }
 
-  const histBtn=(s._hist&&s._hist.length>=2)?`<button data-timeline="QQQ">📈 QQQ 신호 히스토리</button>`:"";
+  const shownTags=displayTags(s.sig.tags,5);
+  const tags=shownTags.map(t=>`<span class="tag ${t.c} ${t.click?"clickable":""}" ${t.click?`data-explain="${t.click}"`:""}>${t.t}</span>`).join("");
+  const histBtn=(s._hist&&s._hist.length>=2)?`<button data-timeline="QQQ">📈 최근 10거래일 신호 흐름</button>`:"";
+  const cartOn=state.cart.includes("QQQ");
   return `<details class="market-bench">
-    <summary><b>🌐 QQQ · 나스닥100 시장 기준</b><span class="badge ${gradeCls(s.sig)}">${gradeLabel(s.sig)}</span><span class="market-bench-summary-main">매수강도 ${r1(s.sig.buyScore)} · 시장 ${esc(levelLabel)}</span></summary>
+    <summary><b>🌐 QQQ · 나스닥100 시장 기준</b><span class="badge ${gradeCls(s.sig)}">${gradeLabel(s.sig)}</span><span class="market-bench-summary-main">시장 ${esc(levelLabel)}</span></summary>
     <div class="market-bench-body">
-      <div class="market-bench-h" style="margin-top:10px"><span class="sub">QQQ 시장필터 자기적용 없음</span></div>
-      <div class="market-bench-main"><span class="badge ${gradeCls(s.sig)}">${gradeLabel(s.sig)}</span><span class="score">매수강도 ${r1(s.sig.buyScore)}</span><span>추세 ${r1(s.sig.pullScore)} · 반등 ${r1(s.sig.revScore)}</span><span>시장국면 ${esc(levelLabel)}</span></div>
+      <div class="market-bench-cardtop">
+        <div class="s-price">
+          <span class="p num">${fmtPrice(s)}</span>${s.last_date?`<span class="close-date">${esc(closeDateLabel(s.last_date))}</span>`:""}
+          <span class="c num ${chgCls(s.change_1d)}">${fmtChg(s.change_1d)}</span>
+          <span class="badge ${gradeCls(s.sig)}">${gradeLabel(s.sig)}</span>${trendChip(s)}
+        </div>
+        <button class="market-bench-cart ${cartOn?"on":""}" data-qcart="QQQ" title="나스닥100 모의점검 장바구니">${cartOn?"🛒✓ 장바구니":"🛒 장바구니"}</button>
+      </div>
       <div class="market-bench-reason">${esc(s.sig.line)}${s.last_date?` · ${esc(closeDateLabel(s.last_date))}`:""}</div>
+      <div class="tags">${tags}</div>
+      <div class="market-bench-wide">
+        <div>${techStars(s)}</div>
+        <div class="market-bench-indicators">
+          <div class="gauges">
+            ${gauge("RSI", s.rsi??0, r1(s.rsi), {color:has(s.rsi)&&s.rsi>=70?"#e5484d":has(s.rsi)&&s.rsi<=30?"#0f9d58":"#9aa4b2",ticks:[30,70]})}
+            ${gauge("볼린저", s.bb_pos??0, r1(s.bb_pos), {color:has(s.bb_pos)&&s.bb_pos>=90?"#e5484d":has(s.bb_pos)&&s.bb_pos<=10?"#0f9d58":"#9aa4b2",ticks:[10,90]})}
+            ${gauge("스토캐스틱", s.stoch_k??0, `${r1(s.stoch_k)}/${r1(s.stoch_d)}`, {ticks:[20,80],dot:s.stoch_d})}
+            ${gauge("거래량비", has(s.vol_ratio)?clamp(s.vol_ratio/3*100,0,100):0, has(s.vol_ratio)?r1(s.vol_ratio)+"배":"—", {color:has(s.vol_ratio)&&s.vol_ratio>=1.5?"#f0872b":"#9aa4b2",ticks:[33]})}
+          </div>
+          <div class="minor num">매수강도 ${r1(s.sig.buyScore)} · 추세 ${r1(s.sig.pullScore)} · 반등 ${r1(s.sig.revScore)} · 시장국면 ${esc(levelLabel)}<br>MA5 ${r1(s.ma5)} · MA20 ${r1(s.ma20)} · MA60 ${r1(s.ma60)}${has(s.atr_pct)?` · 변동성 ${r1(s.atr_pct)}%`:""}</div>
+        </div>
+      </div>
+      <div class="market-bench-h" style="margin-top:8px"><span class="sub">시장 기준 전용 · QQQ 시장필터 자기적용 없음 · 랭킹/정렬 제외</span></div>
       ${histBtn?`<div class="market-bench-actions">${histBtn}</div>`:""}
     </div>
   </details>`;
@@ -2211,7 +2252,7 @@ function basisNote(){
   if(!txt) return "";
   const events=us ? marketEventsOnDate(us) : [];
   const warn=marketEventTypes(events).length>0;
-  const eventBtn=us ? `<button type="button" class="basis-event ${warn?"on":""}" data-market-event="${esc(us)}">${warn?"⚠ ":""}시장 이벤트</button>` : "";
+  const eventBtn=us ? `<button type="button" class="basis-event ${warn?"on":""}" data-market-event="${esc(us)}">${warn?"⚠ ":""}오늘의 이벤트</button>` : "";
   return `<span class="basis">${esc(txt)}${eventBtn}</span>`;
 }
 
@@ -2224,8 +2265,8 @@ function openMarketEventModal(date){
   const close=`<div class="modal-actions"><button class="primary" onclick="closeModal()">닫기</button></div>`;
   if(!types.length){
     const failed=cal.economic_events_ok===false;
-    openModal(`<h3>🗓️ 시장 이벤트</h3>
-      <p style="font-size:13px;color:var(--reason);line-height:1.8"><b>미국 ${esc(md)} 종가 기준</b><br><br>${failed?"주요 경제 이벤트 캘린더를 정상 확인하지 못했어요. 기술적 신호만 보고 판단하지 말고 외부 일정을 한 번 더 확인해 주세요.":"현재 수집된 주요 시장 이벤트 경고가 없어요."}</p>${close}`);
+    openModal(`<h3>시장 이벤트</h3>
+      <p style="font-size:13px;color:var(--reason);line-height:1.8"><b>미국 ${esc(md)} 종가 기준</b><br><br>${failed?"오늘의 주요 경제 이벤트 캘린더를 정상 확인하지 못했어요. 기술적 신호만 보고 판단하지 말고 외부 일정을 한 번 더 확인해 주세요.":"현재 수집된 오늘의 주요 시장 이벤트 경고가 없어요."}</p>${close}`);
     return;
   }
   const rows=events.map(ev=>{
@@ -2233,7 +2274,7 @@ function openMarketEventModal(date){
     const name=String(ev.name||type);
     return `<div class="help-card" style="margin-top:7px"><b>⚠ ${esc(type)}</b>${name&&name!==type?`<br><span style="font-size:11.5px;color:var(--muted)">${esc(name)}</span>`:""}</div>`;
   }).join("");
-  openModal(`<h3>⚠ 시장 이벤트</h3>
+  openModal(`<h3>시장 이벤트</h3>
     <p style="font-size:13px;color:var(--reason);line-height:1.8"><b>미국 ${esc(md)} 종가 기준</b> · ${esc(types.join(" · "))}<br><br>FOMC·CPI·PCE·주요 고용지표 같은 시장 이벤트일에는 변동성이 커져 <b>기술적 신호가 평소보다 빗나갈 수 있어요.</b><br>점수·등급·랭킹은 바꾸지 않고 경고만 표시합니다.</p>
     ${rows}${close}`);
 }
@@ -2294,8 +2335,12 @@ function trendChip(s){
 
 /* ══════════ 🛒 모의구매 점검 ══════════ */
 /* 사실 → 해석 → 한마디 순서. 사실 칸에는 계산된 값만 넣고 의견은 말풍선에만 둔다. */
+function cartStocks(){
+  const qqq=qqqBenchmarkStock();
+  return qqq ? allStocks().concat(qqq) : allStocks();
+}
 function cartFacts(){
-  const mine = allStocks().filter(s => state.cart.includes(s.ticker));
+  const mine = cartStocks().filter(s => state.cart.includes(s.ticker));
   const activeMine = mine.filter(s=>!s.earnings_hold);
   const holdMine = mine.filter(s=>s.earnings_hold);
   const mk = (state.data && state.data.market) || {};
@@ -2320,7 +2365,8 @@ function cartFacts(){
   const catSet=new Set(mine.map(s=>s.category));
   const heldPeers=allStocks().filter(s=>s.earnings_hold && !state.cart.includes(s.ticker) && catSet.has(s.category));
   const validation=strategyValidation();
-  return {mine, activeMine, holdMine, cats, gradeCnt, warns, above20, lev, mk, heldPeers, validation};
+  const hasIndex=mine.some(s=>s._benchmark || s.ticker==="QQQ");
+  return {mine, activeMine, holdMine, cats, gradeCnt, warns, above20, lev, mk, heldPeers, validation, hasIndex};
 }
 
 /* 종목별 자리.
@@ -2447,6 +2493,7 @@ function openCartReview(){
       ${holdLine}
       <div class="cf-r">20일선 위 · <b>${F.above20}</b>/${activeN}종목 <span class="lv2">(보류 제외)</span></div>
       <div class="cf-r">시장 · ${esc(F.mk.ticker||"QQQ")} ${F.mk.below_ma20?"20일선 아래":"20일선 위"}${F.mk.detail?` (${esc(F.mk.detail)})`:""}</div>
+      ${F.hasIndex?`<div class="cf-r"><b>지수 참고</b> · QQQ 같은 지수는 시장 이벤트의 영향을 크게 받아 기술적 예측이 개별 종목보다 어렵습니다.</div>`:""}
     </div>
 
     <div class="cf-h" style="margin-top:14px">📐 종목별 자리</div>
@@ -2512,7 +2559,7 @@ function openTimeline(tk){
     <div class="modal-actions"><button class="primary" onclick="document.getElementById('modal').classList.remove('on')">닫기</button></div>`);
 }
 function openTrendModal(tk){
-  const s = allStocks().find(x=>x.ticker===tk); if(!s) return;
+  const s = tk==="QQQ" ? qqqBenchmarkStock() : allStocks().find(x=>x.ticker===tk); if(!s) return;
   const fp=frozenTrendPair(s);
   const prevSig=fp ? fp.prevSig : s.prevSig;
   const curSig=fp ? fp.curSig : s.sig;
@@ -3530,12 +3577,29 @@ btnHoldTop.onclick = () => {
 /* 장바구니 패널 — 보유 패널과 같은 자리를 쓴다 */
 const btnCartTop = document.getElementById("btnCart");
 function renderCartPanel(){
-  const mine = allStocks().filter(s => state.cart.includes(s.ticker));
+  const mine = cartStocks().filter(s => state.cart.includes(s.ticker));
   holdPanel.innerHTML = mine.length
     ? `<div class="phead">🛒 장바구니 ${mine.length}/${CART_MAX} · 누르면 상세 카드로 이동</div>` +
       mine.map(s=>`<div class="panelrow"><button class="panelgoto" data-goto="${esc(s.ticker)}"><span class="tk">${esc(s.ticker)}</span><span class="nm">${esc(s.name||"")}</span><span class="val ${chgCls(s.change_1d)} num">${fmtChg(s.change_1d)}</span></button><button class="panelx" data-remove-cart="${esc(s.ticker)}" title="장바구니 해제">×</button></div>`).join("") +
       `<div class="pfoot"><button class="buyreview" data-review="1">🧾 모의구매 점검하기</button></div>`
     : `<div class="empty">아직 담은 종목이 없어요. 카드를 펼치고 🛒를 누르면 여기에 모입니다.</div>`;
+}
+function clearFullCart(){
+  state.cart=[];
+  save(); closeModal(); render();
+  toast("🛒 장바구니를 한 번에 비웠어요");
+}
+function keepFullCartOpen(){
+  closeModal();
+  toggleCartPanel(true);
+}
+function openCartFullModal(){
+  openModal(`<h3>🛒 장바구니는 ${CART_MAX}개까지 담을 수 있어요.</h3>
+    <p style="font-size:13px;color:var(--reason);line-height:1.75">한번에 비우실래요?</p>
+    <div class="modal-actions">
+      <button onclick="keepFullCartOpen()">아니오 · 장바구니 보기</button>
+      <button class="primary" onclick="clearFullCart()">예 · 한 번에 비우기</button>
+    </div>`);
 }
 function toggleCartPanel(force){
   const open = force !== undefined ? force : (holdPanel.classList.contains("hidden") || holdPanel.dataset.mode !== "cart");
@@ -3670,6 +3734,20 @@ function preferredDestination(s, sort){
   return null;
 }
 function gotoStock(tk, preferredSort=null){
+  if(tk==="QQQ"){
+    state.tab="theme";
+    state.badge=null; state._badgeOpen=false;
+    save(); render(); qRes.classList.add("hidden"); qEl.value="";
+    setTimeout(()=>{
+      const card=document.querySelector("details.market-bench");
+      if(!card) return;
+      card.open=true; card.classList.add("focus");
+      setTimeout(()=>card.classList.remove("focus"),2000);
+      try{card.scrollIntoView({behavior:"smooth",block:"center"});}catch(e){card.scrollIntoView();}
+      toast("QQQ · 나스닥100 시장 기준 카드로 이동했어요");
+    },60);
+    return;
+  }
   state.tab = "all";
   state.view = "cards";
   if (!state.expanded.includes(tk)) state.expanded.push(tk);
@@ -3767,9 +3845,11 @@ document.getElementById("main").addEventListener("click", e=>{
     e.preventDefault(); e.stopPropagation();
     const tk=qcart.dataset.qcart;
     if(state.cart.includes(tk)){ state.cart=state.cart.filter(t=>t!==tk); toast("🛒 모의점검에서 뺐어요"); }
-    else if(state.cart.length>=CART_MAX){ toast(`후보가 조금 많아졌어 🙂 ${CART_MAX}개 정도로 추려보는 걸 추천해.`); }
+    else if(state.cart.length>=CART_MAX){ openCartFullModal(); }
     else { state.cart=state.cart.concat(tk); toast("🛒 모의점검에 담았어요"); }
-    save(); render(); return;
+    save(); render();
+    if(tk==="QQQ") setTimeout(()=>{const d=document.querySelector("details.market-bench");if(d)d.open=true;},0);
+    return;
   }
   const tf = e.target.closest("[data-themefilter]");
   if(tf){
@@ -3878,7 +3958,7 @@ document.getElementById("main").addEventListener("click", e=>{
     state.holdings = state.holdings.includes(tk) ? state.holdings.filter(t=>t!==tk) : state.holdings.concat(tk);
   } else if (act==="cart"){
     if (state.cart.includes(tk)){ state.cart = state.cart.filter(t=>t!==tk); toast("🛒 장바구니에서 뺐어요"); }
-    else if (state.cart.length >= CART_MAX){ toast(`후보가 조금 많아졌어 🙂 ${CART_MAX}개 정도로 추려보는 걸 추천해.`); }
+    else if (state.cart.length >= CART_MAX){ openCartFullModal(); }
     else { state.cart = state.cart.concat(tk); toast("🛒 관심종목에 담았어"); }
   } else if (act==="hide"){ state.hidden.push(tk); }
   else if (act==="expand"){ if(!state.expanded.includes(tk)) state.expanded.push(tk); }
