@@ -1719,23 +1719,29 @@ function overallRanked(list){
     Math.abs(b.s.change_1d||0)-Math.abs(a.s.change_1d||0)
   ).map(x=>x.s);
 }
-/* 종합순은 점수 크기가 다른 눌림·반등을 원점수로 직접 비교하지 않는다.
-   각 전략에서의 상대순위를 같은 척도로 맞춘 뒤, 더 좋은 축 → 최종등급 → 나머지 축 순으로 쓴다.
-   최종등급을 먼저 놓으면 강한매수가 많은 눌림형이 반등형보다 전부 앞서 상대보정이 무력화된다.
+/* 종합순은 점수 크기가 다른 눌림·반등을 원점수나 단순 순번으로 직접 비교하지 않는다.
+   각 축 점수가 그 축 전체의 평균에서 표준편차 몇 배만큼 높은지(Z값)로 환산하고,
+   두 축 중 더 좋은 상대값 → 최종등급 → 나머지 축 상대값 순으로 정렬한다.
+   따라서 눌림·반등 종목 수를 번갈아 맞추지 않으며 같은 원점수는 같은 상대값을 받는다.
    evaluate()·등급 컷·눌림순·반등순·히스토리·신뢰도 산식은 전혀 바꾸지 않는 표시 정렬 전용 로직이다. */
 function currentOverallRanked(){
   const universe=signalUniverse();
-  const R=rankMapsFor(universe);
-  const n=Math.max(1, Number(R.n)||universe.length);
+  const stats=key=>{
+    const vals=universe.map(s=>Number(s.sig[key])||0);
+    const mean=vals.reduce((sum,v)=>sum+v,0)/Math.max(1,vals.length);
+    const variance=vals.reduce((sum,v)=>sum+(v-mean)*(v-mean),0)/Math.max(1,vals.length);
+    return {mean, sd:Math.sqrt(variance)||1};
+  };
+  const pull=stats("pullScore"), rev=stats("revScore");
   const relative=s=>{
-    const pull=rankOf(R.pull,s.ticker)/n;
-    const rev=rankOf(R.rev,s.ticker)/n;
-    return {best:Math.min(pull,rev), other:Math.max(pull,rev)};
+    const p=((Number(s.sig.pullScore)||0)-pull.mean)/pull.sd;
+    const r=((Number(s.sig.revScore)||0)-rev.mean)/rev.sd;
+    return {best:Math.max(p,r), other:Math.min(p,r)};
   };
   return universe.slice().sort((a,b)=>{
     const ar=relative(a), br=relative(b);
-    return ar.best-br.best || b.sig.grade-a.sig.grade ||
-      ar.other-br.other || a.ticker.localeCompare(b.ticker);
+    return br.best-ar.best || b.sig.grade-a.sig.grade ||
+      br.other-ar.other || a.ticker.localeCompare(b.ticker);
   });
 }
 function overallRankMap(){
