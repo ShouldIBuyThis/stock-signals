@@ -1049,6 +1049,7 @@ function normalize(raw){
            qqq_card: raw.qqq_card || null,
            market_events: Array.isArray(raw.market_events) ? raw.market_events : [],
            calendar_status: raw.calendar_status || null,
+           generation_status: raw.generation_status || null,
            sectors: raw.sectors||null, hist_fields: raw.hist_fields||null };
 }
 
@@ -1535,7 +1536,9 @@ function histRow(s, row, i, total){
     /* QQQ 자체 히스토리는 시장필터를 자기 자신에게 다시 감점하지 않는다. */
     market_level: (s._kr || s._benchmark) ? "neutral" : lvl,
     market_weak: s._benchmark ? false : (frozenWeak !== null ? frozenWeak : (!s._kr && (lvl === "weak" || lvl === "caution"))),
-    market_events: Array.isArray(o.market_events) ? o.market_events : marketEventsOnDate(o.date)
+    /* 과거 행의 빈 배열도 '그날 이벤트 없음'으로 확정된 값이다.
+       현재 top-level 캘린더를 다시 찾아 붙이면 과거 경고가 뒤늦게 바뀌므로 절대 fallback하지 않는다. */
+    market_events: Array.isArray(o.market_events) ? o.market_events : []
   };
 }
 /* 어제 값을 붙여준다 — '던진 다음날'을 눌림목으로 오인하지 않기 위해 */
@@ -1866,7 +1869,7 @@ function marketEventsOnDate(date){
 }
 function marketEventsForRow(s){
   const frozen=marketEventItems(s&&s.market_events);
-  return frozen.length ? frozen : marketEventsOnDate(s&&s.last_date);
+  return Array.isArray(s&&s.market_events) ? frozen : marketEventsOnDate(s&&s.last_date);
 }
 function marketEventTypes(events){
   return [...new Set(marketEventItems(events).map(x=>String(x.type||x.name||"시장 이벤트").trim()).filter(Boolean))];
@@ -2072,7 +2075,6 @@ function multiSignalRank(list){
     });
   });
 }
-function multiSignalTop(list){ return multiSignalRank(list).slice(0,5); }
 /* 결과가 0건일 때 쓰는 축약 바.
    보유 토글을 빼면 "보유만 보기"로 비운 뒤 되돌릴 버튼이 사라져 갇힌다. 항상 같이 그린다. */
 function themeHoldBar(){
@@ -3187,15 +3189,15 @@ function renderHelp(){
     </div>
     <div class="strategy-mini-wrap">
       <table class="cmp strategy-mini">
-        <tr><th>전략</th><th>잘 맞는 기간</th><th>검증 결과</th><th>추천 활용</th></tr>
-        <tr><td><b>🔵 다중 신호</b></td><td><b>3~5일</b></td><td>🥇 <b>+3+5일 합산 승률 1위</b></td><td><b>초보 단기 스윙</b></td></tr>
-        <tr><td><b>📈 추세</b></td><td><b>5~20일+</b></td><td>🥇 <b>+20일 승률·수익률 1위</b></td><td><b>눌림목 분할매수·중장기</b></td></tr>
-        <tr><td><b>↪️ 반등</b></td><td><b>1~5일</b></td><td>🚀 <b>+3+5일 평균수익률 1위</b></td><td><b>빠른 스윙 · 중수 이상</b></td></tr>
+        <tr><th>전략</th><th>잘 맞는 기간</th><th>과거 자체 테스트</th><th>추천 활용</th></tr>
+        <tr><td><b>🔵 다중 신호</b></td><td><b>3~5일</b></td><td><b>단기 후보 비교용</b></td><td><b>초보 단기 스윙</b></td></tr>
+        <tr><td><b>📈 추세</b></td><td><b>5~20일+</b></td><td><b>별도 과거 테스트 참고</b></td><td><b>눌림목 분할매수·중장기</b></td></tr>
+        <tr><td><b>↪️ 반등</b></td><td><b>1~5일</b></td><td><b>단기 후보 비교용</b></td><td><b>빠른 스윙 · 중수 이상</b></td></tr>
       </table>
     </div>
     <div class="strategy-mini-note"><b>승률</b> = 상승 ÷ (상승+하락), 보합 제외 · <b>수익률</b> = 신호 이후 실제 가격 변동폭의 평균<br>
-      단기(+1·3·5일)와 +20일 모두 <b>과거 원시지표를 현재 산식으로 재평가</b>한 결과입니다.
-      산식이 바뀌거나 표본이 쌓이면 <b>결과가 달라질 수 있습니다.</b></div>
+      위 비교표는 실시간 승률 순위표가 아닌 <b>과거 자체 테스트 설명</b>입니다.<br>
+      현재 화면에서 실제로 계산·갱신되는 검증은 위 <b>+1·3·5거래일 표</b>이며, +20일은 공개 검증표에서 계산하지 않습니다.</div>
     <table class="cmp market-guide">
       <tr><th>시장 상황</th><th>우선 참고 전략</th><th>해석</th></tr>
       <tr><td><b>상승추세·숨고르기</b></td><td>📈 추세</td><td>추격보다 되돌림 진입</td></tr>
@@ -3268,10 +3270,18 @@ function render(){
   const stamp = document.getElementById("stamp");
   stamp.textContent = state.data ? (state.data.generated_at || "기준 시각 미표기") : "데이터 불러오는 중…";
   const mk = state.data && state.data.market;
+  const gs = state.data && state.data.generation_status;
+  const carried = gs && Array.isArray(gs.carried_after_fetch_error) ? gs.carried_after_fetch_error : [];
   document.getElementById("mktInfo").innerHTML = mk
     ? `어제 종가 기준 <b>${esc(mk.ticker)}</b>는 20일선 ${mk.below_ma20
         ? '<b style="color:var(--sell)">아래</b>입니다. 미국장 추세는 <b style="color:var(--sell)">약세</b>입니다.'
         : '<b style="color:var(--buy)">위</b>입니다. 미국장 추세는 <b style="color:var(--buy)">양호</b>합니다.'}` : "";
+  if (carried.length){
+    document.getElementById("mktInfo").innerHTML += `<br><b style="color:var(--sell)">⚠ 수집 실패로 직전 확정값 유지:</b> ${carried.map(esc).join(", ")}`;
+  }
+  if (gs && gs.force_resnap){
+    document.getElementById("mktInfo").innerHTML += `<br><b style="color:var(--sell)">⚠ 이번 패치는 수동 FORCE_RESNAP 재촬영입니다.</b>`;
+  }
   if (typeof holdPanel !== "undefined" && holdPanel && !holdPanel.classList.contains("hidden")){
     if (holdPanel.dataset.mode === "cart") renderCartPanel(); else renderHoldPanel();
   }
