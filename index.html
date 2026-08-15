@@ -900,8 +900,10 @@ const CART_MAX = 5;   // 모의구매 점검이 의미를 가지는 상한
    필요한 건 "언제부터 어느 산식이 돌았는가"의 기록이다. 코드 자체는 git이 보관한다.
    나중에 소급 채점할 때: git show <커밋>:index.html 로 그 시점 evaluate()를 꺼내 쓴다. */
 /* LOGIC_VERSION은 '점수 산식'의 버전이다. 순위·표시 정합성 패치로는 올리지 않는다. */
-const LOGIC_VERSION = "v6";
+const LOGIC_VERSION = "v7";
 const LOGIC_LOG = [
+  {v:"v7", from:"2026-08-15", t:"눌림 매수관심 표본 완화 · 강한매수 기준 보존",
+   d:"기존 C형 찐 눌림만 강한매수로 인정하는 기준은 그대로 둔다. 다만 정배열·상승 20일선의 비추격 구간 또는 20일선 위의 차분한 초기 추세 구간은 매수관심까지만 허용해 지나친 표본 감소를 완화한다. RSI와 볼린저가 동시에 상단권이면 완화 대상에서 제외해 LMT·CRWD의 중립→강한매수 전환 기록과 강한다중 의미를 보존한다. 반등점수·반등등급·전체 강한매수·일반다중 산식은 변경하지 않는다."},
   {v:"v6", from:"2026-08-15", t:"반등 2.5점 구제 · 강한다중 미세필터",
    d:"반등점수 자체는 바꾸지 않고, 3.0점 기존 강한매수 외에 반등 2.5점·RSI 50 이하·볼린저 70 이하·당일 상승 2% 이하를 충족한 바닥권 회복을 강한매수로 구제한다. 일반다중에는 동일하게 반영하되, 강한다중은 전일 중립→강한매수와 기존 엄격 B/C에 더해 구제 반등이 정확히 2.5점·볼린저 65 이하일 때만 포함한다. 과거 원시지표는 수정하지 않으며 최근 원장은 현재 v6 산식으로 재검증한다."},
   {v:"v5", from:"2026-08-14", t:"[정합성 패치] 순위 통일 · 매수강도 기준 통일 — 점수 산식 무변경",
@@ -1404,11 +1406,18 @@ function evaluate(s){
      최종 등급 = max(눌림 Grade, 반등 Grade). 돌파 Grade는 뱃지 표시에만 쓰고 여기에 넣지 않는다. */
   const breakGrade = breakScore>=2.5 ? 5 : breakScore>=1.2 ? 4 : 3;
   /* C형 찐 눌림 게이트.
-     보조지표 합산만으로 눌림등급을 만들지 않고, 실제 눌림·숨고르기·전일 대량음봉 후 회복 중
-     하나가 확인된 경우에만 기존 눌림 컷(1.5/0.8)을 적용한다.
-     pullScore 자체와 반등 산식·컷은 그대로 보존해 과거 비교가 가능하다. */
+     실제 눌림·숨고르기·전일 대량음봉 후 회복이 확인된 경우만 강한매수를 허용한다.
+     표본이 지나치게 줄지 않도록, 상승 20일선 위의 차분한 비추격 구간은 매수관심까지만
+     완화한다. RSI·볼린저가 동시에 상단권이면 완화하지 않아 이미 오른 자리를 거른다.
+     pullScore 자체와 반등 산식·컷은 그대로 보존한다. */
   const pullSetup = dipSoft || dipHard || resting || dumpRecovered;
-  const pullGrade = pullSetup ? (pullScore >=1.5 ? 5 : pullScore >=0.8 ? 4 : 3) : 3;
+  const pullRelaxed = a20 && rising && s.macd_cross!=="dead" && !surge &&
+    pct!==null && Math.abs(pct)<=2.5 && (
+      (bull && ((!has(rsi) || rsi<=65) || (!has(bb) || bb<=80))) ||
+      (has(rsi) && rsi<=60 && has(bb) && bb<=75)
+    );
+  const pullGrade = pullSetup && pullScore>=1.5 ? 5 :
+    ((pullSetup || pullRelaxed) && pullScore>=0.8 ? 4 : 3);
   /* 반등점수와 반등순은 그대로 둔다.
      기존 3.0점 강한 반등은 거래량 확인 또는 아직 음봉·보합인 초기 반등만 인정한다.
      5·20일선 회복형이 자주 모이는 2.5점 구간은 깊은 가격 위치(RSI·볼린저)와
@@ -1483,7 +1492,7 @@ function evaluate(s){
   /* 검증용 내역 — 나중에 "저항 보정이 실제로 도움이 됐나"를 사후 비교할 수 있게 남긴다 */
   const adj = { base: baseScore, res: resAdj, resGap, leader, ldr: ldrAdj, final: score };
   return { score, buyScore, trendScore, breakScore, pullScore, revScore, breakGrade, pullGrade, revGrade,
-    pullSetup, revStrongCore, revStrongRescue, cautionBadge, grade:g, type, line, tags, adj, overheat };
+    pullSetup, pullRelaxed, revStrongCore, revStrongRescue, cautionBadge, grade:g, type, line, tags, adj, overheat };
 }
   
 /* ══════════ 종목 가공 ══════════ */
@@ -3230,6 +3239,7 @@ function renderHelp(){
         <div class="help-card buy"><b>정배열 눌림목</b><br>이동평균 정배열을 유지하면서 종가가 <b>5일선 아래·20일선 위</b>로 쉬고, 거래량이 줄어드는 자리입니다.</div>
         <div class="help-card buy"><b>강한 눌림목</b><br>정배열 눌림에 최근 상승 이력, 변동폭 축소, 20일선 상승이 더 겹치는 경우입니다. 전일 대량음봉이 있어도 정배열·상승 20일선을 지키고 다음날 회복이 확인되면 제한적으로 눌림으로 인정합니다.</div>
         <div class="help-card"><b>숨고르기</b><br>5일선 위에서 거래량과 변동폭이 줄어드는 경우도 추세가 쉬는 신호로 봅니다.</div>
+        <div class="help-card"><b>완화 눌림 후보</b><br>20일선 위·상승 기울기를 유지하고 급등·MACD 데드크로스가 없는 차분한 날은 <b>매수관심까지만</b> 인정합니다. RSI와 볼린저가 동시에 상단권이면 제외하며, 이 조건만으로 강한매수가 되지는 않습니다.</div>
         <div class="help-card"><b>실패 신호</b><br>거래량이 크게 터진 음봉과 20일선 이탈·추세 붕괴가 함께 나타나면 건강한 눌림으로 보지 않습니다.</div>
       </div>
     </details>
