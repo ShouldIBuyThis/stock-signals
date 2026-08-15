@@ -1406,7 +1406,11 @@ function evaluate(s){
      pullScore 자체와 반등 산식·컷은 그대로 보존해 과거 비교가 가능하다. */
   const pullSetup = dipSoft || dipHard || resting || dumpRecovered;
   const pullGrade = pullSetup ? (pullScore >=1.5 ? 5 : pullScore >=0.8 ? 4 : 3) : 3;
-  const revGrade  = revScore  >=3.0 ? 5 : revScore  >=2.0 ? 4 : 3;
+  /* 반등점수와 반등순은 그대로 둔다. 다만 초록 강한매수는
+     거래량이 확인됐거나 아직 음봉·보합인 초기 반등만 인정한다. */
+  const revStrong = revScore>=3.0 &&
+    ((has(s.vol_ratio)&&s.vol_ratio>=1.1) || (has(s.change_1d)&&s.change_1d<=0));
+  const revGrade  = revStrong ? 5 : revScore>=2.0 ? 4 : 3;
   const buyGrade=Math.max(pullGrade,revGrade);
 
   /* 경계 = 등급이 아니라 '신규 진입 주의' 뱃지.
@@ -2006,55 +2010,52 @@ function earningsHoldSection(title="실적발표 보류"){
   </details>`;
 }
 
-/* 다중 신호: 눌림·반등 핵심 2축 + 거래량 보조축.
-   돌파는 여기에 독립 축으로 들어가지 않는다(보조 뱃지 전용).
-   엄격 TOP5 티어를 먼저, 일반 TOP10 티어를 그 다음에 잇는다. */
+/* 다중 신호는 전략별 강한매수만 모은다.
+   일반 다중은 B 또는 완화 C, 💡 강한다중은 중립→강매 전환과 엄격 B/C를 함께 본다. */
+function generalMultiGate(s){
+  const b=has(s.bb_pos)&&s.bb_pos<=80 && has(s.change_1d)&&s.change_1d<=2;
+  const c=has(s.rsi)&&s.rsi<=65 && has(s.vol_ratio)&&s.vol_ratio>=0.8;
+  return b||c;
+}
+function strictMultiGate(s){
+  const b=has(s.bb_pos)&&s.bb_pos<=80 && has(s.change_1d)&&s.change_1d<=2;
+  const c=has(s.rsi)&&s.rsi<=55 && has(s.vol_ratio)&&s.vol_ratio>=0.8;
+  return b||c;
+}
+function previousOverallGrade(s){
+  if(Number.isFinite(Number(s&&s._prevOverallGrade))) return Number(s._prevOverallGrade);
+  const hs=histStocks(s);
+  if(!hs || hs.length<2) return null;
+  let i=hs.findIndex(r=>String(r.last_date)===String(s.last_date));
+  if(i<0) i=hs.length-1;
+  if(i<1) return null;
+  return evaluate(hs[i-1]).grade;
+}
 function multiSignalRank(list){
   if(!list || !list.length) return [];
-  const eligible=list.filter(s=>s.sig.grade>=4); // 최종 강한매수/매수관심만 후보
+  const eligible=list.filter(s=>s.sig.grade===5 && generalMultiGate(s));
   if(!eligible.length) return [];
-
-  /* 내부 축 순위를 따로 만들지 않고 화면과 같은 rankMapsFor()를 쓴다.
-     예전에는 여기서 raw score 기준으로 순위를 다시 매겨서
-     카드에는 "눌림 2위", 💡 상세에는 "눌림 3위"가 동시에 찍힐 수 있었다. */
   const R=rankMapsFor(list);
-
+  const n=Math.max(1,R.n||list.length);
   const info=eligible.map(s=>{
     const pu=rankOf(R.pull,s.ticker), rv=rankOf(R.rev,s.ticker), vo=rankOf(R.vol,s.ticker);
-    const core=[pu,rv], all=[pu,rv,vo];
-    const core5=core.filter(x=>x<=5).length;
-    const core10=core.filter(x=>x<=10).length;
-    const all5=all.filter(x=>x<=5).length;
-    const all7=all.filter(x=>x<=7).length;
-    const all10=all.filter(x=>x<=10).length;
-    const strict=(all5>=2 && core5>=1);
-    const general=(!strict && all10>=2 && all7>=1);
-    return {
-      s,pu,rv,vo,core5,core10,all5,all7,all10,
-      bestCore:Math.min(...core), bestAll:Math.min(...all),
-      tier:strict?1:(general?2:0)
-    };
-  }).filter(x=>x.tier>0);
-
-  /* 티어 안에서의 나열 순서. 완전 동점은 ticker로 갈라 실행마다 같은 결과가 나오게 한다. */
-  const cmpWithin=(a,b)=>
-    b.s.sig.grade-a.s.sig.grade ||
-    b.core5-a.core5 || b.all5-a.all5 ||
-    b.all7-a.all7 ||
-    b.core10-a.core10 || b.all10-a.all10 ||
-    a.bestCore-b.bestCore || a.bestAll-b.bestAll ||
-    a.s.ticker.localeCompare(b.s.ticker);
-
-  const strict=info.filter(x=>x.tier===1).sort(cmpWithin);
-  const general=info.filter(x=>x.tier===2).sort(cmpWithin);
-  const ordered=strict.concat(general);
+    const pullStrong=s.sig.pullGrade===5, revStrong=s.sig.revGrade===5;
+    const strongPcts=[pullStrong?pu/n:null,revStrong?rv/n:null].filter(x=>x!==null);
+    const bestPct=Math.min(...strongPcts), otherPct=strongPcts.length>1?Math.max(...strongPcts):1;
+    const strict=previousOverallGrade(s)===3 && strictMultiGate(s);
+    return {s,pu,rv,vo,pullStrong,revStrong,bestPct,otherPct,tier:strict?1:2};
+  });
+  /* 눌림·반등 원점수의 크기를 직접 비교하지 않고 전략별 상대위치로 정렬한다. */
+  const ordered=info.sort((a,b)=>
+    b.tier===1&&a.tier!==1 ? 1 : a.tier===1&&b.tier!==1 ? -1 :
+    a.bestPct-b.bestPct || a.otherPct-b.otherPct || a.s.ticker.localeCompare(b.s.ticker)
+  );
   ordered.forEach((x,i)=>{ x.rankNo=i+1; });
 
   return ordered.map(x=>{
     const bits=[];
-    if(x.pu<=10)bits.push(`눌림 ${x.pu}위`);
-    if(x.rv<=10)bits.push(`반등 ${x.rv}위`);
-    if(x.vo<=10)bits.push(`거래량 ${x.vo}위`);
+    if(x.pullStrong)bits.push(`눌림 ${x.pu}위`);
+    if(x.revStrong)bits.push(`반등 ${x.rv}위`);
     return Object.assign({},x.s,{
       _multi:bits,
       _multiInfo:x,
@@ -2913,6 +2914,7 @@ function strategyValidation(){
       if(!h.last_date || !has(h.price) || !h.price) return;
       const row=Object.assign({},s,h);
       if(i>0) withPrev(row,hs[i-1]);
+      row._prevOverallGrade=i>0 ? evaluate(hs[i-1]).grade : null;
       row.sig=evaluate(row);
       if(blocked.has(h.last_date)){
         const kindsBlocked=[];
@@ -2973,7 +2975,7 @@ function strategyValidation(){
     });
   }));
 
-  // 다중신호 로직은 그대로: multiSignalRank()를 그대로 재사용한다.
+  // 화면과 검증이 갈라지지 않도록 새 일반/강한다중 기준도 multiSignalRank() 하나만 재사용한다.
   byDate.forEach(entries=>{
     const universe=entries.map(x=>x.row);
     const ranked=multiSignalRank(universe);
@@ -2997,7 +2999,7 @@ function strategyValidation(){
         const ret=(endRow.price/p0-1)*100;
         out.multi[h].push({ret,hit:ret>1,date:ent.row.last_date,endDate:endRow.last_date,ticker:sel.ticker,
           buyPrice:p0,endPrice:endRow.price,horizon:h,
-          tier:sel._multiTier});   // 1=엄격(황금테두리) / 2=일반
+          tier:sel._multiTier});   // 1=💡 강한다중 / 2=일반 다중
       });
     });
   });
@@ -3442,7 +3444,7 @@ function openValidationIntro(){
   openModal(`<h3>최근 10거래일 현재 산식 재검증</h3>
     <p style="font-size:13px;color:var(--reason);line-height:1.8">
       매수 신호가 뜬 날 종가에 샀다고 가정하고, <b>1·3·5거래일 뒤 종가</b>를 확인한 결과입니다.<br><br>
-      다중·추세·반등 신호가 발생하고 <b>매수관심 또는 강한매수 수준 이상</b>이 나온 경우만 검증 대상에 포함합니다.<br><br>
+      추세·반등은 <b>매수관심 또는 강한매수</b>, 다중은 전략별 <b>강한매수</b>와 일반 다중 필터를 통과한 경우만 검증 대상에 포함합니다.<br><br>
       <b>어떻게 계산하나요</b><br>
       그날 저장해 둔 <b>원시지표</b>(가격·이동평균·RSI·MACD·거래량 등)를 <b>지금 쓰는 산식으로 다시 채점</b>해서
       당시 신호를 복원합니다. 과거 등급을 그대로 얼려두는 방식이 아닙니다.<br><br>
@@ -3461,11 +3463,12 @@ function openSignalScoringHelp(){
       <b>신호 강도도 전략별로 판단합니다</b><br>
       각 전략에서 필요한 조건이 충분히 겹치면 <b>강한매수</b>, 일부가 확인되면 <b>매수관심</b>으로 분류합니다. 서로 다른 전략 점수를 단순 합산해 등급을 만들지 않습니다.<br><br>
       <b>다중신호는 어떻게 계산될까요?</b><br>
-      강한매수·매수관심 종목 중 눌림(추세)·반등·거래량처럼 서로 다른 기술 신호가 여러 방향에서 함께 강하게 포착되는 종목을 우선합니다. 한 가지 신호만 두드러진 종목보다 여러 조건이 함께 확인되는 종목을 앞에 둡니다.
+      눌림형 또는 반등형이 <b>강한매수</b>인 종목만 모은 뒤, 과도한 추격을 줄이는 가격위치·거래량 조건을 확인합니다. 서로 크기가 다른 눌림점수와 반등점수를 직접 비교하지 않고 각 전략 안에서의 상대순위로 나열합니다.<br><br>
+      <b>💡 강한다중</b>은 그중 전날 중립에서 오늘 강한매수로 전환됐고, 볼린저·당일등락 또는 RSI·거래량 조건을 더 엄격하게 통과한 초기 신호입니다.
     </p>
     <div class="modal-actions"><button class="primary" onclick="closeModal()">닫기</button></div>`);
 }
-/* 황금테두리(엄격 다중)만의 최근 성과. 표의 "다중" 행(엄격+일반)과는 다른 숫자다. */
+/* 💡 강한다중만의 최근 성과. 표의 "다중" 행(강한+일반)과는 다른 숫자다. */
 function openStrictMultiPerf(){
   const v=strategyValidation();
   const S=(v && v._strict) || {};
@@ -3528,7 +3531,7 @@ function openStrictMultiPerf(){
     <h3 style="margin-top:0">전략별 강한매수 분리</h3>
     <p style="font-size:12.5px;color:var(--reason);line-height:1.7;margin:0 0 8px">
       최종 초록뱃지를 만든 전략을 나눠 봅니다. 눌림형은 실제 눌림·숨고르기·전일 대량음봉 후 회복이 확인된 신호만 포함하고,
-      반등형은 기존 반등점수와 등급을 그대로 집계합니다.</p>
+      반등형은 기존 반등점수는 유지하되 거래량이 확인됐거나 아직 음봉·보합인 초기 반등만 강한매수로 집계합니다.</p>
     <h4 style="margin:12px 0 2px">📈 찐 눌림형 강한매수</h4>
     ${[1,3,5].map(h=>perfBlock(GP,h)).join("")}
     <h4 style="margin:14px 0 2px">🔄 반등형 강한매수</h4>
