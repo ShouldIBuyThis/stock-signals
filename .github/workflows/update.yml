@@ -12,6 +12,9 @@ on:
     # 한국장 1차: 15:45 KST
     - cron: '45 15 * * 1-5'
       timezone: 'Asia/Seoul'
+    # 한국장 백업: 16:20 KST — 1차 schedule/업로드 실패 대비
+    - cron: '20 16 * * 1-5'
+      timezone: 'Asia/Seoul'
   workflow_dispatch:
     inputs:
       scope:
@@ -48,6 +51,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: 최신 원장으로 시작
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git switch -C ci-update origin/main
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -78,7 +88,7 @@ jobs:
               echo "value=us" >> "$GITHUB_OUTPUT"
               echo "자동 실행 → US ($SCHEDULE_EXPR)"
               ;;
-            "45 15 * * 1-5")
+            "45 15 * * 1-5"|"20 16 * * 1-5")
               echo "value=kr" >> "$GITHUB_OUTPUT"
               echo "자동 실행 → KR ($SCHEDULE_EXPR)"
               ;;
@@ -102,6 +112,10 @@ jobs:
             echo "value=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: 갱신 전 frozen 원장 보관
+        shell: bash
+        run: cp signals.json "$RUNNER_TEMP/signals.before.json"
+
       - name: 지표 계산 1차
         id: calc
         continue-on-error: true
@@ -122,25 +136,69 @@ jobs:
 
       - name: 산출물 기본 검증
         shell: bash
+        env:
+          RUN_SCOPE: ${{ steps.scope.outputs.value }}
+          FORCE_RESNAP: ${{ steps.resnap.outputs.value }}
         run: |
-          python - <<'PY'
-          import json
-          with open("signals.json", encoding="utf-8") as f:
-              p=json.load(f)
-          stocks=p.get("stocks") or []
-          assert stocks, "signals.json stocks가 비었습니다."
-          assert isinstance(p.get("hist_fields"), list) and "atr_pct" in p["hist_fields"], "hist_fields/atr_pct 누락"
-          print(f"signals.json 검증 PASS — {len(stocks)}종목")
-          PY
+          set -euo pipefail
+          args=(signals.json --previous "$RUNNER_TEMP/signals.before.json" --scope "$RUN_SCOPE")
+          if [ "$FORCE_RESNAP" = "true" ]; then args+=(--force-resnap); fi
+          python validate_signals.py "${args[@]}"
+
+          # 자동/일반 실행은 기존 snapshot 파일 수정을 절대 허용하지 않는다.
+          if [ "$FORCE_RESNAP" != "true" ] && [ -n "$(git diff --name-only --diff-filter=M -- history/)" ]; then
+            echo "::error::FORCE_RESNAP 없이 기존 history snapshot이 수정됐습니다."
+            git diff --name-status -- history/
+            exit 1
+          fi
 
       - name: signals.json / history 커밋
+        shell: bash
+        env:
+          RUN_SCOPE: ${{ steps.scope.outputs.value }}
+          FORCE_RESNAP: ${{ steps.resnap.outputs.value }}
         run: |
+          set -euo pipefail
           git config user.name  "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
-          git add signals.json history/
-          git commit -m "auto: signals 갱신 (${{ steps.scope.outputs.value }})" || echo "변경 없음"
-          git pull --rebase --autostash
-          git push
+
+          commit_generated() {
+            git add signals.json history/
+            git commit -m "auto: signals 갱신 ($RUN_SCOPE)" || echo "변경 없음"
+          }
+
+          validate_retry() {
+            args=(signals.json --previous "$RUNNER_TEMP/signals.before.retry.json" --scope "$RUN_SCOPE")
+            if [ "$FORCE_RESNAP" = "true" ]; then args+=(--force-resnap); fi
+            python validate_signals.py "${args[@]}"
+            if [ "$FORCE_RESNAP" != "true" ] && [ -n "$(git diff --name-only --diff-filter=M -- history/)" ]; then
+              echo "::error::재시도 중 기존 history snapshot 수정 감지"
+              exit 1
+            fi
+          }
+
+          commit_generated
+          if git push origin HEAD:main; then
+            exit 0
+          fi
+
+          # 원격 signals.json이 새로 갱신된 경우 자동 merge로 원장을 선택하지 않는다.
+          # 최신 원격 원장에서 같은 scope를 다시 계산해 히스토리 유실을 막는다.
+          for attempt in 2 3; do
+            echo "푸시 충돌 — 최신 원장에서 ${attempt}차 재계산"
+            git fetch origin main
+            git switch -C ci-update origin/main
+            cp signals.json "$RUNNER_TEMP/signals.before.retry.json"
+            RUN_SCOPE="$RUN_SCOPE" FORCE_RESNAP="$FORCE_RESNAP" python main.py
+            validate_retry
+            commit_generated
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+          done
+
+          echo "::error::최신 원장 재계산 후에도 푸시가 3회 충돌했습니다."
+          exit 1
 
       - name: Pages 설정
         uses: actions/configure-pages@v5

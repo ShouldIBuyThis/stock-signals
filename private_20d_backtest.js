@@ -29,6 +29,10 @@ function extractConst(src,name){
   const st=src.indexOf(`const ${name} =`); if(st<0) die(`${name} 없음`);
   const semi=src.indexOf(';',st); return src.slice(st,semi+1);
 }
+const multiHelpers=[
+  'competitionRank','strategyOrdinalRank','volumeOrdinalRank','rankMapsFor','rankOf',
+  'generalMultiGate','strictMultiGate','previousOverallGrade'
+].map(name=>extractFunction(src,name)).join('\n');
 const ctx={console,Math,Number,Object,Array,Set,Map,String}; vm.createContext(ctx);
 vm.runInContext(`
 const has=v=>v!==null&&v!==undefined&&!Number.isNaN(v);
@@ -36,6 +40,8 @@ const r1=v=>has(v)?Math.round(v*10)/10:"—";
 ${extractConst(src,'LEVERAGED')}
 const levX=tk=>(LEVERAGED[tk]?LEVERAGED[tk].x:1);
 ${extractFunction(src,'evaluate')}
+${extractConst(src,'RANK_NONE')}
+${multiHelpers}
 ${extractFunction(src,'multiSignalRank')}
 this.E=evaluate; this.M=multiSignalRank;
 `,ctx);
@@ -55,6 +61,7 @@ for(const arr of byTicker.values()){
       r.prev_price=p.price; r.prev_ma5=p.ma5; r.prev_ma20=p.ma20;
     }
     r.sig=evaluate(r);
+    r._prevOverallGrade=p ? (p.sig?.grade||0) : 0;
     if(!byDate.has(r.last_date))byDate.set(r.last_date,[]);
     byDate.get(r.last_date).push(r);
   }

@@ -363,17 +363,32 @@ def fetch_event_calendars(now_kst, wanted_tickers):
           f"누락 {status['missing']}/{status['eligible']} · 비대상 ETF {status['skipped_no_earnings']}")
 
     try:
-        edf = cal.get_economic_events_calendar(start=start_day, end=end_day, limit=100, force=True) if cal is not None else None
+        # yfinance 경제 캘린더는 한 페이지 최대 100건이므로 끝까지 읽는다.
+        # 한 페이지만 읽으면 이벤트가 많은 기간의 뒷부분 경고가 조용히 누락될 수 있다.
+        economic_called = False
+        if cal is not None:
+            off=0; seen_pages=set()
+            while True:
+                edf = cal.get_economic_events_calendar(start=start_day, end=end_day,
+                                                       limit=100, offset=off, force=True)
+                economic_called = True
+                if edf is None or edf.empty: break
+                fp=(len(edf), str(edf.index[0]) if len(edf) else "", str(edf.index[-1]) if len(edf) else "")
+                if fp in seen_pages:
+                    print(f"경제 이벤트: 반복 페이지 감지(offset={off}) — 안전 종료")
+                    break
+                seen_pages.add(fp)
+                for ev, r in edf.iterrows():
+                    name = str(ev); low = name.lower()
+                    label = next((k for k, words in MAJOR_EVENT_KEYS.items() if any(w in low for w in words)), None)
+                    if not label: continue
+                    dt = _event_date(r.get("Event Time")); region = str(r.get("Region") or "")
+                    if region and region.upper() not in ("US", "USA"): continue
+                    if dt: out_market.append({"type":label, "name":name, "date":dt})
+                if len(edf) < 100: break
+                off += 100
         # 호출 자체가 정상 완료되면 빈 결과도 정상으로 본다. 실패한 날에는 과거 hist에 '이벤트 없음'을 고정하지 않는다.
-        status["economic_events_ok"] = edf is not None
-        if edf is not None and not edf.empty:
-            for ev, r in edf.iterrows():
-                name = str(ev); low = name.lower()
-                label = next((k for k, words in MAJOR_EVENT_KEYS.items() if any(w in low for w in words)), None)
-                if not label: continue
-                dt = _event_date(r.get("Event Time")); region = str(r.get("Region") or "")
-                if region and region.upper() not in ("US", "USA"): continue
-                if dt: out_market.append({"type":label, "name":name, "date":dt})
+        status["economic_events_ok"] = economic_called
     except Exception as e:
         status["economic_events_error"] = f"{type(e).__name__}: {e}"
         print("경제 이벤트 캘린더 조회 실패:", e)
@@ -533,6 +548,7 @@ def market_state(ticker):
     try:
         df = yf.Ticker(ticker).history(period="6mo", interval="1d", auto_adjust=False)
         df = drop_unclosed(df, ticker)
+        df = drop_invalid_price_rows(df, ticker)
         if df is None or len(df) < 61:
             return {"ticker": ticker, "level": "neutral", "below_ma20": False, "detail": "데이터 부족"}
         c = df["Close"]
@@ -594,9 +610,30 @@ def drop_unclosed(df, ticker):
         return df                                          # 오늘 봉이지만 마감 지남 → 확정
     return df.iloc[:-1]                                    # 장중 → 미완성 봉 제거
 
+def drop_invalid_price_rows(df, ticker):
+    """Yahoo가 OHLC는 비우고 Volume만 주는 비정상 일봉을 제거한다.
+
+    이런 행을 통과시키면 날짜는 최신인데 가격·이평·점수가 빈 카드가 될 수 있다.
+    정상 행의 값은 건드리지 않고, Close·High·Low가 유한하고 양수인 행만 남긴다.
+    """
+    if df is None or len(df) == 0:
+        return df
+    required = [c for c in ("Close", "High", "Low") if c in df.columns]
+    if len(required) != 3:
+        raise ValueError(f"{ticker} OHLC 열 누락")
+    mask = pd.Series(True, index=df.index)
+    for c in required:
+        vals = pd.to_numeric(df[c], errors="coerce")
+        mask &= vals.notna() & np.isfinite(vals) & (vals > 0)
+    removed = int((~mask).sum())
+    if removed:
+        print(f"데이터 품질 보호: {ticker} 비정상 OHLC {removed}행 제외")
+    return df.loc[mask].copy()
+
 def analyze(ticker, name, category):
     df = yf.Ticker(ticker).history(period=PERIOD, interval="1d", auto_adjust=False)
     df = drop_unclosed(df, ticker)
+    df = drop_invalid_price_rows(df, ticker)
     if df is None or len(df) < 30: raise ValueError("데이터 부족")
     close, high, low, vol = df["Close"], df["High"], df["Low"], df["Volume"]
     ma5 = close.rolling(5).mean()
@@ -742,34 +779,40 @@ def _storage_row(r, mkt):
     return out
 
 def save_history(results, mkt, now_kst):
-    """미국/한국 이력을 분리한다. kr은 KR, us/all은 US snapshot을 저장한다."""
-    # 수동 all은 기존 동작을 유지해 US snapshot만 저장한다.
-    # KR 재촬영이 필요하면 workflow_dispatch에서 scope=kr로 명시한다.
-    region = "kr" if RUN_SCOPE == "kr" else "us"
-    selected = [r for r in results if is_kr_ticker(r.get("ticker", "")) == (region == "kr")]
-    dates = [r.get("last_date") for r in selected if r.get("last_date")]
-    if not dates:
-        print(f"이력 저장 건너뜀: {region} last_date 없음"); return
-    day = max(dates)
-    folder=f"history/{region}"; os.makedirs(folder, exist_ok=True)
-    slim=[_storage_row(r,mkt) for r in selected]
-    payload={
-        "date":day, "market":"KR" if region=="kr" else "US",
-        "saved_at":now_kst.strftime("%Y-%m-%d %H:%M")+" KST",
-        "market_state":{k:mkt.get(k) for k in ("ticker","level","below_ma20","ret20") if k in mkt},
-        "stocks":slim,
-    }
-    path=f"{folder}/{day}.json"; existed=os.path.exists(path)
-    if existed and not FORCE_RESNAP:
-        # 자동/일반 수동 재실행은 최초 확정 스냅샷을 보존한다.
-        print(f"이력 고정 유지: {path} — 기존 파일 보존")
-        return
-    if existed and FORCE_RESNAP:
-        print(f"⚠ 재촬영: {path} — 기존 당일 스냅샷을 명시적으로 교체")
-    with open(path,"w",encoding="utf-8") as f:
-        json.dump(payload,f,ensure_ascii=False)
-    size=os.path.getsize(path)/1024
-    print(f"이력 저장: {path} ({size:.0f}KB, {len(slim)}종목) — 최초 스냅샷 고정")
+    """미국/한국 일자별 원장을 분리해 append-only로 저장한다.
+
+    scope=all은 두 시장을 모두 재수집하므로 US·KR snapshot을 모두 남겨야 한다.
+    한 쪽만 남기면 업로드 충돌 후 반대 시장의 당일 원장을 복원할 근거가 사라진다.
+    """
+    regions = ["us", "kr"] if RUN_SCOPE == "all" else ["kr" if RUN_SCOPE == "kr" else "us"]
+    for region in regions:
+        selected = [r for r in results if is_kr_ticker(r.get("ticker", "")) == (region == "kr")]
+        dates = [r.get("last_date") for r in selected if r.get("last_date")]
+        if not dates:
+            print(f"이력 저장 건너뜀: {region} last_date 없음")
+            continue
+        day = max(dates)
+        folder=f"history/{region}"; os.makedirs(folder, exist_ok=True)
+        slim=[_storage_row(r,mkt) for r in selected]
+        path=f"{folder}/{day}.json"; existed=os.path.exists(path)
+        payload={
+            "date":day, "market":"KR" if region=="kr" else "US",
+            "saved_at":now_kst.strftime("%Y-%m-%d %H:%M")+" KST",
+            # FORCE_RESNAP으로 기존 파일을 교체한 경우 원장 안에 흔적을 남긴다.
+            "resnapped": bool(existed and FORCE_RESNAP),
+            "market_state":{k:mkt.get(k) for k in ("ticker","level","below_ma20","ret20") if k in mkt},
+            "stocks":slim,
+        }
+        if existed and not FORCE_RESNAP:
+            # 자동/일반 수동 재실행은 최초 확정 스냅샷을 보존한다.
+            print(f"이력 고정 유지: {path} — 기존 파일 보존")
+            continue
+        if existed and FORCE_RESNAP:
+            print(f"⚠ 재촬영: {path} — 기존 당일 스냅샷을 명시적으로 교체")
+        with open(path,"w",encoding="utf-8") as f:
+            json.dump(payload,f,ensure_ascii=False)
+        size=os.path.getsize(path)/1024
+        print(f"이력 저장: {path} ({size:.0f}KB, {len(slim)}종목) — 최초 스냅샷 고정")
 
 
 def hist_row_from_current(r):
@@ -858,6 +901,7 @@ def freeze_signal_hist(results, prev_rows, mkt=None, market_events=None, market_
     frozen_count = 0
     appended_count = 0
     restored_current = 0
+    restored_from_hist = 0
 
     for r in results:
         tk = r.get("ticker")
@@ -874,6 +918,28 @@ def freeze_signal_hist(results, prev_rows, mkt=None, market_events=None, market_
                 if k in fixed_today:
                     r[k] = fixed_today.get(k)
             restored_current += 1
+        elif not FORCE_RESNAP and last_date:
+            # 일자별 snapshot 커밋이 실패했더라도 signals.json의 기존 hist는
+            # 사용자가 이미 본 최초 frozen 원장이다. 같은 거래일을 다시 받았을 때
+            # Yahoo 사후 정정값으로 카드만 바뀌지 않도록 top-level을 원장으로 복원한다.
+            frozen_rows = [h for h in (prev.get("hist") or [])
+                           if isinstance(h, list) and len(h) > date_i and h[date_i]]
+            frozen_rows.sort(key=lambda h: str(h[date_i]))
+            pos = next((i for i,h in enumerate(frozen_rows) if str(h[date_i]) == last_date), None)
+            if pos is not None:
+                today_h = frozen_rows[pos]
+                for f, i in idx.items():
+                    if f != "date" and i < len(today_h):
+                        r[f] = today_h[i]
+                if pos > 0:
+                    prev_h = frozen_rows[pos-1]
+                    for dst, src in (("prev_change_1d","change_1d"), ("prev_vol_ratio","vol_ratio"),
+                                     ("prev_macd_hist","macd_hist"), ("prev_price","price"),
+                                     ("prev_ma5","ma5"), ("prev_ma20","ma20")):
+                        i = idx[src]
+                        r[dst] = prev_h[i] if i < len(prev_h) else None
+                restored_current += 1
+                restored_from_hist += 1
 
         old_hist = []
         seen = set()
@@ -938,7 +1004,8 @@ def freeze_signal_hist(results, prev_rows, mkt=None, market_events=None, market_
     bf = " · ".join(f"{k} {v}행" for k, v in backfilled.items() if v)
     print(
         f"hist 고정: 기존 {frozen_count}행 유지 · 새 거래일 {appended_count}행 추가 · "
-        f"현재카드 스냅샷 복원 {restored_current}종목"
+        f"현재카드 frozen 복원 {restored_current}종목"
+        + (f"(hist fallback {restored_from_hist}종목)" if restored_from_hist else "")
         + (f" · 보강 {bf}" if bf else " · 보강 없음")
     )
 
@@ -1046,7 +1113,7 @@ def main():
         if tk not in earnings_map and ev:
             earnings_map[tk]=ev
 
-    results, failed, carried = [], [], 0
+    results, failed, carried, fetch_carried = [], [], 0, []
     for cat, items in WATCHLIST.items():
         for tk, nm in items.items():
             is_kr = is_kr_ticker(tk)
@@ -1076,7 +1143,10 @@ def main():
                 if tk in prev_rows:
                     kept = dict(prev_rows[tk])
                     kept["name"], kept["category"] = nm, cat
+                    kept["data_status"] = "carried_after_fetch_error"
+                    kept["data_status_message"] = str(e)
                     results.append(kept); carried += 1
+                    fetch_carried.append(tk)
                     print("SKIP→KEEP", tk, e)
                 else:
                     failed.append(f"{tk} ({nm}) — {e}"); print("SKIP", tk, e)
@@ -1123,6 +1193,11 @@ def main():
 
     payload = {
         "generated_at": now_kst.strftime("%Y-%m-%d %H:%M") + " KST",
+        "generation_status": {
+            "scope": RUN_SCOPE,
+            "force_resnap": FORCE_RESNAP,
+            "carried_after_fetch_error": sorted(fetch_carried),
+        },
         "hist_fields": HIST_FIELDS,
         "note": "yfinance 무료 데이터 · 15~20분 지연 · 참고용",
         "market": mkt,

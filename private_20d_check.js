@@ -71,6 +71,11 @@ function extractConstObject(src, name){
 const evaluateSrc = extractFunction(indexSrc, 'evaluate');
 const multiSrc = extractFunction(indexSrc, 'multiSignalRank');
 const leveragedSrc = extractConstObject(indexSrc, 'LEVERAGED');
+const rankNoneSrc = extractConstObject(indexSrc, 'RANK_NONE');
+const multiHelpers = [
+  'competitionRank', 'strategyOrdinalRank', 'volumeOrdinalRank', 'rankMapsFor', 'rankOf',
+  'generalMultiGate', 'strictMultiGate', 'previousOverallGrade'
+].map(name => extractFunction(indexSrc, name)).join('\n');
 
 const ctx = { console, Math, Number, Object, Array, Set, Map, String };
 vm.createContext(ctx);
@@ -80,6 +85,8 @@ vm.runInContext(`
   ${leveragedSrc}
   const levX = tk => (LEVERAGED[tk] ? LEVERAGED[tk].x : 1);
   ${evaluateSrc}
+  ${rankNoneSrc}
+  ${multiHelpers}
   ${multiSrc}
   this.__evaluate = evaluate;
   this.__multiSignalRank = multiSignalRank;
@@ -193,7 +200,12 @@ for(const row of rowsByKey.values()){
   if(!byDate.has(row.last_date)) byDate.set(row.last_date,[]);
   byDate.get(row.last_date).push(row);
 }
-for(const a of byTicker.values()) a.sort((a,b)=>a.last_date.localeCompare(b.last_date));
+for(const a of byTicker.values()){
+  a.sort((x,y)=>x.last_date.localeCompare(y.last_date));
+  // previousOverallGrade()가 브라우저 histStocks()에 의존하지 않도록
+  // 같은 원장의 직전 거래일 등급을 명시적으로 고정한다.
+  for(let i=0;i<a.length;i++) a[i]._prevOverallGrade=i ? (a[i-1].sig?.grade||0) : 0;
+}
 
 function earningsWindowsForValidation(s, hs){
   const blocked=new Set(), affected=new Set(), e=s.earnings||{};
