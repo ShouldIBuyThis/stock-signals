@@ -900,8 +900,10 @@ const CART_MAX = 5;   // 모의구매 점검이 의미를 가지는 상한
    필요한 건 "언제부터 어느 산식이 돌았는가"의 기록이다. 코드 자체는 git이 보관한다.
    나중에 소급 채점할 때: git show <커밋>:index.html 로 그 시점 evaluate()를 꺼내 쓴다. */
 /* LOGIC_VERSION은 '점수 산식'의 버전이다. 순위·표시 정합성 패치로는 올리지 않는다. */
-const LOGIC_VERSION = "v5";
+const LOGIC_VERSION = "v6";
 const LOGIC_LOG = [
+  {v:"v6", from:"2026-08-15", t:"반등 2.5점 구제 · 강한다중 미세필터",
+   d:"반등점수 자체는 바꾸지 않고, 3.0점 기존 강한매수 외에 반등 2.5점·RSI 50 이하·볼린저 70 이하·당일 상승 2% 이하를 충족한 바닥권 회복을 강한매수로 구제한다. 일반다중에는 동일하게 반영하되, 강한다중은 전일 중립→강한매수와 기존 엄격 B/C에 더해 구제 반등이 정확히 2.5점·볼린저 65 이하일 때만 포함한다. 과거 원시지표는 수정하지 않으며 최근 원장은 현재 v6 산식으로 재검증한다."},
   {v:"v5", from:"2026-08-14", t:"[정합성 패치] 순위 통일 · 매수강도 기준 통일 — 점수 산식 무변경",
    d:"눌림·반등 순위를 strategyOrdinalRank() 하나로 통일해 카드·위젯·다중신호 💡·테마·검색이 전부 같은 rankMap을 공유한다. 이전에는 다중신호가 내부에서 raw score로 순위를 다시 매겨 카드와 다른 숫자가 찍혔다. 사용자에게 보이는 매수강도 변화는 score(돌파 포함)가 아니라 buyScore=max(눌림,반등) 기준으로 바꿨다. 점수식·임계값·시장 필터 구조는 건드리지 않았으므로 과거 백테스트 점수는 그대로 유효하다. 다만 다중신호 자격 판정이 정확해진 순위를 쓰므로 다중 후보 구성은 달라질 수 있다."},
   {v:"v5", from:"2026-08-11", t:"최종등급 2전략 고정 · 돌파 보조축화",
@@ -1407,10 +1409,15 @@ function evaluate(s){
      pullScore 자체와 반등 산식·컷은 그대로 보존해 과거 비교가 가능하다. */
   const pullSetup = dipSoft || dipHard || resting || dumpRecovered;
   const pullGrade = pullSetup ? (pullScore >=1.5 ? 5 : pullScore >=0.8 ? 4 : 3) : 3;
-  /* 반등점수와 반등순은 그대로 둔다. 다만 초록 강한매수는
-     거래량이 확인됐거나 아직 음봉·보합인 초기 반등만 인정한다. */
-  const revStrong = revScore>=3.0 &&
+  /* 반등점수와 반등순은 그대로 둔다.
+     기존 3.0점 강한 반등은 거래량 확인 또는 아직 음봉·보합인 초기 반등만 인정한다.
+     5·20일선 회복형이 자주 모이는 2.5점 구간은 깊은 가격 위치(RSI·볼린저)와
+     당일 비추격 조건을 함께 통과할 때만 별도 구제한다. */
+  const revStrongCore = revScore>=3.0 &&
     ((has(s.vol_ratio)&&s.vol_ratio>=1.1) || (has(s.change_1d)&&s.change_1d<=0));
+  const revStrongRescue = revScore>=2.5 &&
+    has(rsi) && rsi<=50 && has(bb) && bb<=70 && pct!==null && pct<=2;
+  const revStrong = revStrongCore || revStrongRescue;
   const revGrade  = revStrong ? 5 : revScore>=2.0 ? 4 : 3;
   const buyGrade=Math.max(pullGrade,revGrade);
 
@@ -1475,7 +1482,8 @@ function evaluate(s){
 
   /* 검증용 내역 — 나중에 "저항 보정이 실제로 도움이 됐나"를 사후 비교할 수 있게 남긴다 */
   const adj = { base: baseScore, res: resAdj, resGap, leader, ldr: ldrAdj, final: score };
-  return { score, buyScore, trendScore, breakScore, pullScore, revScore, breakGrade, pullGrade, revGrade, pullSetup, cautionBadge, grade:g, type, line, tags, adj, overheat };
+  return { score, buyScore, trendScore, breakScore, pullScore, revScore, breakGrade, pullGrade, revGrade,
+    pullSetup, revStrongCore, revStrongRescue, cautionBadge, grade:g, type, line, tags, adj, overheat };
 }
   
 /* ══════════ 종목 가공 ══════════ */
@@ -2020,7 +2028,9 @@ function earningsHoldSection(title="실적발표 보류"){
 }
 
 /* 다중 신호는 전략별 강한매수만 모은다.
-   일반 다중은 B 또는 완화 C, 💡 강한다중은 중립→강매 전환과 엄격 B/C를 함께 본다. */
+   일반 다중은 B 또는 완화 C를 본다.
+   💡 강한다중은 중립→강매 전환과 엄격 B/C를 함께 보며,
+   2.5점 구제 반등만 볼린저 65 이하로 한 번 더 거른다. */
 function generalMultiGate(s){
   const b=has(s.bb_pos)&&s.bb_pos<=80 && has(s.change_1d)&&s.change_1d<=2;
   const c=has(s.rsi)&&s.rsi<=65 && has(s.vol_ratio)&&s.vol_ratio>=0.8;
@@ -2051,7 +2061,13 @@ function multiSignalRank(list){
     const pullStrong=s.sig.pullGrade===5, revStrong=s.sig.revGrade===5;
     const strongPcts=[pullStrong?pu/n:null,revStrong?rv/n:null].filter(x=>x!==null);
     const bestPct=Math.min(...strongPcts), otherPct=strongPcts.length>1?Math.max(...strongPcts):1;
-    const strict=previousOverallGrade(s)===3 && strictMultiGate(s);
+    /* 기존 3.0점 반등과 찐 눌림 강매의 강한다중 자격은 그대로 둔다.
+       새 구제조건으로만 강매가 된 반등은 정확히 2.5점·볼린저 65 이하일 때만
+       강한다중으로 승격한다. 일반다중 자격에는 영향을 주지 않는다. */
+    const fallbackRevOnly=s.sig.revStrongRescue && !s.sig.revStrongCore && s.sig.pullGrade<5;
+    const fallbackStrict=!fallbackRevOnly ||
+      (s.sig.revScore===2.5 && has(s.bb_pos) && s.bb_pos<=65);
+    const strict=previousOverallGrade(s)===3 && strictMultiGate(s) && fallbackStrict;
     return {s,pu,rv,vo,pullStrong,revStrong,bestPct,otherPct,tier:strict?1:2};
   });
   /* 눌림·반등 원점수의 크기를 직접 비교하지 않고 전략별 상대위치로 정렬한다. */
@@ -3480,7 +3496,7 @@ function openSignalScoringHelp(){
       각 전략에서 필요한 조건이 충분히 겹치면 <b>강한매수</b>, 일부가 확인되면 <b>매수관심</b>으로 분류합니다. 서로 다른 전략 점수를 단순 합산해 등급을 만들지 않습니다.<br><br>
       <b>다중신호는 어떻게 계산될까요?</b><br>
       눌림형 또는 반등형이 <b>강한매수</b>인 종목만 모은 뒤, 과도한 추격을 줄이는 가격위치·거래량 조건을 확인합니다. 서로 크기가 다른 눌림점수와 반등점수를 직접 비교하지 않고 각 전략 안에서의 상대순위로 나열합니다.<br><br>
-      <b>💡 강한다중</b>은 그중 전날 중립에서 오늘 강한매수로 전환됐고, 볼린저·당일등락 또는 RSI·거래량 조건을 더 엄격하게 통과한 초기 신호입니다.
+      <b>💡 강한다중</b>은 그중 전날 중립에서 오늘 강한매수로 전환됐고, 볼린저·당일등락 또는 RSI·거래량 조건을 더 엄격하게 통과한 초기 신호입니다. 2.5점 구제 반등은 볼린저 65 이하일 때만 강한다중에 포함합니다.
     </p>
     <div class="modal-actions"><button class="primary" onclick="closeModal()">닫기</button></div>`);
 }
@@ -3546,8 +3562,8 @@ function openStrictMultiPerf(){
     <div style="margin:18px 0 12px;border-top:1px solid var(--line)"></div>
     <h3 style="margin-top:0">전략별 강한매수 분리</h3>
     <p style="font-size:12.5px;color:var(--reason);line-height:1.7;margin:0 0 8px">
-      최종 초록뱃지를 만든 전략을 나눠 봅니다. 눌림형은 실제 눌림·숨고르기·전일 대량음봉 후 회복이 확인된 신호만 포함하고,
-      반등형은 기존 반등점수는 유지하되 거래량이 확인됐거나 아직 음봉·보합인 초기 반등만 강한매수로 집계합니다.</p>
+      최종 초록뱃지를 만든 전략을 나눠 봅니다. 눌림형은 실제 눌림·숨고르기·전일 대량음봉 후 회복이 확인된 신호만 포함합니다.
+      반등형은 기존 3.0점 수급확인 신호에 더해, 2.5점·RSI 50 이하·볼린저 70 이하·당일 상승 2% 이하인 바닥권 회복을 구제해 집계합니다.</p>
     <h4 style="margin:12px 0 2px">📈 찐 눌림형 강한매수</h4>
     ${[1,3,5].map(h=>perfBlock(GP,h)).join("")}
     <h4 style="margin:14px 0 2px">🔄 반등형 강한매수</h4>
