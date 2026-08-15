@@ -1710,11 +1710,19 @@ function overallRanked(list){
     Math.abs(b.s.change_1d||0)-Math.abs(a.s.change_1d||0)
   ).map(x=>x.s);
 }
-/* 종합순 = 최종 매수등급 우선 → 사용자에게 보이는 매수강도(buyScore) 순.
-   같은 등급/강도면 내부 진단 score와 티커를 안정적인 tie-break로만 쓴다.
-   돌파를 별도 최종축으로 되살리지 않고 현재 눌림·반등 2전략 최종등급 철학을 그대로 따른다. */
+/* 종합순은 점수 크기가 다른 추세·반등을 원점수로 직접 비교하지 않는다.
+   각 전략에서의 상대순위(상위 백분율)를 같은 척도로 맞춘 뒤, 둘 중 더 좋은 위치를 쓴다.
+   evaluate()·등급 컷·추세순·반등순·히스토리·신뢰도 산식은 전혀 바꾸지 않는 표시 정렬 전용 로직이다. */
 function currentOverallRanked(){
-  return signalUniverse().slice().sort((a,b)=>
+  const universe=signalUniverse();
+  const R=rankMapsFor(universe);
+  const n=Math.max(1, Number(R.n)||universe.length);
+  const bestStrategyPct=s=>Math.min(
+    rankOf(R.pull,s.ticker)/n,
+    rankOf(R.rev,s.ticker)/n
+  );
+  return universe.slice().sort((a,b)=>
+    bestStrategyPct(a)-bestStrategyPct(b) ||
     b.sig.grade-a.sig.grade ||
     b.sig.buyScore-a.sig.buyScore ||
     b.sig.score-a.sig.score ||
