@@ -1719,24 +1719,24 @@ function overallRanked(list){
     Math.abs(b.s.change_1d||0)-Math.abs(a.s.change_1d||0)
   ).map(x=>x.s);
 }
-/* 종합순은 점수 크기가 다른 추세·반등을 원점수로 직접 비교하지 않는다.
-   각 전략에서의 상대순위(상위 백분율)를 같은 척도로 맞춘 뒤, 둘 중 더 좋은 위치를 쓴다.
-   evaluate()·등급 컷·추세순·반등순·히스토리·신뢰도 산식은 전혀 바꾸지 않는 표시 정렬 전용 로직이다. */
+/* 종합순은 점수 크기가 다른 눌림·반등을 원점수로 직접 비교하지 않는다.
+   각 전략에서의 상대순위를 같은 척도로 맞춘 뒤, 더 좋은 축 → 최종등급 → 나머지 축 순으로 쓴다.
+   최종등급을 먼저 놓으면 강한매수가 많은 눌림형이 반등형보다 전부 앞서 상대보정이 무력화된다.
+   evaluate()·등급 컷·눌림순·반등순·히스토리·신뢰도 산식은 전혀 바꾸지 않는 표시 정렬 전용 로직이다. */
 function currentOverallRanked(){
   const universe=signalUniverse();
   const R=rankMapsFor(universe);
   const n=Math.max(1, Number(R.n)||universe.length);
-  const bestStrategyPct=s=>Math.min(
-    rankOf(R.pull,s.ticker)/n,
-    rankOf(R.rev,s.ticker)/n
-  );
-  return universe.slice().sort((a,b)=>
-    b.sig.grade-a.sig.grade ||
-    bestStrategyPct(a)-bestStrategyPct(b) ||
-    b.sig.buyScore-a.sig.buyScore ||
-    b.sig.score-a.sig.score ||
-    a.ticker.localeCompare(b.ticker)
-  );
+  const relative=s=>{
+    const pull=rankOf(R.pull,s.ticker)/n;
+    const rev=rankOf(R.rev,s.ticker)/n;
+    return {best:Math.min(pull,rev), other:Math.max(pull,rev)};
+  };
+  return universe.slice().sort((a,b)=>{
+    const ar=relative(a), br=relative(b);
+    return ar.best-br.best || b.sig.grade-a.sig.grade ||
+      ar.other-br.other || a.ticker.localeCompare(b.ticker);
+  });
 }
 function overallRankMap(){
   const m={}; currentOverallRanked().forEach((s,i)=>m[s.ticker]=i+1); return m;
