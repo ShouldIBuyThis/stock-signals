@@ -947,7 +947,8 @@ function toast(msg){
 /* ══════════ 이름·테마 맵 ══════════ */
 const NAME_MAP = {
   KO:"코카콜라", MCD:"맥도날드", LLY:"일라이릴리", UNH:"유나이티드헬스", HIMS:"힘스앤허스",
-  JPM:"JP모건", CAT:"캐터필러",
+  CURE:"헬스케어 3x", HQH:"헬스케어 펀드",
+  JPM:"JP모건", UYG:"금융 2x", FXO:"금융 ETF", CAT:"캐터필러",
   MU:"마이크론", SNDK:"샌디스크", STX:"씨게이트",
   NVDA:"엔비디아", AMD:"AMD", SOXL:"반도체 3x", ALAB:"아스테라랩스",
   AMAT:"어플라이드머티어리얼즈", INTC:"인텔", DELL:"델", AVGO:"브로드컴", MRVL:"마벨테크놀로지",
@@ -976,8 +977,8 @@ const MEM = "반도체·메모리";
 const GPU = "반도체·GPU";
 const CAT_MAP = {
   KO:DEFENSE, MCD:DEFENSE,
-  LLY:HEALTH, UNH:HEALTH, HIMS:HEALTH,
-  JPM:FINANCE, MA:FINANCE,
+  LLY:HEALTH, UNH:HEALTH, HIMS:HEALTH, CURE:HEALTH, HQH:HEALTH,
+  JPM:FINANCE, MA:FINANCE, UYG:FINANCE, FXO:FINANCE,
   CAT:INDUSTRIAL,
   MU:MEM, SNDK:MEM, STX:MEM,
   NVDA:GPU, AMD:GPU, SOXL:GPU, ALAB:GPU, AMAT:GPU, DELL:GPU, AVGO:GPU, MRVL:GPU,
@@ -1036,7 +1037,8 @@ const CAT_MAP = {
    특히 UNH 17%는 종목 악재로 보인다. 사이클이 하나 더 쌓이면
    tools/sector-weak.js를 다시 돌려 재확인할 것. */
 const DEFENSIVE_CATS = ["금융","원자재·금","원자재·유가","주택"];
-const LEVERAGED = { SOXL:{base:"반도체 지수",x:3}, GDXU:{base:"금광주 지수",x:3}, NAIL:{base:"주택건설 지수",x:3}, ETHU:{base:"이더리움",x:2} };
+const LEVERAGED = { SOXL:{base:"반도체 지수",x:3}, GDXU:{base:"금광주 지수",x:3}, NAIL:{base:"주택건설 지수",x:3}, ETHU:{base:"이더리움",x:2},
+  UYG:{base:"금융 지수",x:2}, CURE:{base:"헬스케어 지수",x:3} };
 const levX = tk => (LEVERAGED[tk] ? LEVERAGED[tk].x : 1);
 function levMark(tk){
   return LEVERAGED[tk] ? `<span class="lev" data-lev="${esc(tk)}" title="고위험 레버리지 상품">❗</span>` : "";
@@ -1469,7 +1471,25 @@ function evaluate(s){
      (pullRelaxed 자체는 뱃지·설명 등 다른 표시에 쓰이므로 변수는 남긴다) */
   const marketGuarded = s.market_level==="weak" || s.market_level==="caution";
   const sectorOK = !marketGuarded || DEFENSIVE_CATS.includes(s.category);
-  const pullGrade = pullSetup && pullScore>=1.5 && sectorOK ? 5 :
+  /* 추세 강한매수에 미너비니 2단계 조건 ④를 추가한다: 52주 고점 대비 25% 이내.
+     "신고가 영역에 근접한 종목이 추가 상승 가능성이 높다"는 원 기준을 그대로 옮겼다
+     (-25는 미너비니가 공표한 값이지 우리 표본에 맞춘 값이 아니다).
+
+     34거래일 실측 (추세 강한매수, 기준선 대비):
+       현행        64/62/58%  (+15/+13/+10%p)  n=46/37/28
+       ④ 추가     72/67/68%  (+23/+18/+20%p)  n=37/30/23   ← 채택
+     전·후반으로 갈라도 양쪽 다 기준선 초과(전반 +23/+32/+31%p · 후반 +24/+0/+13%p).
+     이웃 값 검사: -20으로 조여도 결과 동일, -30으로 풀면 조금 나빠짐 — 고원이다(§3).
+
+     같이 시험한 미너비니 조건 중 탈락한 것들 (tools/formula-lab.js):
+       ① 정배열(p>ma50, ma20>ma50>ma60)  62/59/56%로 오히려 하락 — 150·200일선이
+          없어 50·60일선으로 옮기면 표본만 반토막 나고 판별력이 없다
+       ⑤ 상대강도(rs20>=0)               전반 +1일 40%(-4%p)로 §2 탈락
+       ⑥ VCP 수축(range3<=range10 등)    dipSoft/dipHard의 dry·squeeze가 이미
+          같은 것을 보고 있어 이중 필터가 표본만 깎는다
+     ③ 52주 저점 +25%는 52주 저점을 저장하지 않아 시험 불가. */
+  const nearHighM = has(s.pct_from_high) && s.pct_from_high >= -25;
+  const pullGrade = pullSetup && pullScore>=1.5 && sectorOK && nearHighM ? 5 :
     (pullSetup && pullScore>=0.8 ? 4 : 3);
   /* 반등 강한매수 = 반등점수 2.0 이상 + RSI 50 이하.
      반등점수 산식과 반등순은 그대로 두고 강한매수 게이트만 바꾼 것이다.
@@ -1499,7 +1519,21 @@ function evaluate(s){
        눌림 강매  +3일 41% → 47%  ·  전체 51% → 56%
      좋은 장을 조금(반등 +5일 87%→84%) 내주고 나쁜 장을 방어하는 교환이다.
      상대강도(rs20)로 거르는 방법도 시험했으나 오히려 나빠져(32%/44%) 쓰지 않았다. */
-  const revStrong = revScore>=2.0 && has(rsi) && rsi<=50 && sectorOK;
+  /* 반등 강한매수에 추격 컷을 단다: 3일누적 8% 이하.
+     전반(급락 구간) +1일 실패 9건 중 4건이 3일누적 +14~24% 급등 직후였다
+     (GDXU·MSTR·BMNR — RSI는 이전 급락 때문에 낮게 남아 있는데 직전 3일은
+     이미 크게 반등한 자리라, '눌린 자리'가 아니라 추격이었다).
+     컷 8은 강한다중이 이미 쓰는 값이라 새 매직넘버가 아니다. 10(매수관심 컷)도
+     같은 방향으로 개선돼 고원이며, 8이 여섯 칸 중 다섯에서 더 나았다.
+
+     34거래일 실측 (반등 강한매수, 기준선 대비):
+       현행        63/65/73%  (+14/+16/+25%p)  n=87/74/63
+       컷 추가     65/72/76%  (+16/+23/+28%p)  n=54/47/38   ← 채택
+     전반 +1일이 27%(-17%p) → 43%(-1%p)로 회복. 급락 직후 하루는 여전히
+     기준선을 못 넘는다 — 남은 실패는 연쇄 하락일(7/06~7/08) 자체의 문제라
+     신호 필터로는 못 잡는다. */
+  const revStrong = revScore>=2.0 && has(rsi) && rsi<=50 && sectorOK &&
+    (!has(s.run3_sum) || s.run3_sum<=8);
   /* 매수관심도 기준선(전 종목 무조건 매수)을 넘겨야 신호 구실을 한다.
      기존 'revScore>=2.0'만으로는 56%/59%/64%로 기준선(61/68/72)에 전부 미달했다.
      원인은 이 구간이 강한매수 게이트(RSI<=49)가 걸러낸 나머지라는 데 있다.
