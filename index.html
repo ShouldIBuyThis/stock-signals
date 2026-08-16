@@ -3093,6 +3093,22 @@ function strategyValidation(){
     });
   }));
 
+  /* 기준선 — 신호와 무관하게 '그날 전 종목을 그냥 샀다면'.
+     같은 기간·같은 실적 제외 규칙을 그대로 적용한다.
+     승률 숫자만 보면 장세에 속는다. 30거래일 표본에서 전반부(7월 하순 급락)
+     기준선은 +3일 37%, 후반부(8월 반등장)는 64%로 정반대였다.
+     같은 칸에 기준선을 함께 두어야 60%가 잘한 건지 못한 건지 판단할 수 있다. */
+  const baseOut={}; horizons.forEach(h=>baseOut[h]=[]);
+  byDate.forEach(entries=>entries.forEach(({row,i})=>{
+    const pack=stockHist.get(row.ticker); if(!pack) return;
+    const hs=pack.hs, affected=pack.affected;
+    horizons.forEach(h=>{
+      if(i+h>=hs.length || !has(hs[i+h].price)) return;
+      if(validationWindowTouchesEarnings(affected,hs,i,h)) return;
+      baseOut[h].push({ret:(hs[i+h].price/row.price-1)*100});
+    });
+  }));
+
   // 초록 강한매수(최종 grade 5) 성과. 신호일 blocked는 위 byDate 생성 단계에서 이미 제외됐고,
   // 이후 +1/+3/+5 구간이 실적 영향권을 지나면 기존 검증과 똑같이 제외한다.
   byDate.forEach(entries=>entries.forEach(({row,i})=>{
@@ -3167,7 +3183,8 @@ function strategyValidation(){
     result[k][h]=stat(k==="multi" ? rows : rows.filter(x=>x.tier===5));
     if(k!=="multi") (interest[k]=interest[k]||{})[h]=stat(rows.filter(x=>x.tier===4));
   }));
-  result._interest=interest;  result._excluded=excluded; // 내부 진단용: 전략×평가기간별 스킵 수
+  result._interest=interest;
+  result._baseline={}; horizons.forEach(h=>{ result._baseline[h]=stat(baseOut[h]); });  result._excluded=excluded; // 내부 진단용: 전략×평가기간별 스킵 수
   result._excludedSignalSamples=excludedSignalSamples.size;
   result._excludedTickers=[...excludedTickers].sort();
   result._excludedDetails=[...excludedDetails.values()].map(o=>({ticker:o.ticker,date:o.date,event:o.event,timing:o.timing,kinds:[...o.kinds],horizons:[...o.horizons].sort((a,b)=>a-b)})).sort((a,b)=>a.date.localeCompare(b.date)||a.ticker.localeCompare(b.ticker));
@@ -3288,7 +3305,24 @@ function validationBlock(){
     const up=Math.round((o.wins||0)/o.n*100), flat=Math.round((o.flats||0)/o.n*100), down=Math.round((o.losses||0)/o.n*100);
     return `<span class="vrate">${pct(o.rate)}</span><br><span class="vavg">평균수익 ${av(o.avg)}</span><br><span class="vsplit"><span class="vup">상승 ${up}%</span> · <span class="vdown">하락 ${down}%</span></span><br><span class="vsplit vflat">보합 ${flat}% · 표본 ${o.n}건</span>`;
   };
-  const row=k=>`<tr><td><b>${k==="multi"?"다중":k==="pull"?"추세":"반등"}</b></td><td>${cell(v[k][1])}</td><td>${cell(v[k][3])}</td><td>${cell(v[k][5])}</td></tr>`;
+  /* 전략 칸에 '같은 기간 기준선 대비 몇 %p'를 함께 적는다.
+     승률만 보면 장세에 속는다 — 같은 신호가 7월 하순엔 41%, 8월엔 74%였다.
+     기준선을 이겼는지가 실제로 신호가 일한 부분이다. */
+  const bl=v._baseline||{};
+  const edge=(o,h)=>{
+    const b=bl[h]; if(!o||!o.n||!b||!b.n||o.rate===null||b.rate===null) return "";
+    const e=o.rate-b.rate;
+    const c=e>0?"var(--buy)":e<0?"var(--sell)":"var(--muted)";
+    return `<br><span style="font-size:10.5px;font-weight:800;color:${c}">기준선 대비 ${e>=0?"+":""}${e}%p</span>`;
+  };
+  const row=k=>`<tr><td><b>${k==="multi"?"다중":k==="pull"?"추세":"반등"}</b></td>`+
+    [1,3,5].map(h=>`<td>${cell(v[k][h])}${edge(v[k][h],h)}</td>`).join("")+`</tr>`;
+  /* 기준선 행 — 신호를 안 보고 그날 아무 종목이나 샀을 때. 비교 기준이다. */
+  const baseRow=`<tr class="vbase"><td><b>기준선</b><br><span style="font-size:10px;font-weight:600;color:var(--faint)">전 종목 매수</span></td>`+
+    [1,3,5].map(h=>{
+      const o=bl[h];
+      return `<td>${o&&o.n?`<span class="vrate" style="color:var(--muted)">${pct(o.rate)}</span><br><span class="vavg">평균수익 ${av(o.avg)}</span><br><span class="vsplit vflat">표본 ${o.n}건</span>`:"—"}</td>`;
+    }).join("")+`</tr>`;
   const diagLabel={multi:"다중",pull:"추세",rev:"반등"};
   const diagIcon={multi:"🔵",pull:"📈",rev:"🔄"};
   const diagRows=["multi","pull","rev"].flatMap(k=>[1,3,5].map(h=>{
@@ -3304,9 +3338,9 @@ function validationBlock(){
   });
   const diagDetail=`<details class="acc" style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:11px"><b>🔎 표본 구성 자세히</b></summary><div class="strip" style="margin-top:6px;line-height:1.9">${diagRows.join("<br>")}<div style="margin-top:7px;padding-top:6px;border-top:1px dashed var(--line)">${intRows.join("<br>")}</div><div style="margin-top:5px;color:var(--faint);font-size:10.5px">위 표는 <b>강한매수</b>만 집계합니다. 매수관심을 섞으면 강한매수의 성적이 가려지기 때문입니다.<br>실패·보합 표본도 최종 평가에 그대로 포함됩니다. ‘전략별 수익 사례’만 별도의 예시 영역입니다.</div></div></details>`;
   return `<div class="section help-block"><h3 class="validation-title">🧪 최근 ${histWindowDays()}거래일 현재 산식 재검증 <button type="button" class="validation-help-btn" onclick="openValidationIntro()" aria-label="신뢰도 검증 설명">?</button><span class="live-note">(표본 수급에 따라 실시간 변동)</span></h3>
-    <div style="margin:0 2px 7px;font-size:12px;font-weight:800;color:var(--ink)">종가에 매수했다면? <span style="font-weight:600;color:var(--muted)">· 상승 vs 하락 (보합 제외)</span><br><span style="font-weight:600;font-size:11px;color:var(--faint)">세 행 모두 <b>강한매수</b> 기준입니다 · 매수관심 성과는 아래 ‘표본 구성 자세히’에</span></div>
+    <div style="margin:0 2px 7px;font-size:12px;font-weight:800;color:var(--ink)">종가에 매수했다면? <span style="font-weight:600;color:var(--muted)">· 상승 vs 하락 (보합 제외)</span><br><span style="font-weight:600;font-size:11px;color:var(--faint)">세 행 모두 <b>강한매수</b> 기준입니다 · 맨 아래 <b>기준선</b>은 신호를 안 보고 그날 전 종목을 샀을 때예요</span></div>
     <table class="cmp validation-cmp"><tr><th>구분</th><th colspan="3">상승이 하락을 이길 확률 <button type="button" class="validation-help-btn" onclick="openValidationHelp()" aria-label="승률 계산 설명">?</button><button type="button" class="bulbperf" onclick="openStrictMultiPerf()" title="강한 다중신호(💡)의 최근 성과 보기">강한 신호를 보고 투자했다면 💡</button></th></tr><tr><th>전략</th><th>+1거래일</th><th>+3거래일</th><th>+5거래일</th></tr>
-      ${row("multi")}${row("pull")}${row("rev")}
+      ${row("multi")}${row("pull")}${row("rev")}${baseRow}
     </table>${exampleBlock}${diagDetail}${exDetail}
     <div class="strip" style="margin-top:9px">
       <b>과거 원시지표를 현재 산식으로 재평가한 결과입니다.</b> 산식이 바뀌면 과거 신호와 검증 결과도 함께 바뀔 수 있습니다.<br>
