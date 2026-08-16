@@ -3064,7 +3064,8 @@ function strategyValidation(){
         const endRow=hs[i+h];
         const ret=(endRow.price/row.price-1)*100;
         out[k][h].push({ret,hit:ret>1,date:row.last_date,endDate:endRow.last_date,ticker:row.ticker,
-          buyPrice:row.price,endPrice:endRow.price,horizon:h});
+          buyPrice:row.price,endPrice:endRow.price,horizon:h,
+          tier:def.grade(row.sig)});   // 5=강한매수 4=매수관심
       });
     });
   }));
@@ -3131,7 +3132,19 @@ function strategyValidation(){
   };
   const result={multi:{label:"다중 신호",icon:"🔵"}};
   Object.entries(kinds).forEach(([k,def])=>result[k]={label:def.label,icon:def.icon});
-  Object.keys(result).forEach(k=>horizons.forEach(h=>result[k][h]=stat(out[k][h])));  result._excluded=excluded; // 내부 진단용: 전략×평가기간별 스킵 수
+  /* 표의 세 행을 같은 기준으로 맞춘다.
+     다중 행은 원래 최종 강한매수(grade 5)만 담는데 추세·반등 행만 매수관심까지
+     섞여 있어서, 한 표에 기준이 다른 숫자가 나란히 놓여 있었다.
+     특히 반등은 표본의 63%가 매수관심(강매 72행 vs 관심 120행)이라 희석이 심해
+     실제보다 훨씬 나빠 보였다(합산 63% vs 강매만 73%).
+     매수관심 성과는 버리지 않고 _interest로 옮겨 '표본 구성 자세히'에서 보여준다. */
+  const interest={};
+  Object.keys(result).forEach(k=>horizons.forEach(h=>{
+    const rows=out[k][h] || [];
+    result[k][h]=stat(k==="multi" ? rows : rows.filter(x=>x.tier===5));
+    if(k!=="multi") (interest[k]=interest[k]||{})[h]=stat(rows.filter(x=>x.tier===4));
+  }));
+  result._interest=interest;  result._excluded=excluded; // 내부 진단용: 전략×평가기간별 스킵 수
   result._excludedSignalSamples=excludedSignalSamples.size;
   result._excludedTickers=[...excludedTickers].sort();
   result._excludedDetails=[...excludedDetails.values()].map(o=>({ticker:o.ticker,date:o.date,event:o.event,timing:o.timing,kinds:[...o.kinds],horizons:[...o.horizons].sort((a,b)=>a-b)})).sort((a,b)=>a.date.localeCompare(b.date)||a.ticker.localeCompare(b.ticker));
@@ -3260,9 +3273,15 @@ function validationBlock(){
     const fin=v[k][h]; const exn=(v._excluded&&v._excluded[k]&&v._excluded[k][h])||0;
     return `${diagIcon[k]} <b>${diagLabel[k]} +${h}</b> · 전체 후보 ${d.candidate}건 · 아직 +${h} 미도래 ${d.pending}건 · 실적 제외 ${exn}건 · <b>최종 평가 ${fin.n}건 (상승 ${fin.wins||0} / 보합 ${fin.flats||0} / 하락 ${fin.losses||0})</b>`;
   }));
-  const diagDetail=`<details class="acc" style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:11px"><b>🔎 표본 구성 자세히</b></summary><div class="strip" style="margin-top:6px;line-height:1.9">${diagRows.join("<br>")}<div style="margin-top:5px;color:var(--faint);font-size:10.5px">실패·보합 표본도 최종 평가에 그대로 포함됩니다. ‘전략별 수익 사례’만 별도의 예시 영역입니다.</div></div></details>`;
+  /* 표에서 빠진 매수관심 등급의 성과를 여기서 따로 보여준다. */
+  const intRows=["pull","rev"].map(k=>{
+    const o=(v._interest&&v._interest[k])||{};
+    const cell=h=>{const x=o[h]; return x&&x.n?`+${h}일 ${x.rate===null?"—":x.rate+"%"}(${x.n}건)`:`+${h}일 —`;};
+    return `${diagIcon[k]} <b>${diagLabel[k]} 매수관심</b> · ${[1,3,5].map(cell).join(" · ")}`;
+  });
+  const diagDetail=`<details class="acc" style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:11px"><b>🔎 표본 구성 자세히</b></summary><div class="strip" style="margin-top:6px;line-height:1.9">${diagRows.join("<br>")}<div style="margin-top:7px;padding-top:6px;border-top:1px dashed var(--line)">${intRows.join("<br>")}</div><div style="margin-top:5px;color:var(--faint);font-size:10.5px">위 표는 <b>강한매수</b>만 집계합니다. 매수관심을 섞으면 강한매수의 성적이 가려지기 때문입니다.<br>실패·보합 표본도 최종 평가에 그대로 포함됩니다. ‘전략별 수익 사례’만 별도의 예시 영역입니다.</div></div></details>`;
   return `<div class="section help-block"><h3 class="validation-title">🧪 최근 10거래일 현재 산식 재검증 <button type="button" class="validation-help-btn" onclick="openValidationIntro()" aria-label="신뢰도 검증 설명">?</button><span class="live-note">(표본 수급에 따라 실시간 변동)</span></h3>
-    <div style="margin:0 2px 7px;font-size:12px;font-weight:800;color:var(--ink)">종가에 매수했다면? <span style="font-weight:600;color:var(--muted)">· 상승 vs 하락 (보합 제외)</span></div>
+    <div style="margin:0 2px 7px;font-size:12px;font-weight:800;color:var(--ink)">종가에 매수했다면? <span style="font-weight:600;color:var(--muted)">· 상승 vs 하락 (보합 제외)</span><br><span style="font-weight:600;font-size:11px;color:var(--faint)">세 행 모두 <b>강한매수</b> 기준입니다 · 매수관심 성과는 아래 ‘표본 구성 자세히’에</span></div>
     <table class="cmp validation-cmp"><tr><th>구분</th><th colspan="3">상승이 하락을 이길 확률 <button type="button" class="validation-help-btn" onclick="openValidationHelp()" aria-label="승률 계산 설명">?</button><button type="button" class="bulbperf" onclick="openStrictMultiPerf()" title="강한 다중신호(💡)의 최근 성과 보기">강한 신호를 보고 투자했다면 💡</button></th></tr><tr><th>전략</th><th>+1거래일</th><th>+3거래일</th><th>+5거래일</th></tr>
       ${row("multi")}${row("pull")}${row("rev")}
     </table>${exampleBlock}${diagDetail}${exDetail}
