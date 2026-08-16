@@ -44,7 +44,11 @@ HIST_FIELDS = ["date","price","change_1d","ma5","ma10","ma20","ma50","ma60","rsi
                # 그 날짜의 시장 입력. 산식이 그대로인데 QQQ 재계산만으로 과거 신호가 흔들리는 걸 막는다.
                "market_level","market_weak","market_ret20",
                # 해당 종가 날짜의 주요 미국 시장 이벤트. 점수에는 쓰지 않고 경고 표시만 한다.
-               "market_events"]
+               "market_events",
+               # 2026-08-17 확장: 미너비니 ③(52주 저점 대비 +25%) 검증용.
+               # market_events 뒤에 덧붙였으므로 옛 행은 짧을 뿐 위치가 어긋나지 않는다.
+               # validate_signals.py의 append-only 검사도 꼬리 확장을 허용하도록 같이 고쳤다.
+               "low_52w", "pct_from_low"]
 
 # freeze 단계에서 옛 행에 뒤늦게 채워 넣는 열. 이미 값이 있으면 절대 덮지 않는다.
 HIST_BACKFILL_FIELDS = ["atr_pct", "market_level", "market_weak", "market_ret20", "market_events"]
@@ -723,6 +727,8 @@ def analyze(ticker, name, category):
         atr_pct = (atr_s.iloc[i] / c_i * 100) if c_i else None
         h52 = high.iloc[:end].max()           # 그 시점까지의 52주 고가
         pfh = (c_i / h52 - 1) * 100 if h52 else None
+        l52 = low.iloc[:end].min()            # 그 시점까지의 52주 저가 (미너비니 ③ 검증용)
+        pfl = (c_i / l52 - 1) * 100 if l52 else None
 
         # ── 진입 위치(Positioning) 판단용 파생값 ────────────────────
         # 점수 계산은 하지 않는다. 산식은 index.html 한 곳에만 둔다.
@@ -778,6 +784,7 @@ def analyze(ticker, name, category):
             "res_short": safe(res_short, nd), "res_mid": safe(res_mid, nd),
             "sup_short": safe(sup_short, nd), "sup_mid": safe(sup_mid, nd),
             "high_52w": safe(h52, nd), "ret20": safe(ret20),
+            "low_52w": safe(l52, nd), "pct_from_low": safe(pfl),
             "range3": safe(range3), "range10": safe(range10), "vol3_ratio": safe(vol3_ratio),
             "last_date": df.index[i].strftime("%Y-%m-%d"),
         }
@@ -819,6 +826,7 @@ SNAPSHOT_FIELDS = [
     "res_short", "ret20", "rs20",
     "prev_change_1d", "prev_vol_ratio", "prev_macd_hist", "prev_price", "prev_ma5", "prev_ma20",
     "market_level", "market_weak", "market_ret20", "market_events",
+    "low_52w", "pct_from_low",
 ]
 
 def _storage_row(r, mkt):
@@ -1181,6 +1189,16 @@ def main():
     except Exception as e:
         print("QQQ 기준카드 생성 실패:", e)
 
+    # SPY 보조 시장카드 — 나스닥(QQQ)만으로는 시장 전반을 못 본다는 지적에 따라 추가.
+    # 국면 판정에는 아직 쓰지 않는다(판정은 여전히 QQQ 기준). 데이터를 쌓아
+    # QQQ·SPY 겸용 국면이 나은지 tools/qqq-lab.js 방식으로 비교한 뒤 결정한다.
+    spy_card = None
+    try:
+        spy_card = prepare_qqq_card(analyze("SPY", "S&P500 ETF", "시장 기준"), market_events, market_events_ok)
+        print(f"SPY 보조카드: {spy_card.get('last_date')} 종가 · 랭킹 제외")
+    except Exception as e:
+        print("SPY 보조카드 생성 실패:", e)
+
     # 조회 실패/누락 시 직전 이벤트를 보조적으로 유지한다.
     prev_earn = {r.get("ticker"): r.get("earnings") for r in (prev_payload or {}).get("stocks", []) if r.get("earnings")}
     for tk, ev in prev_earn.items():
@@ -1276,6 +1294,7 @@ def main():
         "note": "yfinance 무료 데이터 · 15~20분 지연 · 참고용",
         "market": mkt,
         "qqq_card": qqq_card,
+        "spy_card": spy_card,
         "market_events": market_events,
         "calendar_status": calendar_status,
         "sectors": sectors,

@@ -90,7 +90,7 @@ function histRowSrc(){
     HISTROW_TAIL + ',\n    ichi_level: (s._kr || s._benchmark) ? "neutral" : (ICHI_MAP[o.date] || null)');
 }
 
-const OTHER = ['competitionRank','strategyOrdinalRank','volumeOrdinalRank','rankMapsFor','rankOf',
+const OTHER = ['qqqRsiOn','washoutLevel','competitionRank','strategyOrdinalRank','volumeOrdinalRank','rankMapsFor','rankOf',
   'generalMultiGate','generalTierGate','strictMultiGate','previousOverallGrade','multiSignalRank',
   'normalize','decorate','histWindowDays','histFields','withPrev','histStocks','prevStock','allStocks',
   'earningsWindowsForValidation','validationWindowTouchesEarnings','strategyValidation'];

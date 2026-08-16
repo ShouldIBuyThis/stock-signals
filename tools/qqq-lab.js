@@ -94,7 +94,7 @@ const K = {
   K3: d => { const lv=CUR[d]; const r=qh.find(x=>String(x.date)===d); return (lv==='caution'&&r&&r.ret20!==null&&r.ret20>-5)?'weak':lv; },
 };
 
-const FUNCS = ['evaluate','competitionRank','strategyOrdinalRank','volumeOrdinalRank','rankMapsFor','rankOf',
+const FUNCS = ['evaluate','qqqRsiOn','washoutLevel','competitionRank','strategyOrdinalRank','volumeOrdinalRank','rankMapsFor','rankOf',
   'generalMultiGate','generalTierGate','strictMultiGate','previousOverallGrade','multiSignalRank',
   'normalize','decorate','histWindowDays','histFields','histRow','withPrev','histStocks','prevStock','allStocks',
   'earningsWindowsForValidation','validationWindowTouchesEarnings','strategyValidation'];

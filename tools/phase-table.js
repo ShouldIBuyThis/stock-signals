@@ -36,7 +36,7 @@ function extractConst(name){
   const st = src.indexOf(`const ${name} =`); if(st<0) die(`const ${name} 없음`);
   return src.slice(st, src.indexOf(';', st)+1);
 }
-const FUNCS = ['evaluate','competitionRank','strategyOrdinalRank','volumeOrdinalRank','rankMapsFor','rankOf',
+const FUNCS = ['evaluate','qqqRsiOn','washoutLevel','competitionRank','strategyOrdinalRank','volumeOrdinalRank','rankMapsFor','rankOf',
   'generalMultiGate','generalTierGate','strictMultiGate','previousOverallGrade','multiSignalRank',
   'normalize','decorate','histWindowDays','histFields','histRow','withPrev','histStocks','prevStock','allStocks',
   'earningsWindowsForValidation','validationWindowTouchesEarnings'];

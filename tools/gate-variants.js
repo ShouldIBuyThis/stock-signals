@@ -56,7 +56,7 @@ function validationSrc(){
     '\n  result._rows={multi:out.multi, pull:out.pull, rev:out.rev};');
 }
 
-const OTHER = ['evaluate','competitionRank','strategyOrdinalRank','volumeOrdinalRank','rankMapsFor','rankOf',
+const OTHER = ['evaluate','qqqRsiOn','washoutLevel','competitionRank','strategyOrdinalRank','volumeOrdinalRank','rankMapsFor','rankOf',
   'generalMultiGate','generalTierGate','strictMultiGate','previousOverallGrade','multiSignalRank',
   'normalize','decorate','histWindowDays','histFields','histRow','withPrev','histStocks','prevStock','allStocks',
   'earningsWindowsForValidation','validationWindowTouchesEarnings'];

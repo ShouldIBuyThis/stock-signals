@@ -1050,6 +1050,9 @@ function normalize(raw){
   const arr = Array.isArray(raw.stocks) ? raw.stocks : Array.isArray(raw.items) ? raw.items : null;
   if (!arr) throw new Error("stocks 배열 없음");
   const stamp = raw.generated_at || raw.asof || "";
+  /* 오늘 카드에도 항복 바닥 해제(K2)를 적용한다 — histRow의 washoutLevel과 같은 규칙.
+     (normalize 시점에는 state.data가 없어 raw에서 직접 읽는다) */
+  const qqqWashout = !!(raw.qqq_card && num(raw.qqq_card.rsi) !== null && num(raw.qqq_card.rsi) <= 35);
   const stocks = arr.filter(it => String(it.ticker||"").trim()!=="BABA").map(it => {
     const ticker = String(it.ticker||"").trim();
     let cross = it.macd_cross;
@@ -1068,7 +1071,8 @@ function normalize(raw){
       stoch_k: num(it.stoch_k ?? it.stochK), stoch_d: num(it.stoch_d ?? it.stochD),
       stoch_cross: it.stoch_cross || "none",
       near_high: !!it.near_high, pct_from_high: num(it.pct_from_high),
-      market_weak: !!it.market_weak, market_level: it.market_level || null,
+      market_weak: (it.market_level === "weak" && qqqWashout) ? false : !!it.market_weak,
+      market_level: (it.market_level === "weak" && qqqWashout) ? "neutral" : (it.market_level || null),
       market_ret20: num(it.market_ret20), atr_pct: num(it.atr_pct),
       /* 진입 위치(Positioning) 파생값 — 빠뜨리면 오늘 카드에서만 관련 로직이 통째로 죽는다 */
       ma20_slope: num(it.ma20_slope), run5_max: num(it.run5_max), run3_sum: num(it.run3_sum),
@@ -1076,6 +1080,7 @@ function normalize(raw){
       res_short: num(it.res_short), res_mid: num(it.res_mid),
       sup_short: num(it.sup_short), sup_mid: num(it.sup_mid),
       high_52w: num(it.high_52w), ret20: num(it.ret20), rs20: num(it.rs20),
+      low_52w: num(it.low_52w), pct_from_low: num(it.pct_from_low),
       last_date: it.last_date || "",
       earnings: it.earnings || null,
       earnings_hold: !!it.earnings_hold,
@@ -1124,6 +1129,10 @@ function evaluate(s){
   const levMul  = levX(s.ticker);
   const pctEff  = pct !== null ? pct / levMul : null;
   const surge   = pctEff !== null && pctEff >= 5;    // 당일 급등 (1배 환산)
+  /* 3일 누적도 1배로 환산한다. 3배 ETF의 +12%는 기초지수 +4%라 과열이 아니다.
+     반대로 환산 없이 컷을 걸면 레버리지 상품만 부당하게 잘려나간다.
+     ※ surgeThr(과열 감점)는 ATR×3이라 변동성 큰 상품이 자동으로 문턱이 높아짐 — 거긴 환산 불필요. */
+  const run3Eff = has(s.run3_sum) ? s.run3_sum / levMul : null;
 
   const a5=has(p)&&has(ma5)&&p>ma5, a20=has(p)&&has(ma20)&&p>ma20, a60=has(p)&&has(ma60)&&p>ma60;
   const bull=has(ma5)&&has(ma20)&&has(ma60)&&ma5>ma20&&ma20>ma60;
@@ -1134,11 +1143,11 @@ function evaluate(s){
   /* ── 진입 위치(Positioning) 재료 ────────────────────────────── */
   const ext5   = (has(p)&&has(ma5)&&ma5) ? ((p/ma5 - 1)*100) / levMul : null;   // MA5 이격도(1배 환산)
   const rising = has(s.ma20_slope) && s.ma20_slope > 0;              // MA20 기울기 상승
-  const run5   = has(s.run5_max) ? s.run5_max : null;                // 최근 5일 최대 상승률
+  const run5   = has(s.run5_max) ? s.run5_max / levMul : null;       // 최근 5일 최대 상승률(1배 환산)
   /* 거래량이 말랐는지 — 3일 평균이 줄었거나, 오늘 하루라도 확실히 줄었으면 인정 */
   const dry    = (has(s.vol3_ratio) && s.vol3_ratio < 0.85) || (has(vr) && vr < 0.85);
   const squeeze= has(s.range3)&&has(s.range10)&&s.range10 ? s.range3 < s.range10*0.8 : false;
-  const yChg   = has(s.prev_change_1d) ? s.prev_change_1d : null;
+  const yChg   = has(s.prev_change_1d) ? s.prev_change_1d / levMul : null;   // 전일 변동(1배 환산)
   const yVr    = has(s.prev_vol_ratio) ? s.prev_vol_ratio : null;
   /* 전일 대량 음봉은 기본적으로 분배 위험 */
   const dumpedYesterday = (yChg !== null && yChg <= -5) && (yVr !== null && yVr >= 1.5);
@@ -1528,11 +1537,13 @@ function evaluate(s){
      run3 크기가 아니라 시장이 바닥을 쳤는지 여부다.
 
      후보별 34거래일 실측 (반등 강매 +1/+3/+5일 승률 · +5일 평균수익):
-       컷 없음(현행)  63/65/73%  평균 +4.5%  n=87/74/63
-       run3<=10      63/67/78%  평균 +5.7%  n=61/54/45   ← 평균 최고
-       run3<=8       65/72/76%  평균 +4.8%  n=54/47/38   ← 승률 최고, 로켓 제거
-     tools/formula-lab.js 로 재현. 적용 여부는 사용자 결정 대기. */
-  const revStrong = revScore>=2.0 && has(rsi) && rsi<=50 && sectorOK;
+       컷 없음        63/65/73%  평균 +4.5%  n=87/74/63
+       run3<=10      63/67/78%  평균 +5.7%  n=61/54/45   ← 채택 (2026-08-17)
+       run3<=8       65/72/76%  평균 +4.8%  n=54/47/38   승률만 높고 로켓 제거
+     10은 매수관심이 이미 쓰는 컷이라 새 매직넘버가 아니다. 사용자 확인 후 채택.
+     레버리지는 1배 환산(run3Eff)으로 걸어 3배 ETF가 부당하게 잘리지 않게 한다. */
+  const revStrong = revScore>=2.0 && has(rsi) && rsi<=50 && sectorOK &&
+    (run3Eff===null || run3Eff<=10);
   /* 매수관심도 기준선(전 종목 무조건 매수)을 넘겨야 신호 구실을 한다.
      기존 'revScore>=2.0'만으로는 56%/59%/64%로 기준선(61/68/72)에 전부 미달했다.
      원인은 이 구간이 강한매수 게이트(RSI<=49)가 걸러낸 나머지라는 데 있다.
@@ -1549,7 +1560,7 @@ function evaluate(s){
      한 칸 움직여도 급변하지 않는다.
      강한매수·다중·💡에는 영향이 없다(💡 85/93/88 그대로). */
   const revGrade  = revStrong ? 5 :
-    (revScore>=2.0 && has(bb) && bb>=70 && has(s.run3_sum) && s.run3_sum<=10) ? 4 : 3;
+    (revScore>=2.0 && has(bb) && bb>=70 && run3Eff!==null && run3Eff<=10) ? 4 : 3;
   const buyGrade=Math.max(pullGrade,revGrade);
 
   /* 경계 = 등급이 아니라 '신규 진입 주의' 뱃지.
@@ -1647,6 +1658,26 @@ function histFields(){
   return Array.isArray(f) && f.length ? f : HIST_FIELDS_DEFAULT;
 }
 /* hist(위치 기반 배열) 한 줄을 오늘 종목과 같은 모양으로 되살린다 */
+/* 항복 바닥 해제(K2) — 약세 국면이라도 QQQ RSI가 35 이하로 무너진 날은
+   게이트를 잠그지 않는다(neutral 취급).
+   근거: 34거래일 실측에서 이 규칙 하나로 전 행이 개선됐다
+   (💡 68/78/79 → 73/81/82 · 다중 +5일 82→84% · 반등 76→78%).
+   ⚠ 다만 해제가 실제로 발동한 날은 7/29(항복 바닥) 하루뿐이다. 원리는
+   "이미 다 판 자리에서는 방어가 아니라 매수가 맞다"로 타당하지만,
+   표본 1일짜리 규칙이므로 다음 급락 사이클에서 재확인해야 한다.
+   RSI는 frozen된 qqq_card.hist에서 날짜로 찾으므로 과거 행 재계산이 아니다. */
+function qqqRsiOn(date){
+  const q = state.data && state.data.qqq_card;
+  if(!q || !Array.isArray(q.hist)) return null;
+  const Fq = histFields(), di = Fq.indexOf("date"), ri = Fq.indexOf("rsi");
+  const row = q.hist.find(x => Array.isArray(x) && String(x[di]) === String(date));
+  return row ? num(row[ri]) : (String(q.last_date) === String(date) ? num(q.rsi) : null);
+}
+function washoutLevel(lvl, date){
+  if(lvl !== "weak") return lvl;
+  const r = qqqRsiOn(date);
+  return (r !== null && r <= 35) ? "neutral" : lvl;
+}
 function histRow(s, row, i, total){
   const F = histFields(), o = {};
   F.forEach((k, n) => o[k] = row[n]);
@@ -1678,11 +1709,15 @@ function histRow(s, row, i, total){
     change_1d: num(o.change_1d),
     ma20_slope: num(o.ma20_slope), run5_max: num(o.run5_max), run3_sum: num(o.run3_sum),
     res_short: num(o.res_short), ret20: num(o.ret20), rs20: num(o.rs20),
+    low_52w: num(o.low_52w), pct_from_low: num(o.pct_from_low),
     market_ret20: marketRet20,
     range3: num(o.range3), range10: num(o.range10), vol3_ratio: num(o.vol3_ratio),
-    /* QQQ 자체 히스토리는 시장필터를 자기 자신에게 다시 감점하지 않는다. */
-    market_level: (s._kr || s._benchmark) ? "neutral" : lvl,
-    market_weak: s._benchmark ? false : (frozenWeak !== null ? frozenWeak : (!s._kr && (lvl === "weak" || lvl === "caution"))),
+    /* QQQ 자체 히스토리는 시장필터를 자기 자신에게 다시 감점하지 않는다.
+       washoutLevel: 항복 바닥(K2) 해제 — weak이 neutral이 되면 weak 플래그도 함께 푼다. */
+    market_level: (s._kr || s._benchmark) ? "neutral" : washoutLevel(lvl, o.date),
+    market_weak: s._benchmark ? false :
+      (washoutLevel(lvl, o.date) !== lvl ? false :
+        (frozenWeak !== null ? frozenWeak : (!s._kr && (lvl === "weak" || lvl === "caution")))),
     /* 과거 행의 빈 배열도 '그날 이벤트 없음'으로 확정된 값이다.
        현재 top-level 캘린더를 다시 찾아 붙이면 과거 경고가 뒤늦게 바뀌므로 절대 fallback하지 않는다. */
     market_events: Array.isArray(o.market_events) ? o.market_events : []
@@ -2260,7 +2295,7 @@ function multiSignalRank(list){
     const fallbackRevOnly=s.sig.revGrade===5 && s.sig.pullGrade<5;
     const fallbackStrict=!fallbackRevOnly ||
       (has(s.bb_pos) && s.bb_pos<=70 && s.sig.revScore>=2.5 &&
-       has(s.run3_sum) && s.run3_sum<=10 &&
+       has(s.run3_sum) && s.run3_sum/levX(s.ticker)<=10 &&
        has(s.rsi) && s.rsi<=49);
     const strict=previousOverallGrade(s)===3 && strictMultiGate(s) && fallbackStrict;
     return {s,pu,rv,vo,pullStrong,revStrong,bestPct,otherPct,

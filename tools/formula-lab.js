@@ -55,7 +55,8 @@ function extractConst(name){
 /* ── 게이트 패치 지점 (index.html의 실제 소스 문자열과 일치해야 한다) ── */
 const PULL_LINE = `const pullGrade = pullSetup && pullScore>=1.5 && sectorOK && nearHighM ? 5 :
     (pullSetup && pullScore>=0.8 ? 4 : 3);`;
-const REV_LINE = 'const revStrong = revScore>=2.0 && has(rsi) && rsi<=50 && sectorOK;';
+const REV_LINE = `const revStrong = revScore>=2.0 && has(rsi) && rsi<=50 && sectorOK &&
+    (run3Eff===null || run3Eff<=10);`;
 
 /* 미너비니 조건 표현식 — evaluate() 안 지역변수(p, ma20, ma60)와 s 필드 사용 */
 const M = {
@@ -76,12 +77,13 @@ function patchedEvaluate(pullExtra, revExtra){
   }
   if(revExtra){
     e = e.replace(REV_LINE,
-      `const revStrong = revScore>=2.0 && has(rsi) && rsi<=50 && sectorOK && (${revExtra});`);
+      `const revStrong = revScore>=2.0 && has(rsi) && rsi<=50 && sectorOK &&
+    (run3Eff===null || run3Eff<=10) && (${revExtra});`);
   }
   return e;
 }
 
-const OTHER = ['competitionRank','strategyOrdinalRank','volumeOrdinalRank','rankMapsFor','rankOf',
+const OTHER = ['qqqRsiOn','washoutLevel','competitionRank','strategyOrdinalRank','volumeOrdinalRank','rankMapsFor','rankOf',
   'generalMultiGate','generalTierGate','strictMultiGate','previousOverallGrade','multiSignalRank',
   'normalize','decorate','histWindowDays','histFields','histRow','withPrev','histStocks','prevStock','allStocks',
   'earningsWindowsForValidation','validationWindowTouchesEarnings'];

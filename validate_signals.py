@@ -66,8 +66,10 @@ def validate_current(payload: dict, scope: str) -> None:
     fields = payload.get("hist_fields")
     if fields != HIST_FIELDS:
         fail("hist_fields 순서가 main.py 정의와 다릅니다.")
-    if not fields or fields[-1] != "market_events":
-        fail("market_events는 hist_fields의 마지막 필드여야 합니다.")
+    # market_events까지가 원래 스키마다. 그 뒤로는 꼬리 확장 필드만 온다
+    # (2026-08-17: low_52w·pct_from_low). 위치 기반 배열이라 중간 삽입은 여전히 금지.
+    if not fields or "market_events" not in fields:
+        fail("market_events가 hist_fields에 없습니다.")
 
     rows = rows_by_ticker(payload)
     expected = {ticker for group in WATCHLIST.values() for ticker in group}
@@ -128,8 +130,10 @@ def validate_current(payload: dict, scope: str) -> None:
 def validate_append_only(old: dict, new: dict, force_resnap: bool, scope: str) -> None:
     old_fields = old.get("hist_fields") or []
     new_fields = new.get("hist_fields") or []
-    if old_fields != new_fields:
-        fail("run 전후 hist_fields가 바뀌었습니다.")
+    # 꼬리에 필드를 덧붙이는 확장만 허용한다. 기존 구간의 순서 변경·중간 삽입은
+    # 이미 저장된 위치 기반 배열을 전부 어긋나게 하므로 차단한다.
+    if new_fields[:len(old_fields)] != old_fields:
+        fail("run 전후 hist_fields 기존 구간이 바뀌었습니다(꼬리 추가만 허용).")
     old_rows, new_rows = rows_by_ticker(old), rows_by_ticker(new)
     for ticker in set(old_rows) & set(new_rows):
         before, after = old_rows[ticker], new_rows[ticker]
