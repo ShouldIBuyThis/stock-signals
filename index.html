@@ -999,6 +999,12 @@ const CAT_MAP = {
 };
 
 /* 레버리지(배수) 상품 — 손절선 필수 */
+/* 약세·주의장에서도 상대적으로 버티는 섹터.
+   30거래일 실측에서 급락 구간(7/06~7/27) +5일 승률이
+   방어 46%(222건) vs 성장 31%(754건)로 15%p 벌어졌다.
+   섹터 하나하나의 순위(유가 92% 등)는 2종목×13일이라 독립 표본이 아니므로 쓰지 않고,
+   방어/성장 두 묶음의 차이만 사용한다. */
+const DEFENSIVE_CATS = ["경기방어","헬스케어","금융","원자재·금","원자재·유가","방산·드론","주택"];
 const LEVERAGED = { SOXL:{base:"반도체 지수",x:3}, GDXU:{base:"금광주 지수",x:3}, NAIL:{base:"주택건설 지수",x:3}, ETHU:{base:"이더리움",x:2} };
 const levX = tk => (LEVERAGED[tk] ? LEVERAGED[tk].x : 1);
 function levMark(tk){
@@ -1430,7 +1436,9 @@ function evaluate(s){
      💡는 승률 85/93/88 그대로에 표본이 18/14/8 → 20/15/9로 늘고,
      검증표 추세 행이 66/56/75 → 70/62/83으로 올라간다.
      (pullRelaxed 자체는 뱃지·설명 등 다른 표시에 쓰이므로 변수는 남긴다) */
-  const pullGrade = pullSetup && pullScore>=1.5 ? 5 :
+  const marketGuarded = s.market_level==="weak" || s.market_level==="caution";
+  const sectorOK = !marketGuarded || DEFENSIVE_CATS.includes(s.category);
+  const pullGrade = pullSetup && pullScore>=1.5 && sectorOK ? 5 :
     (pullSetup && pullScore>=0.8 ? 4 : 3);
   /* 반등 강한매수 = 반등점수 2.0 이상 + RSI 50 이하.
      반등점수 산식과 반등순은 그대로 두고 강한매수 게이트만 바꾼 것이다.
@@ -1448,7 +1456,19 @@ function evaluate(s){
      못 미쳤고, 특히 '당일 음봉' 경로가 승률 50%로 성과를 깎고 있었다.
 
      ※ 2026-08-16 · 770행/10거래일 실측 기준. 표본이 짧으니 쌓이면 다시 확인해야 한다. */
-  const revStrong = revScore>=2.0 && has(rsi) && rsi<=50;
+  /* 약세·주의장에서는 방어섹터만 강한매수를 낸다.
+     시장이 무너지는 구간에서는 기술적 조건이 잘 듣지 않는다는 게 실측 결과다.
+     30거래일을 반으로 갈랐을 때 급락 구간에서는 기준선(전 종목 매수)이 +5일 34%까지
+     떨어졌고 신호 승률도 38%로 같이 무너졌다. 필터를 어떻게 바꿔도 이 차이를 넘지
+     못했다 — 신호 성능이 아니라 시장이 만든 차이이기 때문이다.
+     다만 방어섹터는 같은 구간에서 46%로 성장섹터(31%)보다 15%p 높게 버텼다.
+
+     적용 결과 (급락 구간 → 전체):
+       반등 강매  +5일 38% → 50%  ·  전체 72% → 75%
+       눌림 강매  +3일 41% → 47%  ·  전체 51% → 56%
+     좋은 장을 조금(반등 +5일 87%→84%) 내주고 나쁜 장을 방어하는 교환이다.
+     상대강도(rs20)로 거르는 방법도 시험했으나 오히려 나빠져(32%/44%) 쓰지 않았다. */
+  const revStrong = revScore>=2.0 && has(rsi) && rsi<=50 && sectorOK;
   /* 매수관심도 기준선(전 종목 무조건 매수)을 넘겨야 신호 구실을 한다.
      기존 'revScore>=2.0'만으로는 56%/59%/64%로 기준선(61/68/72)에 전부 미달했다.
      원인은 이 구간이 강한매수 게이트(RSI<=49)가 걸러낸 나머지라는 데 있다.
@@ -1584,7 +1604,7 @@ function histRow(s, row, i, total){
     : (md ? (modern ? num(md[3]) : num(mk.ret20)) : null);
   const frozenWeak = (o.market_weak === undefined || o.market_weak === null) ? null : !!o.market_weak;
   return {
-    ticker: s.ticker, last_date: o.date || "",
+    ticker: s.ticker, category: s.category, last_date: o.date || "",
     price: num(o.price), ma5: num(o.ma5), ma10: num(o.ma10), ma20: num(o.ma20), ma50: num(o.ma50), ma60: num(o.ma60),
     rsi: num(o.rsi), macd: num(o.macd_hist),
     macd_cross: o.macd_cross || "none", macd_zero: o.macd_zero || "above",
