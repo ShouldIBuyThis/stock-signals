@@ -984,6 +984,11 @@ def freeze_signal_hist(results, prev_rows, mkt=None, market_events=None, market_
                     continue
                 if k in fixed_today:
                     r[k] = fixed_today.get(k)
+                else:
+                    # 확장 필드(low_52w 등)가 옛 snapshot에 없으면 top-level도 비운다.
+                    # 이미 고정된 날의 카드는 원장과 완전히 일치해야 하고,
+                    # 새 필드는 다음 '새 거래일'부터 쌓인다.
+                    r[k] = None
             restored_current += 1
         elif not FORCE_RESNAP and last_date:
             # 일자별 snapshot 커밋이 실패했더라도 signals.json의 기존 hist는
@@ -996,8 +1001,12 @@ def freeze_signal_hist(results, prev_rows, mkt=None, market_events=None, market_
             if pos is not None:
                 today_h = frozen_rows[pos]
                 for f, i in idx.items():
-                    if f != "date" and i < len(today_h):
-                        r[f] = today_h[i]
+                    if f == "date":
+                        continue
+                    # 고정 행이 짧으면(확장 전 행) 그 필드는 top-level도 비운다 —
+                    # 위 snapshot 복원과 같은 이유. 안 비우면 top/hist 불일치로
+                    # validate_signals.py가 막는다 (2026-08-16 실제 실패 사례: KO low_52w).
+                    r[f] = today_h[i] if i < len(today_h) else None
                 if pos > 0:
                     prev_h = frozen_rows[pos-1]
                     for dst, src in (("prev_change_1d","change_1d"), ("prev_vol_ratio","vol_ratio"),
