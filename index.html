@@ -1507,7 +1507,21 @@ function evaluate(s){
           같은 것을 보고 있어 이중 필터가 표본만 깎는다
      ③ 52주 저점 +25%는 52주 저점을 저장하지 않아 시험 불가. */
   const nearHighM = has(s.pct_from_high) && s.pct_from_high >= -25;
-  const pullGrade = pullSetup && pullScore>=1.5 && sectorOK && nearHighM ? 5 :
+  /* 추세 강한매수에 추격 컷을 단다: 3일누적(1배 환산) 5% 이하.
+     눌림목 정의상 직전 3일은 조정 중이어야 하는데 게이트에는 그 조건이 없었다.
+     3일 동안 이미 크게 오른 자리를 '눌림'으로 인정하면 고점 추격이 된다.
+
+     34거래일 실측 (추세 강한매수 · 기준선 대비):
+       현행        72/68/72%  (n=52/44/36 · 18종목)
+       +run3<=5   75/72/75%  (n=50/42/35 · 17종목)   ← 채택, 표본 손실 2건뿐
+     이웃 값 전부 같은 방향이라 고원이다(§3): 1.5%→75/73/76, 3%→78/74/78,
+     4%→75/72/75, 7%→75/70/75, 10%→효과 없음.
+     3%가 가장 높지만 이웃보다 +3%p 튀는 봉우리라 과적합으로 보고 쓰지 않았다.
+     5는 이미 쓰이는 추격 컷 계열(💡 8·반등 10)과 같은 뜻의 값이다.
+     전·후반 모두 대조군을 넘는다(§2): 전반 75/71/69 vs 69/67/65,
+     후반 75/73/82 vs 75/69/82. */
+  const pullChase = run3Eff===null || run3Eff<=5;
+  const pullGrade = pullSetup && pullScore>=1.5 && sectorOK && nearHighM && pullChase ? 5 :
     (pullSetup && pullScore>=0.8 ? 4 : 3);
   /* 반등 강한매수 = 반등점수 2.0 이상 + RSI 50 이하.
      반등점수 산식과 반등순은 그대로 두고 강한매수 게이트만 바꾼 것이다.
@@ -2306,7 +2320,18 @@ function multiSignalRank(list){
       (has(s.bb_pos) && s.bb_pos<=70 && s.sig.revScore>=2.5 &&
        has(s.run3_sum) && s.run3_sum/levX(s.ticker)<=10 &&
        has(s.rsi) && s.rsi<=49);
-    const strict=previousOverallGrade(s)===3 && strictMultiGate(s) && fallbackStrict;
+    /* 💡에도 같은 추격 컷을 전 경로에 건다: 3일누적(1배 환산) 5% 이하.
+       기존 run3<=10은 '반등 단독 강매' 구제 경로에만 걸려 있어 나머지가 무방비였다.
+
+       34거래일 실측 (💡 · 기준선 대비):
+         현행       71/79/79%  (n=38/32/26 · 25종목)
+         +run3<=5  81/91/83%  (n=31/25/19 · 19종목)   ← 채택
+       3~7% 구간이 전부 +3일 90~95%로 고원이다(§3). 더 조이면 0%에서 100%(n=15)가
+       나오지만 표본이 15건이라 §5-1 미달이고, 봉우리를 고르는 것 자체가 과적합이다.
+       전·후반 모두 대조군 이상(§2): 전반 67/50/80 vs 40/50/71, 후반 83/100/92 vs 82/91/93.
+       ⚠ 전반 표본이 5~6건뿐이다(급락장에 💡가 거의 안 뜬다). 다음 급락에서 재확인할 것. */
+    const strictChase = !has(s.run3_sum) || s.run3_sum/levX(s.ticker) <= 5;
+    const strict=previousOverallGrade(s)===3 && strictMultiGate(s) && fallbackStrict && strictChase;
     return {s,pu,rv,vo,pullStrong,revStrong,bestPct,otherPct,
       tier:strict?1:(generalTierGate(s)?2:0)};
   }).filter(x=>x.tier>0);

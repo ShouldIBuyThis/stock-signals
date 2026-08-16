@@ -53,7 +53,7 @@ function extractConst(name){
 }
 
 /* ── 게이트 패치 지점 (index.html의 실제 소스 문자열과 일치해야 한다) ── */
-const PULL_LINE = `const pullGrade = pullSetup && pullScore>=1.5 && sectorOK && nearHighM ? 5 :
+const PULL_LINE = `const pullGrade = pullSetup && pullScore>=1.5 && sectorOK && nearHighM && pullChase ? 5 :
     (pullSetup && pullScore>=0.8 ? 4 : 3);`;
 const REV_LINE = `const revStrong = revScore>=2.0 && has(rsi) && rsi<=50 && sectorOK &&
     (run3Eff===null || run3Eff<=10);`;
@@ -72,7 +72,7 @@ function patchedEvaluate(pullExtra, revExtra){
   if(!e.includes(REV_LINE))  die('반등 게이트 라인을 못 찾음');
   if(pullExtra){
     e = e.replace(PULL_LINE,
-      `const pullGrade = pullSetup && pullScore>=1.5 && sectorOK && nearHighM && (${pullExtra}) ? 5 :
+      `const pullGrade = pullSetup && pullScore>=1.5 && sectorOK && nearHighM && pullChase && (${pullExtra}) ? 5 :
     (pullSetup && pullScore>=0.8 ? 4 : 3);`);
   }
   if(revExtra){
