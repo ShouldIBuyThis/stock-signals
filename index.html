@@ -338,6 +338,7 @@ table.validation-cmp{table-layout:fixed}
 table.validation-cmp th:first-child,table.validation-cmp td:first-child{width:48px;white-space:nowrap;word-break:keep-all;padding-left:8px;padding-right:6px}
 table.validation-cmp th:not(:first-child),table.validation-cmp td:not(:first-child){padding-left:7px;padding-right:7px}
 table.validation-cmp th[colspan="3"]{color:var(--ink);font-weight:800}
+.baseline-term{border-bottom:1px dashed var(--muted);cursor:pointer}
 .validation-help-btn{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;margin-left:4px;border:1px solid var(--line);border-radius:50%;background:var(--surface);color:var(--muted);font-size:10px;font-weight:800;vertical-align:1px;cursor:pointer}
 .validation-help-btn:active{transform:scale(.95)}
 .validation-title{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
@@ -3434,10 +3435,14 @@ function validationBlock(){
     const c=e>0?"var(--buy)":e<0?"var(--sell)":"var(--muted)";
     return `<br><span style="font-size:10.5px;font-weight:800;color:${c}">기준선 대비 ${e>=0?"+":""}${e}%p</span>`;
   };
-  const row=k=>`<tr><td><b>${k==="multi"?"다중":k==="pull"?"추세":"반등"}</b></td>`+
-    [1,3,5].map(h=>`<td>${cell(v[k][h])}${edge(v[k][h],h)}</td>`).join("")+`</tr>`;
-  /* 기준선 행 — 신호를 안 보고 그날 아무 종목이나 샀을 때. 비교 기준이다. */
-  const baseRow=`<tr class="vbase"><td><b>기준선</b><br><span style="font-size:10px;font-weight:600;color:var(--faint)">전 종목 매수</span></td>`+
+  /* 메인 표는 💡 강한다중과 최종 강한매수(초록뱃지) 두 행이다.
+     전략별(추세/반등) 분리는 💡 버튼 팝업에, 매수관심 합산은 별도 팝업에 있다.
+     — 사용자가 실제로 따라 사는 신호(💡·초록)를 표의 첫 화면으로 올린 것. */
+  const srcRow=(label,sub,src)=>`<tr><td><b>${label}</b>${sub?`<br><span style="font-size:10px;font-weight:600;color:var(--faint)">${sub}</span>`:""}</td>`+
+    [1,3,5].map(h=>`<td>${cell((src&&src[h])||{n:0})}${edge(src&&src[h],h)}</td>`).join("")+`</tr>`;
+  /* 기준선 행 — 신호를 안 보고 그날 아무 종목이나 샀을 때. 비교 기준이다.
+     '기준선' 단어는 점선 밑줄 + 클릭 팝업으로 쉬운 설명을 연결한다. */
+  const baseRow=`<tr class="vbase"><td><b class="baseline-term" onclick="openBaselineHelp()">기준선</b><br><span style="font-size:10px;font-weight:600;color:var(--faint);display:inline-block;padding-left:9px">└ 전 종목 매수 시</span></td>`+
     [1,3,5].map(h=>{
       const o=bl[h];
       return `<td>${o&&o.n?`<span class="vrate" style="color:var(--muted)">${pct(o.rate)}</span><br><span class="vavg">평균수익 ${av(o.avg)}</span><br><span class="vsplit vflat">표본 ${o.n}건</span>`:"—"}</td>`;
@@ -3457,10 +3462,12 @@ function validationBlock(){
   });
   const diagDetail=`<details class="acc" style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:11px"><b>🔎 표본 구성 자세히</b></summary><div class="strip" style="margin-top:6px;line-height:1.9">${diagRows.join("<br>")}<div style="margin-top:7px;padding-top:6px;border-top:1px dashed var(--line)">${intRows.join("<br>")}</div><div style="margin-top:5px;color:var(--faint);font-size:10.5px">위 표는 <b>강한매수</b>만 집계합니다. 매수관심을 섞으면 강한매수의 성적이 가려지기 때문입니다.<br>실패·보합 표본도 최종 평가에 그대로 포함됩니다. ‘전략별 수익 사례’만 별도의 예시 영역입니다.</div></div></details>`;
   return `<div class="section help-block"><h3 class="validation-title">🧪 최근 ${histWindowDays()}거래일 현재 산식 재검증 <button type="button" class="validation-help-btn" onclick="openValidationIntro()" aria-label="신뢰도 검증 설명">?</button><span class="live-note">(표본 수급에 따라 실시간 변동)</span></h3>
-    <div style="margin:0 2px 7px;font-size:12px;font-weight:800;color:var(--ink)">종가에 매수했다면? <span style="font-weight:600;color:var(--muted)">· 상승 vs 하락 (보합 제외)</span><br><span style="font-weight:600;font-size:11px;color:var(--faint)">세 행 모두 <b>강한매수</b> 기준입니다 · 맨 아래 <b>기준선</b>은 신호를 안 보고 그날 전 종목을 샀을 때예요</span></div>
-    <table class="cmp validation-cmp"><tr><th>구분</th><th colspan="3">상승이 하락을 이길 확률 <button type="button" class="validation-help-btn" onclick="openValidationHelp()" aria-label="승률 계산 설명">?</button><button type="button" class="bulbperf" onclick="openStrictMultiPerf()" title="강한 다중신호(💡)의 최근 성과 보기">강한 신호를 보고 투자했다면 💡</button></th></tr><tr><th>전략</th><th>+1거래일</th><th>+3거래일</th><th>+5거래일</th></tr>
-      ${row("multi")}${row("pull")}${row("rev")}${baseRow}
-    </table>${exampleBlock}${diagDetail}${exDetail}
+    <div style="margin:0 2px 7px;font-size:12px;font-weight:800;color:var(--ink)">종가에 매수했다면? <span style="font-weight:600;color:var(--muted)">· 상승 vs 하락 (보합 제외)</span><br><span style="font-weight:600;font-size:11px;color:var(--faint)">위 두 행은 <b>신호를 보고 산 사람</b>, 맨 아래 <b>기준선</b>은 신호를 안 보고 그날 전 종목을 다 산 사람이에요</span></div>
+    <table class="cmp validation-cmp"><tr><th>구분</th><th colspan="3">상승이 하락을 이길 확률 <button type="button" class="validation-help-btn" onclick="openValidationHelp()" aria-label="승률 계산 설명">?</button><button type="button" class="bulbperf" onclick="openStrictMultiPerf()" title="전략별(추세/반등) 강한매수 분리와 쉬운 예시 보기">전략별 강한매수 분리 📊</button></th></tr><tr><th>신호</th><th>+1거래일</th><th>+3거래일</th><th>+5거래일</th></tr>
+      ${srcRow("💡 강한다중","전구 신호만",v._strict)}${srcRow("🟢 강한매수","최종 초록뱃지",v._strongBuy)}${baseRow}
+    </table>
+    <div style="margin-top:8px"><button type="button" class="bulbperf" onclick="openAllBuyersPerf()" title="매수관심까지 포함해 전부 샀다면">매수관심&강한매수를 다 매수했다면? 💡</button></div>
+    ${exampleBlock}${diagDetail}${exDetail}
     <div class="strip" style="margin-top:9px">
       <b>과거 원시지표를 현재 산식으로 재평가한 결과입니다.</b> 산식이 바뀌면 과거 신호와 검증 결과도 함께 바뀔 수 있습니다.<br>
       카드 데이터는 최근 <b>${histWindowDays()}거래일</b>을 사용합니다. 표본이 쌓일수록 수치가 안정됩니다.</div>
@@ -3786,6 +3793,64 @@ function openSignalScoringHelp(){
     <div class="modal-actions"><button class="primary" onclick="closeModal()">닫기</button></div>`);
 }
 /* 💡 강한다중만의 최근 성과. 표의 "다중" 행(강한+일반)과는 다른 숫자다. */
+/* '기준선' 단어 팝업 — 아주 쉬운 설명. 종목 수는 실제 데이터에서 읽는다. */
+function openBaselineHelp(){
+  const n = allStocks().length;
+  openModal(`<h3>기준선이란?</h3>
+    <p style="font-size:13px;line-height:1.8;color:var(--reason)">
+      신호를 전혀 보지 않고, 그날 이 사이트의 <b>(${n}개) 전체 종목을 전부 산 사람</b>의 성적입니다.</p>
+    <div class="perf-story">
+      <span class="ex-badge">예시</span>
+      <b>이지금 투자자 👩</b>는 신호를 보고 골라 샀고,<br>
+      <b>김나중 투자자 👨</b>는 아무것도 안 보고 ${n}개를 몽땅 샀어요.<br><br>
+      표의 <b>"기준선 대비 +12%p"</b>는 이지금 투자자가 김나중 투자자를
+      승률로 12%p 이겼다는 뜻이에요.
+      <div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);color:var(--muted)">
+        신호가 기준선을 못 이기면? 그 승률은 신호 덕이 아니라
+        <b>그냥 장이 좋았던 덕</b>입니다. 그래서 승률 옆에 항상 기준선을 같이 둡니다.</div>
+    </div>`);
+}
+
+/* 매수관심(4등급)까지 전부 샀다면 — 강한매수와 매수관심 표본을 실제로 합산한다.
+   승률은 합산 후 다시 계산하므로(가중평균 아님) 두 표의 숫자와 어긋나지 않는다. */
+function openAllBuyersPerf(){
+  const v=strategyValidation();
+  const merge=(a,b)=>{
+    const A=a||{n:0,wins:0,flats:0,losses:0,avg:null}, B=b||{n:0,wins:0,flats:0,losses:0,avg:null};
+    const n=A.n+B.n;
+    if(!n) return {n:0,rate:null,avg:null,wins:0,flats:0,losses:0};
+    const wins=(A.wins||0)+(B.wins||0), flats=(A.flats||0)+(B.flats||0), losses=(A.losses||0)+(B.losses||0);
+    const dir=wins+losses;
+    const avg=((A.avg||0)*A.n+(B.avg||0)*B.n)/n;
+    return {n,wins,flats,losses,rate:dir?Math.round(wins/dir*100):null,avg};
+  };
+  const bl=v._baseline||{};
+  const pct=x=>x==null?"—":x+"%"; const av=x=>x==null?"—":`${x>=0?"+":""}${Number(x).toFixed(2)}%`;
+  const cell=o=>{
+    if(!o||!o.n) return "—";
+    const e=(bl[o._h]&&bl[o._h].rate!==null&&o.rate!==null)?o.rate-bl[o._h].rate:null;
+    const ec=e===null?"":`<br><span style="font-size:10.5px;font-weight:800;color:${e>0?"var(--buy)":e<0?"var(--sell)":"var(--muted)"}">기준선 대비 ${e>=0?"+":""}${e}%p</span>`;
+    return `<span class="vrate">${pct(o.rate)}</span><br><span class="vavg">평균수익 ${av(o.avg)}</span><br><span class="vsplit vflat">표본 ${o.n}건</span>${ec}`;
+  };
+  const mk=(label,src)=>`<tr><td><b>${label}</b></td>`+[1,3,5].map(h=>{const o=src(h); if(o) o._h=h; return `<td>${cell(o)}</td>`;}).join("")+`</tr>`;
+  const rows=[
+    mk("추세", h=>merge(v.pull[h], v._interest&&v._interest.pull&&v._interest.pull[h])),
+    mk("반등", h=>merge(v.rev[h], v._interest&&v._interest.rev&&v._interest.rev[h])),
+    mk("다중(전체)", h=>v.multi[h]),
+  ].join("");
+  const baseRow=`<tr class="vbase"><td><b class="baseline-term" onclick="openBaselineHelp()">기준선</b><br><span style="font-size:10px;color:var(--faint);display:inline-block;padding-left:9px">└ 전 종목 매수 시</span></td>`+
+    [1,3,5].map(h=>{const o=bl[h];return `<td>${o&&o.n?`<span class="vrate" style="color:var(--muted)">${pct(o.rate)}</span><br><span class="vavg">평균수익 ${av(o.avg)}</span><br><span class="vsplit vflat">표본 ${o.n}건</span>`:"—"}</td>`;}).join("")+`</tr>`;
+  openModal(`<h3>매수관심&강한매수를 다 매수했다면? 💡</h3>
+    <p style="font-size:12.5px;color:var(--reason);line-height:1.7;margin:0 0 8px">
+      강한매수뿐 아니라 <b>매수관심(주황뱃지)까지 전부</b> 샀을 때의 성적입니다.
+      메인 표(💡·초록뱃지)보다 표본은 많지만 승률은 보통 낮습니다 —
+      매수관심은 확신이 덜한 신호이기 때문입니다.</p>
+    <table class="cmp validation-cmp"><tr><th>전략</th><th>+1일</th><th>+3일</th><th>+5일</th></tr>${rows}${baseRow}</table>
+    <p style="font-size:11px;color:var(--faint);line-height:1.7;margin:8px 0 0">
+      종가 기준 · 실적 영향 구간 제외 · 승률은 상승 ÷ (상승 + 하락), 보합(±1%)은 빼고 계산합니다.<br>
+      다중은 원래 매수관심 개념이 없어 강한·일반 다중을 합친 값입니다.</p>`);
+}
+
 function openStrictMultiPerf(){
   const v=strategyValidation();
   const S=(v && v._strict) || {};
