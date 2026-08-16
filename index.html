@@ -335,10 +335,18 @@ table.cmp th,table.cmp td{padding:9px 10px;border-bottom:1px solid var(--line);t
 table.cmp th{color:var(--muted)}
 table.cmp tr:last-child td{border-bottom:none}
 table.validation-cmp{table-layout:fixed}
-table.validation-cmp th:first-child,table.validation-cmp td:first-child{width:48px;white-space:nowrap;word-break:keep-all;padding-left:8px;padding-right:6px}
+/* 첫 칸은 라벨이 길어졌으므로(💡 강한다중 등) 넓히고 줄바꿈을 허용한다.
+   48px+nowrap이던 시절 라벨이 옆 칸 숫자를 덮는 버그가 있었다. */
+table.validation-cmp th:first-child,table.validation-cmp td:first-child{width:92px;white-space:normal;word-break:keep-all;padding-left:8px;padding-right:6px}
 table.validation-cmp th:not(:first-child),table.validation-cmp td:not(:first-child){padding-left:7px;padding-right:7px}
 table.validation-cmp th[colspan="3"]{color:var(--ink);font-weight:800}
 .baseline-term{border-bottom:1px dashed var(--muted);cursor:pointer}
+/* 표 아래에 놓이는 독립 버튼 — 링크처럼 보이지 않게 알약 모양으로 */
+.perfbtn{display:inline-block;background:var(--chip,#f0f4fa);border:1px solid var(--line);border-radius:999px;
+  padding:7px 14px;margin:2px 6px 2px 0;cursor:pointer;font:inherit;font-size:12px;font-weight:700;
+  color:var(--link,#2f6fd0);text-decoration:none}
+.perfbtn:active{opacity:.65}
+html[data-theme="dark"] .perfbtn{background:#1c2532;color:#7fb0ff}
 .validation-help-btn{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;margin-left:4px;border:1px solid var(--line);border-radius:50%;background:var(--surface);color:var(--muted);font-size:10px;font-weight:800;vertical-align:1px;cursor:pointer}
 .validation-help-btn:active{transform:scale(.95)}
 .validation-title{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
@@ -355,7 +363,7 @@ table.validation-cmp th[colspan="3"]{color:var(--ink);font-weight:800}
 .vsplit{font-size:9px;line-height:1.45;white-space:nowrap}
 .vup{color:var(--up);font-weight:600}.vdown{color:var(--down);font-weight:600}.vflat{color:var(--faint);font-weight:500}
 @media(max-width:640px){
-  table.validation-cmp th:first-child,table.validation-cmp td:first-child{width:50px}
+  table.validation-cmp th:first-child,table.validation-cmp td:first-child{width:74px}
   table.validation-cmp th:not(:first-child),table.validation-cmp td:not(:first-child){padding-left:5px;padding-right:5px}
   .vrate{font-size:14px}.vavg{font-size:9.8px}.vsplit{font-size:8.7px}
 }
@@ -3225,7 +3233,7 @@ function strategyValidation(){
     horizons.forEach(h=>{
       if(i+h>=hs.length || !has(hs[i+h].price)) return;
       if(validationWindowTouchesEarnings(affected,hs,i,h)) return;
-      baseOut[h].push({ret:(hs[i+h].price/row.price-1)*100});
+      baseOut[h].push({ret:(hs[i+h].price/row.price-1)*100, date:row.last_date});
     });
   }));
 
@@ -3314,6 +3322,9 @@ function strategyValidation(){
      엄격만의 성과를 그 숫자로 대신 쓰면 사실과 다르다. 같은 stat()을 그대로 쓴다. */
   result._strict={};
   horizons.forEach(h=>{ result._strict[h]=stat(out.multi[h].filter(x=>x.tier===1)); });
+  /* 시장 국면별 승률 팝업용 원시 표본. 신호일(date)이 들어 있어
+     국면(강세/중립/주의/약세)으로 나눠 다시 셀 수 있다. 집계 규칙은 위와 동일. */
+  result._phaseRows={strongBuy:strongBuyOut, base:baseOut};
   result._strongBuy={};
   horizons.forEach(h=>{ result._strongBuy[h]=stat(strongBuyOut[h]); });
   result._strongByStrategy={pull:{},rev:{}};
@@ -3464,9 +3475,12 @@ function validationBlock(){
   return `<div class="section help-block"><h3 class="validation-title">🧪 최근 ${histWindowDays()}거래일 현재 산식 재검증 <button type="button" class="validation-help-btn" onclick="openValidationIntro()" aria-label="신뢰도 검증 설명">?</button><span class="live-note">(표본 수급에 따라 실시간 변동)</span></h3>
     <div style="margin:0 2px 7px;font-size:12px;font-weight:800;color:var(--ink)">종가에 매수했다면? <span style="font-weight:600;color:var(--muted)">· 상승 vs 하락 (보합 제외)</span><br><span style="font-weight:600;font-size:11px;color:var(--faint)">위 두 행은 <b>신호를 보고 산 사람</b>, 맨 아래 <b>기준선</b>은 신호를 안 보고 그날 전 종목을 다 산 사람이에요</span></div>
     <table class="cmp validation-cmp"><tr><th>구분</th><th colspan="3">상승이 하락을 이길 확률 <button type="button" class="validation-help-btn" onclick="openValidationHelp()" aria-label="승률 계산 설명">?</button><button type="button" class="bulbperf" onclick="openStrictMultiPerf()" title="전략별(추세/반등) 강한매수 분리와 쉬운 예시 보기">전략별 강한매수 분리 📊</button></th></tr><tr><th>신호</th><th>+1거래일</th><th>+3거래일</th><th>+5거래일</th></tr>
-      ${srcRow("💡 강한다중","전구 신호만",v._strict)}${srcRow("🟢 강한매수","최종 초록뱃지",v._strongBuy)}${baseRow}
+      ${srcRow("💡 강한다중","전구 신호만",v._strict)}${srcRow("🔵 다중신호","강한+일반 합산",v.multi)}${srcRow("🟢 강한매수","최종 초록뱃지",v._strongBuy)}${baseRow}
     </table>
-    <div style="margin-top:8px"><button type="button" class="bulbperf" onclick="openAllBuyersPerf()" title="매수관심까지 포함해 전부 샀다면">매수관심&강한매수를 다 매수했다면? 💡</button></div>
+    <div style="margin-top:9px">
+      <button type="button" class="perfbtn" onclick="openAllBuyersPerf()" title="매수관심까지 포함해 전부 샀다면">💡 매수관심&강한매수를 다 매수했다면?</button>
+      <button type="button" class="perfbtn" onclick="openPhasePerf()" title="강세장·약세장에서 신호가 어떻게 달라지는지">📊 시장 국면별 승률</button>
+    </div>
     ${exampleBlock}${diagDetail}${exDetail}
     <div class="strip" style="margin-top:9px">
       <b>과거 원시지표를 현재 산식으로 재평가한 결과입니다.</b> 산식이 바뀌면 과거 신호와 검증 결과도 함께 바뀔 수 있습니다.<br>
@@ -3793,6 +3807,49 @@ function openSignalScoringHelp(){
     <div class="modal-actions"><button class="primary" onclick="closeModal()">닫기</button></div>`);
 }
 /* 💡 강한다중만의 최근 성과. 표의 "다중" 행(강한+일반)과는 다른 숫자다. */
+/* 시장 국면별 승률 — 강세장·약세장에서 신호가 어떻게 다른지 쉬운 비교.
+   신호일의 QQQ 국면(washoutLevel 적용, 판정과 동일 규칙)으로 표본을 나눈다.
+   국면 일수가 적으면(강세 1일 등) 표본이 작아 참고용임을 표에 함께 적는다. */
+function marketPhaseOn(date){
+  const mk = (state.data && state.data.market) || {};
+  const mh = Array.isArray(mk.hist) ? mk.hist : [];
+  const row = mh.find(x=>Array.isArray(x)&&String(x[0])===String(date));
+  return row ? washoutLevel(row[1], date) : null;
+}
+function openPhasePerf(){
+  const v=strategyValidation();
+  const pr=(v&&v._phaseRows)||{};
+  const stat=a=>{
+    const w=a.filter(x=>x.ret>1).length, l=a.filter(x=>x.ret<-1).length;
+    return {n:a.length, rate:(w+l)?Math.round(w/(w+l)*100):null};
+  };
+  const PHASES=[["strong","🌞 강세장","QQQ가 20·60일선 위 + 상승 중"],
+                ["neutral","⛅ 중립장","그 사이 어중간한 구간"],
+                ["caution","🌥 주의장","QQQ가 20일선 아래"],
+                ["weak","🌧 약세장","QQQ가 20·60일선 모두 아래 — 신호를 일부러 거의 안 냅니다"]];
+  const rows=PHASES.map(([ph,label,desc])=>{
+    const cells=[1,3,5].map(h=>{
+      const sig=stat(((pr.strongBuy||{})[h]||[]).filter(x=>marketPhaseOn(x.date)===ph));
+      const bl =stat(((pr.base||{})[h]||[]).filter(x=>marketPhaseOn(x.date)===ph));
+      if(!sig.n&&!bl.n) return `<td>—</td>`;
+      const e=(sig.rate!==null&&bl.rate!==null)?sig.rate-bl.rate:null;
+      const ec=e===null?"":`<br><span style="font-size:10.5px;font-weight:800;color:${e>0?"var(--buy)":e<0?"var(--sell)":"var(--muted)"}">${e>=0?"+":""}${e}%p</span>`;
+      return `<td><span class="vrate">${sig.rate===null?"—":sig.rate+"%"}</span><span style="font-size:10.5px;color:var(--faint)"> (${sig.n}건)</span><br><span style="font-size:10.5px;color:var(--muted)">기준선 ${bl.rate===null?"—":bl.rate+"%"}</span>${ec}</td>`;
+    }).join("");
+    return `<tr><td><b>${label}</b><br><span style="font-size:10px;color:var(--faint)">${desc}</span></td>${cells}</tr>`;
+  }).join("");
+  openModal(`<h3>📊 시장 국면별 승률</h3>
+    <p style="font-size:12.5px;color:var(--reason);line-height:1.7;margin:0 0 8px">
+      같은 <b>강한매수(초록뱃지)</b> 신호라도 <b>장이 어떤 상태였느냐</b>에 따라 성적이 다릅니다.
+      각 칸은 그 국면에서 신호를 따라 샀을 때의 승률이고, 아래 회색은 같은 국면에서
+      <b class="baseline-term" onclick="openBaselineHelp()">기준선</b>(전 종목 매수 시)입니다.</p>
+    <table class="cmp validation-cmp"><tr><th>국면</th><th>+1일</th><th>+3일</th><th>+5일</th></tr>${rows}</table>
+    <p style="font-size:11px;color:var(--faint);line-height:1.7;margin:8px 0 0">
+      국면은 신호가 뜬 날의 QQQ 상태 기준 · 보합(±1%) 제외 · 실적 영향 구간 제외<br>
+      ⚠ 강세·주의·약세장은 해당 일수 자체가 적어 표본이 작습니다 — 20건 미만 칸은 참고만 하세요.<br>
+      약세장 칸이 거의 비어 있는 것은 정상입니다. 못 이기는 장에서는 신호를 안 내는 게 이 사이트의 설계입니다.</p>`);
+}
+
 /* '기준선' 단어 팝업 — 아주 쉬운 설명. 종목 수는 실제 데이터에서 읽는다. */
 function openBaselineHelp(){
   const n = allStocks().length;
