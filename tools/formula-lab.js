@@ -55,8 +55,7 @@ function extractConst(name){
 /* ── 게이트 패치 지점 (index.html의 실제 소스 문자열과 일치해야 한다) ── */
 const PULL_LINE = `const pullGrade = pullSetup && pullScore>=1.5 && sectorOK && nearHighM ? 5 :
     (pullSetup && pullScore>=0.8 ? 4 : 3);`;
-const REV_LINE = `const revStrong = revScore>=2.0 && has(rsi) && rsi<=50 && sectorOK &&
-    (!has(s.run3_sum) || s.run3_sum<=8);`;
+const REV_LINE = 'const revStrong = revScore>=2.0 && has(rsi) && rsi<=50 && sectorOK;';
 
 /* 미너비니 조건 표현식 — evaluate() 안 지역변수(p, ma20, ma60)와 s 필드 사용 */
 const M = {
@@ -77,8 +76,7 @@ function patchedEvaluate(pullExtra, revExtra){
   }
   if(revExtra){
     e = e.replace(REV_LINE,
-      `const revStrong = revScore>=2.0 && has(rsi) && rsi<=50 && sectorOK &&
-    (!has(s.run3_sum) || s.run3_sum<=8) && (${revExtra});`);
+      `const revStrong = revScore>=2.0 && has(rsi) && rsi<=50 && sectorOK && (${revExtra});`);
   }
   return e;
 }
