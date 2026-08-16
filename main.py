@@ -935,7 +935,13 @@ def freeze_signal_hist(results, prev_rows, mkt=None, market_events=None, market_
            1) 그날 확정된 immutable 일자별 snapshot
            2) 이번 실행의 QQQ 일자별 hist (최초 1회만, 이후 실행에서는 이미 값이 있어 건드리지 않음)
            이미 값이 있으면 어느 경우에도 덮지 않는다."""
-        while len(h) <= last_i:
+        # 패딩은 backfill이 실제로 쓰는 마지막 칸(market_events)까지만 한다.
+        # HIST_FIELDS 전체 길이(last_i)로 늘리면 확장 필드가 붙을 때마다 모든
+        # 옛 행의 배열 길이가 바뀌어 append-only 검사가 '변조'로 판정한다
+        # (2026-08-16 실제 실패: GDXU 2026-07-06 — 33칸 행이 35칸으로 패딩됨).
+        # 옛 행은 바이트 단위로 동일하게 유지하고, 확장 필드는 새 거래일 행에만 존재한다.
+        pad_i = max(idx[f] for f in HIST_BACKFILL_FIELDS)
+        while len(h) <= pad_i:
             h.append(None)
         snap = None
         for f in HIST_BACKFILL_FIELDS:
