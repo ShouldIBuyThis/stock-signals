@@ -29,7 +29,11 @@ PERIOD = "1y"    # 52주 신고가 계산 위해 1년
 #        (2) 불필요한 71건 요청이 레이트리밋을 유발해 종목이 통째로 사라진다.
 # 카드 타임라인용 — 최근 며칠치 지표를 함께 내려준다.
 # 키를 반복하는 객체 대신 위치 기반 배열이라 용량이 절반 이하다.
-HIST_DAYS = 10
+# 검증 표본 크기를 결정한다. signals.json의 hist는 이 길이에서 잘린다.
+# 10이던 것을 30으로 올렸다 — 10에서는 하루 지날 때마다 가장 오래된 거래일이
+# 잘려나가 검증 표본이 영원히 10일에 갇혔고, history/ 폴더 스냅샷이 시작되기 전
+# 날짜(2026-08-03~06)는 잘리는 순간 복구할 방법이 없었다.
+HIST_DAYS = 30
 # 뒤에 필드를 덧붙이는 건 안전하다(옛 행은 짧을 뿐이고 freeze 단계에서 보강한다).
 # 순서를 바꾸거나 중간에 끼워 넣으면 이미 저장된 위치 기반 배열이 전부 어긋난다.
 HIST_FIELDS = ["date","price","change_1d","ma5","ma10","ma20","ma50","ma60","rsi","macd_hist","macd_cross","macd_zero",
@@ -901,6 +905,7 @@ def freeze_signal_hist(results, prev_rows, mkt=None, market_events=None, market_
     frozen_count = 0
     appended_count = 0
     restored_current = 0
+    gap_filled = 0
     restored_from_hist = 0
 
     for r in results:
@@ -998,13 +1003,28 @@ def freeze_signal_hist(results, prev_rows, mkt=None, market_events=None, market_
             seen.add(last_date)
             appended_count += 1
 
+        # 창이 아직 HIST_DAYS에 못 미치면 analyze()가 방금 가져온 이력에서
+        # '한 번도 저장된 적 없는 과거 날짜'만 끌어와 채운다.
+        # 이미 있는 행은 절대 건드리지 않으므로 고정 원칙은 그대로다.
+        # (HIST_DAYS를 올린 직후 창이 즉시 넓어지게 하는 장치다)
+        if len(old_hist) < HIST_DAYS:
+            for h0 in (r.get("hist") or []):
+                if not isinstance(h0, list) or len(h0) <= date_i:
+                    continue
+                d = str(h0[date_i] or "")
+                if not d or d in seen or (last_date and d > last_date):
+                    continue
+                old_hist.append(backfill(list(h0), tk, d))
+                seen.add(d)
+                gap_filled += 1
+
         old_hist.sort(key=lambda h: str(h[date_i] or ""))
         r["hist"] = old_hist[-HIST_DAYS:]
 
     bf = " · ".join(f"{k} {v}행" for k, v in backfilled.items() if v)
     print(
         f"hist 고정: 기존 {frozen_count}행 유지 · 새 거래일 {appended_count}행 추가 · "
-        f"현재카드 frozen 복원 {restored_current}종목"
+        f"과거 빈칸 보충 {gap_filled}행 · 현재카드 frozen 복원 {restored_current}종목"
         + (f"(hist fallback {restored_from_hist}종목)" if restored_from_hist else "")
         + (f" · 보강 {bf}" if bf else " · 보강 없음")
     )

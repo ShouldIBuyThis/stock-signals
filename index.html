@@ -1551,6 +1551,13 @@ const HIST_FIELDS_DEFAULT = ["date","price","change_1d","ma5","ma10","ma20","ma5
   "bb_pos","stoch_k","stoch_d","stoch_cross","vol_ratio","near_high","pct_from_high",
   "ma20_slope","run5_max","run3_sum","range3","range10","vol3_ratio","res_short","ret20","rs20","atr_pct",
   "market_level","market_weak","market_ret20","market_events"];
+/* 화면 문구에 쓰는 '최근 N거래일'. 데이터의 실제 이력 길이를 따른다.
+   main.py의 HIST_DAYS를 바꾸면 문구가 자동으로 따라간다. */
+function histWindowDays(){
+  const st=(state.data&&state.data.stocks)||[];
+  let n=0; for(const x of st){ const h=x&&x._hist; if(h&&h.length>n) n=h.length; }
+  return n||10;
+}
 function histFields(){
   const f = state.data && state.data.hist_fields;
   return Array.isArray(f) && f.length ? f : HIST_FIELDS_DEFAULT;
@@ -1978,7 +1985,7 @@ function marketBar(){
 
   const shownTags=displayTags(s.sig.tags,5);
   const tags=shownTags.map(t=>`<span class="tag ${t.c} ${t.click?"clickable":""}" ${t.click?`data-explain="${t.click}"`:""}>${t.t}</span>`).join("");
-  const histBtn=(s._hist&&s._hist.length>=2)?`<button data-timeline="QQQ">📈 최근 10거래일 신호 흐름</button>`:"";
+  const histBtn=(s._hist&&s._hist.length>=2)?`<button data-timeline="QQQ">📈 최근 ${histWindowDays()}거래일 신호 흐름</button>`:"";
   const cartOn=state.cart.includes("QQQ");
   return `<details class="market-bench">
     <summary><b>🌐 QQQ · 나스닥100 시장 기준</b><span class="badge ${gradeCls(s.sig)}">${gradeLabel(s.sig)}</span><span class="market-bench-summary-main">시장 ${esc(levelLabel)}</span></summary>
@@ -2819,8 +2826,8 @@ function stockCard(s, i, rankless=false){
     <button class="expand" data-act="collapse">▴ 접기</button>`
     : ``;
   const timelineCta=(s._hist&&s._hist.length>=2)
-    ? `<button class="timeline-cta" data-timeline="${esc(s.ticker)}"><span>📈 최근 10거래일 신호 흐름<small>중립 → 매수 전환 시점을 한눈에</small></span><b>›</b></button>`
-    : `<button class="timeline-cta disabled" type="button"><span>📈 최근 10거래일 신호 흐름<small>히스토리가 쌓이는 중이에요</small></span><b>·</b></button>`;
+    ? `<button class="timeline-cta" data-timeline="${esc(s.ticker)}"><span>📈 최근 ${histWindowDays()}거래일 신호 흐름<small>중립 → 매수 전환 시점을 한눈에</small></span><b>›</b></button>`
+    : `<button class="timeline-cta disabled" type="button"><span>📈 최근 ${histWindowDays()}거래일 신호 흐름<small>히스토리가 쌓이는 중이에요</small></span><b>·</b></button>`;
   const expandBtn=open?"":`<button class="expand" data-act="expand">▾ 자세히 보기 (기술 상태·가격 위치)</button>`;
   return `<div class="stock g${g}${s.earnings_hold?" hold-card":""}${LEVERAGED[s.ticker]?" lev-card":""}${s._multiStrict?" multi-strict":""}" data-tk="${esc(s.ticker)}">
     <div class="s-top">
@@ -3296,14 +3303,14 @@ function validationBlock(){
     return `${diagIcon[k]} <b>${diagLabel[k]} 매수관심</b> · ${[1,3,5].map(cell).join(" · ")}`;
   });
   const diagDetail=`<details class="acc" style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:11px"><b>🔎 표본 구성 자세히</b></summary><div class="strip" style="margin-top:6px;line-height:1.9">${diagRows.join("<br>")}<div style="margin-top:7px;padding-top:6px;border-top:1px dashed var(--line)">${intRows.join("<br>")}</div><div style="margin-top:5px;color:var(--faint);font-size:10.5px">위 표는 <b>강한매수</b>만 집계합니다. 매수관심을 섞으면 강한매수의 성적이 가려지기 때문입니다.<br>실패·보합 표본도 최종 평가에 그대로 포함됩니다. ‘전략별 수익 사례’만 별도의 예시 영역입니다.</div></div></details>`;
-  return `<div class="section help-block"><h3 class="validation-title">🧪 최근 10거래일 현재 산식 재검증 <button type="button" class="validation-help-btn" onclick="openValidationIntro()" aria-label="신뢰도 검증 설명">?</button><span class="live-note">(표본 수급에 따라 실시간 변동)</span></h3>
+  return `<div class="section help-block"><h3 class="validation-title">🧪 최근 ${histWindowDays()}거래일 현재 산식 재검증 <button type="button" class="validation-help-btn" onclick="openValidationIntro()" aria-label="신뢰도 검증 설명">?</button><span class="live-note">(표본 수급에 따라 실시간 변동)</span></h3>
     <div style="margin:0 2px 7px;font-size:12px;font-weight:800;color:var(--ink)">종가에 매수했다면? <span style="font-weight:600;color:var(--muted)">· 상승 vs 하락 (보합 제외)</span><br><span style="font-weight:600;font-size:11px;color:var(--faint)">세 행 모두 <b>강한매수</b> 기준입니다 · 매수관심 성과는 아래 ‘표본 구성 자세히’에</span></div>
     <table class="cmp validation-cmp"><tr><th>구분</th><th colspan="3">상승이 하락을 이길 확률 <button type="button" class="validation-help-btn" onclick="openValidationHelp()" aria-label="승률 계산 설명">?</button><button type="button" class="bulbperf" onclick="openStrictMultiPerf()" title="강한 다중신호(💡)의 최근 성과 보기">강한 신호를 보고 투자했다면 💡</button></th></tr><tr><th>전략</th><th>+1거래일</th><th>+3거래일</th><th>+5거래일</th></tr>
       ${row("multi")}${row("pull")}${row("rev")}
     </table>${exampleBlock}${diagDetail}${exDetail}
     <div class="strip" style="margin-top:9px">
       <b>과거 원시지표를 현재 산식으로 재평가한 결과입니다.</b> 산식이 바뀌면 과거 신호와 검증 결과도 함께 바뀔 수 있습니다.<br>
-      카드 데이터는 최근 <b>10거래일</b>을 사용하므로 아직 표본이 짧습니다. 장기 승률처럼 해석하지 않습니다.</div>
+      카드 데이터는 최근 <b>${histWindowDays()}거래일</b>을 사용합니다. 표본이 쌓일수록 수치가 안정됩니다.</div>
   </div>`;
 }
 
@@ -3598,7 +3605,7 @@ function explainStyle(kind){
       : `하락 또는 바닥권에 있는 종목에서 <b>과매도 완화 · 지지 회복 · 모멘텀 전환</b>을 확인한 단기 반등 구간의 좋은 진입 타이밍입니다.`}</p>` + close);
 }
 function openValidationIntro(){
-  openModal(`<h3>최근 10거래일 현재 산식 재검증</h3>
+  openModal(`<h3>최근 ${histWindowDays()}거래일 현재 산식 재검증</h3>
     <p style="font-size:13px;color:var(--reason);line-height:1.8">
       매수 신호가 뜬 날 종가에 샀다고 가정하고, <b>1·3·5거래일 뒤 종가</b>를 확인한 결과입니다.<br><br>
       추세·반등은 <b>매수관심 또는 강한매수</b>, 다중은 전략별 <b>강한매수</b>와 일반 다중 필터를 통과한 경우만 검증 대상에 포함합니다.<br><br>
