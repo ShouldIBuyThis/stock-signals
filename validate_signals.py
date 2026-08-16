@@ -114,10 +114,16 @@ def validate_current(payload: dict, scope: str) -> None:
         snap_by_ticker = {s.get("ticker"): s for s in (snap.get("stocks") or []) if s.get("ticker")}
         snap_tickers = set(snap_by_ticker)
         expected_region = {s["ticker"] for s in selected}
-        if snap_tickers != expected_region:
-            fail(f"{path} 종목 구성 불일치")
+        # 신규 티커가 이미 고정된 거래일에 합류하면 그 날 snapshot에는 아직 없다
+        # (2026-08-16 실패 사례: UYG 등 4종 추가 직후). snapshot 파일은 불변이므로
+        # '모르는 티커가 들어있는 것'만 오류로 보고, 빠진 신규 티커는 다음
+        # 새 거래일 snapshot부터 자동 포함된다.
+        if not snap_tickers <= expected_region:
+            fail(f"{path} snapshot에 알 수 없는 티커: {sorted(snap_tickers - expected_region)}")
         for stock in selected:
-            frozen = snap_by_ticker[stock["ticker"]]
+            frozen = snap_by_ticker.get(stock["ticker"])
+            if frozen is None:
+                continue  # 고정일 이후 합류한 신규 티커
             if str(frozen.get("last_date") or "") != str(stock.get("last_date") or ""):
                 fail(f"{path} {stock['ticker']} 날짜 불일치")
             for name in SNAPSHOT_FIELDS:
