@@ -547,16 +547,61 @@ def cross_state(fast, slow, lookback=2):
         if now < 0 and prev >= 0: return "dead"
     return "none"
 
+def ichimoku(high, low):
+    """일목균형표 5선. 표준 파라미터(9/26/52, 선행 26)를 그대로 쓴다.
+
+    현재는 '기록만' 한다 — 시장 국면 판정에는 아직 반영하지 않는다.
+    기존 4단계(20·60일선 기준)와 어느 쪽이 나은지 데이터로 비교한 뒤 결정하기 위한 것이다.
+    구름은 26일 전에 만들어진 값이므로 shift(26)이 들어간다.
+    """
+    conv = (high.rolling(9).max() + low.rolling(9).min()) / 2      # 전환선
+    base = (high.rolling(26).max() + low.rolling(26).min()) / 2    # 기준선
+    span_a = ((conv + base) / 2).shift(26)                          # 선행스팬1
+    span_b = ((high.rolling(52).max() + low.rolling(52).min()) / 2).shift(26)  # 선행스팬2
+    return conv, base, span_a, span_b
+
+
+def ichimoku_state(px, conv, base, span_a, span_b):
+    """그 시점의 일목 상태. 값이 없으면 전부 None을 돌려준다."""
+    vals = [px, conv, base, span_a, span_b]
+    if any(v is None or (isinstance(v, float) and (np.isnan(v) or np.isinf(v))) for v in vals):
+        return {"pos": None, "tk": None, "cloud": None, "level": None,
+                "conv": None, "base": None, "span_a": None, "span_b": None}
+    top, bot = max(span_a, span_b), min(span_a, span_b)
+    pos = "above" if px > top else ("below" if px < bot else "in")   # 구름 위/안/아래
+    tk = "bull" if conv > base else ("bear" if conv < base else "flat")  # 전환선 vs 기준선
+    cloud = "bull" if span_a > span_b else "bear"                    # 양운/음운
+    if pos == "above" and tk == "bull" and cloud == "bull":  level = "strong"
+    elif pos == "below":                                      level = "weak"
+    elif pos == "in":                                         level = "caution"
+    else:                                                     level = "neutral"
+    return {"pos": pos, "tk": tk, "cloud": cloud, "level": level,
+            "conv": safe(conv, 2), "base": safe(base, 2),
+            "span_a": safe(span_a, 2), "span_b": safe(span_b, 2)}
+
+
 def market_state(ticker):
     """시장 국면을 3단계로 판정: strong / neutral / weak"""
     try:
-        df = yf.Ticker(ticker).history(period="6mo", interval="1d", auto_adjust=False)
+        # 일목 선행스팬2는 52봉 고가/저가를 26봉 앞으로 밀어 쓰므로 최소 78봉이 필요하다.
+        # 6개월(약 126봉)로는 30일치 이력을 만들 여유가 빠듯해 1년으로 늘린다.
+        df = yf.Ticker(ticker).history(period="1y", interval="1d", auto_adjust=False)
         df = drop_unclosed(df, ticker)
         df = drop_invalid_price_rows(df, ticker)
         if df is None or len(df) < 61:
             return {"ticker": ticker, "level": "neutral", "below_ma20": False, "detail": "데이터 부족"}
         c = df["Close"]
         m20s, m60s = c.rolling(20).mean(), c.rolling(60).mean()
+        ic_conv, ic_base, ic_a, ic_b = ichimoku(df["High"], df["Low"])
+
+        def ichi_at(i):
+            def g(sr):
+                try:
+                    v = float(sr.iloc[i])
+                    return None if (np.isnan(v) or np.isinf(v)) else v
+                except Exception:
+                    return None
+            return ichimoku_state(g(c), g(ic_conv), g(ic_base), g(ic_a), g(ic_b))
 
         def judge(i):
             """i=-1 오늘, i=-2 직전 거래일. 같은 기준으로 판정한다."""
@@ -579,8 +624,11 @@ def market_state(ticker):
         if len(c) >= 66 + HIST_DAYS:
             for j in range(-HIST_DAYS, 0):
                 r20 = (float(c.iloc[j]) / float(c.iloc[j-20]) - 1) * 100 if len(c) >= abs(j)+20 else None
+                ij = ichi_at(j)
+                # 기존 4칸 뒤에 덧붙인다. 화면은 앞 4칸만 읽으므로 영향이 없다.
                 mhist.append([c.index[j].strftime("%Y-%m-%d"), judge(j),
-                              bool(float(c.iloc[j]) < float(m20s.iloc[j])), safe(r20)])
+                              bool(float(c.iloc[j]) < float(m20s.iloc[j])), safe(r20),
+                              ij["level"], ij["pos"], ij["tk"], ij["cloud"]])
 
         if px >= ma20 and ma20 >= ma60 and rising20:
             level, detail = "strong", "20일선 위 · 20일선 상승 · 60일선 위"
@@ -590,10 +638,14 @@ def market_state(ticker):
             level, detail = "caution", "20일선 아래(60일선은 유지)"
         else:
             level, detail = "neutral", "20일선 위이나 추세 약함"
+        ic_now = ichi_at(-1)
+        # 일목은 아직 판정에 쓰지 않는다. level은 그대로 20·60일선 기준이고,
+        # ichimoku는 나중에 비교 검증하기 위해 값만 남긴다.
         return {"ticker": ticker, "level": level, "below_ma20": bool(px < ma20),
                 "detail": detail, "price": safe(px), "ma20": safe(ma20), "ma60": safe(ma60),
                 "ret20": safe(ret20),
                 "prev": ({"level": prev_level, "below_ma20": prev_below} if prev_level else None),
+                "ichimoku": ic_now, "ichi_applied": False,
                 "hist": mhist}
     except Exception as e:
         print("시장 판정 실패:", e)
