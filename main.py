@@ -898,6 +898,38 @@ def _storage_row(r, mkt):
                     "prev_ma5":hv("ma5"), "prev_ma20":hv("ma20")})
     return out
 
+def sync_prev_from_hist(results):
+    """top-level prev_* 를 frozen hist의 직전 행에서 채운다.
+
+    왜 필요한가 — 같은 '어제 값'을 두 곳이 서로 다른 출처로 만들고 있었다.
+      · 일자별 snapshot: _storage_row()가 frozen hist[-2]에서 뽑는다
+      · top-level 카드:  analyze()가 야후 원본 df[-2]에서 새로 계산한다
+    야후가 전날 값을 소급 수정하거나(실제로 있었다: 8/11 RSI ±0.6) 새로 편입된
+    티커라 top 쪽이 None이면 둘이 어긋나고, validate_current의
+    "snapshot/top 불일치"가 워크플로우를 세운다. 실제 정지 사례가 두 번이다
+    (2026-08-17 KO). 지금 데이터에도 27건이 어긋나 있었다.
+
+    원장이 하나면 어긋날 수 없다. frozen hist를 유일한 '어제' 출처로 삼는다 —
+    화면도 이미 "변화 칩과 신호 히스토리는 같은 고정 스냅샷 기준"이라고 안내한다.
+    반드시 freeze_signal_hist() 뒤에 부른다(그래야 hist[-1]이 오늘 행이다).
+    """
+    idx = {k: i for i, k in enumerate(HIST_FIELDS)}
+    for r in results:
+        hist = r.get("hist") or []
+        if len(hist) < 2:
+            continue
+        prev = hist[-2]
+        def hv(k):
+            i = idx.get(k)
+            return prev[i] if i is not None and i < len(prev) else None
+        r["prev_change_1d"] = hv("change_1d")
+        r["prev_vol_ratio"] = hv("vol_ratio")
+        r["prev_macd_hist"] = hv("macd_hist")
+        r["prev_price"]     = hv("price")
+        r["prev_ma5"]       = hv("ma5")
+        r["prev_ma20"]      = hv("ma20")
+
+
 def save_history(results, mkt, now_kst):
     """미국/한국 일자별 원장을 분리해 append-only로 저장한다.
 
@@ -1351,6 +1383,8 @@ def main():
     # 신뢰도용 최근 hist는 여기서 고정한다.
     # 과거 날짜는 직전 signals.json 값을 그대로 유지하고 새 거래일만 append한다.
     freeze_signal_hist(results, prev_rows, mkt, market_events, market_events_ok)
+    # '어제 값'의 출처를 frozen 원장 하나로 통일한다 — snapshot/top 불일치 방지.
+    sync_prev_from_hist(results)
 
     payload = {
         "generated_at": now_kst.strftime("%Y-%m-%d %H:%M") + " KST",
