@@ -12,7 +12,8 @@ import math
 import os
 from pathlib import Path
 
-from main import HIST_FIELDS, MARKET_TICKER, RETIRED_TICKERS, SNAPSHOT_FIELDS, WATCHLIST, is_kr_ticker
+from main import (HIST_FIELDS, MARKET_TICKER, PENDING_TICKERS, RETIRED_TICKERS,
+                  SNAPSHOT_FIELDS, WATCHLIST, is_kr_ticker)
 
 
 def fail(message: str) -> None:
@@ -74,8 +75,14 @@ def validate_current(payload: dict, scope: str) -> None:
     rows = rows_by_ticker(payload)
     expected = {ticker for group in WATCHLIST.values() for ticker in group}
     actual = set(rows)
-    if actual != expected:
-        fail(f"WATCHLIST 불일치 — 누락 {sorted(expected-actual)} / 추가 {sorted(actual-expected)}")
+    # 신규 상장은 일봉 30개가 쌓이기 전까지 analyze()가 "데이터 부족"으로 걸러낸다.
+    # PENDING_TICKERS에 올라온 종목만 그 기간 동안 빠져 있어도 통과시킨다.
+    # 반대로 '있으면 안 되는 종목이 있는 것'은 면제하지 않는다.
+    missing = expected - actual - PENDING_TICKERS
+    if missing or (actual - expected):
+        fail(f"WATCHLIST 불일치 — 누락 {sorted(missing)} / 추가 {sorted(actual-expected)}")
+    for ticker in sorted(PENDING_TICKERS & (expected - actual)):
+        print(f"[대기] {ticker} 아직 30봉 미만 — 쌓이면 자동 합류 (PENDING_TICKERS)")
     if MARKET_TICKER in actual:
         fail(f"{MARKET_TICKER}가 일반 stocks 랭킹 유니버스에 섞였습니다.")
     if "ETHU" not in actual:
@@ -84,8 +91,11 @@ def validate_current(payload: dict, scope: str) -> None:
     qqq = payload.get("qqq_card") or {}
     if not qqq or not qqq.get("last_date") or not finite_positive(qqq.get("price")):
         fail("QQQ 별도 기준카드가 비었거나 가격이 잘못됐습니다.")
-    if payload.get("failed"):
-        fail(f"최종 수집 실패 종목이 있습니다: {payload['failed']}")
+    # 상장 대기 종목의 수집 실패는 예상된 상태다. 그 외 실패만 오류로 본다.
+    hard_failed = [f for f in (payload.get("failed") or [])
+                   if str(f).split(" ")[0] not in PENDING_TICKERS]
+    if hard_failed:
+        fail(f"최종 수집 실패 종목이 있습니다: {hard_failed}")
 
     for ticker, stock in rows.items():
         day = str(stock.get("last_date") or "")
