@@ -493,7 +493,7 @@ WATCHLIST = {
                  "HQH":"헬스케어 펀드"},
     "금융": {"JPM":"JP모건", "MA":"마스터카드", "UYG":"금융 2x", "FXO":"금융 ETF"},
     "산업재": {"CAT":"캐터필러", "AIT":"어플라이드인더스트리얼", "DUSL":"산업재 3x"},
-    "반도체·메모리":  {"MU":"마이크론", "SNDK":"샌디스크", "STX":"씨게이트", "SKHY":"SK하이닉스 ADR"},
+    "반도체·메모리":  {"MU":"마이크론", "SNDK":"샌디스크", "STX":"씨게이트"},
     "반도체·파운드리":{"TSM":"TSMC", "INTC":"인텔"},
     "반도체·GPU":     {"NVDA":"엔비디아", "AMD":"AMD", "SOXL":"반도체 3x",
                        "ALAB":"아스테라랩스", "AMAT":"어플라이드머티어리얼즈",
@@ -523,7 +523,11 @@ WATCHLIST = {
 # validate_signals.py가 옛 snapshot을 검증할 때 이 티커들까지 '알 수 없는 티커'로
 # 오탐하지 않도록 허용한다. 현재 실행 결과(rows)에는 여전히 나오면 안 되므로
 # validate_current의 WATCHLIST 일치 검사는 그대로 이 티커들을 막는다.
-RETIRED_TICKERS = {"MCD", "CURE", "RXL", "000660.KS", "HXSCL"}
+# SK하이닉스 미국 티커는 두 번 실패했다 — HXSCL(표준 OTC ADR)은 야후가 시세를
+# 안 주고, SKHY는 야후에 아예 없다("WATCHLIST 불일치 — 누락 ['SKHY']").
+# 국장 원주 000660.KS는 작동하지만 거래일이 미국장과 어긋나 사용자가 뺐다.
+# 셋 다 재시도 금지 — 넣으려면 야후에서 시세 조회부터 확인할 것.
+RETIRED_TICKERS = {"MCD", "CURE", "RXL", "000660.KS", "HXSCL", "SKHY"}
 
 # ── 레버리지(배수) 상품 — 대시보드에서 ❗ 경고 표시 ──────────
 LEVERAGED = {"SOXL", "GDXU", "NAIL", "ETHU", "UYG", "DUSL"}
