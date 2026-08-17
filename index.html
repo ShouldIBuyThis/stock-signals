@@ -1559,14 +1559,26 @@ function evaluate(s){
      시장 전체가 튀는 날의 강한 반등도 같이 지운다. 이 둘을 가르는 건
      run3 크기가 아니라 시장이 바닥을 쳤는지 여부다.
 
-     후보별 34거래일 실측 (반등 강매 +1/+3/+5일 승률 · +5일 평균수익):
-       컷 없음        63/65/73%  평균 +4.5%  n=87/74/63
-       run3<=10      63/67/78%  평균 +5.7%  n=61/54/45   ← 채택 (2026-08-17)
-       run3<=8       65/72/76%  평균 +4.8%  n=54/47/38   승률만 높고 로켓 제거
-     10은 매수관심이 이미 쓰는 컷이라 새 매직넘버가 아니다. 사용자 확인 후 채택.
-     레버리지는 1배 환산(run3Eff)으로 걸어 3배 ETF가 부당하게 잘리지 않게 한다. */
+     ── 2026-08-17 재개정: 컷을 10 → 3으로 조인다 ─────────────────────
+     이전에는 컷을 조이면 8/03 바닥 반등 로켓(GDXU +64% 등)이 같이 지워져
+     승률만 오르고 평균수익이 떨어졌다. 미너비니 ④(52주 고점 25% 이내)와
+     K2(항복 바닥 해제)가 들어간 뒤로는 그 문제가 사라졌다 — 지금은
+     **승률과 평균수익이 같이 오른다.** 표본만 깎는 게 아니라는 증거다.
+
+     컷별 실측 (반등 강매 +3일 · +5일 · 평균수익, 추세컷 5 고정):
+       10   65%(64) +4.57%  ·  78%(53) +6.51%
+        5   76%(49) +6.18%  ·  83%(38) +8.86%
+        4   78%(43) +6.76%  ·  84%(34) +9.97%
+        3   87%(36) +8.01%  ·  85%(28) +11.70%   ← 채택
+        2   87%(27) +8.90%  ·  86%(22) +11.34%
+     2~4.5 전 구간에서 초록뱃지 +5일이 80~81%로 평평하다(고원, §3).
+     경계가 아니라 고원 한가운데라 3을 골랐다.
+     전·후반 모두 대조군 이상(§2): 초록뱃지 전반 69/75/74 vs 57/64/68,
+     후반 73/81/85 vs 72/70/85.
+     ⚠ 전반 반등 표본이 4건뿐이다(급락장에 반등 강매가 거의 안 뜬다).
+     레버리지는 1배 환산(run3Eff)이라 3배 ETF가 부당하게 잘리지 않는다. */
   const revStrong = revScore>=2.0 && has(rsi) && rsi<=50 && sectorOK &&
-    (run3Eff===null || run3Eff<=10);
+    (run3Eff===null || run3Eff<=3);
   /* 매수관심도 기준선(전 종목 무조건 매수)을 넘겨야 신호 구실을 한다.
      기존 'revScore>=2.0'만으로는 56%/59%/64%로 기준선(61/68/72)에 전부 미달했다.
      원인은 이 구간이 강한매수 게이트(RSI<=49)가 걸러낸 나머지라는 데 있다.
@@ -3168,22 +3180,30 @@ function strategyValidation(){
     pull:{label:"추세", icon:"📈", grade:s=>s.pullGrade},
     rev:{label:"반등", icon:"🔄", grade:s=>s.revGrade}
   };
-  const horizons=[1,3,5];
+  /* 표에는 +1/+3/+5만 쓰지만 +7도 같이 계산한다 — '더 들고 있었다면?' 팝업용.
+     실측에서 승률은 +4일 부근이 정점이고 평균수익은 그 뒤로도 계속 오른다.
+     표시하는 행들은 전부 [1,3,5]를 명시적으로 읽으므로 여기에 7을 더해도
+     기존 화면은 그대로다. */
+  const horizons=[1,3,5,7];
   const out={pull:{},rev:{},multi:{}};
   Object.keys(out).forEach(k=>horizons.forEach(h=>out[k][h]=[]));
   // 최종 초록뱃지(강한매수, grade 5)만 별도 집계. 기존 전략/다중 통계에는 영향 없음.
-  const strongBuyOut={1:[],3:[],5:[]};
+  /* horizons에서 파생시킨다 — 여기를 [1,3,5] 리터럴로 두면 horizons에 7을
+     더했을 때 undefined.push()로 터진다. */
+  const emptyLists=()=>{const o={};horizons.forEach(h=>o[h]=[]);return o;};
+  const emptyCounts=()=>{const o={};horizons.forEach(h=>o[h]=0);return o;};
+  const strongBuyOut=emptyLists();
   // 최종 강한매수와 별개로 어느 전략이 초록뱃지를 만들었는지 분리 집계한다.
   // 한 신호가 두 전략 모두 grade 5면 각 전략 표본에는 각각 1개씩 들어가지만,
   // 최종 초록뱃지 통계에서는 기존처럼 종목·신호일당 한 번만 센다.
   const strongByStrategyOut={
-    pull:{1:[],3:[],5:[]},
-    rev:{1:[],3:[],5:[]}
+    pull:emptyLists(),
+    rev:emptyLists()
   };
   // 검증 표본 투명성용 진단 카운터. 승률/수익률 계산에는 사용하지 않는다.
   const diag={pull:{},rev:{},multi:{}};
   Object.keys(diag).forEach(k=>horizons.forEach(h=>diag[k][h]={candidate:0,pending:0}));
-  const excluded={pull:{1:0,3:0,5:0},rev:{1:0,3:0,5:0},multi:{1:0,3:0,5:0}};
+  const excluded={pull:emptyCounts(),rev:emptyCounts(),multi:emptyCounts()};
   const excludedTickers=new Set();
   const excludedSignalSamples=new Set(); // 전략+티커+신호일: +1/+3/+5 중복은 1개로 센다.
   const excludedDetails=new Map();
@@ -3505,6 +3525,7 @@ function validationBlock(){
     <div style="margin-top:9px">
       <button type="button" class="perfbtn" onclick="openAllBuyersPerf()" title="매수관심까지 포함해 전부 샀다면">💡 매수관심&강한매수를 다 매수했다면?</button>
       <button type="button" class="perfbtn" onclick="openPhasePerf()" title="강세장·약세장에서 신호가 어떻게 달라지는지">📊 시장 국면별 승률</button>
+      <button type="button" class="perfbtn" onclick="openHoldPerf()" title="더 오래 들고 있었다면 어떻게 됐는지">⏳ +7일까지 들고 있었다면?</button>
     </div>
     ${exampleBlock}${diagDetail}${exDetail}
     <div class="strip" style="margin-top:9px">
@@ -3832,6 +3853,58 @@ function openSignalScoringHelp(){
     <div class="modal-actions"><button class="primary" onclick="closeModal()">닫기</button></div>`);
 }
 /* 💡 강한다중만의 최근 성과. 표의 "다중" 행(강한+일반)과는 다른 숫자다. */
+/* 보유기간 비교 — 같은 신호를 며칠 들고 있었느냐로 성적이 어떻게 달라지는지.
+   승률과 평균수익을 나란히 둔다: 실측에서 두 지표의 정점이 서로 다르기 때문이다
+   (승률은 +3~4일 부근, 평균수익은 그 뒤로도 계속 상승). */
+function openHoldPerf(){
+  const v=strategyValidation();
+  const HS=[1,3,5,7];
+  const pct=x=>x==null?"—":x+"%"; const av=x=>x==null?"—":`${x>=0?"+":""}${Number(x).toFixed(2)}%`;
+  const bl=v._baseline||{};
+  const rowOf=(label,sub,src)=>{
+    const cells=HS.map(h=>{
+      const o=src&&src[h];
+      if(!o||!o.n) return `<td>—</td>`;
+      const b=bl[h];
+      const e=(o.rate!==null&&b&&b.rate!==null)?o.rate-b.rate:null;
+      const ec=e===null?"":`<br><span style="font-size:10.5px;font-weight:800;color:${e>0?"var(--buy)":e<0?"var(--sell)":"var(--muted)"}">기준선 대비 ${e>=0?"+":""}${e}%p</span>`;
+      return `<td><span class="vrate">${pct(o.rate)}</span><br><span class="vavg">평균수익 ${av(o.avg)}</span><br><span class="vsplit vflat">표본 ${o.n}건</span>${ec}</td>`;
+    }).join("");
+    return `<tr><td><b>${label}</b>${sub?`<br><span style="font-size:10px;color:var(--faint)">${sub}</span>`:""}</td>${cells}</tr>`;
+  };
+  const baseRow=`<tr class="vbase"><td><b class="baseline-term" onclick="openBaselineHelp()">기준선</b><br><span style="font-size:10px;color:var(--faint);display:inline-block;padding-left:9px">└ 전 종목 매수 시</span></td>`+
+    HS.map(h=>{const o=bl[h];return `<td>${o&&o.n?`<span class="vrate" style="color:var(--muted)">${pct(o.rate)}</span><br><span class="vavg">평균수익 ${av(o.avg)}</span><br><span class="vsplit vflat">표본 ${o.n}건</span>`:"—"}</td>`;}).join("")+`</tr>`;
+  /* 평균수익이 가장 높은 보유일 — 표본 15건 이상 구간에서만 고른다 */
+  const bestOf=src=>{
+    let b=null; HS.forEach(h=>{const o=src&&src[h]; if(o&&o.n>=15&&o.avg!=null&&(!b||o.avg>b.avg)) b={h,...o};});
+    return b;
+  };
+  const bb=bestOf(v._strict), bg=bestOf(v._strongBuy);
+  const tip=(nm,b)=>b?`<b>${nm}</b>는 <b>+${b.h}거래일</b>에 평균수익이 가장 높았어요 (${av(b.avg)}, 승률 ${pct(b.rate)}, 표본 ${b.n}건).`:"";
+  openModal(`<h3>⏳ 며칠 들고 있었다면?</h3>
+    <p style="font-size:12.5px;color:var(--reason);line-height:1.7;margin:0 0 8px">
+      같은 신호를 <b>사고 나서 며칠 뒤에 팔았는지</b>로 성적이 얼마나 달라지는지 봅니다.
+      <b>승률</b>은 "오를 확률", <b>평균수익</b>은 "실제로 얼마나 벌었나"예요 —
+      둘의 정점이 다를 수 있어서 나란히 둡니다.</p>
+    <table class="cmp validation-cmp"><tr><th>신호</th>${HS.map(h=>`<th>+${h}일</th>`).join("")}</tr>
+      ${rowOf("💡 강한다중","전구 신호만",v._strict)}
+      ${rowOf("🔵 다중신호","강한+일반 합산",v.multi)}
+      ${rowOf("🟢 강한매수","최종 초록뱃지",v._strongBuy)}
+      ${baseRow}
+    </table>
+    <div class="perf-story" style="margin-top:10px">
+      <span class="ex-badge">읽는 법</span>
+      ${tip("💡 강한다중",bb)}<br>${tip("🟢 강한매수",bg)}
+      <div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);color:var(--muted)">
+        <b>기준선</b>은 반대로 갑니다 — 그냥 전 종목을 산 사람은 오래 들고 있을수록
+        평균수익이 줄어듭니다. 신호가 고른 종목만 계속 올랐다는 뜻이에요.</div>
+    </div>
+    <p style="font-size:11px;color:var(--faint);line-height:1.7;margin:8px 0 0">
+      종가 매수 · N거래일 뒤 종가 매도 · 실적 영향 구간 제외 · 승률은 보합(±1%) 빼고 계산<br>
+      ⚠ 오래 들고 있는 칸일수록 <b>표본이 줄어듭니다</b>(아직 그날이 안 온 신호는 못 셉니다).
+      표본 15건 미만은 참고만 하세요.</p>`);
+}
+
 /* 시장 국면별 승률 — 강세장·약세장에서 신호가 어떻게 다른지 쉬운 비교.
    신호일의 QQQ 국면(washoutLevel 적용, 판정과 동일 규칙)으로 표본을 나눈다.
    국면 일수가 적으면(강세 1일 등) 표본이 작아 참고용임을 표에 함께 적는다. */

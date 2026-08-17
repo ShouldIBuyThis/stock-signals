@@ -15,7 +15,7 @@
 const fs = require('fs'), vm = require('vm');
 const src = fs.readFileSync('index.html', 'utf8');
 const base = JSON.parse(fs.readFileSync('signals.json', 'utf8'));
-const MODE = (process.argv[2] || 'pull').toLowerCase();
+const MODE = (process.argv[2] || 'pull').toLowerCase();   // pull | bulb | strong
 
 function die(m){ console.error('[ERROR]', m); process.exit(1); }
 function extractFunction(name){
@@ -38,6 +38,8 @@ function extractConst(name){ const st=src.indexOf(`const ${name} =`); if(st<0) d
 const PULL_LINE = `const pullGrade = pullSetup && pullScore>=1.5 && sectorOK && nearHighM && pullChase ? 5 :
     (pullSetup && pullScore>=0.8 ? 4 : 3);`;
 const STRICT_ANCHOR = 'const strict=previousOverallGrade(s)===3 && strictMultiGate(s) && fallbackStrict && strictChase;';
+const REV_LINE = `const revStrong = revScore>=2.0 && has(rsi) && rsi<=50 && sectorOK &&
+    (run3Eff===null || run3Eff<=3);`;
 
 const OTHER = ['qqqRsiOn','washoutLevel','competitionRank','strategyOrdinalRank','volumeOrdinalRank','rankMapsFor','rankOf',
   'generalMultiGate','generalTierGate','strictMultiGate','previousOverallGrade',
@@ -48,7 +50,18 @@ const VANCHOR = 'result._diag=diag;';
 function build(cond){
   let ev = extractFunction('evaluate');
   let msr = extractFunction('multiSignalRank');
-  if(MODE === 'pull'){
+  if(MODE === 'strong'){
+    /* 초록뱃지 = max(추세,반등) 이므로 두 게이트에 같은 조건을 동시에 건다 */
+    if(!ev.includes(PULL_LINE) || !ev.includes(REV_LINE)) die('게이트 라인 없음');
+    if(cond){
+      ev = ev.replace(PULL_LINE,
+        `const pullGrade = pullSetup && pullScore>=1.5 && sectorOK && nearHighM && pullChase && (${cond}) ? 5 :
+    (pullSetup && pullScore>=0.8 ? 4 : 3);`);
+      ev = ev.replace(REV_LINE,
+        `const revStrong = revScore>=2.0 && has(rsi) && rsi<=50 && sectorOK &&
+    (run3Eff===null || run3Eff<=10) && (${cond});`);
+    }
+  } else if(MODE === 'pull'){
     if(!ev.includes(PULL_LINE)) die('추세 게이트 라인 없음');
     if(cond) ev = ev.replace(PULL_LINE,
       `const pullGrade = pullSetup && pullScore>=1.5 && sectorOK && nearHighM && pullChase && (${cond}) ? 5 :
@@ -59,7 +72,7 @@ function build(cond){
       `const strict=previousOverallGrade(s)===3 && strictMultiGate(s) && fallbackStrict && strictChase && (${cond});`);
   }
   let vs = extractFunction('strategyValidation');
-  vs = vs.replace(VANCHOR, VANCHOR + '\n  result._rows={pull:out.pull, multi:out.multi};');
+  vs = vs.replace(VANCHOR, VANCHOR + '\n  result._rows={pull:out.pull, multi:out.multi, strong:strongBuyOut};');
   const ctx = { console, Math, Number, Object, Array, Set, Map, String, JSON };
   vm.createContext(ctx);
   vm.runInContext(`
@@ -140,18 +153,20 @@ const IN_MULTI = IN_EVAL.map(([n,e])=>[n, e
   .replace(/\bhas\(p\)/g,'has(s.price)').replace(/\bp\b(?![a-z_])/g,'s.price')
   .replace(/\bma60\b/g,'s.ma60')
 ]);
-const CONDS = MODE==='pull' ? IN_EVAL : IN_MULTI;
-const KEY = MODE==='pull' ? 'pull' : '_strict';
-const LABEL = MODE==='pull' ? '추세 강한매수' : '💡 강한다중';
+const CONDS = MODE==='bulb' ? IN_MULTI : IN_EVAL;
+const KEY = MODE==='bulb' ? '_strict' : (MODE==='strong' ? '_strongBuy' : 'pull');
+const LABEL = MODE==='bulb' ? '💡 강한다중' : (MODE==='strong' ? '🟢 최종 강한매수(초록뱃지)' : '추세 강한매수');
 
 console.log(`■ ${LABEL} 관문에 조건 하나씩 추가 — 전수 비교`);
 console.log(`표본 ${days[0]}~${days[days.length-1]} (${days.length}거래일) · 전후반 분기 ${MID}`);
 console.log('⚠ 다중비교 함정: 조건 24개를 훑어보는 중이다. 이긴 것이 우연일 수 있어 세 검사를 같이 찍는다.\n');
 
-const get = (v)=> KEY==='pull' ? v.pull : v._strict;
-const rowsOf = (v)=> KEY==='pull' ? (v._rows.pull||{}) : (v._rows.multi||{});
+const get = (v)=> v[KEY];
 const tickersAt = (v,h)=>{
-  const rows=(rowsOf(v)[h]||[]).filter(x=>KEY==='pull' ? x.tier===5 : x.tier===1);
+  let rows;
+  if(KEY==='pull') rows=(v._rows.pull[h]||[]).filter(x=>x.tier===5);
+  else if(KEY==='_strict') rows=(v._rows.multi[h]||[]).filter(x=>x.tier===1);
+  else rows=(v._rows.strong[h]||[]);
   return new Set(rows.map(x=>x.ticker)).size;
 };
 

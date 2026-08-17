@@ -34,7 +34,7 @@ function fwd(rows, i, h){
 }
 /* 지수는 개별종목보다 변동이 작으므로 보합밴드를 ±0.5%로 둔다.
    (종목 검증의 ±1%를 그대로 쓰면 지수는 절반이 보합으로 빠진다) */
-const FLAT = 0.5;
+const FLAT = Number(process.env.FLAT ?? 0.5);
 const stat = a => {
   const v = a.filter(x=>x!==null);
   const w = v.filter(x=>x>FLAT).length, l = v.filter(x=>x<-FLAT).length;
@@ -76,6 +76,17 @@ const COND = [
   ['MACD 히스토 < 0',        r=>r.macd_hist!=null && r.macd_hist<0],
   ['스토캐스틱 K <= 20',     r=>r.stoch_k!=null && r.stoch_k<=20],
   ['고점대비 <= -5%',        r=>r.pct_from_high!=null && r.pct_from_high<=-5],
+  /* 조합 — 단일 조건으로 안 되니 두 축을 겹쳐 본다 */
+  ['MA20아래 + RSI<=45',     r=>r.price<r.ma20 && r.rsi!=null && r.rsi<=45],
+  ['MA20아래 + 볼린저<=25',  r=>r.price<r.ma20 && r.bb_pos!=null && r.bb_pos<=25],
+  ['MA20아래 + 당일하락',    r=>r.price<r.ma20 && r.change_1d!=null && r.change_1d<0],
+  ['MA20위 + MACD>0',        r=>r.price>r.ma20 && r.macd_hist!=null && r.macd_hist>0],
+  ['MA20위 + 기울기>=0',     r=>r.price>r.ma20 && r.ma20_slope!=null && r.ma20_slope>=0],
+  ['ret20<0 + 당일하락',     r=>r.ret20!=null && r.ret20<0 && r.change_1d!=null && r.change_1d<0],
+  ['ret20<0 + RSI<=50',      r=>r.ret20!=null && r.ret20<0 && r.rsi!=null && r.rsi<=50],
+  ['기울기<0 + 볼린저<=40',  r=>r.ma20_slope!=null && r.ma20_slope<0 && r.bb_pos!=null && r.bb_pos<=40],
+  ['3일누적<=0',             r=>r.run3_sum!=null && r.run3_sum<=0],
+  ['3일누적<=0 + RSI<=50',   r=>r.run3_sum!=null && r.run3_sum<=0 && r.rsi!=null && r.rsi<=50],
 ];
 function scan(rows, label, conds){
   console.log(`■ ${label}`);
@@ -121,19 +132,21 @@ if(S.length){
 }
 
 /* ── 4. 판정: §5-1 기준을 넘으면서 65%+ 인 것만 ── */
-console.log('■ 4. 판정 — 표본 15일 이상 & 승률 65% 이상 (§5-1 통과분만)');
+const THRESH_R = Number(process.env.THRESH_R || 65);
+const THRESH_N = Number(process.env.THRESH_N || 15);
+console.log(`■ 4. 판정 — 표본 ${THRESH_N}일 이상 & 승률 ${THRESH_R}% 이상`);
 let found=0;
 for(const {name, cols} of qres){
   [1,3,5].forEach((h,k)=>{
     const c=cols[k];
-    if(c.dir>=15 && c.rate!==null && c.rate>=65){
+    if(c.dir>=THRESH_N && c.rate!==null && c.rate>=THRESH_R){
       console.log(`  ✔ QQQ ${name} → +${h}일 ${c.rate}% (승패 ${c.dir}건, 평균 ${c.avg.toFixed(2)}%)`);
       found++;
     }
   });
 }
 if(!found){
-  console.log('  없음. 표본 15건 이상이면서 65%를 넘는 지수 예측 규칙이 이 창에는 존재하지 않는다.');
+  console.log(`  없음. 표본 ${THRESH_N}건 이상이면서 ${THRESH_R}%를 넘는 지수 예측 규칙이 이 창에는 존재하지 않는다.`);
   const best = [];
   qres.forEach(({name,cols})=>[1,3,5].forEach((h,k)=>{
     if(cols[k].rate!==null && cols[k].dir>=8) best.push({name,h,...cols[k]});
