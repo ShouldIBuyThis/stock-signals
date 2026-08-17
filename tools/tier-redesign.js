@@ -23,7 +23,7 @@
  *   중립(3)으로 떨어뜨리면 다음날 💡 후보가 늘어난다. 그래서 반드시 전체 검증표를
  *   같이 찍는다 — 한 축만 보고 판단하면 안 된다.
  *
- * 사용: node tools/tier-redesign.js [P|S|MIX]   (기본 전부)
+ * 사용: node tools/tier-redesign.js [T|P|S|MIX]   (기본 전부)\n *   T 추세 강한매수 · P 추세 매수관심 · S 💡 관문 · MIX 조합+전후반
  */
 const fs = require('fs'), vm = require('vm');
 const src = fs.readFileSync('index.html', 'utf8');
@@ -49,7 +49,7 @@ function extractLine(re){ const m=src.match(re); if(!m) die(String(re)); return 
 function extractConst(name){ const st=src.indexOf(`const ${name} =`); if(st<0) die(name); return src.slice(st, src.indexOf(';',st)+1); }
 
 /* ── 배포 소스 앵커 ── */
-const PULL_LINE = `const pullGrade = pullSetup && pullScore>=1.5 && sectorOK && nearHighM && pullChase ? 5 :
+const PULL_LINE = `const pullGrade = pullSetup && pullScore>=1.5 && sectorOK && nearHighM && pullChase && pullBandOK ? 5 :
     (pullSetup && pullScore>=0.8 && pullInterestOK ? 4 : 3);`;
 /* v10에서 c 경로를 지웠다. 실험은 b·c를 다시 만들어 비교하므로 여기서
    두 갈래를 재구성한다 — 배포 소스에는 b만 남아 있다. */
@@ -57,15 +57,19 @@ const STRICT_FN = `function strictMultiGate(s){
   return has(s.bb_pos)&&s.bb_pos<=80 && has(s.change_1d)&&s.change_1d<=2;
 }`;
 
-/* opt = { pullInterest: expr | null, strictBody: 문자열 | null } */
+/* opt = { pullInterest, pullStrong, pullSectorRel, strictBody } — 전부 생략 가능 */
 function patchedEvaluate(opt){
   let e = extractFunction('evaluate');
   if(!e.includes(PULL_LINE)) die('추세 등급 라인 앵커를 못 찾음');
-  if(opt.pullInterest){
-    e = e.replace(PULL_LINE,
-      `const pullGrade = pullSetup && pullScore>=1.5 && sectorOK && nearHighM && pullChase ? 5 :
-    (pullSetup && pullScore>=0.8 && (${opt.pullInterest}) ? 4 : 3);`);
-  }
+  const interest = opt.pullInterest ? `(${opt.pullInterest})` : 'pullInterestOK';
+  const strong   = opt.pullStrong ? ` && (${opt.pullStrong})` : '';
+  /* 섹터 게이트는 추세 경로에서만 조건부 해제한다 — 반등 쪽 검증표를 흔들지 않도록 */
+  const sector   = opt.pullSectorRel ? `(sectorOK || (${opt.pullSectorRel}))` : 'sectorOK';
+  /* pullBandOK(볼린저<=80)는 배포값이다. pullStrong으로 덮어쓰려면 band:false를 준다. */
+  const band     = opt.band === false ? '' : ' && pullBandOK';
+  e = e.replace(PULL_LINE,
+    `const pullGrade = pullSetup && pullScore>=1.5 && ${sector} && nearHighM && pullChase${band}${strong} ? 5 :
+    (pullSetup && pullScore>=0.8 && ${interest} ? 4 : 3);`);
   return e;
 }
 function patchedStrict(opt){
@@ -140,6 +144,46 @@ const P0 = run({}, base);
 const B = P0._baseline;
 console.log(`표본 창 ${days[0]} ~ ${days[days.length-1]} (${days.length}거래일) · 전후반 분기 ${MID}`);
 console.log(`기준선  ${[1,3,5].map(h=>cell(B[h])).join('')}\n`);
+
+/* ══════════ T. 추세 강한매수(등급5) 관문 후보 ══════════
+   구간 분해 실측 (배포 v10, 추세 강매 tier5):
+     볼린저 50~65   88%(11) +1.06%  88%( 9) +3.71%  88%( 8) +4.09%   7종
+     볼린저 65~80   73%(26) +1.04%  72%(21) +1.32%  75%(16) +1.86%  11종
+     볼린저 >80      0%(13) +0.06%  50%(12) -0.01%  63%(11) +0.87%   8종  ← 재앙
+     3일누적 2.5~5  50%( 4) -0.15%  50%( 4) -0.29%   0%( 3) -1.15%   4종
+     rs20>=10      56%(14) +0.01%  55%(12) -0.59%  60%( 9) +1.15%  10종
+     당일 음봉      77%(37) +0.95%  74%(31) +1.89%  76%(24) +2.50%  16종
+     당일 0~2      50%(13) +0.33%  60%(11) +0.23%  71%(11) +1.11%   7종
+   +1일 0%(13건, 8종목)은 우연으로 보기 어렵다. 눌림목 전략인데 가격이 밴드
+   상단을 뚫은 자리에서 산 것이라, '눌림'이라는 전제 자체가 깨진 표본이다. */
+const TC = [
+  ['T0  현행 (v11 · 볼린저<=80)',     {}],
+  ['T-  볼린저 상한 없음 (v10)',      {band:false}],
+  ['T1  +볼린저<=80',                 {pullStrong:'has(bb)&&bb<=80'}],
+  ['T2  +볼린저<=75',                 {pullStrong:'has(bb)&&bb<=75'}],
+  ['T3  +볼린저<=85',                 {pullStrong:'has(bb)&&bb<=85'}],
+  ['T4  +당일 음봉(<=0)',             {pullStrong:'has(s.change_1d)&&s.change_1d<=0'}],
+  ['T5  +추격 run3<=2.5',            {pullStrong:'!has(s.run3_sum)||s.run3_sum/levX(s.ticker)<=2.5'}],
+  ['T6  +볼린저<=80 & 추격<=2.5',      {pullStrong:'(has(bb)&&bb<=80)&&(!has(s.run3_sum)||s.run3_sum/levX(s.ticker)<=2.5)'}],
+  ['T7  +볼린저<=80 & 당일음봉',        {pullStrong:'(has(bb)&&bb<=80)&&(has(s.change_1d)&&s.change_1d<=0)'}],
+  /* 섹터 게이트 조건부 해제 — 추세 경로만. SNOW 7/27이 여기 걸려 있다
+     (약세장 · 소프트웨어 비방어 · 그런데 rs20 13.1 · 정배열 · 고점대비 -4.2%) */
+  ['T8  섹터해제: rs20>=10 & 고점>=-10', {pullSectorRel:'(has(s.rs20)&&s.rs20>=10)&&(has(s.pct_from_high)&&s.pct_from_high>=-10)'}],
+  ['T9  섹터해제: rs20>=10 & 정배열',    {pullSectorRel:'(has(s.rs20)&&s.rs20>=10)&&(has(ma20)&&has(s.ma50)&&has(ma60)&&ma20>s.ma50&&s.ma50>ma60)'}],
+  ['T10 섹터해제: 고점>=-10 & 정배열',    {pullSectorRel:'(has(s.pct_from_high)&&s.pct_from_high>=-10)&&(has(ma20)&&has(s.ma50)&&has(ma60)&&ma20>s.ma50&&s.ma50>ma60)'}],
+  ['T11 T1 + T8 (조이고 열기)',        {pullStrong:'has(bb)&&bb<=80', pullSectorRel:'(has(s.rs20)&&s.rs20>=10)&&(has(s.pct_from_high)&&s.pct_from_high>=-10)'}],
+  ['T12 T7 + T8',                    {pullStrong:'(has(bb)&&bb<=80)&&(has(s.change_1d)&&s.change_1d<=0)', pullSectorRel:'(has(s.rs20)&&s.rs20>=10)&&(has(s.pct_from_high)&&s.pct_from_high>=-10)'}],
+];
+if(!ONLY || ONLY==='T'){
+  console.log('■ T. 추세 강한매수 관문 후보 (초록뱃지·💡 동반 영향도 같이 찍는다)');
+  console.log('  ' + '변형'.padEnd(30) + '추세강매 +1일'.padEnd(19) + '+3일'.padEnd(19) + '+5일'.padEnd(21) + '초록 +5일');
+  console.log('  ' + '─'.repeat(112));
+  for(const [lab, opt] of TC){
+    const v = run(opt, base);
+    console.log(`  ${lab.padEnd(30)}${[1,3,5].map(h=>cell(v.pull[h])).join('')}${cell(v._strongBuy[5])}`);
+  }
+  console.log('');
+}
 
 /* ══════════ P. 추세 매수관심 관문 후보 ══════════ */
 const PC = [
