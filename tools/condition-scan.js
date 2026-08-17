@@ -59,7 +59,7 @@ function build(cond){
     (pullSetup && pullScore>=0.8 ? 4 : 3);`);
       ev = ev.replace(REV_LINE,
         `const revStrong = revScore>=2.0 && has(rsi) && rsi<=50 && sectorOK &&
-    (run3Eff===null || run3Eff<=10) && (${cond});`);
+    (run3Eff===null || run3Eff<=3) && (${cond});`);
     }
   } else if(MODE === 'pull'){
     if(!ev.includes(PULL_LINE)) die('추세 게이트 라인 없음');
