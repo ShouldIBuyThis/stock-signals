@@ -939,6 +939,8 @@ const CART_MAX = 5;   // 모의구매 점검이 의미를 가지는 상한
 /* LOGIC_VERSION은 '점수 산식'의 버전이다. 순위·표시 정합성 패치로는 올리지 않는다. */
 const LOGIC_VERSION = "v8";
 const LOGIC_LOG = [
+  {v:"v8", from:"2026-08-17", t:"[정합성 패치] 종합순 등급 우선 정렬 — 점수 산식 무변경",
+   d:"종합순이 상대점수(Z값)를 최종등급보다 먼저 비교해, 관문(섹터·추격·고점대비)에 막혀 등급이 낮아진 종목이 강한매수 위로 올라오는 역전이 313쌍 발생하고 있었다. 강한매수 14종목 중 11종목이 TOP20 밖으로 밀렸다. 정렬 순서를 최종등급 → 상대점수로 바꿔 '🏆 종합 신호 = 최종 등급·매수강도' 라벨과 일치시켰다. 점수식·등급 컷·신뢰도 검증에는 영향이 없는 표시 전용 수정이다."},
   {v:"v8", from:"2026-08-16", t:"반등 강한매수 = 2.0점 + RSI 50 이하 (실측 기반 컷 교체)",
    d:"반등점수 산식과 반등순은 그대로 두고 강한매수 게이트만 바꿨다. 기존 3.0점 컷과 2.5점 구제경로를 없애고 '반등 2.0 이상 + RSI 50 이하' 하나로 통일한다. 근거는 770행·10거래일 실측이다. ① 반등점수가 2.5에 19% 뭉쳐 있고 3.0 이상은 4%뿐이라 기존 컷이 덩어리 바로 위에 걸쳐 있었다. ② 구간별 성과가 단조롭지 않아 3.0 이상(승률 54%)이 2.0~2.5(77%)보다 오히려 나빴다. ③ 기준선(전 종목 무조건 매수)이 +3일 68%인데 기존 강한매수는 64%로 미달이었고, 새 기준은 72%(+5일 84%)로 기준선을 넘긴 유일한 조건이었다. 기존 확인조건(거래량>=1.1 또는 당일<=0%)은 63%로 기준선에 못 미쳐 제거했다 — 특히 '당일 음봉' 경로가 승률 50%로 성과를 깎고 있었다. 거래량을 AND로 더하면 승률 100%가 되지만 표본이 11건이라 과적합으로 보고 채택하지 않았다. 매수관심 컷 2.0은 그대로 두어 3단계 등급이 유지된다(강한매수 72% > 매수관심 61% > 기준선). 강한다중은 반등 단독 강매에 볼린저 65 이하·반등 2.5 이상·3일누적 8% 이하를 요구한다 — 거래량으로 걸면 마른 음봉(+5일 100%·25건)이 통째로 빠져 가격 위치와 추격 여부로 바꿨다. 표본이 짧으므로 쌓이면 재확인이 필요하다."},
   {v:"v7", from:"2026-08-15", t:"눌림 매수관심 표본 완화 · 강한매수 기준 보존",
@@ -1968,9 +1970,11 @@ function overallRanked(list){
   ).map(x=>x.s);
 }
 /* 종합순은 점수 크기가 다른 눌림·반등을 원점수나 단순 순번으로 직접 비교하지 않는다.
-   각 축 점수가 그 축 전체의 평균에서 표준편차 몇 배만큼 높은지(Z값)로 환산하고,
-   두 축 중 더 좋은 상대값 → 최종등급 → 나머지 축 상대값 순으로 정렬한다.
-   따라서 눌림·반등 종목 수를 번갈아 맞추지 않으며 같은 원점수는 같은 상대값을 받는다.
+   각 축 점수가 그 축 전체의 평균에서 표준편차 몇 배만큼 높은지(Z값)로 환산해 비교한다.
+   정렬은 최종등급 → 두 축 중 더 좋은 상대값 → 나머지 축 상대값 순이다.
+   최종등급이 먼저인 이유: 등급에는 섹터 관문·추격 컷·고점대비 같은 검증된 관문이 전부
+   반영돼 있는데, 원점수를 먼저 비교하면 관문에 막힌 등급 3 종목이 강한매수 위로 올라온다
+   (실측: 등급 역전 313쌍, 강한매수 14종목 중 11종목이 TOP20 밖으로 밀림 — 2026-08-17 수정).
    evaluate()·등급 컷·눌림순·반등순·히스토리·신뢰도 산식은 전혀 바꾸지 않는 표시 정렬 전용 로직이다. */
 function currentOverallRanked(){
   const universe=signalUniverse();
@@ -1988,7 +1992,7 @@ function currentOverallRanked(){
   };
   return universe.slice().sort((a,b)=>{
     const ar=relative(a), br=relative(b);
-    return br.best-ar.best || b.sig.grade-a.sig.grade ||
+    return b.sig.grade-a.sig.grade || br.best-ar.best ||
       br.other-ar.other || a.ticker.localeCompare(b.ticker);
   });
 }
@@ -2147,6 +2151,19 @@ function qqqBenchmarkStock(){
   const sig=evaluate(s), pv=prevStock(s);
   return Object.assign(s,{sig,prevSig:pv?evaluate(pv):null,_prev:pv,_benchmark:true});
 }
+/* QQQ 자체 승률 참고 문구 (카드 펼침 전용).
+   지수 예측 실험(방법론 §5-2)에서 §5-1·§2를 모두 통과한 조건은
+   'SPY보다 QQQ 약세 + QQQ 당일 하락 → +3일 승률 67% (n=15, 기준선 대비 +8%p)' 하나뿐이다.
+   그러나 평균수익 +0.24%라 수수료·슬리피지를 빼면 남지 않아 매매 규칙이 아닌 관찰 지표로만 표시한다.
+   숫자를 여기 하드코딩하는 이유: 지수는 하루 1표본이라 사이트에서 실시간 재검증이 불가능하고,
+   tools/index-breadth.js 재실행 시에만 갱신할 수 있다. 갱신일을 명시해 오래된 수치임을 숨기지 않는다. */
+function qqqWinNote(s){
+  const spy=state.data&&state.data.spy_card;
+  const live=has(s.change_1d)&&spy&&has(num(spy.change_1d))
+    && s.change_1d<num(spy.change_1d) && s.change_1d<0;
+  const chip=spy?`오늘은 <b>${live?"해당":"비해당"}</b>`:"오늘 여부: SPY 데이터 대기";
+  return `<div class="minor" style="margin-top:6px;line-height:1.5">📊 QQQ 자체 승률 참고 — 'SPY보다 약세 + 당일 하락'인 날 QQQ 매수 시 <b>+3일 승률 67%</b> (표본 15 · 기준선 +8%p). ${chip}. 다만 평균수익 +0.24%로 실익이 얇아 <b>관찰용</b>이며, 지수는 하루 1표본이라 매매 규칙으로는 쓰지 않는다 (2026-08-16 실측 · 방법론 §5-2)</div>`;
+}
 function marketBar(){
   const mk=(state.data&&state.data.market)||{};
   const levelLabel={strong:"강세",neutral:"중립",caution:"주의",weak:"약세"}[mk.level]||"중립";
@@ -2195,6 +2212,7 @@ function marketBar(){
         </div>
       </div>
       <div class="market-bench-h" style="margin-top:8px"><span class="sub">시장 기준 전용 · QQQ 시장필터 자기적용 없음 · 랭킹/정렬 제외</span></div>
+      ${qqqWinNote(s)}
       ${histBtn?`<div class="market-bench-actions">${histBtn}</div>`:""}
     </div>
   </details>`;
@@ -3927,9 +3945,14 @@ function cartExitBlock(mine){
     <div class="cf-r">아직 표본이 모자라 청산 시점을 말씀드릴 수 없어요. 거래일이 더 쌓이면 여기에 표시됩니다.</div></div>`;
   const sameDay = plan.byRate.h === plan.byAvg.h;
   const av=x=>`${x>=0?"+":""}${Number(x).toFixed(2)}%`;
+  /* 분할익절 문장은 실측 정점 두 개(승률 최고일·평균수익 최고일)에서 그대로 나온다.
+     두 정점이 다를 때 "절반은 승률 정점, 나머지는 평균수익 정점"이 실측과 맞는 분할이고,
+     같을 때는 나눌 근거가 없으므로 한 지점을 목표로 안내한다. */
   const advice = sameDay
     ? `<b>+${plan.byAvg.h}거래일</b>이 승률(${plan.byRate.rate}%)과 평균수익(${av(plan.byAvg.avg)}) 모두 가장 좋았어요. 그 근처를 목표로 잡으세요.`
-    : `마음 편한 쪽은 <b>+${plan.byRate.h}거래일</b>(승률 ${plan.byRate.rate}%로 최고), 더 벌린 쪽은 <b>+${plan.byAvg.h}거래일</b>(평균수익 ${av(plan.byAvg.avg)}로 최고)이었어요. 짧게 끊고 싶으면 앞쪽, 끝까지 보고 싶으면 뒤쪽을 잡으세요.`;
+    : `<b>분할익절이 실측과 맞습니다</b> — 승률 정점은 <b>+${plan.byRate.h}거래일</b>(${plan.byRate.rate}%), 평균수익 정점은 <b>+${plan.byAvg.h}거래일</b>(${av(plan.byAvg.avg)})로 서로 달라요. 절반은 +${plan.byRate.h}일 부근에서 익절해 확률을 챙기고, 나머지는 +${plan.byAvg.h}일까지 노려보세요.`;
+  /* 지지·저항 연동은 승률 실측이 아니라 가격 자리 참고라서, 실측 문장과 구분해 적는다. */
+  const levelTip = `위 <b>📐 종목별 자리</b>와 같이 쓰세요 — 보유 중 가까운 <b>저항</b>(20일 고점)을 처음 돌파하면 그 자리가 일부 익절을 검토할 자리이고, 반대로 가까운 <b>지지</b>(20일 저점)를 처음 깨고 내려가면 분할이 아니라 청산(손절) 쪽 신호로 보세요. 지지·저항 연동은 위 보유일 성적과 달리 <b>실측 승률로 검증된 규칙이 아닌</b> 가격 참고선입니다.`;
   const baseNote = basePlan
     ? `같은 기간 <b class="baseline-term" onclick="openBaselineHelp()">기준선</b>(전 종목 매수 시)은 평균수익이 +${basePlan.cells[0].h}일 ${av(basePlan.cells[0].avg)} → +${basePlan.cells[basePlan.cells.length-1].h}일 ${av(basePlan.cells[basePlan.cells.length-1].avg)}로 <b>줄어듭니다</b>. 오래 들고 있어서 버는 게 아니라, 신호가 고른 종목이라 버는 거예요.`
     : "";
@@ -3938,6 +3961,7 @@ function cartExitBlock(mine){
     ${exitTable(src, plan)}
     <p class="cf-note" style="margin-top:5px">위: 이길 확률 · 가운데: 평균수익 · 아래: 표본 수 · 파란 칸이 평균수익 최고 지점</p>
     <div class="exit-tip">${advice}</div>
+    <div class="exit-tip">${levelTip}</div>
     <div class="exit-tip" style="color:var(--muted)">${baseNote}</div>
     <p class="cf-note">최근 ${histWindowDays()}거래일 실측이며 표본이 적어 그대로 반복되지 않습니다.
       실적발표·급락 같은 사건은 이 표에 없어요. <b>손절선은 반드시 따로 정하세요</b> — 이 표는 "언제 팔까"만 말하고 "얼마나 잃을까"는 말하지 않습니다.</p>
