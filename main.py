@@ -490,10 +490,10 @@ def load_previous():
 WATCHLIST = {
     "경기방어": {"KO":"코카콜라", "BRK-B":"버크셔해서웨이B", "SCHD":"미국 배당 ETF"},
     "헬스케어": {"LLY":"일라이릴리", "UNH":"유나이티드헬스", "HIMS":"힘스앤허스",
-                 "RXL":"헬스케어 2x", "HQH":"헬스케어 펀드"},
+                 "HQH":"헬스케어 펀드"},
     "금융": {"JPM":"JP모건", "MA":"마스터카드", "UYG":"금융 2x", "FXO":"금융 ETF"},
     "산업재": {"CAT":"캐터필러", "AIT":"어플라이드인더스트리얼", "DUSL":"산업재 3x"},
-    "반도체·메모리":  {"MU":"마이크론", "SNDK":"샌디스크", "STX":"씨게이트", "000660.KS":"SK하이닉스"},
+    "반도체·메모리":  {"MU":"마이크론", "SNDK":"샌디스크", "STX":"씨게이트", "SKHY":"SK하이닉스 ADR"},
     "반도체·파운드리":{"TSM":"TSMC", "INTC":"인텔"},
     "반도체·GPU":     {"NVDA":"엔비디아", "AMD":"AMD", "SOXL":"반도체 3x",
                        "ALAB":"아스테라랩스", "AMAT":"어플라이드머티어리얼즈",
@@ -523,17 +523,17 @@ WATCHLIST = {
 # validate_signals.py가 옛 snapshot을 검증할 때 이 티커들까지 '알 수 없는 티커'로
 # 오탐하지 않도록 허용한다. 현재 실행 결과(rows)에는 여전히 나오면 안 되므로
 # validate_current의 WATCHLIST 일치 검사는 그대로 이 티커들을 막는다.
-RETIRED_TICKERS = {"MCD", "CURE"}
+RETIRED_TICKERS = {"MCD", "CURE", "RXL", "000660.KS", "HXSCL"}
 
 # ── 레버리지(배수) 상품 — 대시보드에서 ❗ 경고 표시 ──────────
-LEVERAGED = {"SOXL", "GDXU", "NAIL", "ETHU", "UYG", "RXL", "DUSL"}
+LEVERAGED = {"SOXL", "GDXU", "NAIL", "ETHU", "UYG", "DUSL"}
 
 # ── 기업 실적발표가 없는 상품(ETF·지수) ────────────────────
 # 실적 조회를 시도해도 404만 돌아오고 응답 대기시간만 낭비한다.
 # 신호 산식·frozen history·검증 표본에는 아무 영향이 없다. 조회를 건너뛸 뿐이다.
 NO_EARNINGS_TICKERS = {
     "SOXL", "GDXU", "GLD", "USO", "ITB", "NAIL", "ETHU",
-    "UYG", "FXO", "RXL", "HQH", "DBA", "DUSL", "SCHD",
+    "UYG", "FXO", "HQH", "DBA", "DUSL", "SCHD",
     "069500.KS", "229200.KS",
 }
 
