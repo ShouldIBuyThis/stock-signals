@@ -539,6 +539,19 @@ RETIRED_TICKERS = {"MCD", "CURE", "RXL", "000660.KS", "HXSCL"}
 #   30봉이 이미 있어 정상 수집됐다. 실제로 실패한 종목만 올린다.
 PENDING_TICKERS = {"SKHY"}
 
+# ── 지표 계산 최소 봉 수 ──────────────────────────────────────────────
+# 기본 30봉. 볼린저(20)·RSI(14)·MACD(26)가 자리를 잡는 최소선이다.
+# 신규 상장은 이걸 못 채우는데, 그렇다고 통째로 빼면 화면에서 아예 안 보인다.
+# 종목별로 낮춰 주면 가격·5일선·10일선·당일 등락은 보여줄 수 있다.
+# 이때 볼린저·RSI가 null이라 강한매수 관문(pullBandOK는 볼린저, revStrong은
+# RSI를 요구)이 구조적으로 막히므로 가짜 신호는 뜨지 않는다 — 중립으로만 나온다.
+MIN_BARS = 30
+MIN_BARS_OVERRIDE = {"SKHY": 10}
+
+# 52주 고·저를 신뢰할 수 있는 최소 봉 수. 우리가 쓰는 가장 긴 이동평균이
+# 60일선이므로, 그조차 못 만드는 구간에서는 장기 고·저를 계산하지 않는다.
+LONG_REF_BARS = 60
+
 # ── 레버리지(배수) 상품 — 대시보드에서 ❗ 경고 표시 ──────────
 LEVERAGED = {"SOXL", "GDXU", "NAIL", "ETHU", "UYG", "DUSL"}
 
@@ -719,7 +732,8 @@ def analyze(ticker, name, category):
     df = yf.Ticker(ticker).history(period=PERIOD, interval="1d", auto_adjust=False)
     df = drop_unclosed(df, ticker)
     df = drop_invalid_price_rows(df, ticker)
-    if df is None or len(df) < 30: raise ValueError("데이터 부족")
+    need = MIN_BARS_OVERRIDE.get(ticker, MIN_BARS)
+    if df is None or len(df) < need: raise ValueError(f"데이터 부족 ({0 if df is None else len(df)}봉 < {need})")
     close, high, low, vol = df["Close"], df["High"], df["Low"], df["Volume"]
     ma5 = close.rolling(5).mean()
     ma10 = close.rolling(10).mean()
@@ -752,9 +766,14 @@ def analyze(ticker, name, category):
         vr = (vol.iloc[i] / va) if va and va > 0 else None
         chg = (c_i / close.iloc[i-1] - 1) * 100 if len(close) >= abs(i)+1 else None
         atr_pct = (atr_s.iloc[i] / c_i * 100) if c_i else None
-        h52 = high.iloc[:end].max()           # 그 시점까지의 52주 고가
+        # 52주 고·저는 '있는 봉 중 최대/최소'라, 상장 직후처럼 봉이 짧으면
+        # 실제로는 '최근 몇 주 고점'이면서 52주 고점인 척한다. 신규 상장이
+        # "고점대비 -2%"로 보이는 착시가 여기서 나온다. 장기 기준선(ma60)조차
+        # 없는 구간에서는 값을 아예 주지 않는다 — 틀린 값보다 없는 값이 낫다.
+        long_ref_ok = end >= LONG_REF_BARS
+        h52 = high.iloc[:end].max() if long_ref_ok else None
         pfh = (c_i / h52 - 1) * 100 if h52 else None
-        l52 = low.iloc[:end].min()            # 그 시점까지의 52주 저가 (미너비니 ③ 검증용)
+        l52 = low.iloc[:end].min() if long_ref_ok else None
         pfl = (c_i / l52 - 1) * 100 if l52 else None
         # 미너비니 ②: "200일선이 최소 1개월 이상 상승세". 20거래일 전 대비 기울기로 본다.
         m200_now = ma200.iloc[i]
