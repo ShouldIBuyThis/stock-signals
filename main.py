@@ -488,7 +488,7 @@ def load_previous():
 
 # ── 관심종목 (카테고리: {티커: 이름}) ──────────────────────
 WATCHLIST = {
-    "경기방어": {"KO":"코카콜라", "BRK-B":"버크셔해서웨이B"},
+    "경기방어": {"KO":"코카콜라", "BRK-B":"버크셔해서웨이B", "SCHD":"미국 배당 ETF"},
     "헬스케어": {"LLY":"일라이릴리", "UNH":"유나이티드헬스", "HIMS":"힘스앤허스",
                  "RXL":"헬스케어 2x", "HQH":"헬스케어 펀드"},
     "금융": {"JPM":"JP모건", "MA":"마스터카드", "UYG":"금융 2x", "FXO":"금융 ETF"},
@@ -533,7 +533,7 @@ LEVERAGED = {"SOXL", "GDXU", "NAIL", "ETHU", "UYG", "RXL", "DUSL"}
 # 신호 산식·frozen history·검증 표본에는 아무 영향이 없다. 조회를 건너뛸 뿐이다.
 NO_EARNINGS_TICKERS = {
     "SOXL", "GDXU", "GLD", "USO", "ITB", "NAIL", "ETHU",
-    "UYG", "FXO", "RXL", "HQH", "DBA", "DUSL",
+    "UYG", "FXO", "RXL", "HQH", "DBA", "DUSL", "SCHD",
     "069500.KS", "229200.KS",
 }
 
