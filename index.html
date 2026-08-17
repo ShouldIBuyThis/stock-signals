@@ -939,6 +939,8 @@ const CART_MAX = 5;   // 모의구매 점검이 의미를 가지는 상한
 /* LOGIC_VERSION은 '점수 산식'의 버전이다. 순위·표시 정합성 패치로는 올리지 않는다. */
 const LOGIC_VERSION = "v8";
 const LOGIC_LOG = [
+  {v:"v8", from:"2026-08-17", t:"[표시 패치] 신호 히스토리 최신순 · 닫기 버튼 고정",
+   d:"신호 히스토리 팝업이 오래된 날짜부터 보여줘서 최근 흐름을 보려면 끝까지 내려야 했다. 최신 날짜가 맨 위로 오도록 뒤집고, 닫기 버튼은 스크롤과 무관하게 아래에 붙어 있도록 고정했다. 변화량(+0.5 등)은 여전히 '직전 거래일 대비'다 — 계산은 시간순 그대로 하고 화면에 넣기 직전에만 순서를 뒤집는다. 점수·등급·순위·신뢰도 검증에는 영향이 없는 표시 전용 수정이다."},
   {v:"v8", from:"2026-08-17", t:"[정합성 패치] 종합순 등급 우선 정렬 — 점수 산식 무변경",
    d:"종합순이 상대점수(Z값)를 최종등급보다 먼저 비교해, 관문(섹터·추격·고점대비)에 막혀 등급이 낮아진 종목이 강한매수 위로 올라오는 역전이 313쌍 발생하고 있었다. 강한매수 14종목 중 11종목이 TOP20 밖으로 밀렸다. 정렬 순서를 최종등급 → 상대점수로 바꿔 '🏆 종합 신호 = 최종 등급·매수강도' 라벨과 일치시켰다. 점수식·등급 컷·신뢰도 검증에는 영향이 없는 표시 전용 수정이다."},
   {v:"v8", from:"2026-08-16", t:"반등 강한매수 = 2.0점 + RSI 50 이하 (실측 기반 컷 교체)",
@@ -2909,9 +2911,11 @@ function openTimeline(tk){
       <span class="tlg ${gradeCls(r)}">${gradeLabel(r)}</span>
     </div>
     <div class="tlsub">추세 ${r.pullScore} · 반등 ${r.revScore}${r.earningsBlocked ? ` · <b>💤 실적 영향권 · 신규진입/검증 제외</b>` : ""}${marketEventTypes(r.marketEvents).length ? ` · <span class="tl-event">⚠ ${esc(marketEventTypes(r.marketEvents).join(" · "))} 시장이벤트 · 기술신호 오차 가능</span>` : ""}</div>`;
-  }).join("");
+  /* 화면은 최근 날짜가 맨 위. 변화량(+0.5 등)은 '직전 거래일 대비'라서 계산은
+     시간순 그대로 두고 다 만든 뒤에만 뒤집는다 — 뒤집은 배열로 계산하면 부호가 반대가 된다. */
+  }).reverse().join("");
   openModal(`<h3>📈 ${esc(s.ticker)} 신호 히스토리</h3>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:9px">최근 ${rows.length}거래일 · 매수강도 = 추세·반등 중 높은 쪽</p>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:9px">최근 ${rows.length}거래일 · 최신순 · 매수강도 = 추세·반등 중 높은 쪽</p>
     <div class="tl">${body}</div>
     <p style="font-size:12px;color:var(--reason);line-height:1.75;margin-top:11px">
       점수가 <b>어느 방향으로 쌓여왔는지</b>를 보는 화면이에요. 오르는 중이면 신호가 만들어지는 과정,
@@ -2919,7 +2923,7 @@ function openTimeline(tk){
       <span style="color:var(--faint)">과거 원시지표를 <b>현재 산식으로 재평가</b>합니다. 산식이 바뀌면 과거 신호와 등급도 함께 바뀔 수 있어요.<br>
       💤 실적 영향권 날짜는 기술점수는 그대로 보여주되 <b>신규진입·신뢰도 검증에서는 제외</b>합니다.<br>
       ⚠ FOMC·CPI·PCE·주요 고용지표 같은 <b>시장 이벤트 날짜는 기술신호가 평소보다 빗나갈 수 있어 경고만 표시</b>하며, 점수·랭킹은 바꾸지 않습니다.</span></p>
-    <div class="modal-actions"><button class="primary" onclick="document.getElementById('modal').classList.remove('on')">닫기</button></div>`);
+    <div class="modal-actions perf-sticky"><button class="primary" onclick="document.getElementById('modal').classList.remove('on')">닫기</button></div>`);
 }
 function openTrendModal(tk){
   const s = tk==="QQQ" ? qqqBenchmarkStock() : allStocks().find(x=>x.ticker===tk); if(!s) return;
