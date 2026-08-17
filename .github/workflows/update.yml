@@ -152,6 +152,15 @@ jobs:
             exit 1
           fi
 
+      - name: 실패 학습 리포트 생성
+        # 중립 판정 직후 급등한 종목의 관문 부검 (tools/miss-report.js).
+        # 리포트 실패가 데이터 갱신을 막으면 안 되므로 continue-on-error.
+        continue-on-error: true
+        shell: bash
+        run: |
+          mkdir -p reports
+          node tools/miss-report.js > reports/실패학습.md
+
       - name: signals.json / history 커밋
         shell: bash
         env:
@@ -163,7 +172,7 @@ jobs:
           git config user.email "github-actions@users.noreply.github.com"
 
           commit_generated() {
-            git add signals.json history/
+            git add signals.json history/ reports/
             git commit -m "auto: signals 갱신 ($RUN_SCOPE)" || echo "변경 없음"
           }
 
@@ -191,6 +200,7 @@ jobs:
             cp signals.json "$RUNNER_TEMP/signals.before.retry.json"
             RUN_SCOPE="$RUN_SCOPE" FORCE_RESNAP="$FORCE_RESNAP" python main.py
             validate_retry
+            node tools/miss-report.js > reports/실패학습.md || echo "리포트 생성 실패 — 갱신은 계속"
             commit_generated
             if git push origin HEAD:main; then
               exit 0

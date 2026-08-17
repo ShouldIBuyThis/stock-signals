@@ -1077,7 +1077,7 @@ const CAT_MAP = {
    tools/sector-weak.js를 다시 돌려 재확인할 것. */
 const DEFENSIVE_CATS = ["금융","원자재·금","원자재·유가","주택"];
 const LEVERAGED = { SOXL:{base:"반도체 지수",x:3}, GDXU:{base:"금광주 지수",x:3}, NAIL:{base:"주택건설 지수",x:3}, ETHU:{base:"이더리움",x:2},
-  UYG:{base:"금융 지수",x:2}, CURE:{base:"헬스케어 지수",x:3} };
+  UYG:{base:"금융 지수",x:2}, CURE:{base:"헬스케어 지수",x:3}, DUSL:{base:"산업재 지수",x:3} };
 const levX = tk => (LEVERAGED[tk] ? LEVERAGED[tk].x : 1);
 function levMark(tk){
   return LEVERAGED[tk] ? `<span class="lev" data-lev="${esc(tk)}" title="고위험 레버리지 상품">❗</span>` : "";
