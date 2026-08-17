@@ -50,8 +50,7 @@ function extractConst(name){
 const A_NEARHI = 'const nearHighM = has(s.pct_from_high) && s.pct_from_high >= -25;';
 const A_CHASE  = 'const pullChase = run3Eff===null || run3Eff<=5;';
 const A_STRICT = 'const strict=previousOverallGrade(s)===3 && strictMultiGate(s) && fallbackStrict && strictChase;';
-const A_REV    = `const revStrong = revScore>=2.0 && has(rsi) && rsi<=50 && sectorOK &&
-    (run3Eff===null || run3Eff<=3);`;
+const A_REV    = 'const revStrong = revScore>=2.0 && has(rsi) && revRsiOK && sectorOK && revChase;';
 
 const OTHER = ['qqqRsiOn','washoutLevel','competitionRank','strategyOrdinalRank','volumeOrdinalRank','rankMapsFor','rankOf',
   'generalMultiGate','generalTierGate','strictMultiGate','previousOverallGrade','multiSignalRank',
@@ -204,8 +203,7 @@ for(const t of [30,35,40,50]){
 for(const [bb,rsi] of [[10,35],[15,38]]){
   report(`E6 반등 강매 OR: BB<=${bb} & RSI<=${rsi} & run3<=0 (항복 바닥)`, [[
     A_REV,
-    `const revStrong = (revScore>=2.0 && has(rsi) && rsi<=50 && sectorOK &&
-    (run3Eff===null || run3Eff<=3)) || (has(bb)&&bb<=${bb}&&has(rsi)&&rsi<=${rsi}&&sectorOK&&run3Eff!==null&&run3Eff<=0);`
+    `const revStrong = (revScore>=2.0 && has(rsi) && revRsiOK && sectorOK && revChase) || (has(bb)&&bb<=${bb}&&has(rsi)&&rsi<=${rsi}&&sectorOK&&run3Eff!==null&&run3Eff<=0);`
   ]], R_REV);
 }
 

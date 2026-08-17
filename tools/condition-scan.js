@@ -36,10 +36,12 @@ function extractLine(re){ const m=src.match(re); if(!m) die(re); return m[0]; }
 function extractConst(name){ const st=src.indexOf(`const ${name} =`); if(st<0) die(name); return src.slice(st, src.indexOf(';',st)+1); }
 
 const PULL_LINE = `const pullGrade = pullSetup && pullScore>=1.5 && sectorOK && nearHighM && pullChase ? 5 :
-    (pullSetup && pullScore>=0.8 ? 4 : 3);`;
+    (pullSetup && pullScore>=0.8 && pullInterestOK ? 4 : 3);`;
 const STRICT_ANCHOR = 'const strict=previousOverallGrade(s)===3 && strictMultiGate(s) && fallbackStrict && strictChase;';
-const REV_LINE = `const revStrong = revScore>=2.0 && has(rsi) && rsi<=50 && sectorOK &&
-    (run3Eff===null || run3Eff<=3);`;
+/* v9 지표압도 해제 후의 배포 소스. 컴포넌트 3줄로 쪼개져 있다. */
+const REV_RSI_LINE   = `const revRsiOK    = rsi<=50 || (rsi<=60 && revBandHigh);`;
+const REV_CHASE_LINE = `const revChase    = run3Eff===null || run3Eff<=3 || (run3Eff<=6 && revTrendOK);`;
+const REV_LINE = `const revStrong = revScore>=2.0 && has(rsi) && revRsiOK && sectorOK && revChase;`;
 
 const OTHER = ['qqqRsiOn','washoutLevel','competitionRank','strategyOrdinalRank','volumeOrdinalRank','rankMapsFor','rankOf',
   'generalMultiGate','generalTierGate','strictMultiGate','previousOverallGrade',

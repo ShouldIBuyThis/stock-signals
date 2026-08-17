@@ -53,10 +53,12 @@ function extractConst(name){
 }
 
 /* ── 게이트 패치 지점 (index.html의 실제 소스 문자열과 일치해야 한다) ── */
-const PULL_LINE = `const pullGrade = pullSetup && pullScore>=1.5 && sectorOK && nearHighM && pullChase ? 5 :
-    (pullSetup && pullScore>=0.8 ? 4 : 3);`;
-const REV_LINE = `const revStrong = revScore>=2.0 && has(rsi) && rsi<=50 && sectorOK &&
-    (run3Eff===null || run3Eff<=3);`;
+const PULL_LINE = `const pullGrade = pullSetup && pullScore>=1.5 && sectorOK && nearHighM && pullChase && pullBandOK ? 5 :
+    (pullSetup && pullScore>=0.8 && pullInterestOK ? 4 : 3);`;
+/* v9 지표압도 해제 후의 배포 소스. 컴포넌트 3줄로 쪼개져 있다. */
+const REV_RSI_LINE   = `const revRsiOK    = rsi<=50 || (rsi<=60 && revBandHigh);`;
+const REV_CHASE_LINE = `const revChase    = run3Eff===null || run3Eff<=3 || (run3Eff<=6 && revTrendOK);`;
+const REV_LINE = `const revStrong = revScore>=2.0 && has(rsi) && revRsiOK && sectorOK && revChase;`;
 
 /* 미너비니 조건 표현식 — evaluate() 안 지역변수(p, ma20, ma60)와 s 필드 사용 */
 const M = {
@@ -72,8 +74,8 @@ function patchedEvaluate(pullExtra, revExtra){
   if(!e.includes(REV_LINE))  die('반등 게이트 라인을 못 찾음');
   if(pullExtra){
     e = e.replace(PULL_LINE,
-      `const pullGrade = pullSetup && pullScore>=1.5 && sectorOK && nearHighM && pullChase && (${pullExtra}) ? 5 :
-    (pullSetup && pullScore>=0.8 ? 4 : 3);`);
+      `const pullGrade = pullSetup && pullScore>=1.5 && sectorOK && nearHighM && pullChase && pullBandOK && (${pullExtra}) ? 5 :
+    (pullSetup && pullScore>=0.8 && pullInterestOK ? 4 : 3);`);
   }
   if(revExtra){
     e = e.replace(REV_LINE,
