@@ -519,6 +519,12 @@ WATCHLIST = {
     "국장":          {"069500.KS":"코스피", "229200.KS":"코스닥"},
 }
 
+# ── 관심종목에서 빠진 티커 — 과거 frozen snapshot(history/*.json)에는 남아 있다 ──
+# validate_signals.py가 옛 snapshot을 검증할 때 이 티커들까지 '알 수 없는 티커'로
+# 오탐하지 않도록 허용한다. 현재 실행 결과(rows)에는 여전히 나오면 안 되므로
+# validate_current의 WATCHLIST 일치 검사는 그대로 이 티커들을 막는다.
+RETIRED_TICKERS = {"MCD", "CURE"}
+
 # ── 레버리지(배수) 상품 — 대시보드에서 ❗ 경고 표시 ──────────
 LEVERAGED = {"SOXL", "GDXU", "NAIL", "ETHU", "UYG", "RXL"}
 

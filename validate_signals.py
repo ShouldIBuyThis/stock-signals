@@ -12,7 +12,7 @@ import math
 import os
 from pathlib import Path
 
-from main import HIST_FIELDS, MARKET_TICKER, SNAPSHOT_FIELDS, WATCHLIST, is_kr_ticker
+from main import HIST_FIELDS, MARKET_TICKER, RETIRED_TICKERS, SNAPSHOT_FIELDS, WATCHLIST, is_kr_ticker
 
 
 def fail(message: str) -> None:
@@ -118,8 +118,11 @@ def validate_current(payload: dict, scope: str) -> None:
         # (2026-08-16 실패 사례: UYG 등 4종 추가 직후). snapshot 파일은 불변이므로
         # '모르는 티커가 들어있는 것'만 오류로 보고, 빠진 신규 티커는 다음
         # 새 거래일 snapshot부터 자동 포함된다.
-        if not snap_tickers <= expected_region:
-            fail(f"{path} snapshot에 알 수 없는 티커: {sorted(snap_tickers - expected_region)}")
+        # 반대 방향(2026-08-17 실패 사례: MCD·CURE 제외)도 있다 — 관심종목에서
+        # 뺀 티커가 예전 snapshot에는 남아 있다. RETIRED_TICKERS로 허용한다.
+        retired_region = {t for t in RETIRED_TICKERS if is_kr_ticker(t) == (region == "kr")}
+        if not snap_tickers <= (expected_region | retired_region):
+            fail(f"{path} snapshot에 알 수 없는 티커: {sorted(snap_tickers - expected_region - retired_region)}")
         for stock in selected:
             frozen = snap_by_ticker.get(stock["ticker"])
             if frozen is None:
