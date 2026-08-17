@@ -39,8 +39,10 @@ function extractFunction(name){
 function extractLine(re){ const m=src.match(re); if(!m) die(String(re)); return m[0]; }
 function extractConst(name){ const st=src.indexOf(`const ${name} =`); if(st<0) die(name); return src.slice(st, src.indexOf(';',st)+1); }
 
-const REV_LINE = `const revStrong = revScore>=2.0 && has(rsi) && rsi<=50 && sectorOK &&
-    (run3Eff===null || run3Eff<=3);`;
+/* v9 지표압도 해제 후의 배포 소스. 컴포넌트 3줄로 쪼개져 있다. */
+const REV_RSI_LINE   = `const revRsiOK    = rsi<=50 || (rsi<=60 && revBandHigh);`;
+const REV_CHASE_LINE = `const revChase    = run3Eff===null || run3Eff<=3 || (run3Eff<=6 && revTrendOK);`;
+const REV_LINE = `const revStrong = revScore>=2.0 && has(rsi) && revRsiOK && sectorOK && revChase;`;
 
 function patchedEvaluate(rsiCut, chaseCut){
   let e = extractFunction('evaluate');

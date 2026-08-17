@@ -45,8 +45,10 @@ function extractConst(name){ const st=src.indexOf(`const ${name} =`); if(st<0) d
 
 /* ── 배포 소스의 세 앵커. 한 글자라도 다르면 즉시 죽는다 (조용한 오작동 방지) ── */
 const SECTOR_LINE = `const sectorOK = !marketGuarded || DEFENSIVE_CATS.includes(s.category);`;
-const REV_LINE = `const revStrong = revScore>=2.0 && has(rsi) && rsi<=50 && sectorOK &&
-    (run3Eff===null || run3Eff<=3);`;
+/* v9 지표압도 해제 후의 배포 소스. 컴포넌트 3줄로 쪼개져 있다. */
+const REV_RSI_LINE   = `const revRsiOK    = rsi<=50 || (rsi<=60 && revBandHigh);`;
+const REV_CHASE_LINE = `const revChase    = run3Eff===null || run3Eff<=3 || (run3Eff<=6 && revTrendOK);`;
+const REV_LINE = `const revStrong = revScore>=2.0 && has(rsi) && revRsiOK && sectorOK && revChase;`;
 
 /* evaluate() 안에서 쓸 수 있는 지역변수: p, rsi, bb, ma20, ma60, run3Eff, revScore,
    pullScore, breakScore, s.*  — 새 상수는 만들지 않고 이미 있는 값만 조합한다. */
@@ -62,12 +64,14 @@ function patchedEvaluate(opt){
     e = e.replace(SECTOR_LINE,
       `const sectorOK = !marketGuarded || DEFENSIVE_CATS.includes(s.category) || (${sectorRel});`);
   }
+  /* 기본값은 **배포 중인 v9 그대로**여야 한다. P0가 사이트 검증표를 재현하는지가
+     이 도구의 자체 검사이므로, 여기에 옛 게이트를 남기면 대조군이 거짓이 된다. */
   const rsiPart = rsiHi
     ? `(rsi<=50 || (rsi<=${rsiHi.upto} && (${rsiHi.expr})))`
-    : `rsi<=50`;
+    : `(rsi<=50 || (rsi<=60 && revBandHigh))`;
   const chasePart = chaseHi
     ? `(run3Eff===null || run3Eff<=3 || (run3Eff<=${chaseHi.upto} && (${chaseHi.expr})))`
-    : `(run3Eff===null || run3Eff<=3)`;
+    : `(run3Eff===null || run3Eff<=3 || (run3Eff<=6 && revTrendOK))`;
   e = e.replace(REV_LINE,
     `const revStrong = revScore>=2.0 && has(rsi) && ${rsiPart} && sectorOK &&
     ${chasePart};`);
