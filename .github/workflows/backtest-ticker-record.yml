@@ -1,0 +1,66 @@
+name: 종목별 백테스트 승률 생성
+
+# 수동 실행 전용. 종목별 개별 승률의 표본을 늘리기 위한 1회성 작업이다.
+#
+# frozen 원장(signals.json)은 30거래일뿐이라 종목당 강한매수가 1~5건이고
+# 화면에 대부분 '표본 부족'으로 나온다. main.py는 매 실행마다 야후에서 1년치를
+# 받아 최근 30일만 쓰고 버리는데, 그 버리는 부분을 한 번 살려 표본을 6배로 만든다.
+#
+# ⚠ 원장은 건드리지 않는다. signals.json·history/ 는 이 워크플로우가 쓰지 않는다.
+#    산출물은 backtest/ticker-record.json 하나뿐이고, 그 안에 '백테스트'라는
+#    사실과 생존 편향 경고가 함께 들어간다.
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: '거래일 수 (야후 1년 ≈ 252봉, 워밍업 66봉 필요 → 186 이하)'
+        required: false
+        default: '180'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 의존성 설치
+        run: pip install -q yfinance pandas numpy exchange_calendars
+
+      - name: 장기 원본 수집 (야후 1년)
+        run: python tools/backfill_backtest.py --days "${{ inputs.days || '180' }}" --out backtest/raw.json
+
+      - name: 종목별 승률 표 생성
+        run: node tools/ticker-record-build.js backtest/raw.json backtest/ticker-record.json
+
+      - name: 원본은 커밋하지 않는다 (약 5MB)
+        run: rm -f backtest/raw.json
+
+      - name: 원장이 바뀌지 않았는지 확인
+        # 이 워크플로우는 backtest/ 밖을 절대 건드리면 안 된다.
+        run: |
+          if [ -n "$(git status --porcelain -- signals.json history/)" ]; then
+            echo "::error::원장(signals.json·history/)이 변경됐다 — 중단한다"
+            git status --porcelain -- signals.json history/
+            exit 1
+          fi
+
+      - name: 커밋
+        run: |
+          git config user.name  "Claude"
+          git config user.email "noreply@anthropic.com"
+          git add backtest/ticker-record.json
+          if git diff --cached --quiet; then
+            echo "변경 없음"
+          else
+            git commit -m "종목별 백테스트 승률 갱신 (${{ inputs.days || '180' }}거래일)"
+            git push
+          fi
