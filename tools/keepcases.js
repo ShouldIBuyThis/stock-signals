@@ -126,18 +126,20 @@ console.log('보존 사례 회귀 검사 — 배포 산식이 지금도 잡는�
 console.log('✅ 강한매수(등급5) · 🔶 매수관심(등급4)까지만 · ❌ 중립\n');
 console.log('     티커        날짜         판정          경로       +1일    +3일    +5일   설명');
 console.log('  ' + '─'.repeat(112));
-let ok=0, part=0, miss=0;
+let ok=0, part=0, miss=0, gone=0;
 for(const [tk, date, note] of KEEP){
   const slot = snap[date];
   const row = slot && slot.uni.find(x => x.ticker === tk);
   const [mark, tag, which] = verdict(row, (slot&&slot.rank)||{});
-  if(mark==='✅') ok++; else if(mark==='🔶') part++; else miss++;
+  if(mark==='✅') ok++; else if(mark==='🔶') part++; else if(mark==='❔') gone++; else miss++;
   const f = fwd(tk, date);
   const n = k => (f[k]===undefined ? '    —' : `${f[k]>=0?'+':''}${f[k].toFixed(1)}%`.padStart(7));
   console.log(`  ${mark} ${tk.padEnd(11)}${date}  ${tag.padEnd(12)}${which.padEnd(10)}${n(1)} ${n(3)} ${n(5)}  ${note}`);
 }
 console.log('  ' + '─'.repeat(112));
-console.log(`  보존 ${ok} · 부분 ${part} · 놓침 ${miss}  (총 ${KEEP.length}건)`);
+console.log(`  보존 ${ok} · 부분 ${part} · 놓침 ${miss} · 창 밖 ${gone}  (총 ${KEEP.length}건)`);
+if(gone) console.log(`  ❔ '창 밖'은 30거래일 롤링 창이 지나가 그 날짜가 hist에서 밀려난 것이다.
+     산식 회귀가 아니므로 '놓침'과 구분해 센다. 오래된 사례는 시간이 지나면 전부 여기로 간다.`);
 
 if(ALL){
   const days = Object.keys(snap).sort();
