@@ -48,7 +48,9 @@ HIST_FIELDS = ["date","price","change_1d","ma5","ma10","ma20","ma50","ma60","rsi
                # 2026-08-17 확장: 미너비니 ③(52주 저점 대비 +25%) 검증용.
                # market_events 뒤에 덧붙였으므로 옛 행은 짧을 뿐 위치가 어긋나지 않는다.
                # validate_signals.py의 append-only 검사도 꼬리 확장을 허용하도록 같이 고쳤다.
-               "low_52w", "pct_from_low"]
+               "low_52w", "pct_from_low",
+               # 2026-08-17 확장: 미너비니 ①(150·200일선 정배열)·②(200일선 상승세) 검증용
+               "ma120", "ma200", "ma200_slope"]
 
 # freeze 단계에서 옛 행에 뒤늦게 채워 넣는 열. 이미 값이 있으면 절대 덮지 않는다.
 HIST_BACKFILL_FIELDS = ["atr_pct", "market_level", "market_weak", "market_ret20", "market_events"]
@@ -703,6 +705,10 @@ def analyze(ticker, name, category):
     ma20 = close.rolling(20).mean()
     ma50 = close.rolling(50).mean()
     ma60 = close.rolling(60).mean()
+    # 미너비니 ①②(150·200일선 정배열 / 200일선 상승세) 검증용.
+    # PERIOD가 1년(약 252거래일)이라 ma200은 초반 구간이 NaN이다 — safe()가 None으로 내보낸다.
+    ma120 = close.rolling(120).mean()
+    ma200 = close.rolling(200).mean()
     rsi = wilder_rsi(close)
     ema12, ema26 = close.ewm(span=12, adjust=False).mean(), close.ewm(span=26, adjust=False).mean()
     macd = ema12 - ema26; sig = macd.ewm(span=9, adjust=False).mean()
@@ -729,6 +735,12 @@ def analyze(ticker, name, category):
         pfh = (c_i / h52 - 1) * 100 if h52 else None
         l52 = low.iloc[:end].min()            # 그 시점까지의 52주 저가 (미너비니 ③ 검증용)
         pfl = (c_i / l52 - 1) * 100 if l52 else None
+        # 미너비니 ②: "200일선이 최소 1개월 이상 상승세". 20거래일 전 대비 기울기로 본다.
+        m200_now = ma200.iloc[i]
+        m200_ago = ma200.iloc[i-20] if abs(i-20) <= len(ma200) else None
+        ma200_slope = ((m200_now / m200_ago - 1) * 100) \
+            if (m200_now is not None and m200_ago is not None
+                and not np.isnan(m200_now) and not np.isnan(m200_ago) and m200_ago > 0) else None
 
         # ── 진입 위치(Positioning) 판단용 파생값 ────────────────────
         # 점수 계산은 하지 않는다. 산식은 index.html 한 곳에만 둔다.
@@ -785,6 +797,8 @@ def analyze(ticker, name, category):
             "sup_short": safe(sup_short, nd), "sup_mid": safe(sup_mid, nd),
             "high_52w": safe(h52, nd), "ret20": safe(ret20),
             "low_52w": safe(l52, nd), "pct_from_low": safe(pfl),
+            "ma120": safe(ma120.iloc[i], nd), "ma200": safe(ma200.iloc[i], nd),
+            "ma200_slope": safe(ma200_slope),
             "range3": safe(range3), "range10": safe(range10), "vol3_ratio": safe(vol3_ratio),
             "last_date": df.index[i].strftime("%Y-%m-%d"),
         }
@@ -826,7 +840,7 @@ SNAPSHOT_FIELDS = [
     "res_short", "ret20", "rs20",
     "prev_change_1d", "prev_vol_ratio", "prev_macd_hist", "prev_price", "prev_ma5", "prev_ma20",
     "market_level", "market_weak", "market_ret20", "market_events",
-    "low_52w", "pct_from_low",
+    "low_52w", "pct_from_low", "ma120", "ma200", "ma200_slope",
 ]
 
 def _storage_row(r, mkt):

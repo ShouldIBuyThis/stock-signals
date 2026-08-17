@@ -608,6 +608,22 @@ table.cmp.exitp td.ep-best{background:var(--chip,#eef4ff);border-radius:6px}
 html[data-theme="dark"] table.cmp.exitp td.ep-best{background:#1c2a3d}
 .exit-tip{font-size:12.5px;color:var(--reason);line-height:1.85;margin-top:8px}
 .exit-tip b{color:var(--ink)}
+/* 보유기간 팝업 표 — 첫 칸 라벨이 길어(💡 강한다중) 좁게 잡으면 옆 칸을 덮는다.
+   고정 레이아웃 + 넉넉한 첫 칸 + 줄바꿈 허용으로 겹침을 원천 차단한다. */
+table.cmp.holdp{table-layout:fixed;width:100%}
+table.cmp.holdp th,table.cmp.holdp td{padding:7px 4px;font-size:11.5px;white-space:normal;word-break:keep-all;text-align:center;vertical-align:top}
+table.cmp.holdp th:first-child,table.cmp.holdp td:first-child{width:88px;text-align:left;padding-left:8px}
+table.cmp.holdp .hp-sub{display:block;font-size:9.5px;font-weight:600;color:var(--faint);margin-top:2px}
+table.cmp.holdp .hp-rate{font-weight:800;font-size:14px;color:var(--ink);display:block}
+table.cmp.holdp .hp-avg{display:block;font-size:11px;color:var(--muted);margin-top:2px}
+table.cmp.holdp .hp-n{display:block;font-size:9.5px;color:var(--faint)}
+table.cmp.holdp .hp-edge{display:block;font-size:10px;font-weight:800;margin-top:2px}
+table.cmp.holdp tr.vbase td{background:var(--surface2)}
+@media(max-width:640px){
+  table.cmp.holdp th:first-child,table.cmp.holdp td:first-child{width:70px;padding-left:5px}
+  table.cmp.holdp th,table.cmp.holdp td{padding:6px 2px;font-size:11px}
+  table.cmp.holdp .hp-rate{font-size:13px}
+}
 .bub{border-radius:14px;padding:11px 13px;margin-top:11px;border:1px solid var(--line)}
 .bub-h{font-size:12.5px;font-weight:800;margin-bottom:5px}
 .bub p{font-size:12.5px;line-height:1.75;margin:4px 0;color:var(--reason)}
@@ -3194,11 +3210,12 @@ function strategyValidation(){
     pull:{label:"추세", icon:"📈", grade:s=>s.pullGrade},
     rev:{label:"반등", icon:"🔄", grade:s=>s.revGrade}
   };
-  /* 표에는 +1/+3/+5만 쓰지만 +7도 같이 계산한다 — '더 들고 있었다면?' 팝업용.
-     실측에서 승률은 +4일 부근이 정점이고 평균수익은 그 뒤로도 계속 오른다.
-     표시하는 행들은 전부 [1,3,5]를 명시적으로 읽으므로 여기에 7을 더해도
-     기존 화면은 그대로다. */
-  const horizons=[1,3,5,7];
+  /* 검증표는 +1/+3/+5만 쓴다. +7/+10/+20은 '더 들고 있었다면?' 팝업 전용이다.
+     짧은 쪽은 이미 표에 있으니 팝업은 긴 쪽만 보여주는 게 맞다.
+     표시하는 행들은 전부 [1,3,5]를 명시적으로 읽으므로 뒤에 더해도 화면은 그대로다.
+     ⚠ +20일은 신호일로부터 20거래일 뒤가 있어야 세므로 표본이 크게 줄어든다.
+     팝업이 표본 수를 같이 찍고, §5-1 미만은 추천 후보에서 뺀다. */
+  const horizons=[1,3,5,7,10,20];
   const out={pull:{},rev:{},multi:{}};
   Object.keys(out).forEach(k=>horizons.forEach(h=>out[k][h]=[]));
   // 최종 초록뱃지(강한매수, grade 5)만 별도 집계. 기존 전략/다중 통계에는 영향 없음.
@@ -3539,7 +3556,7 @@ function validationBlock(){
     <div style="margin-top:9px">
       <button type="button" class="perfbtn" onclick="openAllBuyersPerf()" title="매수관심까지 포함해 전부 샀다면">💡 매수관심&강한매수를 다 매수했다면?</button>
       <button type="button" class="perfbtn" onclick="openPhasePerf()" title="강세장·약세장에서 신호가 어떻게 달라지는지">📊 시장 국면별 승률</button>
-      <button type="button" class="perfbtn" onclick="openHoldPerf()" title="더 오래 들고 있었다면 어떻게 됐는지">⏳ +7일까지 들고 있었다면?</button>
+      <button type="button" class="perfbtn" onclick="openHoldPerf()" title="+7·+10·+20일까지 들고 있었다면 어떻게 됐는지">⏳ 더 오래 들고 있었다면?</button>
     </div>
     ${exampleBlock}${diagDetail}${exDetail}
     <div class="strip" style="margin-top:9px">
@@ -3874,7 +3891,8 @@ function openSignalScoringHelp(){
      · 평균수익 최고 = 실제로 가장 많이 번 날 → 수익 극대화
    숫자는 전부 strategyValidation()이 방금 계산한 실측이며, 하드코딩이 아니다.
    표본이 §5-1 기준(15건) 미만인 칸은 후보에서 제외한다. */
-const EXIT_HS = [1,3,5,7];
+/* 청산·보유 팝업이 보여줄 구간. 검증표(+1/+3/+5)와 겹치지 않게 긴 쪽만 쓴다. */
+const EXIT_HS = [7,10,20];
 function exitPlan(src){
   if(!src) return null;
   const cells = EXIT_HS.map(h=>({h, ...(src[h]||{n:0,rate:null,avg:null})}));
@@ -3931,51 +3949,51 @@ function cartExitBlock(mine){
    (승률은 +3~4일 부근, 평균수익은 그 뒤로도 계속 상승). */
 function openHoldPerf(){
   const v=strategyValidation();
-  const HS=[1,3,5,7];
+  const HS=EXIT_HS;                       // [7,10,20] — 짧은 쪽은 이미 검증표에 있다
   const pct=x=>x==null?"—":x+"%"; const av=x=>x==null?"—":`${x>=0?"+":""}${Number(x).toFixed(2)}%`;
   const bl=v._baseline||{};
-  const rowOf=(label,sub,src)=>{
-    const cells=HS.map(h=>{
-      const o=src&&src[h];
-      if(!o||!o.n) return `<td>—</td>`;
-      const b=bl[h];
-      const e=(o.rate!==null&&b&&b.rate!==null)?o.rate-b.rate:null;
-      const ec=e===null?"":`<br><span style="font-size:10.5px;font-weight:800;color:${e>0?"var(--buy)":e<0?"var(--sell)":"var(--muted)"}">기준선 대비 ${e>=0?"+":""}${e}%p</span>`;
-      return `<td><span class="vrate">${pct(o.rate)}</span><br><span class="vavg">평균수익 ${av(o.avg)}</span><br><span class="vsplit vflat">표본 ${o.n}건</span>${ec}</td>`;
-    }).join("");
-    return `<tr><td><b>${label}</b>${sub?`<br><span style="font-size:10px;color:var(--faint)">${sub}</span>`:""}</td>${cells}</tr>`;
+  const cellOf=(o,h,muted)=>{
+    if(!o||!o.n) return `<td><span class="hp-n">표본 없음</span></td>`;
+    const b=bl[h];
+    const e=(!muted && o.rate!==null && b && b.rate!==null) ? o.rate-b.rate : null;
+    const ec=e===null?"":`<span class="hp-edge" style="color:${e>0?"var(--buy)":e<0?"var(--sell)":"var(--muted)"}">기준선 ${e>=0?"+":""}${e}%p</span>`;
+    const thin=o.n<15?`<span class="hp-n" style="color:var(--sell)">표본 부족</span>`:"";
+    return `<td><span class="hp-rate"${muted?' style="color:var(--muted)"':''}>${pct(o.rate)}</span>`+
+           `<span class="hp-avg">${av(o.avg)}</span><span class="hp-n">${o.n}건</span>${ec}${thin}</td>`;
   };
-  const baseRow=`<tr class="vbase"><td><b class="baseline-term" onclick="openBaselineHelp()">기준선</b><br><span style="font-size:10px;color:var(--faint);display:inline-block;padding-left:9px">└ 전 종목 매수 시</span></td>`+
-    HS.map(h=>{const o=bl[h];return `<td>${o&&o.n?`<span class="vrate" style="color:var(--muted)">${pct(o.rate)}</span><br><span class="vavg">평균수익 ${av(o.avg)}</span><br><span class="vsplit vflat">표본 ${o.n}건</span>`:"—"}</td>`;}).join("")+`</tr>`;
-  /* 평균수익이 가장 높은 보유일 — 표본 15건 이상 구간에서만 고른다 */
+  const rowOf=(label,sub,src,muted,cls)=>
+    `<tr${cls?` class="${cls}"`:""}><td><b>${label}</b>${sub?`<span class="hp-sub">${sub}</span>`:""}</td>`+
+    HS.map(h=>cellOf(src&&src[h],h,muted)).join("")+`</tr>`;
+  /* 평균수익이 가장 높은 보유일 — §5-1(표본 15건) 이상 구간에서만 고른다 */
   const bestOf=src=>{
     let b=null; HS.forEach(h=>{const o=src&&src[h]; if(o&&o.n>=15&&o.avg!=null&&(!b||o.avg>b.avg)) b={h,...o};});
     return b;
   };
   const bb=bestOf(v._strict), bg=bestOf(v._strongBuy);
-  const tip=(nm,b)=>b?`<b>${nm}</b>는 <b>+${b.h}거래일</b>에 평균수익이 가장 높았어요 (${av(b.avg)}, 승률 ${pct(b.rate)}, 표본 ${b.n}건).`:"";
-  openModal(`<h3>⏳ 며칠 들고 있었다면?</h3>
+  const tip=(nm,b)=>b
+    ? `<b>${nm}</b>는 <b>+${b.h}거래일</b>이 가장 좋았어요 (평균수익 ${av(b.avg)}, 승률 ${pct(b.rate)}, 표본 ${b.n}건).`
+    : `<b>${nm}</b>는 이 구간 표본이 15건에 못 미쳐 추천을 보류합니다.`;
+  openModal(`<h3>⏳ 더 오래 들고 있었다면?</h3>
     <p style="font-size:12.5px;color:var(--reason);line-height:1.7;margin:0 0 8px">
-      같은 신호를 <b>사고 나서 며칠 뒤에 팔았는지</b>로 성적이 얼마나 달라지는지 봅니다.
-      <b>승률</b>은 "오를 확률", <b>평균수익</b>은 "실제로 얼마나 벌었나"예요 —
-      둘의 정점이 다를 수 있어서 나란히 둡니다.</p>
-    <table class="cmp validation-cmp"><tr><th>신호</th>${HS.map(h=>`<th>+${h}일</th>`).join("")}</tr>
+      검증표의 <b>+1·+3·+5일</b> 다음이 궁금할 때 봅니다.
+      <b>큰 숫자</b>는 오를 확률, <b>가운데</b>는 평균수익, <b>작은 숫자</b>는 표본 수예요.</p>
+    <table class="cmp holdp"><tr><th>신호</th>${HS.map(h=>`<th>+${h}일</th>`).join("")}</tr>
       ${rowOf("💡 강한다중","전구 신호만",v._strict)}
-      ${rowOf("🔵 다중신호","강한+일반 합산",v.multi)}
-      ${rowOf("🟢 강한매수","최종 초록뱃지",v._strongBuy)}
-      ${baseRow}
+      ${rowOf("🔵 다중신호","강한+일반",v.multi)}
+      ${rowOf("🟢 강한매수","초록뱃지",v._strongBuy)}
+      ${rowOf(`<span class="baseline-term" onclick="openBaselineHelp()">기준선</span>`,"전 종목 매수 시",bl,true,"vbase")}
     </table>
     <div class="perf-story" style="margin-top:10px">
       <span class="ex-badge">읽는 법</span>
       ${tip("💡 강한다중",bb)}<br>${tip("🟢 강한매수",bg)}
       <div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);color:var(--muted)">
-        <b>기준선</b>은 반대로 갑니다 — 그냥 전 종목을 산 사람은 오래 들고 있을수록
+        <b>기준선</b>은 반대로 갑니다 — 그냥 전 종목을 산 사람은 오래 들수록
         평균수익이 줄어듭니다. 신호가 고른 종목만 계속 올랐다는 뜻이에요.</div>
     </div>
     <p style="font-size:11px;color:var(--faint);line-height:1.7;margin:8px 0 0">
       종가 매수 · N거래일 뒤 종가 매도 · 실적 영향 구간 제외 · 승률은 보합(±1%) 빼고 계산<br>
-      ⚠ 오래 들고 있는 칸일수록 <b>표본이 줄어듭니다</b>(아직 그날이 안 온 신호는 못 셉니다).
-      표본 15건 미만은 참고만 하세요.</p>`);
+      ⚠ 오래 들수록 <b>표본이 줄어듭니다</b> — 신호일로부터 그만큼 지난 날이 있어야 세거든요.
+      특히 <b>+20일</b>은 표본이 적으니 참고만 하세요.</p>`);
 }
 
 /* 시장 국면별 승률 — 강세장·약세장에서 신호가 어떻게 다른지 쉬운 비교.
