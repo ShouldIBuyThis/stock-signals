@@ -127,7 +127,10 @@ def build(days: int) -> dict:
     # 188거래일 표본이 쌓여야 §2·§3 검증을 할 수 있기 때문이다.
     #   ^VXN 나스닥 변동성 · ^TNX 미국 10년물 금리 · NQ=F 나스닥100 선물(일봉)
     macro = {}
-    for sym, key in (("^VXN", "vxn"), ("^TNX", "tnx"), ("NQ=F", "nq")):
+    # ^TNX는 야후가 16일치만 줬다(2026-08-18 실측). 같은 금리를 보는 티커를 함께
+    # 받아 두고, 검증 도구가 가장 긴 이력을 고르게 한다.
+    for sym, key in (("^VXN", "vxn"), ("^TNX", "tnx"), ("ZN=F", "zn"),
+                     ("IEF", "ief"), ("TLT", "tlt"), ("NQ=F", "nq")):
         try:
             df = M._fetch_daily(sym)
             df = M.drop_unclosed(df, sym)

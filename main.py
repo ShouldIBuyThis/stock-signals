@@ -759,6 +759,47 @@ def _fetch_daily(ticker, days_back=520):
         print(f"데이터 보정 실패: {ticker} — {e}")
     return df
 
+# ── 시장 보조 지표 (표시 전용) ──────────────────────────────────────────
+# 점수·등급에는 쓰지 않는다. 화면 뱃지와 앞으로의 검증용으로 값만 쌓는다.
+#
+# ^TNX(10년물)는 야후가 16일치만 줘서 188거래일 검증이 불가능했다. 같은 금리를
+# 보는 티커를 순서대로 시도해 가장 긴 이력을 쓴다 — ^TNX(CBOE 지수) →
+# ZN=F(CME 10년물 선물) → IEF/TLT(채권 ETF, 금리와 역방향).
+MARKET_EXTRA_SYMBOLS = {
+    "vxn": ["^VXN"],
+    "tnx": ["^TNX", "ZN=F", "IEF", "TLT"],
+}
+
+def fetch_market_extra():
+    """오늘/직전 값과 이력 길이를 함께 돌려준다. 실패해도 사이트는 그대로 돈다."""
+    out = {}
+    for key, syms in MARKET_EXTRA_SYMBOLS.items():
+        best = None
+        for sym in syms:
+            try:
+                df = drop_unclosed(_fetch_daily(sym), sym)
+                if df is None or len(df) < 2:
+                    print(f"보조 지표 {sym}: 데이터 부족")
+                    continue
+                c = df["Close"].dropna()
+                if len(c) < 2:
+                    continue
+                cand = {"symbol": sym, "days": int(len(c)),
+                        "value": round(float(c.iloc[-1]), 4),
+                        "prev": round(float(c.iloc[-2]), 4),
+                        "date": c.index[-1].strftime("%Y-%m-%d"),
+                        "inverse": sym in ("IEF", "TLT")}
+                print(f"보조 지표 {sym}: {cand['days']}일 · 최신 {cand['value']} ({cand['date']})")
+                if best is None or cand["days"] > best["days"]:
+                    best = cand
+                if cand["days"] >= 120:
+                    break            # 충분히 길면 더 시도하지 않는다
+            except Exception as e:
+                print(f"보조 지표 {sym} 실패: {e}")
+        if best:
+            out[key] = best
+    return out
+
 def seed_past_hist(kept, tk, nm, cat, date_i):
     """원장에 1~2행뿐인 신규 종목만, carry 중에도 '지난 날짜'를 채워 준다.
 
@@ -1376,6 +1417,12 @@ def main():
               f"직전 시장카드({prev_qqq})를 유지하고 전 종목도 직전 값으로 간다. "
               f"가격은 이번 실행에서 갱신되지 않는다.")
 
+    market_extra = {}
+    try:
+        market_extra = fetch_market_extra()
+    except Exception as e:
+        print("보조 지표 수집 실패:", e)
+
     # SPY 보조 시장카드 — 나스닥(QQQ)만으로는 시장 전반을 못 본다는 지적에 따라 추가.
     # 국면 판정에는 아직 쓰지 않는다(판정은 여전히 QQQ 기준). 데이터를 쌓아
     # QQQ·SPY 겸용 국면이 나은지 tools/qqq-lab.js 방식으로 비교한 뒤 결정한다.
@@ -1514,6 +1561,7 @@ def main():
         "market": mkt,
         "qqq_card": qqq_card,
         "spy_card": spy_card,
+        "market_extra": market_extra,
         "market_events": market_events,
         "calendar_status": calendar_status,
         "sectors": sectors,

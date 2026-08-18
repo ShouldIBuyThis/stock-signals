@@ -73,7 +73,23 @@ show('breadth 30% 미만 (바닥권)', rows.filter(r=>r.br!==null&&r.br<30), bas
 half('QQQ상승 & breadth 감소', r=>r.chg>0&&r.br!==null&&r.brPrev!==null&&(r.br-r.brPrev)<=0);
 
 console.log('\n■ ④ 10년물 금리 급등');
-if(M.tnx){
+/* ^TNX가 짧으면 같은 금리를 보는 대체 티커 중 가장 긴 것을 쓴다.
+   IEF·TLT는 채권 가격이라 금리와 반대로 움직인다 — 부호를 뒤집어 맞춘다. */
+const RATE = [["tnx",1,"^TNX 금리"],["zn",-1,"ZN=F 선물(역)"],["ief",-1,"IEF(역)"],["tlt",-1,"TLT(역)"]]
+  .filter(([k])=>M[k]).sort((a,b)=>Object.keys(M[b[0]]).length-Object.keys(M[a[0]]).length)[0];
+if(RATE){
+  const [key, sign, label] = RATE;
+  console.log(`  사용 지표: ${label} (${Object.keys(M[key]).length}일)`);
+  const R2 = rows.map((r,i,arr)=>({...r, rv:M[key][r.d]??null, rvPrev:i>0?(M[key][arr[i-1].d]??null):null}));
+  const chg = r => (r.rv!==null&&r.rvPrev!==null&&r.rvPrev) ? sign*((r.rv/r.rvPrev-1)*100) : null;
+  [0.3,0.6,1.0].forEach(t=>{
+    show(`금리 전일 대비 +${t}% 이상 급등`, R2.filter(r=>{const c=chg(r);return c!==null&&c>=t;}), base);
+  });
+  show('금리 하락일', R2.filter(r=>{const c=chg(r);return c!==null&&c<0;}), base);
+  const A=R2.filter(r=>r.d<mid&&(chg(r)??-9)>=0.6), Z=R2.filter(r=>r.d>=mid&&(chg(r)??-9)>=0.6);
+  if(A.length>=4||Z.length>=4){ console.log('    §2 금리 +0.6% 이상'); show('     전반',A); show('     후반',Z); }
+}
+if(M.tnx && false){
   [0.05,0.08,0.12].forEach(t=>{
     show(`TNX 전일 대비 +${t} 이상`, rows.filter(r=>r.tnx!==null&&r.tnxPrev!==null&&(r.tnx-r.tnxPrev)>=t), base);
   });

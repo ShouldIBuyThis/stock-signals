@@ -369,6 +369,10 @@ table.validation-cmp th[colspan="3"]{color:var(--ink);font-weight:800}
 .hr-t tr:nth-child(-n+4) .hr-rank{color:var(--buy)}
 .hr-t .hr-kind{font-size:11px;font-weight:700;white-space:nowrap}
 .hr-t .tkrec-rate{font-size:14px}
+.nedge{display:inline-block;margin-left:5px;padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:800;line-height:1.6;cursor:help;vertical-align:middle}
+.nedge-vxn{color:var(--buy);background:var(--buy-soft)}
+.nedge-vxn2{color:var(--sell);background:var(--sell-soft)}
+.nedge-br{color:var(--down);background:var(--neutral-soft)}
 .res-touch{margin-left:3px;font-size:10.5px;font-weight:800;color:var(--buy);vertical-align:middle;cursor:help}
 .tkrec-note{font-size:11px;color:var(--faint);line-height:1.7;margin-top:6px}
 html[data-theme="dark"] .perfbtn{background:#1c2532;color:#7fb0ff}
@@ -1214,6 +1218,7 @@ function normalize(raw){
   });
   return { generated_at: stamp, stocks, failed: raw.failed||[], market: raw.market||null,
            qqq_card: raw.qqq_card || null,
+           market_extra: raw.market_extra || null,
            spy_card: raw.spy_card || null,
            market_events: Array.isArray(raw.market_events) ? raw.market_events : [],
            calendar_status: raw.calendar_status || null,
@@ -2329,6 +2334,56 @@ function marketEventTypes(events){
   return [...new Set(marketEventItems(events).map(x=>String(x.type||x.name||"시장 이벤트").trim()).filter(Boolean))];
 }
 /* QQQ는 랭킹 유니버스 밖의 시장 기준카드다. evaluate()는 그대로 쓰되 자기 자신에 QQQ 시장필터는 적용하지 않는다. */
+/* ── 나스닥 전용 보조 뱃지 (표시 전용 · 점수·등급·순위에 안 들어감) ──────
+   188거래일 백테스트 실측을 근거로 두 가지만 표시한다.
+
+   ⚡ 변동성 피크아웃 — VXN이 28 이상이고 전일보다 꺾인 날
+        다음날 QQQ 상승 88%(+34%p) · +3일 75%(+15%p) · n=8
+        §2 반쪽 전반 100%(2) / 후반 83%(6) — 양쪽 다 기준선 위
+        VXN 25에서는 효과가 없고 28을 넘어야 나타난다(고원이 아니라 문턱).
+   🌊 바닥권 — 20일선 위 종목이 30% 미만인 날
+        다음날 QQQ 상승 78%(+24%p) · +3일 89%(+29%p) · n=9
+
+   둘 다 표본이 8~9건이다(§5-1 '신뢰 불가'). 그래서 시장 국면 판정에는 절대
+   넣지 않고, 나스닥 카드에 '지금 이런 자리다'라고 적기만 한다. 표본이
+   15건을 넘으면 그때 산식 편입을 다시 검토한다. */
+function nasdaqEdgeBadges(){
+  const out = [];
+  const mx = (state.data && state.data.market_extra) || {};
+  const v = mx.vxn;
+  if(v && has(num(v.value)) && v.value >= 28){
+    /* 꺾임까지 확인되면 표본은 얇지만(8건) 성적이 훨씬 세다. 꺾임이 없어도
+       고변동 구간 자체가 +10~11%p라 표본 28건으로 '방향만' 등급은 된다. */
+    const peaked = has(num(v.prev)) && v.value < v.prev;
+    out.push(peaked
+      ? { cls:"nedge-vxn", icon:"💡⚡", label:"변동성 피크아웃",
+          tip:`VXN ${r1(v.value)} (전일 ${r1(v.prev)}에서 꺾임) · 실측 다음날 QQQ 상승 88%·+3일 75% (8건)` }
+      : { cls:"nedge-vxn2", icon:"⚡", label:"고변동 구간",
+          tip:`VXN ${r1(v.value)} · 실측 다음날 QQQ 상승 64%·+3일 71% (28건, 기준선 대비 +10~11%p)` });
+  }
+  const b = breadthNow();
+  if(b && b.n >= 20 && b.pct < 30){
+    out.push({ cls:"nedge-br", icon:"🌊", label:"바닥권",
+      tip:`20일선 위 ${b.pct}% (${b.above}/${b.n}종목) · 실측 다음날 QQQ 상승 78%(9건)` });
+  }
+  return out;
+}
+/* 오늘 20일선 위에 있는 종목 비율. 외부 데이터 없이 우리 관심종목으로 센다. */
+function breadthNow(){
+  let above = 0, n = 0;
+  allStocks().forEach(s => {
+    const p = num(s.price), m = num(s.ma20);
+    if(!has(p) || !has(m)) return;
+    n++; if(p > m) above++;
+  });
+  return n ? { pct: Math.round(above/n*1000)/10, above, n } : null;
+}
+function nasdaqEdgeHtml(){
+  const b = nasdaqEdgeBadges();
+  if(!b.length) return "";
+  return b.map(x=>`<span class="nedge ${x.cls}" title="${esc(x.tip)}">${x.icon} ${esc(x.label)}</span>`).join("");
+}
+
 function qqqBenchmarkStock(){
   const r=state.data&&state.data.qqq_card; if(!r) return null;
   const s=decorate({
@@ -2366,7 +2421,7 @@ function marketBar(){
     const px=has(mk.price)?` · $${Number(mk.price).toFixed(2)}`:"";
     const r20=has(mk.ret20)?` · 20일 ${Number(mk.ret20)>=0?"+":""}${Number(mk.ret20).toFixed(1)}%`:"";
     return `<details class="market-bench">
-      <summary><b>🌐 QQQ · 나스닥100 시장 기준</b><span class="market-bench-summary-main">시장국면 ${esc(levelLabel)}${px}${r20}</span></summary>
+      <summary><b>🌐 QQQ · 나스닥100 시장 기준</b>${nasdaqEdgeHtml()}<span class="market-bench-summary-main">시장국면 ${esc(levelLabel)}${px}${r20}</span></summary>
       <div class="market-bench-body">
         <div class="market-bench-main" style="margin-top:10px"><span>시장국면 <b>${esc(levelLabel)}</b>${px}${r20}</span></div>
         <div class="market-bench-reason">QQQ 기술점수 준비 중 · 새 main.py 데이터 갱신 후 추세·반등·매수강도가 자동 표시됩니다.</div>
@@ -2379,7 +2434,7 @@ function marketBar(){
   const histBtn=(s._hist&&s._hist.length>=2)?`<button data-timeline="QQQ">📈 최근 ${histWindowDays()}거래일 신호 흐름</button>`:"";
   const cartOn=state.cart.includes("QQQ");
   return `<details class="market-bench">
-    <summary><b>🌐 QQQ · 나스닥100 시장 기준</b><span class="badge ${gradeCls(s.sig)}">${gradeLabel(s.sig)}</span><span class="market-bench-summary-main">시장 ${esc(levelLabel)}</span></summary>
+    <summary><b>🌐 QQQ · 나스닥100 시장 기준</b><span class="badge ${stockGradeCls(s)}">${stockGradeLabel(s)}</span>${nasdaqEdgeHtml()}<span class="market-bench-summary-main">시장 ${esc(levelLabel)}</span></summary>
     <div class="market-bench-body">
       <div class="market-bench-cardtop">
         <div class="s-price">
