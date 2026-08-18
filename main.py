@@ -787,7 +787,10 @@ def analyze(ticker, name, category):
 
         # ── 진입 위치(Positioning) 판단용 파생값 ────────────────────
         # 점수 계산은 하지 않는다. 산식은 index.html 한 곳에만 둔다.
-        m20_now, m20_ago = ma20.iloc[i], ma20.iloc[i-5]
+        # 신규 상장은 hist가 봉 수만큼만 나오므로 i가 배열 끝까지 간다.
+        # i-5가 범위를 벗어나면 IndexError로 analyze() 전체가 죽는다 — 없으면 None.
+        m20_now = ma20.iloc[i]
+        m20_ago = ma20.iloc[i-5] if abs(i-5) <= len(ma20) else None
         ma20_slope = ((m20_now / m20_ago - 1) * 100) if (m20_ago and m20_ago > 0) else None
         chg_s = close.pct_change() * 100
         run5_max = chg_s.iloc[end-5:end].max() if end >= 5 else None       # 최근 5일 중 최대 일간 상승률
@@ -851,19 +854,17 @@ def analyze(ticker, name, category):
     # 점수 계산은 index.html의 evaluate() 한 곳에서만 한다.
     # (산식을 파이썬으로 옮기면 두 곳이 반드시 어긋난다)
     hist = []
-    if ticker == "SPCX":
-        # SPCX는 신규상장 종목이라 장기 이력(61+10일) 조건을 적용하지 않는다.
-        # analyze()가 통과한 데이터 안에서 최근 최대 10거래일만 내려준다.
-        spcx_days = min(HIST_DAYS, len(close))
-        for j in range(-spcx_days, 0):
-            d_ = snap(j)
-            d_["date"] = d_.pop("last_date")
-            hist.append([d_.get(k) for k in HIST_FIELDS])
-    elif len(close) >= 61 + HIST_DAYS:
-        for j in range(-HIST_DAYS, 0):
-            d_ = snap(j)
-            d_["date"] = d_.pop("last_date")
-            hist.append([d_.get(k) for k in HIST_FIELDS])
+    # 워밍업(61 + HIST_DAYS봉)을 채운 종목은 HIST_DAYS 전부를 내려준다.
+    # 못 채운 신규 상장은 예전에 SPCX만 이름으로 예외 처리했는데, 그 뒤 들어온
+    # SKHY·CBRS가 같은 이유로 hist 1~2행에 묶여 '신호 흐름'이 안 그려졌다.
+    # 이름 대신 이력 길이로 판단해 같은 상황을 자동으로 처리한다.
+    # 짧은 구간의 장기 지표(52주 고저·ma200 등)는 snap()이 None으로 내리므로
+    # 없는 값을 지어내지 않는다 — 그날 계산 가능한 것만 들어간다.
+    hist_days = HIST_DAYS if len(close) >= 61 + HIST_DAYS else min(HIST_DAYS, len(close))
+    for j in range(-hist_days, 0):
+        d_ = snap(j)
+        d_["date"] = d_.pop("last_date")
+        hist.append([d_.get(k) for k in HIST_FIELDS])
     row["hist"] = hist
     row.update({
         "ticker": ticker, "name": name, "category": category,
@@ -1139,10 +1140,12 @@ def freeze_signal_hist(results, prev_rows, mkt=None, market_events=None, market_
         # 신규 종목은 직전 signals.json에 frozen hist가 없으므로 analyze()가 계산한
         # 과거 행으로 최대 9일을 먼저 채운다. 오늘 행은 아래에서 반드시 top-level 값으로 만든다.
         # 이미 오늘 한 줄만 저장된 신규 종목도 immutable 일자 snapshot에 티커가 없으면 1회 복구한다.
-        bootstrap_hist = (
-            not prev or
-            (len(old_hist) <= 1 and last_date and day_snapshot(tk, last_date) is None)
-        )
+        # 아직 원장에 한 줄뿐인 종목은 analyze()가 계산한 과거 행으로 앞을 채운다.
+        # 예전에는 '그날 snapshot에 티커가 없을 때'만 허용했는데, SKHY처럼 합류 첫날
+        # snapshot에 이미 실린 종목은 영원히 1행에 묶여 신호 흐름이 안 그려졌다.
+        # 아래 seed 루프가 이미 frozen된 날짜(seen)와 오늘(last_date)을 건드리지 않으므로,
+        # 여기서 푸는 것은 '한 번도 기록된 적 없는 그 이전 날짜'뿐이다 — 원장 변조가 아니다.
+        bootstrap_hist = (not prev or len(old_hist) <= 1)
         if bootstrap_hist:
             seed=[]
             seed_seen=set()
