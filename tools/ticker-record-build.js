@@ -1,15 +1,17 @@
 #!/usr/bin/env node
 /**
- * 종목별 강한매수 실측 표를 만든다 — 사이트가 읽을 작은 파일로.
+ * 종목별 예측 적중률 표를 만든다 — 사이트가 읽을 작은 파일로.
  *
- * 입력  backtest/raw.json      (tools/backfill_backtest.py가 만든 장기 백테스트 원본, ~5MB)
- * 출력  backtest/ticker-record.json  (종목당 4칸짜리 요약, 수십 KB)
+ * 입력  backtest/raw.json            (tools/backfill_backtest.py가 만든 장기 원본, ~5MB)
+ * 출력  backtest/ticker-record.json  (종목당 신호 3종 × 4구간, 수십 KB)
  *
- * 원본을 그대로 사이트에 올리면 5MB를 매번 받아야 한다. 승률 표는 종목당
- * 4개 구간의 숫자 몇 개뿐이므로 여기서 미리 접어 둔다.
+ * 원본을 그대로 사이트에 올리면 5MB를 매번 받아야 한다. 표는 숫자 몇 개뿐이므로
+ * 여기서 미리 접어 둔다.
  *
- * 산식은 index.html의 evaluate()를 문자열로 추출해 쓴다 — 재구현 금지
- * (docs/승률-검증-방법론.md §0). 여기서 다시 짜면 화면과 반드시 어긋난다.
+ * 산식은 index.html을 **통째로 vm에 올려서** 화면과 같은 함수를 그대로 호출한다
+ * (tools/_harness.js loadPage). 예전에는 evaluate()만 문자열로 꺼내 쓰느라
+ * 강한매수 한 줄밖에 못 만들었는데, 다중·강한다중은 그날 유니버스 전체를 봐야
+ * 정해지므로 부분 추출로는 재현할 수 없다. 재구현은 금지다(방법론 §0).
  *
  * ⚠ 이 숫자는 백테스트다. frozen 원장(signals.json)과 다른 주장이다:
  *    · 지금 산식을 과거에 소급 적용한 것 — 그날 실제로 본 신호가 아니다
@@ -19,119 +21,42 @@
  *
  * 사용: node tools/ticker-record-build.js [입력] [출력]
  */
-const fs = require('fs'), vm = require('vm');
+const fs = require('fs'), path = require('path'), H = require('./_harness');
 
 const IN  = process.argv[2] || 'backtest/raw.json';
 const OUT = process.argv[3] || 'backtest/ticker-record.json';
-const HS  = [1, 3, 5, 7];
 
-const src = fs.readFileSync('index.html', 'utf8');
 if (!fs.existsSync(IN)) {
   console.error(`[ERROR] ${IN} 이 없다. 먼저 python tools/backfill_backtest.py 를 돌릴 것.`);
   process.exit(1);
 }
-const base = JSON.parse(fs.readFileSync(IN, 'utf8'));
+const raw = fs.readFileSync(IN, 'utf8');
+const base = JSON.parse(raw);
 
-function die(m){ console.error('[ERROR]', m); process.exit(1); }
-function extractFunction(name){
-  const start = src.indexOf(`function ${name}(`);
-  if(start < 0) die(`function ${name}() 없음`);
-  const brace = src.indexOf('{', start);
-  let depth=0,q=null,esc=false,lc=false,bc=false;
-  for(let i=brace;i<src.length;i++){
-    const c=src[i],n=src[i+1];
-    if(lc){if(c==='\n')lc=false;continue;} if(bc){if(c==='*'&&n==='/'){bc=false;i++;}continue;}
-    if(q){if(esc){esc=false;continue;}if(c==='\\'){esc=true;continue;}if(c===q)q=null;continue;}
-    if(c==='/'&&n==='/'){lc=true;i++;continue;} if(c==='/'&&n==='*'){bc=true;i++;continue;}
-    if(c==='"'||c==="'"||c==='`'){q=c;continue;}
-    if(c==='{')depth++; else if(c==='}'){depth--;if(depth===0)return src.slice(start,i+1);}
-  } die(`${name}() 끝 없음`);
-}
-function extractLine(re){ const m=src.match(re); if(!m) die(String(re)); return m[0]; }
-function extractConst(name){ const st=src.indexOf(`const ${name} =`); if(st<0) die(name); return src.slice(st, src.indexOf(';',st)+1); }
-
-const OTHER = ['qqqRsiOn','washoutLevel','normalize','decorate','histWindowDays','histFields',
-  'histRow','withPrev','histStocks','prevStock','allStocks','earningsWindowsForValidation'];
-const ctx = { console, Math, Number, Object, Array, Set, Map, String, JSON };
-vm.createContext(ctx);
-vm.runInContext(`
-${extractLine(/^const has = .*$/m)}
-${extractLine(/^const r1 = .*$/m)}
-${extractLine(/^const num = .*$/m)}
-${extractLine(/^const isKR = .*$/m)}
-${['DEFENSE','HEALTH','FINANCE','INDUSTRIAL','MEM','GPU'].map(extractConst).join('\n')}
-${extractConst('NAME_MAP')}
-${extractConst('CAT_MAP')}
-${extractConst('DEFENSIVE_CATS')}
-${extractConst('LEVERAGED')}
-const levX = tk => (LEVERAGED[tk] ? LEVERAGED[tk].x : 1);
-${extractConst('RANK_NONE')}
-${extractConst('HIST_FIELDS_DEFAULT')}
-var state = { data:null, overrides:{}, holdings:[], cart:[], hidden:[], market:'all', showHoldings:false, themeFilter:null };
-${extractFunction('evaluate')}
-${OTHER.map(extractFunction).join('\n')}
-/* 종목별로 '강한매수(등급5)가 뜬 날'만 모아 앞으로 N거래일 수익률을 낸다.
-   화면의 tickerStrongRecord()와 한 줄씩 같은 규칙이다 — 보합 ±1% 제외,
-   실적 영향권(신호일·종가) 제외. 실적 창은 backfill_backtest.py가
-   validation_blocked_dates에 담아 주고, 여기서는 그것을 그대로 읽는다. */
-this.build = (d, HS) => {
-  state.data = normalize(d);
+const ctx = H.loadPage();
+ctx.__raw = raw;
+const res = ctx.runInPage(`(() => {
+  state.data = normalize(JSON.parse(__raw));
+  const recs = tickerSignalRecords();
+  /* 화면이 쓰는 모양 그대로 저장한다. 여기서 키를 바꾸면 화면이 다시 변환해야 하고
+     그 변환이 두 번째 산식이 된다. */
   const out = {};
-  let blockedDays = 0;
-  const collect = s => {
-    const hs = histStocks(s) || [];
-    if(hs.length < 2) return;
-    const blocked = earningsWindowsForValidation(s, hs).blocked;
-    blockedDays += blocked.size;
-    const buckets = {}; HS.forEach(h => buckets[h] = []);
-    let signals = 0;
-    hs.forEach((h, i) => {
-      if(!h.last_date || !has(h.price) || !h.price) return;
-      if(blocked.has(h.last_date)) return;               // 실적 영향권 신호는 제외
-      const row = Object.assign({}, s, h);
-      if(i>0) withPrev(row, hs[i-1]);
-      row._prevOverallGrade = i>0 ? evaluate(hs[i-1]).grade : null;
-      if(evaluate(row).grade < 5) return;
-      HS.forEach(k => {
-        const end = hs[i+k];
-        if(!end || !has(end.price) || blocked.has(end.last_date)) return;
-        buckets[k].push((end.price/h.price-1)*100);
-        /* 화면(tickerStrongRecord)은 첫 구간 표본이 생긴 날만 '신호'로 센다.
-           창 끝의 앞날 가격 없는 날을 여기서만 세면 같은 숫자가 두 값이 된다. */
-        if(k === HS[0]) signals++;
-      });
+  Object.keys(recs).forEach(tk => {
+    const r = recs[tk], o = {};
+    TICKER_KINDS.forEach(({k}) => {
+      const g = r[k] || {}, c = { signals: g.signals || 0 };
+      TICKER_HS.forEach(h => { const x = g[h] || {n:0,rate:null,avg:null};
+        c[h] = { n:x.n||0, rate:x.rate===undefined?null:x.rate, avg:x.avg===undefined?null:x.avg }; });
+      o[k] = c;
     });
-    if(!signals) return;
-    const rec = { signals };
-    HS.forEach(h => {
-      const a = buckets[h];
-      const w = a.filter(x=>x>1).length, l = a.filter(x=>x<-1).length;
-      rec[h] = { n:a.length,
-                 rate:(w+l) ? Math.round(w/(w+l)*100) : null,
-                 avg:a.length ? Math.round(a.reduce((p,c)=>p+c,0)/a.length*100)/100 : null };
-    });
-    out[s.ticker] = rec;
-  };
-  allStocks().forEach(collect);
+    out[tk] = o;
+  });
+  const days = [...new Set(allStocks().flatMap(s => (histStocks(s)||[]).map(h => h.last_date)))]
+                 .filter(Boolean).sort();
+  return { records: out, days, kinds: TICKER_KINDS.map(x=>x.k), horizons: TICKER_HS };
+})()`);
 
-  /* QQQ는 라이브 랭킹 유니버스에는 넣지 않지만, 개별 실측 표에서는 일반 카드와
-     같은 장기 백테스트를 써야 한다. 별도 qqq_card를 합성 종목으로 정규화해
-     이 파일의 records에만 QQQ를 추가한다. signals.json·history/에는 손대지 않는다. */
-  if(d && d.qqq_card){
-    const qr = Object.assign({}, d.qqq_card, {
-      ticker:"QQQ", name:d.qqq_card.name||"나스닥100 ETF", category:"시장 기준", currency:"USD",
-      market_level:"neutral", market_weak:false, market_ret20:d.qqq_card.ret20, rs20:0,
-      validation_blocked_dates:[], validation_affected_dates:[]
-    });
-    const qn = normalize({stocks:[qr], qqq_card:d.qqq_card, hist_fields:d.hist_fields}).stocks[0];
-    if(qn) collect(qn);
-  }
-  this.blockedDays = blockedDays;
-  return out;
-};`, ctx);
-
-const records = ctx.build(base, HS);
-const days = [...new Set(base.stocks.flatMap(s => (s.hist||[]).map(r => r[base.hist_fields.indexOf('date')])))].sort();
+const days = res.days;
 const payload = {
   kind: 'backtest',
   note: '현재 산식을 과거 데이터에 소급 적용한 백테스트. signals.json의 frozen 원장(그날 실제로 본 신호)과 다른 주장이다.',
@@ -139,16 +64,18 @@ const payload = {
   earnings_excluded: base.earnings_excluded === true,
   built_at: new Date().toISOString().slice(0,16).replace('T',' ') + ' UTC',
   window: days.length ? { from: days[0], to: days[days.length-1], days: days.length } : null,
-  horizons: HS,
-  records,
+  kinds: res.kinds,
+  horizons: res.horizons,
+  records: res.records,
 };
-fs.mkdirSync(require('path').dirname(OUT), { recursive: true });
+fs.mkdirSync(path.dirname(OUT), { recursive: true });
 fs.writeFileSync(OUT, JSON.stringify(payload));
 
-const tks = Object.keys(records);
-const kb = fs.statSync(OUT).size / 1024;
-console.log(`실적 제외: ${payload.earnings_excluded ? '적용' : '미적용'} · 금지 세션 ${ctx.blockedDays||0}일 · ` +
-  `QQQ 기준카드(K2): ${base.qqq_card ? '있음' : '없음'}`);
-console.log(`저장: ${OUT} (${kb.toFixed(0)}KB) · ${tks.length}종목 · 창 ${payload.window ? payload.window.from+'~'+payload.window.to+' ('+payload.window.days+'일)' : '없음'}`);
-const n3 = tks.map(t => records[t][3].n).sort((a,b)=>a-b);
-if(n3.length) console.log(`+3일 표본: 최소 ${n3[0]} · 중앙 ${n3[Math.floor(n3.length/2)]} · 최대 ${n3[n3.length-1]} · 5건 이상인 종목 ${n3.filter(x=>x>=5).length}/${n3.length}`);
+const tks = Object.keys(payload.records);
+console.log(`실적 제외: ${payload.earnings_excluded ? '적용' : '미적용'} · QQQ 기준카드(K2): ${base.qqq_card ? '있음' : '없음'}`);
+console.log(`저장: ${OUT} (${(fs.statSync(OUT).size/1024).toFixed(0)}KB) · ${tks.length}종목 · ` +
+  `창 ${payload.window ? payload.window.from+'~'+payload.window.to+' ('+payload.window.days+'일)' : '없음'}`);
+res.kinds.forEach(k => {
+  const n3 = tks.map(t => payload.records[t][k][3].n).sort((a,b)=>a-b);
+  if(n3.length) console.log(`  ${k.padEnd(7)} +3일 표본 최소 ${n3[0]} · 중앙 ${n3[Math.floor(n3.length/2)]} · 최대 ${n3[n3.length-1]} · 5건+ ${n3.filter(x=>x>=5).length}/${n3.length}`);
+});

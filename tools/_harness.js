@@ -93,5 +93,44 @@ ${o.tail || ''}
   return ctx;
 }
 
+/* ── 페이지 통째로 올리기 ──────────────────────────────────────────────
+   extractFunction()은 함수를 하나씩 꺼내므로 의존 함수가 많은 것
+   (strategyValidation → rankMaps → decorateMultiFlags → …)에는 쓸 수 없다.
+   그럴 때는 index.html의 <script>를 통째로 vm에 올리고 그 안에서 호출한다.
+   화면과 완전히 같은 코드가 도는 것이 보장된다 — 부분 추출보다 안전하다.
+
+   최상위 let/const(state, evaluate 등)는 컨텍스트 객체에 안 붙으므로
+   반드시 runInPage()로 코드 문자열을 넣어 호출한다. */
+function loadPage(){
+  const code = /<script[^>]*>([\s\S]*?)<\/script>/.exec(src())[1];
+  const noop = () => {};
+  const el = () => ({ style:{}, dataset:{}, children:[],
+    classList:{add:noop,remove:noop,toggle:noop,contains:()=>false},
+    addEventListener:noop, appendChild:noop, setAttribute:noop, removeAttribute:noop,
+    querySelector:()=>null, querySelectorAll:()=>[], closest:()=>null,
+    get innerHTML(){return "";}, set innerHTML(v){},
+    get textContent(){return "";}, set textContent(v){},
+    remove:noop, focus:noop, scrollIntoView:noop });
+  const ctx = { console, Math, Number, Object, Array, Set, Map, String, JSON, Date, RegExp,
+    Boolean, Error, isNaN, parseFloat, parseInt, encodeURIComponent, decodeURIComponent,
+    Promise, Symbol,
+    document:{ getElementById:()=>el(), querySelector:()=>el(), querySelectorAll:()=>[],
+      createElement:()=>el(), addEventListener:noop, body:el(), documentElement:el(),
+      head:el(), readyState:"loading", cookie:"" },
+    navigator:{userAgent:"node"}, location:{href:"file:///x/",protocol:"file:",search:""},
+    localStorage:{getItem:()=>null,setItem:noop,removeItem:noop},
+    setTimeout:()=>0, clearTimeout:noop, setInterval:()=>0, clearInterval:noop,
+    requestAnimationFrame:()=>0, fetch:()=>Promise.reject(new Error("no net")),
+    matchMedia:()=>({matches:false,addEventListener:noop}), alert:noop,
+    history:{replaceState:noop},
+    addEventListener:noop, removeEventListener:noop, dispatchEvent:noop,
+    scrollTo:noop, innerWidth:1200, innerHeight:800 };
+  ctx.window = ctx; ctx.globalThis = ctx; ctx.self = ctx;
+  vm.createContext(ctx);
+  vm.runInContext(code, ctx, {filename:'index.html'});
+  ctx.runInPage = expr => vm.runInContext(expr, ctx);
+  return ctx;
+}
+
 module.exports = { src, die, extractFunction, extractConst, extractLine,
-                   buildContext, BASE_CONSTS, BASE_FUNCS };
+                   buildContext, loadPage, BASE_CONSTS, BASE_FUNCS };

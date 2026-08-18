@@ -348,7 +348,7 @@ table.validation-cmp th[colspan="3"]{color:var(--ink);font-weight:800}
 .perfbtn:active{opacity:.65}
 /* 국면별 승률 팝업의 매매법 선택 — 지금 보고 있는 것을 한눈에 */
 .perfbtn.on{background:var(--navy);border-color:var(--navy);color:#fff}
-/* 종목별 개별 실측 — 전체 승률과 헷갈리지 않게 테두리로 묶는다 */
+/* 종목별 개별 예측 적중률 — 전체 승률과 헷갈리지 않게 테두리로 묶는다 */
 .tkrec{margin-top:13px;padding:11px 12px;border:1px solid var(--line);border-radius:11px;background:var(--surface2)}
 .tkrec-h{font-size:12.5px;font-weight:800;color:var(--ink);margin-bottom:7px}
 .tkrec-sub{font-size:10.5px;font-weight:600;color:var(--faint);margin-left:4px}
@@ -363,6 +363,7 @@ table.validation-cmp th[colspan="3"]{color:var(--ink);font-weight:800}
 .tkrec-1line .tkrec-rate{font-size:13px}
 .tkrec-1line .tkrec-thin{display:inline}
 .tkrec-weak{opacity:.62}
+.tkrec-best{font-weight:800;color:var(--ink)}
 .res-touch{margin-left:3px;font-size:10.5px;font-weight:800;color:var(--buy);vertical-align:middle;cursor:help}
 .tkrec-note{font-size:11px;color:var(--faint);line-height:1.7;margin-top:6px}
 html[data-theme="dark"] .perfbtn{background:#1c2532;color:#7fb0ff}
@@ -3043,22 +3044,92 @@ function openCartReview(){
    그래서 승률만 크게 쓰지 않고 표본 수를 항상 붙이고, 5건 미만은
    숫자 대신 '표본 부족'으로 적는다(방법론 §5-1: 5건 미만은 일화). */
 const TICKER_HS = [1,3,5,7];
+
+/* ── 종목별 신호 3종 실측 ────────────────────────────────────────────────
+   사용자 지시: 히스토리에는 강한매수 하나가 아니라 **강한매수 · 다중신호 ·
+   강한다중(💡)** 셋을 다 적는다. 같은 종목이라도 어떤 신호에서 잘 맞는지가
+   다르기 때문이다.
+
+   숫자는 strategyValidation()이 이미 계산한 표본을 종목별로 접기만 한다.
+   여기서 다시 세면 검증표와 어긋난다 — 실적 제외·보합 ±1%·표본 구성이 전부
+   그쪽 규칙을 그대로 따라온다(방법론 §0). */
+const TICKER_KINDS = [
+  {k:"strong", src:"strongBuy", label:"강한매수", icon:"\u{1F7E2}"},
+  {k:"multi",  src:"multi",     label:"다중신호", icon:"\u{1F535}"},
+  {k:"strict", src:"strict",    label:"강한다중", icon:"\u{1F4A1}"},
+];
+let _tkRecs = null, _tkRecsFor = null;
+function tickerSignalRecords(){
+  if(_tkRecs && _tkRecsFor === state.data) return _tkRecs;
+  const v = strategyValidation();
+  const src = (v && v._phaseRows) || {};
+  const bag = {};
+  TICKER_KINDS.forEach(({k, src:key}) => {
+    TICKER_HS.forEach(h => {
+      ((src[key] || {})[h] || []).forEach(x => {
+        if(!x || !x.ticker) return;
+        const t = bag[x.ticker] || (bag[x.ticker] = {});
+        const kk = t[k] || (t[k] = {});
+        (kk[h] || (kk[h] = [])).push(x);
+      });
+    });
+  });
+  const out = {};
+  Object.keys(bag).forEach(tk => {
+    const rec = { any:false, source:"ledger" };
+    TICKER_KINDS.forEach(({k}) => {
+      const cells = {}; let sigDates = new Set();
+      TICKER_HS.forEach(h => {
+        const xs = (bag[tk][k] || {})[h] || [];
+        const rets = xs.map(x => x.ret);
+        const w = rets.filter(r => r > 1).length, l = rets.filter(r => r < -1).length;
+        cells[h] = { n:rets.length,
+                     rate:(w+l) ? Math.round(w/(w+l)*100) : null,
+                     avg:rets.length ? Math.round(rets.reduce((p,c)=>p+c,0)/rets.length*100)/100 : null };
+        if(rets.length) rec.any = true;
+        if(h === TICKER_HS[0]) xs.forEach(x => sigDates.add(x.date));
+      });
+      cells.signals = sigDates.size;
+      rec[k] = cells;
+    });
+    out[tk] = rec;
+  });
+  _tkRecs = out; _tkRecsFor = state.data;
+  return out;
+}
+
 function tickerStrongRecord(s){
   if(!s) return null;
   /* 백테스트 파일이 있으면 그쪽을 쓴다 — 표본이 훨씬 두껍다.
      없으면 아래에서 frozen 원장 30거래일로 계산한다(둘 다 같은 evaluate()). */
   const bt = TICKER_BT && TICKER_BT.records && TICKER_BT.records[s.ticker];
   if(bt){
-    const res = { any:false, source:"backtest", signals:bt.signals||0,
-                  window:(TICKER_BT.window||{}).days || null,
-                  earnOut:TICKER_BT.earnings_excluded === true };
-    TICKER_HS.forEach(h => {
-      const c = bt[h] || bt[String(h)] || {n:0,rate:null,avg:null};
-      res[h] = { n:c.n||0, rate:c.rate===undefined?null:c.rate, avg:c.avg===undefined?null:c.avg };
-      if(res[h].n) res.any = true;
-    });
+    const meta = { window:(TICKER_BT.window||{}).days || null,
+                   earnOut:TICKER_BT.earnings_excluded === true };
+    /* 새 파일은 신호 3종을 담고(bt.strong/multi/strict), 옛 파일은 강한매수만
+       평평하게 담는다(bt[1]…). 워크플로우를 다시 돌리기 전까지 둘 다 읽는다. */
+    const cell = c => ({ n:(c&&c.n)||0,
+                         rate:(c&&c.rate!==undefined)?c.rate:null,
+                         avg:(c&&c.avg!==undefined)?c.avg:null });
+    if(bt.strong){
+      const res = Object.assign({ any:false, source:"ledger", backtest:true }, meta);
+      TICKER_KINDS.forEach(({k}) => {
+        const g = bt[k] || {}, o = { signals:g.signals||0 };
+        TICKER_HS.forEach(h => { o[h] = cell(g[h] || g[String(h)]); if(o[h].n) res.any = true; });
+        res[k] = o;
+      });
+      return res;
+    }
+    const res = Object.assign({ any:false, source:"backtest", signals:bt.signals||0 }, meta);
+    TICKER_HS.forEach(h => { res[h] = cell(bt[h] || bt[String(h)]); if(res[h].n) res.any = true; });
     return res;
   }
+  /* 원장 경로는 strategyValidation()이 만든 표본을 종목별로 접어 쓴다 —
+     검증표와 같은 숫자를 보장하고, 신호 3종을 한 번에 준다. */
+  const folded = tickerSignalRecords()[s.ticker];
+  if(folded) return folded;
+  /* 여기까지 오는 건 랭킹 유니버스 밖의 카드(QQQ 시장 기준카드)뿐이다.
+     그쪽은 아래 단독 계산 경로를 그대로 쓴다 — 시장 이벤트일 제외도 여기에 있다. */
   const hs = histStocks(s);
   if(!hs || hs.length < 2) return null;
   const blocked = earningsWindowsForValidation(s, hs).blocked;
@@ -3084,29 +3155,43 @@ function tickerStrongRecord(s){
     return { n:a.length, rate:(w+l)?Math.round(w/(w+l)*100):null, win:w, loss:l,
              avg:a.length?Math.round(a.reduce((p,c)=>p+c.ret,0)/a.length*100)/100:null };
   };
-  const res = { any:false };
+  const res = { any:false, source:"solo" };
   TICKER_HS.forEach(h => { res[h] = stat(out[h]); if(res[h].n) res.any = true; });
   res.signals = [...new Set(out[TICKER_HS[0]].map(x=>x.date))].length;
   return res;
 }
 /* 카드·모의점검이 같이 쓰는 표. compact면 한 줄로 줄인다. */
-/* ── 개별 적중률 = 개별 실측 승률의 순위 ────────────────────────────────
+/* ── 개별 예측 적중률 = 개별 실측 승률의 순위 ────────────────────────────
    승률·수익률과는 다른 값이다. "이 종목에 뜬 신호가 얼마나 잘 맞았나"를
-   종목끼리 줄 세운 것이다(사용자 정의, 2026-08-18).
+   종목끼리 줄 세운 것이다(사용자 정의).
 
    비교 규칙
-     1) +1·3·5·7일 중 **가장 높은 승률**로 비교한다
-     2) 동점이면 그중 **가장 높은 두 구간의 평균**으로 비교한다
-   표본 5건 미만 칸은 후보에서 뺀다 — 화면에서 '표본 부족'으로 감추는 숫자를
+     1) 신호 3종(강한매수·다중신호·강한다중) × +1·3·5·7일 **전 칸 중 최고 승률**
+     2) 동점이면 그중 **가장 높은 두 칸의 평균**
+   표본 5건 미만 칸은 후보에서 뺀다 — 화면에서 '표본 부족'으로 흐리게 적는 숫자를
    순위 근거로 쓰면 우연이 1위가 된다(방법론 §5-1). */
+function recCells(rec){
+  if(!rec) return [];
+  const outs = [];
+  if(rec.source !== "ledger"){          // 백테스트 파일 · QQQ 단독 계산 = 강한매수 한 줄
+    TICKER_HS.forEach(h => { const c = rec[h];
+      if(c) outs.push({kind:"strong", label:"강한매수", h, c}); });
+    return outs;
+  }
+  TICKER_KINDS.forEach(({k, label}) => {
+    const grp = rec[k]; if(!grp) return;
+    TICKER_HS.forEach(h => { const c = grp[h]; if(c) outs.push({kind:k, label, h, c}); });
+  });
+  return outs;
+}
 function tickerHitScore(rec){
   if(!rec || !rec.any) return null;
-  const cells = TICKER_HS.map(h => ({h, r:rec[h]}))
-    .filter(x => x.r && x.r.n >= 5 && x.r.rate !== null)
-    .sort((a,b) => b.r.rate - a.r.rate);
+  const cells = recCells(rec).filter(x => x.c.n >= 5 && x.c.rate !== null)
+                             .sort((a,b) => b.c.rate - a.c.rate);
   if(!cells.length) return null;
-  const top2 = cells.length >= 2 ? (cells[0].r.rate + cells[1].r.rate)/2 : cells[0].r.rate;
-  return {h:cells[0].h, rate:cells[0].r.rate, n:cells[0].r.n, avg:cells[0].r.avg, top2};
+  const top2 = cells.length >= 2 ? (cells[0].c.rate + cells[1].c.rate)/2 : cells[0].c.rate;
+  return {h:cells[0].h, kind:cells[0].kind, kindLabel:cells[0].label,
+          rate:cells[0].c.rate, n:cells[0].c.n, avg:cells[0].c.avg, top2};
 }
 let _hitRanks = null, _hitRanksFor = null, _hitRanksBt = null;
 function tickerHitRanks(){
@@ -3124,38 +3209,68 @@ function tickerHitRanks(){
 }
 function hitRankOf(s){ return s ? (tickerHitRanks()[s.ticker] || null) : null; }
 
+/* 표기 규칙(사용자 지시): 3건부터는 숫자를 보여주되 '표본 부족'을 같이 적는다.
+   2건 이하는 숫자를 아예 내지 않는다 — 한 건이 뒤집으면 0%와 100%를 오가서
+   숫자 자체가 정보가 아니다. 3~4건은 흐리게 처리해 눈으로도 구분되게 한다. */
+function tkrecCell(r){
+  if(!r || !r.n) return `<td><span class="tkrec-thin">—</span></td>`;
+  if(r.n < 3) return `<td><span class="tkrec-thin">표본 부족</span><span class="tkrec-n">${r.n}건</span></td>`;
+  const weak = r.n < 5;
+  const c = r.rate>=60 ? "var(--buy)" : r.rate<=40 ? "var(--sell)" : "var(--ink)";
+  return `<td${weak?' class="tkrec-weak"':''}><span class="tkrec-rate" style="color:${c}">${r.rate===null?"—":r.rate+"%"}</span>
+    <span class="tkrec-avg">${r.avg>=0?"+":""}${r.avg}%</span>
+    <span class="tkrec-n">${r.n}건${weak?" · 표본 부족":""}</span></td>`;
+}
+
 function tickerRecordTable(s, compact){
   const rec = tickerStrongRecord(s);
   const name = esc(s && (s.name || s.ticker) || "");
   if(!rec || !rec.any)
     return compact
-      ? `<div class="tkrec tkrec-1line"><b>${name}</b> <span class="tkrec-thin">강한매수 기록 없음</span></div>`
-      : `<div class="tkrec"><div class="tkrec-h">📌 ${name} 개별 실측</div>
-      <div class="tkrec-none">최근 ${histWindowDays()}거래일 동안 이 종목엔 <b>강한매수가 뜬 적이 없어요.</b>
+      ? `<div class="tkrec tkrec-1line"><b>${name}</b> <span class="tkrec-thin">신호 기록 없음</span></div>`
+      : `<div class="tkrec"><div class="tkrec-h">📌 ${name} 개별 예측 적중률</div>
+      <div class="tkrec-none">최근 ${histWindowDays()}거래일 동안 이 종목엔 <b>신호가 뜬 적이 없어요.</b>
       전체 승률은 이 종목의 성적이 아닙니다.</div></div>`;
-  /* 표기 규칙(사용자 지시 2026-08-18): 3건부터는 숫자를 보여주되 '표본 부족'을
-     같이 적는다. 2건 이하는 숫자를 아예 내지 않는다 — 한 건이 뒤집으면 0%와 100%를
-     오가서 숫자 자체가 정보가 아니다. 3~4건은 흐리게 처리해 눈으로도 구분되게 한다. */
-  const cell = r => {
-    if(!r.n) return `<td><span class="tkrec-thin">—</span></td>`;
-    if(r.n < 3) return `<td><span class="tkrec-thin">표본 부족</span><span class="tkrec-n">${r.n}건</span></td>`;
-    const weak = r.n < 5;
-    const c = r.rate>=60 ? "var(--buy)" : r.rate<=40 ? "var(--sell)" : "var(--ink)";
-    return `<td${weak?' class="tkrec-weak"':''}><span class="tkrec-rate" style="color:${c}">${r.rate===null?"—":r.rate+"%"}</span>
-      <span class="tkrec-avg">${r.avg>=0?"+":""}${r.avg}%</span>
-      <span class="tkrec-n">${r.n}건${weak?" · 표본 부족":""}</span></td>`;
-  };
-  const detail = compact ? "" :
-    `<p class="tkrec-note">이 종목에 <b>강한매수(초록뱃지)</b>가 뜬 날만 모은 성적이에요 —
-      신호 <b>${rec.signals}회</b>. 위: 이길 확률 · 가운데: 평균수익 · 아래: 표본 수.<br>
-      전체 승률과 다를 수 있습니다. <b>전체가 좋아도 이 종목은 다를 수 있어요.</b>
-      3~4건은 숫자를 흐리게 적고 '표본 부족'을 같이 붙입니다. 2건 이하는 숫자를 내지 않아요 — 한 건이 뒤집으면 0%와 100%를 오가서 숫자 자체가 정보가 아니거든요.</p>`;
-  const isBT = rec.source === "backtest";
+
+  const hit = hitRankOf(s);
+  const isBT = rec.source === "backtest" || rec.backtest === true;
+
+  /* 모의점검(compact)은 칸이 좁다. 담은 종목마다 표를 그리면 화면을 먹으므로
+     **모든 신호·모든 보유일 중 가장 승률이 높은 한 칸**만 적는다(사용자 지시). */
+  if(compact){
+    const body = hit
+      ? `<span class="tkrec-best">${esc(hit.kindLabel)} · +${hit.h}일</span>
+         <span class="tkrec-rate" style="color:${hit.rate>=60?"var(--buy)":hit.rate<=40?"var(--sell)":"var(--ink)"}">${hit.rate}%</span>
+         <span class="tkrec-sub">${hit.n}건 · 평균 ${hit.avg>=0?"+":""}${hit.avg}%</span>
+         <span class="tkrec-sub">적중률 ${hit.rank}위/${hit.total}</span>`
+      : `<span class="tkrec-thin">표본 부족 — 5건 이상인 칸 없음</span>`;
+    return `<div class="tkrec tkrec-1line"><b>${name}</b> ${body}</div>`;
+  }
+
+  const head = `<tr><th>신호</th>${TICKER_HS.map(h=>`<th>+${h}일</th>`).join("")}</tr>`;
+  const body = (rec.source !== "ledger")
+    ? `<tr><td><b>🟢 강한매수</b></td>${TICKER_HS.map(h=>tkrecCell(rec[h])).join("")}</tr>`
+    : TICKER_KINDS.map(({k,label,icon}) => {
+        const grp = rec[k] || {};
+        return `<tr><td><b>${icon} ${label}</b><span class="tkrec-n">${grp.signals||0}회</span></td>${
+          TICKER_HS.map(h=>tkrecCell(grp[h])).join("")}</tr>`;
+      }).join("");
+
+  const rankLine = hit
+    ? `<div class="tkrec-rank">🎯 개별 예측 적중률 <b>${hit.rank}위</b> / ${hit.total}종목
+        <span class="tkrec-sub">최고 ${esc(hit.kindLabel)} +${hit.h}일 <b>${hit.rate}%</b> (${hit.n}건)</span></div>`
+    : `<div class="tkrec-rank tkrec-thin">🎯 개별 예측 적중률 — 표본 5건 이상인 칸이 없어 순위 없음</div>`;
+
   const srcLabel = isBT
-    ? `강한매수만 · <b>백테스트 ${rec.window||""}거래일</b>`
-    : `강한매수만 · 원장 ${histWindowDays()}거래일`;
+    ? `<b>백테스트 ${rec.window||""}거래일</b>`
+    : `원장 ${histWindowDays()}거래일`;
+  const detail = `<p class="tkrec-note">이 종목에 <b>그 신호가 뜬 날</b>만 모은 성적이에요.
+      위: 이길 확률 · 가운데: 평균수익 · 아래: 표본 수.<br>
+      전체 승률과 다를 수 있습니다. <b>전체가 좋아도 이 종목은 다를 수 있어요.</b>
+      3~4건은 숫자를 흐리게 적고 '표본 부족'을 같이 붙입니다. 2건 이하는 숫자를 내지 않아요 —
+      한 건이 뒤집으면 0%와 100%를 오가서 숫자 자체가 정보가 아니거든요.</p>`;
   /* 경고는 파일이 실제로 무엇을 뺐는지 보고 쓴다 — 고정 문구로 적으면 거짓말이 된다. */
-  const btNote = (isBT && !compact)
+  const btNote = isBT
     ? `<p class="tkrec-note" style="color:var(--sell)">⚠ 이 표는 <b>백테스트</b>입니다 —
         지금 산식을 과거에 소급 적용한 결과지 그날 실제로 뜬 신호가 아니에요.
         관심종목을 지금 시점에서 골랐으니 <b>성적이 위로 부풀려져 있습니다.</b>
@@ -3163,29 +3278,10 @@ function tickerRecordTable(s, compact){
           ? `시장 국면·항복 바닥·실적발표 영향권은 원장과 똑같이 뺐지만, 생존 편향은 남습니다.`
           : `실적발표 영향권도 빼지 못했습니다.`}
         위 검증표(원장 ${histWindowDays()}거래일)와 직접 비교하지 마세요.</p>` : "";
-  const hit = hitRankOf(s);
-  /* 적중률 순위. 표본 5건 이상인 칸이 하나도 없으면 순위를 매기지 않는다 —
-     '몇 위'라는 말이 표본 2건짜리에 붙으면 그 자체가 거짓 정보가 된다. */
-  const rankLine = hit
-    ? `<div class="tkrec-rank">🎯 개별 적중률 <b>${hit.rank}위</b> / ${hit.total}종목
-        <span class="tkrec-sub">최고 +${hit.h}일 <b>${hit.rate}%</b> (${hit.n}건)</span></div>`
-    : `<div class="tkrec-rank tkrec-thin">🎯 개별 적중률 — 표본 5건 이상인 구간이 없어 순위 없음</div>`;
-
-  /* 모의점검(compact)은 칸이 좁다. 네 구간을 다 그리면 담은 종목마다 표가 하나씩
-     쌓여 화면을 먹으므로 **가장 높은 구간 하나만** 적는다(사용자 지시). */
-  if(compact){
-    const body = hit
-      ? `<span class="tkrec-rate" style="color:${hit.rate>=60?"var(--buy)":hit.rate<=40?"var(--sell)":"var(--ink)"}">${hit.rate}%</span>
-         <span class="tkrec-sub">+${hit.h}일 최고 · ${hit.n}건 · 평균 ${hit.avg>=0?"+":""}${hit.avg}%</span>
-         <span class="tkrec-sub">적중률 ${hit.rank}위/${hit.total}</span>`
-      : `<span class="tkrec-thin">표본 부족 — 5건 이상인 구간 없음</span>`;
-    return `<div class="tkrec tkrec-1line"><b>${name}</b> ${body}</div>`;
-  }
 
   return `<div class="tkrec">
-    <div class="tkrec-h">📌 ${name} 개별 실측 <span class="tkrec-sub">${srcLabel}</span></div>
-    <table class="cmp tkrec-t"><tr><th>보유</th>${TICKER_HS.map(h=>`<th>+${h}일</th>`).join("")}</tr>
-      <tr><td><b>성적</b></td>${TICKER_HS.map(h=>cell(rec[h])).join("")}</tr></table>
+    <div class="tkrec-h">📌 ${name} 개별 예측 적중률 <span class="tkrec-sub">${srcLabel}</span></div>
+    <table class="cmp tkrec-t">${head}${body}</table>
     ${rankLine}${detail}${btNote}</div>`;
 }
 
@@ -4338,9 +4434,9 @@ function cartExitBlock(mine){
      '언제 팔까(보유기간)'라는 다른 질문에만 쓰도록 아래로 내려 이름을 붙였다. */
   const perTicker = (mine||[]).map(x=>tickerRecordTable(x, true)).join("");
   return `<div class="cf" style="margin-top:14px">
-    <div class="cf-h">📌 담은 종목별 실측 — 강한매수만</div>
+    <div class="cf-h">📌 담은 종목별 예측 적중률 — 가장 잘 맞은 신호 하나</div>
     ${perTicker}
-    <p class="cf-note" style="margin-top:6px">위 표는 <b>그 종목에 강한매수가 떴던 날</b>만 모은 성적입니다.
+    <p class="cf-note" style="margin-top:6px">위 표는 그 종목에서 <b>가장 승률이 높았던 신호·보유일 한 칸</b>입니다.
       아래 전체 실측과 다를 수 있어요 — <b>전체가 좋아도 이 종목은 다를 수 있습니다.</b>
       3~4건은 '표본 부족'을 같이 붙이고, 2건 이하는 숫자를 내지 않습니다.</p>
   </div>
