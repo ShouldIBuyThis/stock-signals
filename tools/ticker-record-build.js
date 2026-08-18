@@ -123,10 +123,14 @@ const res = ctx.runInPage(`(() => {
      flat 판독 분기가 그대로 읽는다. */
   const qqRec = qq ? tickerStrongRecord(qq) : null;
   if(qqRec && qqRec.any){
-    const flat = { signals: qqRec.signals || 0 };
+    /* 다른 종목과 같은 3종 모양으로 맞춘다 — 요약 출력부·사이트 kinds 분기가
+       records를 일괄로 읽기 때문에 QQQ만 flat이면 깨진다(실제 CI 사고). */
+    const strong = { signals: qqRec.signals || 0 };
     TICKER_HS.forEach(h => { const c = qqRec[h] || {n:0,rate:null,avg:null};
-      flat[h] = { n:c.n||0, rate:c.rate===undefined?null:c.rate, avg:c.avg===undefined?null:c.avg }; });
-    out.QQQ = flat;
+      strong[h] = { n:c.n||0, rate:c.rate===undefined?null:c.rate, avg:c.avg===undefined?null:c.avg }; });
+    const empty = () => { const o = { signals: 0 };
+      TICKER_HS.forEach(h => o[h] = {n:0,rate:null,avg:null}); return o; };
+    out.QQQ = { strong, multi: empty(), strict: empty() };
   }
   return { records: out, days, samples, qqq, breadth,
            kinds: TICKER_KINDS.map(x=>x.k), horizons: TICKER_HS };
