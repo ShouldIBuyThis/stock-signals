@@ -10,6 +10,7 @@
 #  · 이동평균 신호 중복 방지 (한 종목당 추세 점수는 한 갈래만)
 # ============================================================
 import os
+import sys
 import yfinance as yf
 import pandas as pd
 import numpy as np
@@ -1292,6 +1293,14 @@ def main():
     except Exception as e:
         print("QQQ 기준카드 생성 실패:", e)
 
+    # 시장카드가 과거로 돌아가면 그날의 시장 국면이 통째로 틀린 값으로 고정된다.
+    # 종목별 carry로는 못 막는 종류라 실행 자체를 세운다 — 워크플로우가 10분 뒤 1회 재시도한다.
+    prev_qqq = str(((prev_payload or {}).get("qqq_card") or {}).get("last_date") or "")
+    now_qqq = str((qqq_card or {}).get("last_date") or "")
+    if prev_qqq and now_qqq and now_qqq < prev_qqq:
+        sys.exit(f"야후 이력 역행: QQQ 기준카드가 {now_qqq} — 직전 {prev_qqq}보다 과거다. "
+                 f"이 응답으로 시장 국면을 고정하면 안 되므로 중단한다.")
+
     # SPY 보조 시장카드 — 나스닥(QQQ)만으로는 시장 전반을 못 본다는 지적에 따라 추가.
     # 국면 판정에는 아직 쓰지 않는다(판정은 여전히 QQQ 기준). 데이터를 쌓아
     # QQQ·SPY 겸용 국면이 나은지 tools/qqq-lab.js 방식으로 비교한 뒤 결정한다.
@@ -1326,6 +1335,16 @@ def main():
 
             try:
                 row = analyze(tk, nm, cat)
+                # ── 시간 역행 차단 ────────────────────────────────────────
+                # 야후는 가끔 잘린 이력을 준다(2026-08-18 05:41 UTC 사례: 전 종목이
+                # 8/17이 아니라 8/14로 돌아오고 국장은 18봉만 왔다). 그대로 받으면
+                # 카드의 종가 날짜가 **과거로 되돌아가고**, 이미 고정된 그날 snapshot과
+                # 어긋나 검증이 엉뚱한 필드명(prev_change_1d)으로 실패한다.
+                # 원장은 앞으로만 간다 — 뒤로 가는 응답은 데이터 오류로 보고 직전 값을 지킨다.
+                prev_day = str((prev_rows.get(tk) or {}).get("last_date") or "")
+                new_day = str(row.get("last_date") or "")
+                if prev_day and new_day and new_day < prev_day:
+                    raise ValueError(f"야후 이력 역행 ({new_day} < 직전 {prev_day}) — 직전 값 유지")
                 # 시장 필터: 미국 종목이고 QQQ가 약세면 표시 (대시보드가 -0.5 반영)
                 # 이 값은 오늘 hist 행에도 그대로 실려 그날의 시장 입력으로 고정된다.
                 lv, wk, rt = market_inputs_for(tk, mkt_level, mkt.get("ret20") if isinstance(mkt, dict) else None)
