@@ -363,6 +363,7 @@ table.validation-cmp th[colspan="3"]{color:var(--ink);font-weight:800}
 .tkrec-1line .tkrec-rate{font-size:13px}
 .tkrec-1line .tkrec-thin{display:inline}
 .tkrec-weak{opacity:.62}
+.res-touch{margin-left:3px;font-size:10.5px;font-weight:800;color:var(--buy);vertical-align:middle;cursor:help}
 .tkrec-note{font-size:11px;color:var(--faint);line-height:1.7;margin-top:6px}
 html[data-theme="dark"] .perfbtn{background:#1c2532;color:#7fb0ff}
 html[data-theme="dark"] .perfbtn.on{background:var(--navy);color:#fff}
@@ -2667,8 +2668,15 @@ function rankMark(i, rankless=false, s=null){
    과열·경계는 등급이 아니라 뱃지로만 표시한다. */
 function gradeLabel(sig){ return GRADES[sig ? sig.grade : 3]; }
 function gradeCls(sig){ return "g"+(sig ? sig.grade : 3); }
-function stockGradeLabel(s){ return s&&s.earnings_hold ? "보류" : gradeLabel(s&&s.sig); }
-function stockGradeCls(s){ return s&&s.earnings_hold ? "gHold" : gradeCls(s&&s.sig); }
+/* 지수(QQQ)는 FOMC·CPI·PCE·고용 같은 시장 이벤트 당일에 기술신호가 사실상 무력해진다.
+   개별 종목은 그날도 신호를 그대로 내지만, 지수는 이벤트 자체가 가격을 만든다.
+   그래서 지수 카드만 그날 '보류'로 낸다 — 그리고 보류한 날은 지수 실측에서도 뺀다.
+   (내지 않은 신호를 승률에 넣으면 화면과 다른 걸 재게 된다. 실적 보류와 같은 원리다.) */
+function marketEventHold(s){
+  return !!(s && s._benchmark && marketEventTypes(marketEventsForRow(s)).length);
+}
+function stockGradeLabel(s){ return (s&&s.earnings_hold)||marketEventHold(s) ? "보류" : gradeLabel(s&&s.sig); }
+function stockGradeCls(s){ return (s&&s.earnings_hold)||marketEventHold(s) ? "gHold" : gradeCls(s&&s.sig); }
 
 function starRow(icon, label, n, note){
   const full = "★".repeat(n) + "☆".repeat(5-n);
@@ -2727,7 +2735,7 @@ function compactRow(s, i, rankless=false){
       <span class="c-rank">${(()=>{ if(rankless||state.sort==="category"||state.sort==="hold") return "";
         const n=sortRankOf(s) ?? (i+1);
         return n<=3 ? ["🥇","🥈","🥉"][n-1] : `<span class="num">${n}</span>`; })()}</span>
-      <span class="c-name"><b>${esc(s.ticker)}${levMark(s.ticker)}</b>${s._multiStrict?multiBulb(s.ticker):""}<em>${esc(s.name||"")}</em></span>
+      <span class="c-name"><b>${esc(s.ticker)}${levMark(s.ticker)}</b>${s._multiStrict?multiBulb(s.ticker)+resTouchMark(s):""}<em>${esc(s.name||"")}</em></span>
       <span class="c-badge ${stockGradeCls(s)}">${stockGradeLabel(s)}</span>
       <span class="c-price num">${fmtPrice(s)}<em class="${chgCls(s.change_1d)}">${fmtChg(s.change_1d)}</em></span>
       <span class="c-flag">${key?`<span class="tag ${key.c}">${key.t.replace(/\(.*\)/,"")}</span>`:""}</span>
@@ -3054,6 +3062,9 @@ function tickerStrongRecord(s){
   hs.forEach((h, i) => {
     if(!h.last_date || !has(h.price) || !h.price) return;
     if(blocked.has(h.last_date)) return;              // 실적 영향권 신호는 검증에서 제외
+    /* 지수는 시장 이벤트 당일을 '보류'로 내므로 실측에서도 뺀다 — 화면과 같은 규칙.
+       개별 종목은 그날도 신호를 내므로 빼지 않는다(빼면 승률만 부풀려진다). */
+    if(s && s._benchmark && marketEventTypes(marketEventsForRow(h)).length) return;
     const row = Object.assign({}, s, h);
     if(i>0) withPrev(row, hs[i-1]);
     row._prevOverallGrade = i>0 ? evaluate(hs[i-1]).grade : null;
@@ -3301,7 +3312,8 @@ function externalRiskInfo(s){
   /* 대형 제약·헬스케어 펀드는 임상 하나에 주가가 뒤집히는 구조가 아니라
      이 경고가 과했다(사용자 지적). 개별 파이프라인 리스크가 실제로 큰
      중소형 바이오에만 남긴다. UI 전용이라 점수·등급에는 영향이 없다. */
-  const HEALTH_LARGE = ["LLY","UNH","HQH"];
+  // UNH는 사용자 판단으로 경고를 유지한다(보험 규제·의료비율 이슈가 실제로 컸다).
+  const HEALTH_LARGE = ["LLY","HQH"];
   if((cat.includes("헬스케어") || cat.includes("바이오")) && !HEALTH_LARGE.includes(tk))
     return {title:"헬스케어·바이오 안내",text:"헬스케어, 특히 바이오는 임상·FDA·실적 등 개별 이벤트 영향이 커 기술적 신호가 갑자기 무력화될 수 있어요."};
   return null;
@@ -3344,7 +3356,7 @@ function stockCard(s, i, rankless=false){
   return `<div class="stock g${g}${s.earnings_hold?" hold-card":""}${LEVERAGED[s.ticker]?" lev-card":""}${s._multiStrict?" multi-strict":""}" data-tk="${esc(s.ticker)}">
     <div class="s-top">
       ${rankMark(i, rankless, s)}
-      <span class="s-tk${externalRiskInfo(s)?" risk-ticker":""}"${riskTickerAttrs(s)}>${esc(s.ticker)}</span>${levMark(s.ticker)}${s._multiStrict?multiBulb(s.ticker):""}
+      <span class="s-tk${externalRiskInfo(s)?" risk-ticker":""}"${riskTickerAttrs(s)}>${esc(s.ticker)}</span>${levMark(s.ticker)}${s._multiStrict?multiBulb(s.ticker)+resTouchMark(s):""}
       <span class="s-nm">${esc(s.name||"")}${LEVERAGED[s.ticker]?` <span class="levnote">(고변동 레버리지)</span>`:""}</span>
       <span class="s-tools">
         <button data-act="own" class="own ${s._hold?"on":""}" title="보유 종목으로 표시">보유${s._hold?"★":"☆"}</button>
@@ -3368,6 +3380,30 @@ function emptyState(){
 }
 
 /* 엄격 다중 표시용 전구. 카드 안 다른 버튼과 겹치지 않도록 span(role=button)으로 둔다. */
+/* ── 저항선 두드림 표시 (표시 전용 · 점수·등급·순위에 들어가지 않는다) ──
+   실측: 강한매수 중 최근 20거래일에 같은 저항선을 2번 이상 두드린 뒤 뜬 신호는
+   +1/3/5일 91/91/100%(19건)로 💡 평균(76/83/89%)보다 확실히 높았다. §2 반쪽도 통과.
+   다만 평균수익은 +3.75%로 💡 평균 +7.92%의 절반이다 — 자주 이기지만 조금 번다.
+   그래서 순위를 올리는 가산점으로는 쓰지 않는다(수익률이 내려간다).
+   자격 확장으로도 쓰지 않는다 — 두드림 2회+ 20건 중 19건이 이미 💡 안에 있어
+   확장해도 1건만 늘고 승률이 안 움직인다. 남는 쓸모는 '💡 중에서도 더 확실한 것'을
+   눈으로 구분해 주는 표시뿐이라, 딱 그것만 한다. */
+function resTouchCount(s){
+  const res = num(s && s.res_short);
+  if(!has(res) || !res) return 0;
+  const hs = histStocks(s) || [];
+  const prior = hs.slice(-21, -1);            // 오늘 제외, 직전 최대 20거래일
+  let n = 0;
+  prior.forEach(h => { const p = num(h.price);
+    if(has(p) && p >= res*0.985 && p <= res*1.005) n++; });
+  return n;
+}
+function resTouchMark(s){
+  const n = resTouchCount(s);
+  if(n < 2) return "";
+  return `<span class="res-touch" role="button" tabindex="0" data-restouch="${esc(s.ticker)}" title="최근 20거래일 중 ${n}번 이 저항선에서 막혔어요">\u{1F528}${n}</span>`;
+}
+
 function multiBulb(tk){
   return `<span class="multi-bulb" role="button" tabindex="0" data-multibulb="${esc(tk)}" title="오늘 신호가 강하게 겹친 종목" aria-label="신호가 강하게 겹친 종목 설명">\u{1F4A1}</span>`;
 }
