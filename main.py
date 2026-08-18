@@ -735,8 +735,31 @@ def drop_invalid_price_rows(df, ticker):
         print(f"데이터 품질 보호: {ticker} 비정상 OHLC {removed}행 제외")
     return df.loc[mask].copy()
 
+def _fetch_daily(ticker, days_back=520):
+    """일봉을 받는다. period= 가 잘려 오면 명시적 날짜 범위로 한 번 더 시도한다.
+
+    야후는 .KS(KRX) 같은 일부 시장에서 period="1y"를 줘도 최근 몇 주만 돌려줄 때가
+    있다(2026-08-18 실측: 코스피·코스닥이 19봉). 같은 티커라도 start/end를 명시하면
+    정상적으로 1년치가 온다. 첫 응답이 충분하면 추가 호출은 하지 않는다.
+    """
+    t = yf.Ticker(ticker)
+    df = t.history(period=PERIOD, interval="1d", auto_adjust=False)
+    if df is not None and len(df) >= 120:
+        return df
+    try:
+        end = datetime.now(_NY).date() + timedelta(days=1)
+        alt = t.history(start=str(end - timedelta(days=days_back)), end=str(end),
+                        interval="1d", auto_adjust=False)
+        if alt is not None and len(alt) > (0 if df is None else len(df)):
+            print(f"데이터 보정: {ticker} period={PERIOD} {0 if df is None else len(df)}봉 "
+                  f"→ 날짜범위 조회 {len(alt)}봉")
+            return alt
+    except Exception as e:
+        print(f"데이터 보정 실패: {ticker} — {e}")
+    return df
+
 def analyze(ticker, name, category):
-    df = yf.Ticker(ticker).history(period=PERIOD, interval="1d", auto_adjust=False)
+    df = _fetch_daily(ticker)
     df = drop_unclosed(df, ticker)
     df = drop_invalid_price_rows(df, ticker)
     need = MIN_BARS_OVERRIDE.get(ticker, MIN_BARS)
