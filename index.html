@@ -3519,10 +3519,77 @@ function resTouchCount(s){
     if(has(p) && p >= res*0.985 && p <= res*1.005) n++; });
   return n;
 }
+/* 두드림 뱃지의 실측 승률. 하드코딩하지 않고 화면이 매번 다시 센다 —
+   원장이 하루씩 늘어나면 숫자도 같이 움직여야 하기 때문이다.
+   표본은 검증표와 같은 것을 쓴다(strategyValidation의 강한매수 표본, 실적 제외 포함).
+   여기서 따로 세면 검증표와 어긋난다(방법론 §0). */
+let _resRec = null, _resRecFor = null;
+function resTouchRecord(){
+  if(_resRec && _resRecFor === state.data) return _resRec;
+  const touch = new Map();
+  allStocks().forEach(s => {
+    const hs = histStocks(s) || [];
+    hs.forEach((h, i) => {
+      const res = num(h.res_short);
+      if(!has(res) || !res) return;
+      let n = 0;
+      for(let j = Math.max(0, i-20); j < i; j++){
+        const p = num(hs[j].price);
+        if(has(p) && p >= res*0.985 && p <= res*1.005) n++;
+      }
+      touch.set(s.ticker + "|" + h.last_date, n);
+    });
+  });
+  const src = ((strategyValidation() || {})._phaseRows || {}).strongBuy || {};
+  const out = { multi:{}, single:{}, hs:[1,3,5] };
+  out.hs.forEach(h => {
+    const rows = src[h] || [];
+    const pick = f => {
+      const a = rows.filter(f).map(x => x.ret);
+      const w = a.filter(x => x>1).length, l = a.filter(x => x<-1).length;
+      return { n:a.length, rate:(w+l)?Math.round(w/(w+l)*100):null,
+               avg:a.length?Math.round(a.reduce((p,c)=>p+c,0)/a.length*100)/100:null };
+    };
+    out.multi[h]  = pick(x => (touch.get(x.ticker+"|"+x.date) || 0) >= 2);
+    out.single[h] = pick(x => (touch.get(x.ticker+"|"+x.date) || 0) <  2);
+  });
+  _resRec = out; _resRecFor = state.data;
+  return out;
+}
+function openResTouchModal(tk){
+  const s = allStocks().find(x => x.ticker === tk);
+  const n = s ? resTouchCount(s) : 0;
+  const r = resTouchRecord();
+  const cell = c => !c || !c.n ? `<td><span class="tkrec-thin">—</span></td>`
+    : c.n < 3 ? `<td><span class="tkrec-thin">표본 부족</span><span class="tkrec-n">${c.n}건</span></td>`
+    : `<td${c.n<5?' class="tkrec-weak"':''}><span class="tkrec-rate">${c.rate===null?"—":c.rate+"%"}</span>
+        <span class="tkrec-avg">${c.avg>=0?"+":""}${c.avg}%</span>
+        <span class="tkrec-n">${c.n}건${c.n<5?" · 표본 부족":""}</span></td>`;
+  const rows = [["🔨 2번 이상 두드린 뒤", r.multi], ["처음~1번", r.single]]
+    .map(([lab, g]) => `<tr><td><b>${lab}</b></td>${r.hs.map(h=>cell(g[h])).join("")}</tr>`).join("");
+  openModal(`<h3>🔨 저항선 두드림${s?` — ${esc(s.name||tk)} ${n}번`:""}</h3>
+    <p style="font-size:12.5px;color:var(--reason);line-height:1.8">
+      최근 20거래일 중 종가가 저항선 근처(±1.5%)까지 갔다가 <b>넘지 못한 날</b>을 센 거예요.
+      여러 번 두드렸다는 건 그 가격대의 <b>매물이 그만큼 소화됐다</b>는 뜻입니다.</p>
+    <table class="cmp tkrec-t"><tr><th>강한매수</th>${r.hs.map(h=>`<th>+${h}일</th>`).join("")}</tr>${rows}</table>
+    <p style="font-size:12px;color:var(--reason);line-height:1.8;margin-top:8px">
+      최근 ${histWindowDays()}거래일 원장에서 <b>강한매수가 뜬 날</b>만 모아 방금 계산한 숫자예요.
+      위: 이길 확률 · 가운데: 평균수익 · 아래: 표본 수.<br>
+      ⚠ <b>승률은 높지만 평균수익은 낮습니다.</b> 자주 이기지만 조금 버는 자리예요 —
+      그래서 이 뱃지는 <b>점수·등급·순위에 전혀 반영하지 않고</b> 표시만 합니다.
+      순위를 올리면 승률은 오르고 수익률은 내려가거든요.</p>
+    <div class="modal-actions"><button class="primary" onclick="closeModal()">닫기</button></div>`);
+}
+
 function resTouchMark(s){
   const n = resTouchCount(s);
   if(n < 2) return "";
-  return `<span class="res-touch" role="button" tabindex="0" data-restouch="${esc(s.ticker)}" title="최근 20거래일 중 ${n}번 이 저항선에서 막혔어요">\u{1F528}${n}</span>`;
+  const r = resTouchRecord();
+  const t3 = r.multi[3];
+  const tip = t3 && t3.n >= 5
+    ? `최근 20거래일 중 ${n}번 이 저항선에서 막혔어요 · 같은 조건 실측 +3일 ${t3.rate}%(${t3.n}건)`
+    : `최근 20거래일 중 ${n}번 이 저항선에서 막혔어요`;
+  return `<span class="res-touch" role="button" tabindex="0" data-restouch="${esc(s.ticker)}" title="${esc(tip)}">\u{1F528}${n}</span>`;
 }
 
 function multiBulb(tk){
@@ -5115,6 +5182,8 @@ document.getElementById("main").addEventListener("click", e=>{
     e.preventDefault(); e.stopPropagation();
     state.themeFilter=""; state.displayLimit=20; save(); render(); return;
   }
+  const resTouchBtn = e.target.closest("[data-restouch]");
+  if(resTouchBtn){ e.preventDefault(); e.stopPropagation(); openResTouchModal(resTouchBtn.dataset.restouch); return; }
   const marketEventBtn = e.target.closest("[data-market-event]");
   if(marketEventBtn){ e.preventDefault(); e.stopPropagation(); openMarketEventModal(marketEventBtn.dataset.marketEvent); return; }
   const rankGoto = e.target.closest("[data-rankgoto]");
