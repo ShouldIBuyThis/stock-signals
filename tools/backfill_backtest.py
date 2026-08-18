@@ -123,6 +123,24 @@ def build(days: int) -> dict:
         qqq_card = None
         print(f"⚠ QQQ 기준카드 실패 — K2 해제가 백테스트에 반영되지 않는다: {e}")
 
+    # 나스닥 예측용 거시 축. 지금은 저장만 하고 판정에는 쓰지 않는다 —
+    # 188거래일 표본이 쌓여야 §2·§3 검증을 할 수 있기 때문이다.
+    #   ^VXN 나스닥 변동성 · ^TNX 미국 10년물 금리 · NQ=F 나스닥100 선물(일봉)
+    macro = {}
+    for sym, key in (("^VXN", "vxn"), ("^TNX", "tnx"), ("NQ=F", "nq")):
+        try:
+            df = M._fetch_daily(sym)
+            df = M.drop_unclosed(df, sym)
+            if df is None or len(df) == 0:
+                print(f"거시 지표 없음: {sym}")
+                continue
+            macro[key] = {d.strftime("%Y-%m-%d"): (None if M.pd.isna(v) else round(float(v), 4))
+                          for d, v in df["Close"].items()}
+            print(f"거시 지표 {sym} → {key} {len(macro[key])}일")
+        except Exception as e:
+            print(f"거시 지표 실패: {sym} — {e}")
+        time.sleep(0.15)
+
     print(f"실적 영향권: 신호금지 세션 {earn_days}일 수집")
     return {
         "kind": "backtest",           # 원장이 아님을 파일 안에도 남긴다
@@ -134,6 +152,7 @@ def build(days: int) -> dict:
         "hist_fields": M.HIST_FIELDS,
         "market": mkt,
         "qqq_card": qqq_card,
+        "macro": macro,
         "stocks": rows,
         "failed": failed,
     }

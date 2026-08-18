@@ -91,7 +91,32 @@ const res = ctx.runInPage(`(() => {
     });
   });
   const samples = [...byId.values()];
-  return { records: out, days, samples, kinds: TICKER_KINDS.map(x=>x.k), horizons: TICKER_HS };
+  /* ── 나스닥(QQQ) 예측용 일별 시계열 ────────────────────────────────
+     QQQ는 랭킹 유니버스 밖이라 위 records에 안 들어간다. 그런데 '방어주 쏠림이
+     다음날 QQQ를 예고하는가' 같은 질문은 원장 30일로는 표본이 6건이라 영원히
+     답이 안 나온다. 그래서 백테스트 창의 QQQ 하루치를 따로 뽑아 둔다.
+     breadth(20일선 위 종목 비율)는 외부 데이터 없이 우리 종목으로 계산한다. */
+  const qq = qqqBenchmarkStock();
+  const qhs = qq ? (histStocks(qq) || []) : [];
+  const qqq = qhs.map((h, i) => {
+    const row = Object.assign({}, qq, h);
+    if(i>0) withPrev(row, qhs[i-1]);
+    row._prevOverallGrade = i>0 ? evaluate(qhs[i-1]).grade : null;
+    const g = evaluate(row);
+    return { d:h.last_date, chg:num(h.change_1d), rsi:num(h.rsi), bb:num(h.bb_pos),
+             lvl:h.market_level||null, grade:g.grade, buy:g.buyScore };
+  });
+  /* 그날 20일선 위에 있던 종목 비율 */
+  const above = {}, total = {};
+  allStocks().forEach(s => (histStocks(s)||[]).forEach(h => {
+    if(!h.last_date || !has(h.price) || !has(h.ma20)) return;
+    total[h.last_date] = (total[h.last_date]||0) + 1;
+    if(h.price > h.ma20) above[h.last_date] = (above[h.last_date]||0) + 1;
+  }));
+  const breadth = Object.keys(total).sort().map(d => ({
+    d, pct: Math.round((above[d]||0)/total[d]*1000)/10, n: total[d] }));
+  return { records: out, days, samples, qqq, breadth,
+           kinds: TICKER_KINDS.map(x=>x.k), horizons: TICKER_HS };
 })()`);
 
 const days = res.days;
@@ -111,7 +136,8 @@ const payload = {
 const SOUT = OUT.replace(/\.json$/, '') + '-samples.json';
 fs.writeFileSync(SOUT, JSON.stringify({
   kind:'backtest', note:payload.note, window:payload.window,
-  horizons:res.horizons, samples:res.samples }));
+  horizons:res.horizons, samples:res.samples,
+  qqq:res.qqq, breadth:res.breadth, macro:base.macro || null }));
 fs.mkdirSync(path.dirname(OUT), { recursive: true });
 fs.writeFileSync(OUT, JSON.stringify(payload));
 
@@ -119,6 +145,7 @@ const tks = Object.keys(payload.records);
 console.log(`실적 제외: ${payload.earnings_excluded ? '적용' : '미적용'} · QQQ 기준카드(K2): ${base.qqq_card ? '있음' : '없음'}`);
 console.log(`저장: ${OUT} (${(fs.statSync(OUT).size/1024).toFixed(0)}KB) · ${tks.length}종목 · ` +
   `창 ${payload.window ? payload.window.from+'~'+payload.window.to+' ('+payload.window.days+'일)' : '없음'}`);
+console.log(`QQQ 일별 ${res.qqq.length}일 · breadth ${res.breadth.length}일 · 거시 ${Object.keys(base.macro||{}).join(",")||"없음"}`);
 console.log(`신호 표본: ${SOUT} (${(fs.statSync(SOUT).size/1024).toFixed(0)}KB) · ${res.samples.length}건`);
 res.kinds.forEach(k => {
   const n3 = tks.map(t => payload.records[t][k][3].n).sort((a,b)=>a-b);
