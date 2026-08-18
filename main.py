@@ -1355,9 +1355,14 @@ def main():
                     failed.append(f"{tk} ({nm}) — 직전 데이터 없음")
                 continue
 
-            # 시장 피드 자체가 과거로 돌아간 실행에서는 종목을 새로 받지 않는다.
+            # 미국 시장 피드가 과거로 돌아간 실행에서는 미국 종목을 새로 받지 않는다.
             # 일부만 최신이면 그 행의 시장 입력(market_level)이 다른 날 값으로 섞인다.
-            if stale_feed and tk in prev_rows:
+            #
+            # 한국 종목은 여기서 제외한다 — histRow()가 국장 행의 market_level을 항상
+            # neutral로 고정하므로 QQQ가 며칠 전 값이어도 국장 판정은 오염되지 않는다.
+            # 이걸 안 갈라 뒀더니 미국 쪽 야후 문제 하나로 국장 종가까지 며칠씩
+            # 멈춰 있었다(2026-08-18: kr 스코프 실행인데 전 종목 carry).
+            if stale_feed and not is_kr and tk in prev_rows:
                 kept = dict(prev_rows[tk])
                 kept["name"], kept["category"] = nm, cat
                 kept["data_status"] = "carried_stale_feed"
