@@ -362,6 +362,7 @@ table.validation-cmp th[colspan="3"]{color:var(--ink);font-weight:800}
 .tkrec-1line{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px;padding:7px 10px;font-size:11.5px}
 .tkrec-1line .tkrec-rate{font-size:13px}
 .tkrec-1line .tkrec-thin{display:inline}
+.tkrec-weak{opacity:.62}
 .tkrec-note{font-size:11px;color:var(--faint);line-height:1.7;margin-top:6px}
 html[data-theme="dark"] .perfbtn{background:#1c2532;color:#7fb0ff}
 html[data-theme="dark"] .perfbtn.on{background:var(--navy);color:#fff}
@@ -3117,18 +3118,23 @@ function tickerRecordTable(s, compact){
       : `<div class="tkrec"><div class="tkrec-h">📌 ${name} 개별 실측</div>
       <div class="tkrec-none">최근 ${histWindowDays()}거래일 동안 이 종목엔 <b>강한매수가 뜬 적이 없어요.</b>
       전체 승률은 이 종목의 성적이 아닙니다.</div></div>`;
+  /* 표기 규칙(사용자 지시 2026-08-18): 3건부터는 숫자를 보여주되 '표본 부족'을
+     같이 적는다. 2건 이하는 숫자를 아예 내지 않는다 — 한 건이 뒤집으면 0%와 100%를
+     오가서 숫자 자체가 정보가 아니다. 3~4건은 흐리게 처리해 눈으로도 구분되게 한다. */
   const cell = r => {
     if(!r.n) return `<td><span class="tkrec-thin">—</span></td>`;
-    if(r.n < 5) return `<td><span class="tkrec-thin">표본 부족</span><span class="tkrec-n">${r.n}건</span></td>`;
+    if(r.n < 3) return `<td><span class="tkrec-thin">표본 부족</span><span class="tkrec-n">${r.n}건</span></td>`;
+    const weak = r.n < 5;
     const c = r.rate>=60 ? "var(--buy)" : r.rate<=40 ? "var(--sell)" : "var(--ink)";
-    return `<td><span class="tkrec-rate" style="color:${c}">${r.rate===null?"—":r.rate+"%"}</span>
-      <span class="tkrec-avg">${r.avg>=0?"+":""}${r.avg}%</span><span class="tkrec-n">${r.n}건</span></td>`;
+    return `<td${weak?' class="tkrec-weak"':''}><span class="tkrec-rate" style="color:${c}">${r.rate===null?"—":r.rate+"%"}</span>
+      <span class="tkrec-avg">${r.avg>=0?"+":""}${r.avg}%</span>
+      <span class="tkrec-n">${r.n}건${weak?" · 표본 부족":""}</span></td>`;
   };
   const detail = compact ? "" :
     `<p class="tkrec-note">이 종목에 <b>강한매수(초록뱃지)</b>가 뜬 날만 모은 성적이에요 —
       신호 <b>${rec.signals}회</b>. 위: 이길 확률 · 가운데: 평균수익 · 아래: 표본 수.<br>
       전체 승률과 다를 수 있습니다. <b>전체가 좋아도 이 종목은 다를 수 있어요.</b>
-      표본이 5건도 안 되면 숫자 대신 '표본 부족'으로 적습니다 — 우연과 구분이 안 되기 때문이에요.</p>`;
+      3~4건은 숫자를 흐리게 적고 '표본 부족'을 같이 붙입니다. 2건 이하는 숫자를 내지 않아요 — 한 건이 뒤집으면 0%와 100%를 오가서 숫자 자체가 정보가 아니거든요.</p>`;
   const isBT = rec.source === "backtest";
   const srcLabel = isBT
     ? `강한매수만 · <b>백테스트 ${rec.window||""}거래일</b>`
@@ -4296,7 +4302,7 @@ function cartExitBlock(mine){
     ${perTicker}
     <p class="cf-note" style="margin-top:6px">위 표는 <b>그 종목에 강한매수가 떴던 날</b>만 모은 성적입니다.
       아래 전체 실측과 다를 수 있어요 — <b>전체가 좋아도 이 종목은 다를 수 있습니다.</b>
-      표본 5건 미만은 우연과 구분이 안 돼 숫자 대신 '표본 부족'으로 적습니다.</p>
+      3~4건은 '표본 부족'을 같이 붙이고, 2건 이하는 숫자를 내지 않습니다.</p>
   </div>
   <div class="cf" style="margin-top:14px">
     <div class="cf-h">⏳ 언제 팔까 — ${label} <b>전체</b> 실측 (보유기간 참고)</div>
