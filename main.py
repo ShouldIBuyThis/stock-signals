@@ -1013,10 +1013,41 @@ def sync_prev_from_hist(results):
     반드시 freeze_signal_hist() 뒤에 부른다(그래야 hist[-1]이 오늘 행이다).
     """
     idx = {k: i for i, k in enumerate(HIST_FIELDS)}
+    # 확정된 날의 카드는 그날 snapshot이 진실이다. 신규 종목 과거 보충
+    # (seed_past_hist)으로 hist[-2]가 '동결 이후에' 생기면, hist에서 다시 계산한
+    # prev_*가 이미 고정된 snapshot(당시 None)과 어긋나 검증이 선다
+    # (2026-08-18 SKHY prev_change_1d 실패 — carried 예외만으로는 재수집 실행을
+    # 못 막았다). 그래서 그 티커가 그날 snapshot에 있으면 prev_*는 snapshot 값을
+    # 글자 그대로 쓴다. 없을 때만 frozen hist[-2]에서 계산한다.
+    PREV_KEYS = ("prev_change_1d", "prev_vol_ratio", "prev_macd_hist",
+                 "prev_price", "prev_ma5", "prev_ma20")
+    snap_prev = {}
+    for region in ("us", "kr"):
+        sel = [r for r in results
+               if is_kr_ticker(r.get("ticker", "")) == (region == "kr") and r.get("last_date")]
+        if not sel:
+            continue
+        day = max(str(r["last_date"]) for r in sel)
+        path = os.path.join("history", region, f"{day}.json")
+        if not os.path.exists(path):
+            continue
+        try:
+            with open(path, encoding="utf-8") as fh:
+                snap = json.load(fh)
+        except Exception:
+            continue
+        for s0 in (snap.get("stocks") or []):
+            tk = s0.get("ticker")
+            if tk and str(s0.get("last_date") or "") == day:
+                snap_prev[tk] = (day, {k: s0.get(k) for k in PREV_KEYS})
     for r in results:
+        # snapshot 원문이 있으면 carried 여부와 무관하게 그 값이 진실이다.
+        sp = snap_prev.get(r.get("ticker"))
+        if sp is not None and str(r.get("last_date") or "") == sp[0]:
+            for k, v in sp[1].items():
+                r[k] = v
+            continue
         # carry된 행은 이미 고정된 snapshot과 글자 하나까지 같아야 한다.
-        # 신규 종목 과거 보충(seed_past_hist)으로 hist[-2]가 새로 생기면 여기서
-        # prev_*가 바뀌어 그날 snapshot과 어긋난다(2026-08-18 SKHY 실패 사례).
         if str(r.get("data_status") or "").startswith("carried"):
             continue
         hist = r.get("hist") or []
