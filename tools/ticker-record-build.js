@@ -78,7 +78,7 @@ this.build = (d, HS) => {
   state.data = normalize(d);
   const out = {};
   let blockedDays = 0;
-  allStocks().forEach(s => {
+  const collect = s => {
     const hs = histStocks(s) || [];
     if(hs.length < 2) return;
     const blocked = earningsWindowsForValidation(s, hs).blocked;
@@ -111,7 +111,21 @@ this.build = (d, HS) => {
                  avg:a.length ? Math.round(a.reduce((p,c)=>p+c,0)/a.length*100)/100 : null };
     });
     out[s.ticker] = rec;
-  });
+  };
+  allStocks().forEach(collect);
+
+  /* QQQ는 라이브 랭킹 유니버스에는 넣지 않지만, 개별 실측 표에서는 일반 카드와
+     같은 장기 백테스트를 써야 한다. 별도 qqq_card를 합성 종목으로 정규화해
+     이 파일의 records에만 QQQ를 추가한다. signals.json·history/에는 손대지 않는다. */
+  if(d && d.qqq_card){
+    const qr = Object.assign({}, d.qqq_card, {
+      ticker:"QQQ", name:d.qqq_card.name||"나스닥100 ETF", category:"시장 기준", currency:"USD",
+      market_level:"neutral", market_weak:false, market_ret20:d.qqq_card.ret20, rs20:0,
+      validation_blocked_dates:[], validation_affected_dates:[]
+    });
+    const qn = normalize({stocks:[qr], qqq_card:d.qqq_card, hist_fields:d.hist_fields}).stocks[0];
+    if(qn) collect(qn);
+  }
   this.blockedDays = blockedDays;
   return out;
 };`, ctx);

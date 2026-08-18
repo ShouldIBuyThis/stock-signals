@@ -1011,7 +1011,7 @@ function toast(msg){
 
 /* ══════════ 이름·테마 맵 ══════════ */
 const NAME_MAP = {
-  KO:"코카콜라", "BRK-B":"버크셔해서웨이B", LLY:"일라이릴리", UNH:"유나이티드헬스", HIMS:"힘스앤허스",
+  KO:"코카콜라", "BRK-B":"버크셔해서웨이B", LLY:"일라이릴리", UNH:"유나이티드헬스",
   HQH:"헬스케어 펀드",
   JPM:"JP모건", UYG:"금융 2x", FXO:"금융 ETF", CAT:"캐터필러", AIT:"어플라이드인더스트리얼", DBA:"농산물 ETF",
   MU:"마이크론", SNDK:"샌디스크", STX:"씨게이트", SKHY:"SK하이닉스", CBRS:"세레브라스",
@@ -1022,14 +1022,14 @@ const NAME_MAP = {
   MSFT:"마이크로소프트", NOW:"서비스나우", PLTR:"팔란티어", CRWD:"크라우드스트라이크", SNOW:"스노우플레이크", NET:"클라우드플레어",
   AAOI:"어플라이드옵토", GLW:"코닝", LITE:"루멘텀", CIEN:"시에나", POET:"포엣테크놀로지",
   CRDO:"크레도테크놀로지", COHR:"코히런트",
-  TSLA:"테슬라", PONY:"포니AI",
-  CEG:"컨스텔레이션에너지", VST:"비스트라", BE:"블룸에너지", SMR:"뉴스케일파워", OKLO:"오클로",
+  TSLA:"테슬라",
+  CEG:"컨스텔레이션에너지", BE:"블룸에너지",
   GDXU:"금광주 3x", GLD:"금 현물 ETF", XOM:"엑슨모빌", USO:"미국 원유 ETF", MP:"MP머티리얼즈", UUUU:"에너지퓨얼스",
   MA:"마스터카드",
-  ETHU:"이더리움 2x ETF", MSTR:"마이크로스트래티지", BMNR:"비트마인", COIN:"코인베이스",
+  BMNR:"비트마인",
   IONQ:"아이온큐", QBTS:"디웨이브", INFQ:"인플렉션", RGTI:"리게티컴퓨팅",
   RKLB:"로켓랩", SPCX:"스페이스X", PL:"플래닛랩스", JOBY:"조비에비에이션", RDW:"레드와이어",
-  RCAT:"레드캣홀딩스", LMT:"록히드마틴", LHX:"L3해리스", AXON:"액손",
+  LMT:"록히드마틴", AXON:"액손",
   ITB:"미국주택건설 ETF", NAIL:"주택건설 3x",
   META:"메타", AAPL:"애플", GOOGL:"구글", AMZN:"아마존",
   "069500.KS":"코스피", "229200.KS":"코스닥"
@@ -1042,7 +1042,7 @@ const MEM = "반도체·메모리";
 const GPU = "반도체·GPU";
 const CAT_MAP = {
   KO:DEFENSE, "BRK-B":DEFENSE,
-  LLY:HEALTH, UNH:HEALTH, HIMS:HEALTH, HQH:HEALTH,
+  LLY:HEALTH, UNH:HEALTH, HQH:HEALTH,
   JPM:FINANCE, MA:FINANCE, UYG:FINANCE, FXO:FINANCE,
   CAT:INDUSTRIAL, AIT:INDUSTRIAL,
   MU:MEM, SNDK:MEM, STX:MEM, SKHY:MEM,
@@ -1051,14 +1051,14 @@ const CAT_MAP = {
   APLD:"데이터센터", NBIS:"데이터센터", CRWV:"데이터센터", IREN:"데이터센터",
   MSFT:"소프트웨어", NOW:"소프트웨어", PLTR:"소프트웨어", CRWD:"소프트웨어", SNOW:"소프트웨어", NET:"소프트웨어",
   AAOI:"광통신", GLW:"광통신", LITE:"광통신", CIEN:"광통신", POET:"광통신", CRDO:"광통신", COHR:"광통신",
-  TSLA:"전기차·자율주행", PONY:"전기차·자율주행",
-  CEG:"에너지·원전", VST:"에너지·원전", BE:"에너지·원전", SMR:"에너지·원전", OKLO:"에너지·원전",
+  TSLA:"전기차·자율주행",
+  CEG:"에너지·원전", BE:"에너지·원전",
   GDXU:"원자재·금", GLD:"원자재·금",
   XOM:"원자재·유가", USO:"원자재·유가", DBA:"원자재·농산물", MP:"원자재·희토류", UUUU:"원자재·희토류",
-  ETHU:"암호화폐", MSTR:"암호화폐", BMNR:"암호화폐", COIN:"암호화폐",
+  BMNR:"암호화폐",
   IONQ:"양자컴퓨팅", QBTS:"양자컴퓨팅", INFQ:"양자컴퓨팅", RGTI:"양자컴퓨팅",
   RKLB:"우주·UAM", SPCX:"우주·UAM", PL:"우주·UAM", JOBY:"우주·UAM", RDW:"우주·UAM",
-  RCAT:"방산·드론", LMT:"방산·드론", LHX:"방산·드론", AXON:"방산·드론",
+  LMT:"방산·드론", AXON:"방산·드론",
   ITB:"주택", NAIL:"주택",
   META:"빅테크", AAPL:"빅테크", GOOGL:"빅테크", AMZN:"빅테크",
     "069500.KS":"국장", "229200.KS":"국장"
@@ -1106,7 +1106,7 @@ const CAT_MAP = {
    특히 UNH 17%는 종목 악재로 보인다. 사이클이 하나 더 쌓이면
    tools/sector-weak.js를 다시 돌려 재확인할 것. */
 const DEFENSIVE_CATS = ["금융","원자재·금","원자재·유가","주택"];
-const LEVERAGED = { SOXL:{base:"반도체 지수",x:3}, GDXU:{base:"금광주 지수",x:3}, NAIL:{base:"주택건설 지수",x:3}, ETHU:{base:"이더리움",x:2},
+const LEVERAGED = { SOXL:{base:"반도체 지수",x:3}, GDXU:{base:"금광주 지수",x:3}, NAIL:{base:"주택건설 지수",x:3},
   UYG:{base:"금융 지수",x:2}, DUSL:{base:"산업재 지수",x:3} };
 const levX = tk => (LEVERAGED[tk] ? LEVERAGED[tk].x : 1);
 function levMark(tk){
@@ -1166,6 +1166,7 @@ function normalize(raw){
   });
   return { generated_at: stamp, stocks, failed: raw.failed||[], market: raw.market||null,
            qqq_card: raw.qqq_card || null,
+           spy_card: raw.spy_card || null,
            market_events: Array.isArray(raw.market_events) ? raw.market_events : [],
            calendar_status: raw.calendar_status || null,
            generation_status: raw.generation_status || null,
@@ -2271,19 +2272,6 @@ function qqqBenchmarkStock(){
   const sig=evaluate(s), pv=prevStock(s);
   return Object.assign(s,{sig,prevSig:pv?evaluate(pv):null,_prev:pv,_benchmark:true});
 }
-/* QQQ 자체 승률 참고 문구 (카드 펼침 전용).
-   지수 예측 실험(방법론 §5-2)에서 §5-1·§2를 모두 통과한 조건은
-   'SPY보다 QQQ 약세 + QQQ 당일 하락 → +3일 승률 67% (n=15, 기준선 대비 +8%p)' 하나뿐이다.
-   그러나 평균수익 +0.24%라 수수료·슬리피지를 빼면 남지 않아 매매 규칙이 아닌 관찰 지표로만 표시한다.
-   숫자를 여기 하드코딩하는 이유: 지수는 하루 1표본이라 사이트에서 실시간 재검증이 불가능하고,
-   tools/index-breadth.js 재실행 시에만 갱신할 수 있다. 갱신일을 명시해 오래된 수치임을 숨기지 않는다. */
-function qqqWinNote(s){
-  const spy=state.data&&state.data.spy_card;
-  const live=has(s.change_1d)&&spy&&has(num(spy.change_1d))
-    && s.change_1d<num(spy.change_1d) && s.change_1d<0;
-  const chip=spy?`오늘은 <b>${live?"해당":"비해당"}</b>`:"오늘 여부: SPY 데이터 대기";
-  return `<div class="minor" style="margin-top:6px;line-height:1.5">📊 QQQ 자체 승률 참고 — 'SPY보다 약세 + 당일 하락'인 날 QQQ 매수 시 <b>+3일 승률 67%</b> (표본 15 · 기준선 +8%p). ${chip}. 다만 평균수익 +0.24%로 실익이 얇아 <b>관찰용</b>이며, 지수는 하루 1표본이라 매매 규칙으로는 쓰지 않는다 (2026-08-16 실측 · 방법론 §5-2)</div>`;
-}
 function marketBar(){
   const mk=(state.data&&state.data.market)||{};
   const levelLabel={strong:"강세",neutral:"중립",caution:"주의",weak:"약세"}[mk.level]||"중립";
@@ -2332,7 +2320,6 @@ function marketBar(){
         </div>
       </div>
       <div class="market-bench-h" style="margin-top:8px"><span class="sub">시장 기준 전용 · QQQ 시장필터 자기적용 없음 · 랭킹/정렬 제외</span></div>
-      ${qqqWinNote(s)}
       ${histBtn?`<div class="market-bench-actions">${histBtn}</div>`:""}
     </div>
   </details>`;
@@ -2872,7 +2859,7 @@ function cartFacts(){
 }
 
 /* 종목별 자리.
-   저항을 52주 고가 하나로 쓰면 MSTR $100에 저항 $414 같은 값이 나온다.
+   저항을 52주 고가 하나로 쓰면 현재가와 지나치게 먼 값이 나올 수 있다.
    지금 당장 부딪힐 가격(단기)과 다음 매물대(중기), 장기 참고값(52주)을 나눠서 본다. */
 function cartLevels(s){
   const cur = s.price;
@@ -3239,9 +3226,7 @@ function externalRiskInfo(s){
   const tk=String(s?.ticker||"").toUpperCase();
   if(cat.includes("원자재·유가") || ["XOM","USO"].includes(tk))
     return {title:"원유 관련 종목 안내",text:"원유주는 유가·OPEC·지정학적 변수의 영향이 커 기술적 신호와 다르게 움직일 수 있어요."};
-  if(tk==="ETHU")
-    return {title:"이더리움 2배 ETF 안내",text:"ETHU는 이더리움(ETH)의 하루 등락률을 2배로 추종하는 레버리지 ETF예요. 24시간 코인시장과 일일 배수 재설정의 영향을 크게 받아 일반 주식보다 기술적 신호 변동이 클 수 있어요."};
-  if(cat.includes("암호화폐") || ["MSTR","BMNR","COIN"].includes(tk))
+  if(cat.includes("암호화폐"))
     return {title:"코인 관련 종목 안내",text:"코인 관련주는 BTC 가격과 24시간 코인시장 영향을 크게 받아 일봉 기술신호와 다르게 움직일 수 있어요."};
   if(cat.includes("헬스케어") || cat.includes("바이오"))
     return {title:"헬스케어·바이오 안내",text:"헬스케어, 특히 바이오는 임상·FDA·실적 등 개별 이벤트 영향이 커 기술적 신호가 갑자기 무력화될 수 있어요."};
