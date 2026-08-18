@@ -502,7 +502,7 @@ WATCHLIST = {
     "반도체·GPU":     {"NVDA":"엔비디아", "AMD":"AMD", "SOXL":"반도체 3x",
                        "ALAB":"아스테라랩스", "AMAT":"어플라이드머티어리얼즈",
                        "DELL":"델", "AVGO":"브로드컴", "MRVL":"마벨테크놀로지", "ASML":"ASML", "CBRS":"세레브라스"},
-    "데이터센터":    {"APLD":"어플라이드디지털", "NBIS":"네비우스", "CRWV":"코어위브", "IREN":"아이렌", "ANET":"아리스타네트웍스"},
+    "데이터센터":    {"APLD":"어플라이드디지털", "NBIS":"네비우스", "CRWV":"코어위브", "IREN":"아이렌",},
     "소프트웨어":    {"MSFT":"마이크로소프트", "NOW":"서비스나우", "PLTR":"팔란티어", "CRWD":"크라우드스트라이크", "SNOW":"스노우플레이크", "DDOG":"데이터독", "NET":"클라우드플레어"},
     "광통신":        {"AAOI":"어플라이드옵토", "GLW":"코닝", "LITE":"루멘텀", "CIEN":"시에나", "POET":"포엣테크놀로지",
                       "CRDO":"크레도테크놀로지", "COHR":"코히런트"},
@@ -531,7 +531,7 @@ WATCHLIST = {
 # 거래일이 미국장과 어긋나 사용자가 뺐다. 둘 다 재시도 금지 — SK하이닉스는
 # 나스닥 직상장 티커 SKHY로 간다(아래 PENDING_TICKERS).
 RETIRED_TICKERS = {
-    "MCD", "CURE", "RXL", "000660.KS", "HXSCL",
+    "MCD", "CURE", "RXL", "000660.KS", "HXSCL", "ANET",
     "VST", "SMR", "OKLO", "RCAT", "LHX", "HIMS", "PONY",
     "CRCL", "RDDT", "LUNR", "COIN", "MSTR", "ETHU",
 }
