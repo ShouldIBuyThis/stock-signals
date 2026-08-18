@@ -1293,13 +1293,26 @@ def main():
     except Exception as e:
         print("QQQ 기준카드 생성 실패:", e)
 
-    # 시장카드가 과거로 돌아가면 그날의 시장 국면이 통째로 틀린 값으로 고정된다.
-    # 종목별 carry로는 못 막는 종류라 실행 자체를 세운다 — 워크플로우가 10분 뒤 1회 재시도한다.
+    # ── 야후 잘린 이력 대응 ────────────────────────────────────────────────
+    # 야후는 가끔 전 종목에 대해 며칠 전까지의 이력만 준다(2026-08-18 05:41 UTC 사례:
+    # 8/17이 아니라 8/14, 국장은 18봉). 그대로 받으면 카드 종가 날짜가 과거로 되돌아가
+    # 이미 고정된 그날 snapshot과 어긋난다.
+    #
+    # 여기서 실행을 세우면 관심종목 정리 같은 야후와 무관한 변경까지 같이 막히고,
+    # 재시도해도 야후가 낫기 전에는 계속 죽는다. 그래서 **중단하지 않고**
+    # 직전 시장카드를 그대로 유지한 채 계속 간다. 가격은 안 바뀌지만 원장이 역행하지
+    # 않고, WATCHLIST 변경은 정상 반영된다.
+    stale_feed = False
     prev_qqq = str(((prev_payload or {}).get("qqq_card") or {}).get("last_date") or "")
     now_qqq = str((qqq_card or {}).get("last_date") or "")
     if prev_qqq and now_qqq and now_qqq < prev_qqq:
-        sys.exit(f"야후 이력 역행: QQQ 기준카드가 {now_qqq} — 직전 {prev_qqq}보다 과거다. "
-                 f"이 응답으로 시장 국면을 고정하면 안 되므로 중단한다.")
+        stale_feed = True
+        qqq_card = (prev_payload or {}).get("qqq_card")
+        mkt = (prev_payload or {}).get("market") or mkt
+        mkt_level = (mkt or {}).get("level", mkt_level)
+        print(f"⚠ 야후 이력 역행: QQQ가 {now_qqq} — 직전 {prev_qqq}보다 과거다. "
+              f"직전 시장카드({prev_qqq})를 유지하고 전 종목도 직전 값으로 간다. "
+              f"가격은 이번 실행에서 갱신되지 않는다.")
 
     # SPY 보조 시장카드 — 나스닥(QQQ)만으로는 시장 전반을 못 본다는 지적에 따라 추가.
     # 국면 판정에는 아직 쓰지 않는다(판정은 여전히 QQQ 기준). 데이터를 쌓아
@@ -1310,6 +1323,8 @@ def main():
         print(f"SPY 보조카드: {spy_card.get('last_date')} 종가 · 랭킹 제외")
     except Exception as e:
         print("SPY 보조카드 생성 실패:", e)
+    if stale_feed:
+        spy_card = (prev_payload or {}).get("spy_card") or spy_card
 
     # 조회 실패/누락 시 직전 이벤트를 보조적으로 유지한다.
     prev_earn = {r.get("ticker"): r.get("earnings") for r in (prev_payload or {}).get("stocks", []) if r.get("earnings")}
@@ -1331,6 +1346,16 @@ def main():
                     results.append(kept); carried += 1; print("KEEP", tk)
                 else:
                     failed.append(f"{tk} ({nm}) — 직전 데이터 없음")
+                continue
+
+            # 시장 피드 자체가 과거로 돌아간 실행에서는 종목을 새로 받지 않는다.
+            # 일부만 최신이면 그 행의 시장 입력(market_level)이 다른 날 값으로 섞인다.
+            if stale_feed and tk in prev_rows:
+                kept = dict(prev_rows[tk])
+                kept["name"], kept["category"] = nm, cat
+                kept["data_status"] = "carried_stale_feed"
+                kept["data_status_message"] = f"야후 이력 역행 — 직전 값 유지 ({prev_qqq})"
+                results.append(kept); carried += 1
                 continue
 
             try:
