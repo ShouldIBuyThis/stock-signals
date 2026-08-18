@@ -2485,7 +2485,7 @@ function renderChat(chips){
   const msgs = _chatLog.map(m=>`<div class="cb cb-${m.who}">${m.html}</div>`).join("");
   const chipRow = (chips||[]).map(([fn,label])=>
     `<button type="button" class="perfbtn adv-chip" onclick="${fn}">${label}</button>`).join("");
-  openModal(`<h3>🤖 투자 비서 ${advModeBtn()} <span class="tkrec-sub">계산으로만 답해요 · AI 추측 없음</span></h3>
+  openModal(`<h3>🤖 투자 비서 ${advModeBtn()} <span class="tkrec-sub">계산으로만 답해요</span></h3>
     <div class="chat-wrap" id="chatWrap">${msgs}</div>
     <div class="chat-chips">${chipRow}</div>
     <div class="modal-actions perf-sticky"><button class="primary" onclick="closeModal()">닫기</button></div>`);
@@ -2525,7 +2525,7 @@ function advisorClassic(kind){
       ${needAvg ? `<label>내 평단 <input id="advAvg" type="number" step="any" inputmode="decimal" placeholder="예: 172.5" value="${esc(_advAvg)}"></label>` : ""}
       <button type="button" class="primary" onclick="runAdvisorClassic('${k}')">확인</button>
     </div>`;
-  openModal(`<h3>🤖 투자 비서 ${advModeBtn()} <span class="tkrec-sub">계산으로만 답해요 · AI 추측 없음</span></h3>
+  openModal(`<h3>🤖 투자 비서 ${advModeBtn()} <span class="tkrec-sub">계산으로만 답해요</span></h3>
     <div class="adv-chips">${chips}</div>
     <p class="tkrec-note">${esc(ADVISOR_CHIPS.find(c=>c.k===k).hint)}</p>
     ${form}
