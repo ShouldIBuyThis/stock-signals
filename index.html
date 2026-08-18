@@ -397,6 +397,8 @@ table.validation-cmp th[colspan="3"]{color:var(--ink);font-weight:800}
 .cb-me{align-self:flex-end;background:var(--navy);color:#fff;border-bottom-right-radius:4px;font-weight:700}
 .cb-bot .adv-card{margin:0}
 .chat-chips{display:flex;flex-wrap:wrap;gap:6px;padding-top:8px;border-top:1px solid var(--line)}
+.adv-mode-btn{margin-left:6px;padding:2px 9px;border-radius:999px;border:1px solid var(--line);background:var(--card,transparent);font-size:15px;line-height:1.4;cursor:pointer;vertical-align:middle}
+.adv-mode-btn:active{transform:scale(.94)}
 .adv-strong{font-weight:600}
 details.cf-fold>summary{cursor:pointer;user-select:none}
 details.cf-fold>summary.cf-h{display:block}
@@ -2465,6 +2467,7 @@ function chatRootChips(){
     ["chatPick('timing')","🎯 언제 사고팔까?"],
     ["chatPick('today')","📈 오늘 시장·추천"],
     ["chatPick('rank')","🏅 뭘 사면 잘 맞았어?"],
+    ["chatMore()","🔍 추천 질문 더보기"],
     ["advisorGo('theme')","📊 테마랭킹"],
     ["advisorGo('all')","🔢 전체순위"],
     ["advisorGo('help')","📖 도움말"],
@@ -2474,18 +2477,62 @@ function renderChat(chips){
   const msgs = _chatLog.map(m=>`<div class="cb cb-${m.who}">${m.html}</div>`).join("");
   const chipRow = (chips||[]).map(([fn,label])=>
     `<button type="button" class="perfbtn adv-chip" onclick="${fn}">${label}</button>`).join("");
-  openModal(`<h3>🤖 투자 비서 <span class="tkrec-sub">계산으로만 답해요 · AI 추측 없음</span></h3>
+  openModal(`<h3>🤖 투자 비서 ${advModeBtn()} <span class="tkrec-sub">계산으로만 답해요 · AI 추측 없음</span></h3>
     <div class="chat-wrap" id="chatWrap">${msgs}</div>
     <div class="chat-chips">${chipRow}</div>
     <div class="modal-actions perf-sticky"><button class="primary" onclick="closeModal()">닫기</button></div>`);
   const w=document.getElementById("chatWrap");
   if(w) w.scrollTop = w.scrollHeight;
 }
+/* 대화형(💬)과 클래식 폼(📋)을 오간다. 선택은 저장돼 다음에도 유지된다. */
+let _advMode = (function(){ try{ return localStorage.getItem("adv-mode")||"chat"; }catch(e){ return "chat"; } })();
+function advToggleMode(){
+  _advMode = _advMode==="chat" ? "classic" : "chat";
+  try{ localStorage.setItem("adv-mode", _advMode); }catch(e){}
+  openAdvisor();
+}
+function advModeBtn(){
+  return _advMode==="chat"
+    ? `<button type="button" class="adv-mode-btn" onclick="advToggleMode()" title="클래식(폼) 모드로 전환">📋</button>`
+    : `<button type="button" class="adv-mode-btn" onclick="advToggleMode()" title="대화형 모드로 전환">💬</button>`;
+}
 function openAdvisor(kind){
+  if(_advMode==="classic"){ advisorClassic(kind); return; }
   _chatLog = [];
   chatBot(`안녕하세요! 무엇이 궁금하세요? 아래에서 골라 주세요.`);
   renderChat(chatRootChips());
   if(kind==="avg"||kind==="timing") chatPick(kind);
+}
+/* 클래식(폼) 모드 — 대화형 도입 전의 원래 비서 화면 */
+function advisorClassic(kind){
+  const k = kind || "avg";
+  const chips = ADVISOR_CHIPS.map(c =>
+    `<button type="button" class="perfbtn adv-chip${c.k===k?" on":""}" onclick="advisorClassic('${c.k}')">${c.icon} ${esc(c.label)}</button>`).join("");
+  const nav = [["theme","📊","테마랭킹"],["all","🔢","전체순위"],["help","📖","방명록·도움말"]]
+    .map(([t,i,l])=>`<button type="button" class="perfbtn adv-nav" onclick="advisorGo('${t}')">${i} ${l}</button>`).join("");
+  const list = allStocks().map(x=>`<option value="${esc(x.ticker)}">${esc(x.name||x.ticker)}</option>`).join("");
+  const needAvg = (k === "avg");
+  const form = (k === "today") ? "" : `<div class="adv-form">
+      <label>종목 <select id="advTk">${list}</select></label>
+      ${needAvg ? `<label>내 평단 <input id="advAvg" type="number" step="any" inputmode="decimal" placeholder="예: 172.5" value="${esc(_advAvg)}"></label>` : ""}
+      <button type="button" class="primary" onclick="runAdvisorClassic('${k}')">확인</button>
+    </div>`;
+  openModal(`<h3>🤖 투자 비서 ${advModeBtn()} <span class="tkrec-sub">계산으로만 답해요 · AI 추측 없음</span></h3>
+    <div class="adv-chips">${chips}</div>
+    <p class="tkrec-note">${esc(ADVISOR_CHIPS.find(c=>c.k===k).hint)}</p>
+    ${form}
+    <div id="advOut" class="adv-out">${advisorBody(k, _advTk || (allStocks()[0]||{}).ticker, _advAvg)}</div>
+    <div class="adv-nav-row">${nav}</div>
+    <div class="modal-actions perf-sticky"><button class="primary" onclick="closeModal()">닫기</button></div>`);
+  const sel = document.getElementById("advTk");
+  if(sel && _advTk) sel.value = _advTk;
+}
+function runAdvisorClassic(k){
+  const sel = document.getElementById("advTk"), av = document.getElementById("advAvg");
+  _advTk = sel ? sel.value : _advTk;
+  _advAvg = av ? av.value : _advAvg;
+  const out = document.getElementById("advOut");
+  if(out) out.innerHTML = advisorBody(k, _advTk, _advAvg);
 }
 function chatHome(){ chatBot(`또 무엇이 궁금하세요?`); renderChat(chatRootChips()); }
 function chatStockAsk(flow){
@@ -2514,7 +2561,9 @@ function chatFollowChips(from){
   const chips=[];
   if(from!=="timing") chips.push(["chatPickSame('timing')","🎯 이 종목 언제 사고팔까?"]);
   if(from!=="avg") chips.push(["chatPickSame('avg')","💼 이 종목 평단 평가"]);
-  chips.push(["chatPick('"+from+"')","🔁 다른 종목으로"]);
+  if(from!=="levels") chips.push(["chatKwStock('levels')","📐 지지·저항 자리"]);
+  chips.push(["chatKwStock('timeline')","📈 최근 신호 흐름"]);
+  chips.push(["chatPick('"+(from==="levels"?"timing":from)+"')","🔁 다른 종목으로"]);
   chips.push(["chatHome()","↩ 처음으로"]);
   return chips;
 }
@@ -2537,6 +2586,96 @@ function chatPickSame(flow){
   const s=allStocks().find(x=>x.ticker===_advTk); if(!s){ chatPick(flow); return; }
   if(flow==="timing"){ chatMe(`${s.name||s.ticker} 언제 사고팔까?`); chatBot(advisorTiming(s)); renderChat(chatFollowChips("timing")); return; }
   chatMe(`${s.name||s.ticker} 평단 평가해줘`); chatAskAvg(s);
+}
+/* ── 추천 키워드 질문 — 답은 전부 기존 계산/도움말에서 나온다(§0) ── */
+function chatMoreChips(){
+  return [
+    ["chatKw('strongToday')","🟢 오늘 강한매수 목록"],
+    ["chatKw('bulbToday')","💡 오늘 강한다중은?"],
+    ["chatKw('market')","🌐 시장 국면 어때?"],
+    ["chatKw('top5')","🏅 적중률 TOP5"],
+    ["chatKw('terms')","📖 강한매수·다중이 뭐야?"],
+    ["chatKw('baseline')","➖ 기준선이 뭐야?"],
+    ["chatHome()","↩ 처음으로"],
+  ];
+}
+function chatMore(){
+  chatMe("다른 질문도 보여줘");
+  chatBot("이런 것도 물어볼 수 있어요.");
+  renderChat(chatMoreChips());
+}
+function chatKw(k){
+  if(k==="strongToday"){
+    chatMe("오늘 강한매수 목록 보여줘");
+    const buys = allStocks().filter(x => x.sig && x.sig.grade >= 5 && !x.earnings_hold);
+    chatBot(buys.length
+      ? `오늘 <b>강한매수 ${buys.length}종목</b>이에요.<br>` +
+        buys.map(x=>`· <b>${esc(x.name||x.ticker)}</b> <span class="tkrec-sub">${esc(x.category||"")} · ${esc((x.sig.type||""))}</span>`).join("<br>")
+      : `오늘은 강한매수가 없어요.`);
+    renderChat(chatMoreChips()); return;
+  }
+  if(k==="bulbToday"){
+    chatMe("오늘 강한다중 뭐 떴어?");
+    const bulbs = currentMultiRanked().filter(x=>x._multiTier===1);
+    chatBot(bulbs.length
+      ? `오늘 <b>💡 강한다중 ${bulbs.length}종목</b>이에요 — 전날 중립에서 오늘 강한매수로 전환된 초기 신호.<br>` +
+        bulbs.map(x=>`· <b>${esc(x.name||x.ticker)}</b> <span class="tkrec-sub">${esc(x.category||"")}</span>`).join("<br>")
+      : `오늘은 💡 강한다중이 없어요. 전날 중립에서 오늘 강한매수로 전환된 종목이 없다는 뜻이에요.`);
+    renderChat(chatMoreChips()); return;
+  }
+  if(k==="market"){
+    chatMe("시장 국면 어때?");
+    const mk = (state.data && state.data.market) || {};
+    const b = breadthNow();
+    const edges = nasdaqEdgeBadges().map(x=>`${x.icon} ${x.label}`).join(" · ");
+    chatBot(`나스닥 국면은 <span class="hl">${esc(mk.level||"—")}</span>이에요.` +
+      (b?` 관심종목 중 20일선 위가 <b>${b.pct}%</b>(${b.above}/${b.n}종목).`:"") +
+      (edges?` 오늘 보조뱃지: ${edges}.`:" 오늘 발동한 보조뱃지(VXN·바닥권)는 없어요.") +
+      `<br><span class="tkrec-sub">국면은 QQQ 20·60일선 기준 · 보조뱃지는 표시 전용</span>`);
+    renderChat(chatMoreChips()); return;
+  }
+  if(k==="top5"){
+    chatMe("적중률 좋은 종목 알려줘");
+    const m = tickerHitRanks();
+    const top = Object.entries(m).sort((a,b)=>a[1].rank-b[1].rank).slice(0,5);
+    const nameOf = tk => { const s = allStocks().find(x=>x.ticker===tk); return s ? (s.name||tk) : tk; };
+    chatBot(top.length
+      ? `개별 예측 적중률 상위 5개예요 (표본 5건 미만 칸은 뺀 정직한 순위).<br>` +
+        top.map(([tk,x])=>`· <b>${x.rank}위 ${esc(nameOf(tk))}</b> — ${esc(x.kindLabel)} +${x.h}일 <span class="hl">${x.rate}%</span> <span class="tkrec-sub">${x.n}건</span>`).join("<br>")
+      : `아직 표본 5건 이상 쌓인 종목이 없어요.`);
+    renderChat([["closeModal();openHitRankAll()","🏅 전체 순위표"],["chatHome()","↩ 처음으로"]]); return;
+  }
+  if(k==="terms"){
+    chatMe("강한매수랑 다중이 뭐야?");
+    chatBot(`짧게 정리하면 —<br>
+      · <b>🟢 강한매수</b>: 추세(눌림목) 또는 반등 전략에서 조건이 충분히 겹친 날의 매수 신호<br>
+      · <b>🔵 다중신호</b>: 강한매수 중에서도 추격을 줄이는 가격위치·거래량 조건까지 통과한 것<br>
+      · <b>💡 강한다중</b>: 그중 <b>전날 중립 → 오늘 강한매수</b>로 막 전환된 초기 신호 — 실측 승률이 가장 높아요<br>
+      자세한 계산 방식은 아래 버튼으로 보세요.`);
+    renderChat([["closeModal();openSignalScoringHelp()","📖 계산 방식 전체 보기"],["chatHome()","↩ 처음으로"]]); return;
+  }
+  if(k==="baseline"){
+    chatMe("기준선이 뭐야?");
+    chatBot(`<b>기준선</b>은 "신호를 안 보고 <b>전 종목을 그냥 다 샀다면</b>"의 성적이에요.
+      신호 승률이 이 기준선보다 얼마나 높은가(%p)가 신호의 진짜 실력이고,
+      기준선 자체가 높은 날(반등장)은 아무거나 사도 오르니 승률만 보면 속아요.`);
+    renderChat([["closeModal();openBaselineHelp()","➖ 기준선 설명 전체"],["chatHome()","↩ 처음으로"]]); return;
+  }
+}
+/* 종목을 고른 뒤의 추가 키워드 */
+function chatKwStock(k){
+  const s=allStocks().find(x=>x.ticker===_advTk); if(!s){ chatHome(); return; }
+  if(k==="levels"){
+    chatMe(`${s.name||s.ticker} 지지·저항 자리 알려줘`);
+    const L = cartLevels(s);
+    const line=(lab,v)=>v==null?"":`· ${lab} <b>${L.f(v)}</b> <span class="tkrec-sub">현재가 대비 ${L.gap(v)>=0?"+":""}${L.gap(v)}%</span><br>`;
+    chatBot(`<b>${esc(s.name||s.ticker)}</b> 현재가 ${L.f(s.price)} 기준이에요.<br>`+
+      line("단기 저항(20일 고점)",L.res1)+line("중기 저항(60일 고점)",L.res2)+
+      line("20일선",L.ma20)+line("단기 지지(20일 저점)",L.sup1)+line("중기 지지(60일 저점)",L.sup2)+
+      `<span class="tkrec-sub">지지·저항은 최근 고저점일 뿐 미래를 보장하지 않아요</span>`);
+    renderChat(chatFollowChips("levels")); return;
+  }
+  if(k==="timeline"){ closeModal(); openTimeline(s.ticker); return; }
 }
 /* 비서 안에서 화면 이동. 탭 버튼을 누른 것과 같은 상태 전환을 그대로 쓴다. */
 function advisorGo(tab){
@@ -2565,22 +2704,21 @@ function advisorAvg(s, avgRaw){
     `<tr><td>${lab}</td><td>${L.f(v)}</td><td>현재가 대비 ${L.gap(v)>=0?"+":""}${L.gap(v)}%</td><td>평단 대비 ${to(v)>=0?"+":""}${to(v)}%</td></tr>`;
   /* 판단 문장은 '가까운 분기점이 무엇인가'만 말한다. 매수/매도를 권하지 않는다. */
   const notes = [];
-  if(pl !== null) notes.push(pl >= 0
-    ? `평단 대비 <b>+${pl}%</b> 구간이에요.` : `평단 대비 <b>${pl}%</b> 구간이에요.`);
+  if(pl !== null) notes.push(`평단 대비 <span class="hl">${pl>=0?"+":""}${pl}%</span> 구간이에요.`);
   if(L.res1 != null && has(cur) && cur < L.res1)
-    notes.push(`위로 <b>${L.f(L.res1)}</b>(단기 저항, 현재가 +${L.gap(L.res1)}%)에서 한 번 부딪혀요. 그 위는 ${L.res2!=null?L.f(L.res2):"—"}.`);
+    notes.push(`위로 <span class="hl">${L.f(L.res1)}</span>(단기 저항, 현재가 +${L.gap(L.res1)}%)에서 한 번 부딪혀요. 그 위는 ${L.res2!=null?L.f(L.res2):"—"}.`);
   else if(L.res1 != null) notes.push(`단기 저항 ${L.f(L.res1)}은 이미 위로 지났어요.`);
   if(L.sup1 != null && has(cur))
-    notes.push(`아래는 <b>${L.f(L.sup1)}</b>(단기 지지, ${L.gap(L.sup1)}%)이고 그 아래가 ${L.sup2!=null?L.f(L.sup2):"—"}예요.`);
+    notes.push(`아래는 <span class="hl">${L.f(L.sup1)}</span>(단기 지지, ${L.gap(L.sup1)}%)이고 그 아래가 ${L.sup2!=null?L.f(L.sup2):"—"}예요.`);
   if(has(cur) && L.ma20 != null)
-    notes.push(cur >= L.ma20 ? `20일선(${L.f(L.ma20)}) <b>위</b>에 있어요.` : `20일선(${L.f(L.ma20)}) <b>아래</b>예요.`);
+    notes.push(cur >= L.ma20 ? `20일선(${L.f(L.ma20)}) <span class="hl">위</span>에 있어요.` : `20일선(${L.f(L.ma20)}) <span class="hl">아래</span>예요.`);
   const hit = hitRankOf(s);
   const g = stockGradeLabel(s);
   /* 내 평단이 52주 범위의 어느 '몸 자리'인지 — 카드의 bodyPos와 같은 눈금을 쓴다. */
   const hi52 = has(s.high_52w) && s.high_52w > 0 ? s.high_52w
     : (has(cur) && has(s.pct_from_high) && (1 + s.pct_from_high/100) > 0 ? cur/(1 + s.pct_from_high/100) : null);
   const bpAvg = hi52 ? bodyPosFromGap(Math.round((avg/hi52 - 1)*1000)/10) : null;
-  if(bpAvg) notes.unshift(`내 평단은 52주 기준 ${bpAvg.icon} <b>${esc(bpAvg.name)}</b>에서 산 자리예요 (52주 고가 대비 ${bpAvg.gap>=0?"+":""}${bpAvg.gap}%).`);
+  if(bpAvg) notes.unshift(`내 평단은 52주 기준 ${bpAvg.icon} <span class="hl">${esc(bpAvg.name)}</span>에서 산 자리예요 (52주 고가 대비 ${bpAvg.gap>=0?"+":""}${bpAvg.gap}%).`);
   return `<div class="adv-card">
     <div class="adv-h"><b>${esc(s.name||s.ticker)}</b> ${L.f(cur)}
       <span class="tkrec-sub">오늘 종가 신호</span><span class="badge ${stockGradeCls(s)}">${esc(g)}</span></div>
@@ -2591,7 +2729,7 @@ function advisorAvg(s, avgRaw){
       ${line("20일선", L.ma20)}${line("단기 지지", L.sup1)}${line("중기 지지", L.sup2)}</table>
     <p class="tkrec-note">${notes.join(" ")}</p>
     <p class="tkrec-note">${hit
-      ? `이 종목의 개별 예측 적중률은 <b>${hit.tied?"공동 ":""}${hit.rank}위 / ${hit.total}종목</b>이에요 (최고 ${esc(hit.kindLabel)} +${hit.h}일 ${hit.rate}%, ${hit.n}건).`
+      ? `이 종목의 개별 예측 적중률은 <span class="hl">${hit.tied?"공동 ":""}${hit.rank}위</span> / ${hit.total}종목이에요 (최고 ${esc(hit.kindLabel)} +${hit.h}일 <span class="hl">${hit.rate}%</span>, ${hit.n}건).`
       : `이 종목은 아직 표본이 5건이 안 돼 적중률 순위가 없어요.`}</p>
     <p class="tkrec-note adv-warn">⚠ 지지·저항은 최근 고저점일 뿐 <b>미래를 보장하지 않아요.</b>
       공매도 잔고·수급·공시는 이 사이트가 수집하지 않아 여기에 <b>반영돼 있지 않습니다.</b>
@@ -2635,9 +2773,9 @@ function advisorToday(){
   const top = sec.slice(0,3).map(x=>`${esc(x.c)} ${x.avg}%(${x.n}종목)`).join(" · ");
   const bot = sec.slice(-3).reverse().map(x=>`${esc(x.c)} ${x.avg}%(${x.n}종목)`).join(" · ");
   return `<div class="adv-card">
-    <p class="tkrec-note"><b>시장</b> — 나스닥 국면 <b>${esc(mk.level||"—")}</b>${edges?` · ${edges}`:""}${b?` · 20일선 위 ${b.pct}%(${b.above}/${b.n}종목)`:""}</p>
-    <p class="tkrec-note"><b>오늘 강한매수</b> ${buys.length}종목${buys.length?` — ${buys.slice(0,8).map(x=>esc(x.name||x.ticker)).join(", ")}${buys.length>8?" 외":""}` : " (없어요)"}</p>
-    <p class="tkrec-note"><b>적중률 높은 섹터</b> ${top||"표본 부족"}<br>
+    <p class="tkrec-note"><b>시장</b> — 나스닥 국면 <span class="hl">${esc(mk.level||"—")}</span>${edges?` · ${edges}`:""}${b?` · 20일선 위 <span class="hl">${b.pct}%</span>(${b.above}/${b.n}종목)`:""}</p>
+    <p class="tkrec-note"><b>오늘 강한매수</b> <span class="hl">${buys.length}종목</span>${buys.length?` — ${buys.slice(0,8).map(x=>esc(x.name||x.ticker)).join(", ")}${buys.length>8?" 외":""}` : " (없어요)"}</p>
+    <p class="tkrec-note"><b>적중률 높은 섹터</b> <span class="hl">${top||"표본 부족"}</span><br>
        <b>낮은 섹터</b> ${bot||"표본 부족"}</p>
     <p class="tkrec-note">👉 <b>종목별 예측 적중률도 꼭 확인해 보세요!</b>
       카드를 눌러 <b>최근 신호 흐름</b>을 열면 맨 아래에 그 종목만의 실측이 있어요 —
