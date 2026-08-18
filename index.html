@@ -397,6 +397,10 @@ table.validation-cmp th[colspan="3"]{color:var(--ink);font-weight:800}
 .cb-me{align-self:flex-end;background:var(--navy);color:#fff;border-bottom-right-radius:4px;font-weight:700}
 .cb-bot .adv-card{margin:0}
 .chat-chips{display:flex;flex-wrap:wrap;gap:6px;padding-top:8px;border-top:1px solid var(--line)}
+.cb .adv-form{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-top:6px}
+.cb button.primary{background:var(--navy);color:#fff;border:none;border-radius:999px;padding:8px 16px;
+  font-weight:800;font-size:12.5px;line-height:1;box-shadow:0 2px 8px rgba(16,24,40,.28);cursor:pointer}
+.cb button.primary:active{transform:scale(.95)}
 .adv-mode-btn{margin-left:6px;padding:2px 9px;border-radius:999px;border:1px solid var(--line);background:var(--card,transparent);font-size:15px;line-height:1.4;cursor:pointer;vertical-align:middle}
 .adv-mode-btn:active{transform:scale(.94)}
 .hit-warn{display:block;margin-top:4px;color:var(--sell);font-weight:700;font-size:12px;line-height:1.6}
@@ -2600,6 +2604,10 @@ function chatMoreChips(){
     ["chatKw('top5')","🏅 적중률 TOP5"],
     ["chatKw('terms')","📖 강한매수·다중이 뭐야?"],
     ["chatKw('baseline')","➖ 기준선이 뭐야?"],
+    ["chatKw('wrongType')","🌪 예측이 잘 틀리는 종목 특징"],
+    ["chatKw('overheat')","🔥 오늘 과열(익절 주의) 종목"],
+    ["chatKw('earnings')","📅 실적 앞둔(보류) 종목"],
+    ["chatKw('knock')","🔨 저항 여러 번 두드린 종목"],
     ["chatHome()","↩ 처음으로"],
   ];
 }
@@ -2630,12 +2638,51 @@ function chatKw(k){
   if(k==="market"){
     chatMe("시장 국면 어때?");
     const mk = (state.data && state.data.market) || {};
-    const b = breadthNow();
-    const edges = nasdaqEdgeBadges().map(x=>`${x.icon} ${x.label}`).join(" · ");
-    chatBot(`나스닥 국면은 <span class="hl">${esc(mk.level||"—")}</span>이에요.` +
-      (b?` 관심종목 중 20일선 위가 <b>${b.pct}%</b>(${b.above}/${b.n}종목).`:"") +
-      (edges?` 오늘 보조뱃지: ${edges}.`:" 오늘 발동한 보조뱃지(VXN·바닥권)는 없어요.") +
-      `<br><span class="tkrec-sub">국면은 QQQ 20·60일선 기준 · 보조뱃지는 표시 전용</span>`);
+    const q = qqqBenchmarkStock(), b = breadthNow();
+    /* QQQ 흐름을 쉬운 말로 */
+    let flow = "";
+    if(q){
+      const a20 = has(q.price)&&has(q.ma20)&&q.price>q.ma20;
+      const a60 = has(q.price)&&has(q.ma60)&&q.price>q.ma60;
+      flow = `QQQ는 20일선 <span class="hl">${a20?"위":"아래"}</span> · 60일선 <span class="hl">${a60?"위":"아래"}</span>`+
+        (has(q.ret20)?` · 최근 20일 <span class="hl">${q.ret20>=0?"+":""}${r1(q.ret20)}%</span>`:"")+
+        (has(q.change_1d)?` · 어제 ${q.change_1d>=0?"+":""}${r1(q.change_1d)}%`:"")+
+        ` — ${a20&&a60?"추세가 살아 있는 구간":a20?"단기 회복 중":"눌려 있는 구간"}이에요.`;
+    }
+    /* 예정된 시장 이벤트 (CPI·FOMC 등) */
+    const today = (q && q.last_date) || "";
+    const seen = new Set();
+    const ups = ((state.data && state.data.market_events)||[])
+      .filter(e=>e && e.date && e.date > today)
+      .filter(e=>{ const kk=(e.type||e.name)+"|"+e.date; if(seen.has(kk)) return false; seen.add(kk); return true; })
+      .slice(0,3);
+    const evLine = ups.length
+      ? `📅 예정 이벤트: ${ups.map(e=>`<span class="hl">${esc(e.type||e.name)}</span>(${esc(String(e.date).slice(5))})`).join(" · ")} — 발표일엔 기술신호 오차가 커요.`
+      : `📅 며칠 안에 잡힌 시장 이벤트(CPI·FOMC 등)는 지금 캘린더에 없어요.`;
+    /* 어제 핫/내려간 테마 + 그 섹터의 적중률 */
+    const agg={};
+    allStocks().forEach(s=>{ if(!has(s.change_1d)) return;
+      const a=agg[s.category]||(agg[s.category]={n:0,sum:0}); a.n++; a.sum+=s.change_1d; });
+    const m=tickerHitRanks(), hitAgg={};
+    Object.keys(m).forEach(tk=>{ const st=allStocks().find(x=>x.ticker===tk); if(!st) return;
+      const a=hitAgg[st.category]||(hitAgg[st.category]={n:0,sum:0}); a.n++; a.sum+=m[tk].rate; });
+    const hitOf=c=>hitAgg[c]&&hitAgg[c].n>=2?Math.round(hitAgg[c].sum/hitAgg[c].n)+"%":"표본 부족";
+    const cats=Object.entries(agg).filter(([,v])=>v.n>=2)
+      .map(([c,v])=>({c,chg:v.sum/v.n})).sort((a,b)=>b.chg-a.chg);
+    const fmtCat=x=>`<b>${esc(x.c)}</b> ${x.chg>=0?"+":""}${r1(x.chg)}% <span class="tkrec-sub">적중률 ${hitOf(x.c)}</span>`;
+    const themeLine = cats.length>=4
+      ? `<span class="hl">어제 핫했던 테마</span> — ${cats.slice(0,2).map(fmtCat).join(" · ")}<br><span class="hl">내려간 테마</span> — ${cats.slice(-2).reverse().map(fmtCat).join(" · ")}`
+      : "";
+    /* 오늘 신호 순위권 중 적중률 높은 종목 */
+    const pool=[...new Map([...currentMultiRanked().slice(0,10),
+      ...allStocks().filter(x=>x.sig&&x.sig.grade>=5&&!x.earnings_hold)].map(s=>[s.ticker,s])).values()];
+    const good=pool.map(s=>({s,h:hitRankOf(s)})).filter(x=>x.h&&x.h.rate>=60)
+      .sort((a,b)=>b.h.rate-a.h.rate).slice(0,3);
+    const goodLine = good.length
+      ? `🎯 오늘 신호 순위권 중 적중률 좋은 쪽: ${good.map(x=>`<b>${esc(x.s.name||x.s.ticker)}</b> <span class="hl">${x.h.rate}%</span><span class="tkrec-sub">+${x.h.h}일·${x.h.n}건</span>`).join(" · ")}`
+      : `🎯 오늘 순위권 중 적중률 60%+ 표본을 가진 종목은 없어요.`;
+    chatBot(`나스닥 국면은 <span class="hl">${esc(mk.level||"—")}</span>. ${flow}<br>${evLine}${themeLine?`<br>${themeLine}`:""}<br>${goodLine}`+
+      (b?`<br><span class="tkrec-sub">관심종목 20일선 위 ${b.pct}% (${b.above}/${b.n}종목) · 섹터 적중률은 종목별 최고 적중률의 평균</span>`:""));
     renderChat(chatMoreChips()); return;
   }
   if(k==="top5"){
@@ -2657,6 +2704,49 @@ function chatKw(k){
       · <b>💡 강한다중</b>: 그중 <b>전날 중립 → 오늘 강한매수</b>로 막 전환된 초기 신호 — 실측 승률이 가장 높아요<br>
       자세한 계산 방식은 아래 버튼으로 보세요.`);
     renderChat([["closeModal();openSignalScoringHelp()","📖 계산 방식 전체 보기"],["chatHome()","↩ 처음으로"]]); return;
+  }
+  if(k==="wrongType"){
+    chatMe("예측이 잘 틀리는 종목은 어떤 특징이 있어?");
+    /* 적중률 하위 섹터는 실측에서, 나머지 특징은 부검(§5-3)·방법론에서 나온 것 */
+    const m=tickerHitRanks(), hitAgg={};
+    Object.keys(m).forEach(tk=>{ const st=allStocks().find(x=>x.ticker===tk); if(!st) return;
+      const a=hitAgg[st.category]||(hitAgg[st.category]={n:0,sum:0}); a.n++; a.sum+=m[tk].rate; });
+    const low=Object.entries(hitAgg).filter(([,v])=>v.n>=2)
+      .map(([c,v])=>({c,avg:Math.round(v.sum/v.n)})).sort((a,b)=>a.avg-b.avg).slice(0,3);
+    chatBot(`실측에서 반복되는 특징은 이래요 —<br>
+      · <span class="hl">공매도·수급이 주가를 움직이는 종목</span>: 공매도 잔고·기관 수급은 이 사이트가 <b>수집하지 않는 변수</b>라, 그게 주인공인 종목은 기술신호가 자주 빗나가요<br>
+      · <span class="hl">낙폭과대주</span>(52주 고가 대비 -40% 밑): 떨어지는 칼날 구간은 신호가 일부러 안 잡고, 잡혀도 변동이 커요<br>
+      · <span class="hl">이벤트 민감주</span>: 실적·임상·정책 발표 한 방에 차트가 뒤집혀요 (바이오·방산·코인 관련주). 실적일은 아예 신호를 보류해요<br>
+      · <span class="hl">레버리지·고변동 ETF</span>: 하루 진폭이 커서 승률보다 손익 폭이 문제예요<br>
+      · <span class="hl">지수(QQQ·코스피)</span>: 하루 1표본이라 구조적으로 예측이 어려워요${low.length?`<br><br>지금 적중률이 낮은 섹터: ${low.map(x=>`<b>${esc(x.c)}</b> ${x.avg}%`).join(" · ")} <span class="tkrec-sub">(섹터 적중률 = 종목별 최고 적중률 평균)</span>`:""}`);
+    renderChat(chatMoreChips()); return;
+  }
+  if(k==="overheat"){
+    chatMe("오늘 과열된 종목 있어?");
+    const hot=allStocks().filter(s=>s.sig&&s.sig.overheat&&!s.earnings_hold);
+    chatBot(hot.length
+      ? `오늘 <span class="hl">과열</span>(RSI 70+ 또는 볼린저 95+)인 종목이에요 — 신규 진입보다 <span class="hl">익절 검토</span> 쪽 자리예요.<br>`+
+        hot.map(s=>`· <b>${esc(s.name||s.ticker)}</b> <span class="tkrec-sub">${esc(s.category||"")} · RSI ${r1(s.rsi)} · 볼린저 ${r1(s.bb_pos)}</span>`).join("<br>")
+      : `오늘 과열(RSI 70+ 또는 볼린저 95+) 상태인 종목은 없어요.`);
+    renderChat(chatMoreChips()); return;
+  }
+  if(k==="earnings"){
+    chatMe("실적 발표 앞둔 종목 있어?");
+    const eh=allStocks().filter(s=>s.earnings_hold);
+    chatBot(eh.length
+      ? `<span class="hl">실적 영향권</span>이라 기술등급을 <b>보류</b> 중인 종목이에요 — 발표가 지나고 정상 종가가 들어오면 다시 평가해요.<br>`+
+        eh.map(s=>`· <b>${esc(s.name||s.ticker)}</b> <span class="tkrec-sub">${esc(s.earnings_hold_reason||s.category||"")}</span>`).join("<br>")
+      : `지금 실적 영향권으로 보류된 종목은 없어요.`);
+    renderChat(chatMoreChips()); return;
+  }
+  if(k==="knock"){
+    chatMe("저항 여러 번 두드린 종목 알려줘");
+    const ks=allStocks().map(s=>({s,n:resTouchCount(s)})).filter(x=>x.n>=2).sort((a,b)=>b.n-a.n).slice(0,8);
+    chatBot(ks.length
+      ? `최근 20거래일 동안 같은 저항선을 <span class="hl">2번 이상 두드린</span> 종목이에요 — 두드린 저항을 넘으면 의미가 커요.<br>`+
+        ks.map(x=>`· <b>${esc(x.s.name||x.s.ticker)}</b> 🔨${x.n}번 <span class="tkrec-sub">${esc(x.s.category||"")}</span>`).join("<br>")
+      : `지금 저항선을 2번 이상 두드린 종목은 없어요.`);
+    renderChat([["closeModal();openResTouchModal('"+(ks[0]?ks[0].s.ticker:"NVDA")+"')","🔨 두드림별 실측 보기"],["chatHome()","↩ 처음으로"]]); return;
   }
   if(k==="baseline"){
     chatMe("기준선이 뭐야?");
@@ -2785,8 +2875,7 @@ function advisorToday(){
     <p class="tkrec-note">👉 <b>종목별 예측 적중률도 꼭 확인해 보세요!</b>
       카드를 눌러 <b>최근 신호 흐름</b>을 열면 맨 아래에 그 종목만의 실측이 있어요 —
       예를 들어 <b>엔비디아</b>는 강한매수·다중신호·강한다중이 각각 며칠짜리로 잘 맞았는지 따로 나옵니다.
-      전체 승률이 좋아도 그 종목은 다를 수 있어요.<br>
-      <button type="button" class="perfbtn adv-nav" onclick="closeModal();openTimeline('NVDA')">📈 엔비디아 예시로 바로 보기</button>
+      전체 승률이 좋아도 그 종목은 다를 수 있어요.
       <button type="button" class="perfbtn adv-nav" onclick="closeModal();openHitRankAll()">🎯 전체 적중률 순위 보기</button></p>
     <p class="tkrec-note adv-warn">⚠ 섹터 적중률은 <b>종목별 최고 적중률의 평균</b>이라 표본이 얇은 섹터는 흔들려요.
       왜 어떤 섹터가 낮은지는 공매도 잔고·수급 데이터가 있어야 답할 수 있는데, 지금은 <b>수집하지 않습니다.</b></p>
@@ -5802,6 +5891,8 @@ document.getElementById("recoGuideBtn")?.addEventListener("click", ()=>{
       <div class="mini-history">${guideKosdaq730Example()}</div>
       <span class="scribble">↑ 7/30 바닥 강한 신호 → 다음 거래일 급반등 후 추격 신호 완화</span>
     </div>
+    <div class="guide-block"><b>🎯 개별 종목 승률도 꼭 확인하세요</b><br><span style="font-size:13px;color:var(--reason)">전체 승률이 좋아도 <b>그 종목은 다를 수 있어요.</b> 신호 흐름 팝업 맨 아래에 그 종목만의 실측이 있습니다 — 예를 들어 <b>엔비디아</b>는 강한매수·다중신호·강한다중이 각각 며칠짜리로 잘 맞았는지 따로 나와요.</span><br>
+      <button type="button" class="perfbtn adv-nav" onclick="closeModal();openTimeline('NVDA')">📈 엔비디아 예시로 바로 보기</button></div>
     <p style="font-size:12px;color:var(--muted);margin:8px 2px 0">신호 흐름은 매매 근거 하나가 아니라, 신호가 만들어지고 식어가는 과정을 보는 보조 화면이에요.</p>
     <div class="modal-actions"><button class="primary" onclick="closeModal()">닫기</button></div>
   </div>`);
