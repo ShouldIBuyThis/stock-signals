@@ -2773,7 +2773,11 @@ function openMarketEventModal(date){
   if(!types.length){
     const failed=cal.economic_events_ok===false;
     openModal(`<h3>시장 이벤트</h3>
-      <p style="font-size:13px;color:var(--reason);line-height:1.8"><b>미국 ${esc(md)} 종가 기준</b><br><br>${failed?"오늘의 주요 경제 이벤트 캘린더를 정상 확인하지 못했어요. 기술적 신호만 보고 판단하지 말고 외부 일정을 한 번 더 확인해 주세요.":"현재 수집된 오늘의 주요 시장 이벤트 경고가 없어요."}</p>${close}`);
+      <p style="font-size:13px;color:var(--reason);line-height:1.8"><b>미국 ${esc(md)} 종가 기준</b><br><br>${failed?"오늘의 주요 경제 이벤트 캘린더를 정상 확인하지 못했어요. 기술적 신호만 보고 판단하지 말고 외부 일정을 한 번 더 확인해 주세요.":"현재 수집된 오늘의 주요 시장 이벤트 경고가 없어요."}<br><br>
+      <b>여기서 잡는 것</b> — FOMC · 금리(연준 발언·의사록 포함) · CPI · PCE · 고용지표.
+      미국 경제 캘린더에 <b>예정으로 올라온 발표</b>만 봅니다.<br>
+      <b>여기서 못 잡는 것</b> — 연준 인사 지명·돌발 발언, 지정학 사건처럼
+      <b>일정에 없던 충격</b>은 캘린더에 나오지 않아 표시되지 않아요.</p>${close}`);
     return;
   }
   const rows=events.map(ev=>{

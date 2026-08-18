@@ -111,8 +111,12 @@ def market_event_map(events):
 # ── 이벤트 캘린더 ─────────────────────────────────────────────
 # yfinance 1.x Calendars API를 우선 사용한다. 이벤트 조회가 실패해도
 # 가격/기술신호 생성은 계속 진행한다(fail-open).
+# 시장 전체를 흔드는 '예정된' 발표만 잡는다. 캘린더에 없는 비정기 충격
+# (연준 인사 지명·돌발 발언 등)은 원리상 여기서 못 잡는다 — 화면에도 그렇게 적는다.
 MAJOR_EVENT_KEYS = {
     "FOMC": ["fomc", "federal open market"],
+    "금리": ["fed funds", "interest rate decision", "rate decision", "fed interest",
+             "fomc minutes", "powell", "fed chair", "humphrey-hawkins", "monetary policy report"],
     "CPI": ["consumer price index", "cpi"],
     "PCE": ["personal consumption", "pce price"],
     "고용": ["nonfarm", "non-farm", "employment situation", "unemployment rate", "jobless claims", "jolts"],
