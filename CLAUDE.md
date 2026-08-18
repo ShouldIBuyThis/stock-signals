@@ -24,9 +24,11 @@ python3 -c "import json; d=json.load(open('signals.json')); ..."   # JSON은 항
 ```
 
 - 편집은 `Edit`(정확한 앵커) 또는 `python3 - <<'PY'` 문자열 치환. **`Write`로 큰 파일을 다시 쓰지 않는다.**
-- **GitHub MCP `actions_list`·`list_commits` 등은 응답이 400KB씩 온다.** 한 번 호출로
-  코드 수정 전체보다 많이 쓴다. `per_page`를 최소로 주고, 큰 응답이 파일로 떨어지면
-  `python3 -c`로 필요한 필드만 뽑는다.
+- **GitHub MCP `actions_list`는 `per_page:1`을 줘도 400KB가 온다** (실측 2회, 406KB).
+  한 번 호출로 코드 수정 전체보다 많이 쓴다. 큰 응답은 자동으로 파일에 떨어지므로
+  **그 파일을 `python3 -c`로 파싱해 필요한 필드만 뽑는다** — 절대 그대로 읽지 않는다.
+  워크플로우 상태만 볼 때는 `actions_list`(run id 확인) → `get_job_logs`에
+  `failed_only:true, tail_lines:25`가 가장 싸다.
 - 검증 도구는 결과를 **요약해서** 찍는다. 표본 목록 전체를 stdout에 쏟지 않는다.
 
 ## 1. 절대 규칙 — 원장은 불변
