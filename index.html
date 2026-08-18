@@ -2473,7 +2473,7 @@ function chatRootChips(){
   return [
     ["chatPick('avg')","💼 내 평단 평가해줘"],
     ["chatPick('timing')","🎯 언제 사고팔까?"],
-    ["chatPick('today')","📈 오늘 시장·추천"],
+    ["chatPick('today')","📈 오늘 시장 국면과 추천"],
     ["chatPick('rank')","🏅 뭘 사면 잘 맞았어?"],
     ["chatMore()","🔍 추천 질문 더보기"],
     ["advisorGo('theme')","📊 테마랭킹"],
@@ -2559,8 +2559,15 @@ function chatAskAvg(s){
 function chatPick(k){
   if(k==="avg"){ chatMe("내 평단 평가해줘"); chatStockAsk("avg"); return; }
   if(k==="timing"){ chatMe("언제 사고팔까?"); chatStockAsk("timing"); return; }
-  if(k==="today"){ chatMe("오늘 시장이랑 추천 알려줘"); chatBot(advisorToday());
-    renderChat([["closeModal();openHitRankAll()","🏅 전체 적중률 순위"],["chatHome()","↩ 처음으로"]]); return; }
+  if(k==="today"){
+    chatMe("오늘 시장 국면과 추천 알려줘");
+    chatBot(chatMarketHtml());
+    const buys = allStocks().filter(x => x.sig && x.sig.grade >= 5 && !x.earnings_hold);
+    chatBot((buys.length
+      ? `오늘 <span class="hl">강한매수 ${buys.length}종목</span> — ${buys.slice(0,10).map(x=>`<b>${esc(x.name||x.ticker)}</b>`).join(", ")}${buys.length>10?" 외":""}.`
+      : `오늘은 강한매수가 없어요.`) +
+      `<br><span class="tkrec-sub">전체 승률이 좋아도 그 종목은 다를 수 있어요 — 종목별 적중률을 꼭 확인하세요.</span>`);
+    renderChat([["closeModal();openHitRankAll()","🏅 전체 적중률 순위"],["chatKw('bulbToday')","💡 오늘 강한다중은?"],["chatHome()","↩ 처음으로"]]); return; }
   if(k==="rank"){ chatMe("뭘 사면 잘 맞았어?");
     chatBot(`종목마다 <b>가장 잘 맞은 신호·보유일 한 칸</b>으로 줄 세운 실측 순위가 있어요. 표본 5건 미만은 뺀 정직한 순위예요.`);
     renderChat([["closeModal();openHitRankAll()","🏅 순위표 열기"],["chatHome()","↩ 처음으로"]]); return; }
@@ -2600,7 +2607,6 @@ function chatMoreChips(){
   return [
     ["chatKw('strongToday')","🟢 오늘 강한매수 목록"],
     ["chatKw('bulbToday')","💡 오늘 강한다중은?"],
-    ["chatKw('market')","🌐 시장 국면 어때?"],
     ["chatKw('top5')","🏅 적중률 TOP5"],
     ["chatKw('terms')","📖 강한매수·다중이 뭐야?"],
     ["chatKw('baseline')","➖ 기준선이 뭐야?"],
@@ -2616,27 +2622,9 @@ function chatMore(){
   chatBot("이런 것도 물어볼 수 있어요.");
   renderChat(chatMoreChips());
 }
-function chatKw(k){
-  if(k==="strongToday"){
-    chatMe("오늘 강한매수 목록 보여줘");
-    const buys = allStocks().filter(x => x.sig && x.sig.grade >= 5 && !x.earnings_hold);
-    chatBot(buys.length
-      ? `오늘 <b>강한매수 ${buys.length}종목</b>이에요.<br>` +
-        buys.map(x=>`· <b>${esc(x.name||x.ticker)}</b> <span class="tkrec-sub">${esc(x.category||"")} · ${esc((x.sig.type||""))}</span>`).join("<br>")
-      : `오늘은 강한매수가 없어요.`);
-    renderChat(chatMoreChips()); return;
-  }
-  if(k==="bulbToday"){
-    chatMe("오늘 강한다중 뭐 떴어?");
-    const bulbs = currentMultiRanked().filter(x=>x._multiTier===1);
-    chatBot(bulbs.length
-      ? `오늘 <b>💡 강한다중 ${bulbs.length}종목</b>이에요 — 전날 중립에서 오늘 강한매수로 전환된 초기 신호.<br>` +
-        bulbs.map(x=>`· <b>${esc(x.name||x.ticker)}</b> <span class="tkrec-sub">${esc(x.category||"")}</span>`).join("<br>")
-      : `오늘은 💡 강한다중이 없어요. 전날 중립에서 오늘 강한매수로 전환된 종목이 없다는 뜻이에요.`);
-    renderChat(chatMoreChips()); return;
-  }
-  if(k==="market"){
-    chatMe("시장 국면 어때?");
+/* '오늘 시장 국면과 추천'의 국면 파트 — 루트 질문과 (구)시장국면 질문을 합쳤다. */
+function chatMarketHtml(){
+
     const mk = (state.data && state.data.market) || {};
     const q = qqqBenchmarkStock(), b = breadthNow();
     /* QQQ 흐름을 쉬운 말로 */
@@ -2681,8 +2669,31 @@ function chatKw(k){
     const goodLine = good.length
       ? `🎯 오늘 신호 순위권 중 적중률 좋은 쪽: ${good.map(x=>`<b>${esc(x.s.name||x.s.ticker)}</b> <span class="hl">${x.h.rate}%</span><span class="tkrec-sub">+${x.h.h}일·${x.h.n}건</span>`).join(" · ")}`
       : `🎯 오늘 순위권 중 적중률 60%+ 표본을 가진 종목은 없어요.`;
-    chatBot(`나스닥 국면은 <span class="hl">${esc(mk.level||"—")}</span>. ${flow}<br>${evLine}${themeLine?`<br>${themeLine}`:""}<br>${goodLine}`+
-      (b?`<br><span class="tkrec-sub">관심종목 20일선 위 ${b.pct}% (${b.above}/${b.n}종목) · 섹터 적중률은 종목별 최고 적중률의 평균</span>`:""));
+      return `나스닥 국면은 <span class="hl">${esc(mk.level||"—")}</span>. ${flow}<br>${evLine}${themeLine?`<br>${themeLine}`:""}<br>${goodLine}`+
+      (b?`<br><span class="tkrec-sub">관심종목 20일선 위 ${b.pct}% (${b.above}/${b.n}종목) · 섹터 적중률은 종목별 최고 적중률의 평균</span>`:"");
+}
+function chatKw(k){
+  if(k==="strongToday"){
+    chatMe("오늘 강한매수 목록 보여줘");
+    const buys = allStocks().filter(x => x.sig && x.sig.grade >= 5 && !x.earnings_hold);
+    chatBot(buys.length
+      ? `오늘 <b>강한매수 ${buys.length}종목</b>이에요.<br>` +
+        buys.map(x=>`· <b>${esc(x.name||x.ticker)}</b> <span class="tkrec-sub">${esc(x.category||"")} · ${esc((x.sig.type||""))}</span>`).join("<br>")
+      : `오늘은 강한매수가 없어요.`);
+    renderChat(chatMoreChips()); return;
+  }
+  if(k==="bulbToday"){
+    chatMe("오늘 강한다중 뭐 떴어?");
+    const bulbs = currentMultiRanked().filter(x=>x._multiTier===1);
+    chatBot(bulbs.length
+      ? `오늘 <b>💡 강한다중 ${bulbs.length}종목</b>이에요 — 전날 중립에서 오늘 강한매수로 전환된 초기 신호.<br>` +
+        bulbs.map(x=>`· <b>${esc(x.name||x.ticker)}</b> <span class="tkrec-sub">${esc(x.category||"")}</span>`).join("<br>")
+      : `오늘은 💡 강한다중이 없어요. 전날 중립에서 오늘 강한매수로 전환된 종목이 없다는 뜻이에요.`);
+    renderChat(chatMoreChips()); return;
+  }
+  if(k==="market"){
+    chatMe("시장 국면 어때?");
+    chatBot(chatMarketHtml());
     renderChat(chatMoreChips()); return;
   }
   if(k==="top5"){
