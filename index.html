@@ -370,6 +370,17 @@ table.validation-cmp th[colspan="3"]{color:var(--ink);font-weight:800}
 .hr-t .hr-tie{display:block;font-size:8.5px;font-weight:700;color:var(--faint)}
 .hr-t .hr-kind{font-size:11px;font-weight:700;white-space:nowrap}
 .hr-t .tkrec-rate{font-size:14px}
+.adv-chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.adv-chip.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.adv-form{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin:10px 0}
+.adv-form label{display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:700;color:var(--muted)}
+.adv-form select,.adv-form input{font-size:13px;padding:7px 9px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink);min-width:130px}
+.adv-form .primary{padding:8px 16px}
+.adv-out{margin-top:4px}
+.adv-card{border:1px solid var(--line);border-radius:11px;padding:11px 12px;background:var(--surface2)}
+.adv-h{font-size:13px;font-weight:800;margin-bottom:7px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.adv-t td,.adv-t th{padding:6px 8px;font-size:11.5px}
+.adv-warn{color:var(--sell)}
 .nedge{display:inline-block;margin-left:5px;padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:800;line-height:1.6;cursor:pointer;vertical-align:middle;border-bottom:1px dashed currentColor}
 .nedge-t td,.nedge-t th{padding:7px 8px;vertical-align:middle}
 .nedge-t .nedge-on td{background:var(--buy-soft)}
@@ -2407,6 +2418,126 @@ const NEDGE_FACTS = [
     d1:78, e1:24, d3:89, e3:29, n:9,
     note:"관심종목으로 직접 세므로 외부 데이터가 필요 없다." },
 ];
+/* ══════════ 투자 비서 (1단계 · LLM 없음) ══════════
+   답을 지어내지 않는다. 화면이 이미 쓰는 값(cartLevels·evaluate·tickerHitRanks·
+   strategyValidation)으로 문장을 조립할 뿐이다. 없는 데이터는 없다고 적는다.
+   공매도 잔고·수급은 수집하지 않으므로 여기서도 다루지 않는다. */
+const ADVISOR_CHIPS = [
+  {k:"avg",    icon:"💼", label:"평단 평가",        hint:"종목과 평단을 넣으면 지지·저항 기준으로 봐 드려요"},
+  {k:"today",  icon:"📈", label:"오늘의 추천·섹터",  hint:"오늘 신호와 적중률 높은 섹터"},
+  {k:"timing", icon:"🎯", label:"매수·매도 타이밍",  hint:"지금 자리와 다음 분기점"},
+];
+let _advTk = "", _advAvg = "";
+function openAdvisor(kind){
+  const k = kind || "avg";
+  const chips = ADVISOR_CHIPS.map(c =>
+    `<button type="button" class="perfbtn adv-chip${c.k===k?" on":""}" onclick="openAdvisor('${c.k}')">${c.icon} ${esc(c.label)}</button>`).join("");
+  const list = allStocks().map(x=>`<option value="${esc(x.ticker)}">${esc(x.name||x.ticker)}</option>`).join("");
+  const needAvg = (k === "avg");
+  const form = `<div class="adv-form">
+      <label>종목 <select id="advTk">${list}</select></label>
+      ${needAvg ? `<label>내 평단 <input id="advAvg" type="number" step="any" inputmode="decimal" placeholder="예: 172.5" value="${esc(_advAvg)}"></label>` : ""}
+      <button type="button" class="primary" onclick="runAdvisor('${k}')">확인</button>
+    </div>`;
+  openModal(`<h3>🤖 투자 비서 <span class="tkrec-sub">계산으로만 답해요 · AI 추측 없음</span></h3>
+    <div class="adv-chips">${chips}</div>
+    <p class="tkrec-note">${esc(ADVISOR_CHIPS.find(c=>c.k===k).hint)}</p>
+    ${form}
+    <div id="advOut" class="adv-out">${advisorBody(k, _advTk || (allStocks()[0]||{}).ticker, _advAvg)}</div>
+    <div class="modal-actions perf-sticky"><button class="primary" onclick="closeModal()">닫기</button></div>`);
+  const sel = document.getElementById("advTk");
+  if(sel && _advTk) sel.value = _advTk;
+}
+function runAdvisor(k){
+  const sel = document.getElementById("advTk"), av = document.getElementById("advAvg");
+  _advTk = sel ? sel.value : _advTk;
+  _advAvg = av ? av.value : _advAvg;
+  const out = document.getElementById("advOut");
+  if(out) out.innerHTML = advisorBody(k, _advTk, _advAvg);
+}
+function advisorBody(kind, tk, avgRaw){
+  const s = allStocks().find(x => x.ticker === tk);
+  if(!s) return `<p class="tkrec-none">종목을 골라 주세요.</p>`;
+  if(kind === "today")  return advisorToday();
+  if(kind === "timing") return advisorTiming(s);
+  return advisorAvg(s, avgRaw);
+}
+function advisorAvg(s, avgRaw){
+  const avg = num(avgRaw);
+  const L = cartLevels(s), cur = s.price;
+  if(!has(avg) || avg <= 0)
+    return `<p class="tkrec-none"><b>${esc(s.name||s.ticker)}</b> 현재가 ${L.f(cur)}.<br>
+      평단을 넣으면 그 가격 기준으로 지지·저항까지 몇 %인지 계산해 드려요.</p>`;
+  const pl = has(cur) ? Math.round((cur/avg - 1)*1000)/10 : null;
+  const to = v => (v==null||!avg) ? null : Math.round((v/avg - 1)*1000)/10;
+  const line = (lab, v) => v==null ? "" :
+    `<tr><td>${lab}</td><td>${L.f(v)}</td><td>현재가 대비 ${L.gap(v)>=0?"+":""}${L.gap(v)}%</td><td>평단 대비 ${to(v)>=0?"+":""}${to(v)}%</td></tr>`;
+  /* 판단 문장은 '가까운 분기점이 무엇인가'만 말한다. 매수/매도를 권하지 않는다. */
+  const notes = [];
+  if(pl !== null) notes.push(pl >= 0
+    ? `평단 대비 <b>+${pl}%</b> 구간이에요.` : `평단 대비 <b>${pl}%</b> 구간이에요.`);
+  if(L.res1 != null && has(cur) && cur < L.res1)
+    notes.push(`위로 <b>${L.f(L.res1)}</b>(단기 저항, 현재가 +${L.gap(L.res1)}%)에서 한 번 부딪혀요. 그 위는 ${L.res2!=null?L.f(L.res2):"—"}.`);
+  else if(L.res1 != null) notes.push(`단기 저항 ${L.f(L.res1)}은 이미 위로 지났어요.`);
+  if(L.sup1 != null && has(cur))
+    notes.push(`아래는 <b>${L.f(L.sup1)}</b>(단기 지지, ${L.gap(L.sup1)}%)이고 그 아래가 ${L.sup2!=null?L.f(L.sup2):"—"}예요.`);
+  if(has(cur) && L.ma20 != null)
+    notes.push(cur >= L.ma20 ? `20일선(${L.f(L.ma20)}) <b>위</b>에 있어요.` : `20일선(${L.f(L.ma20)}) <b>아래</b>예요.`);
+  const hit = hitRankOf(s);
+  const g = stockGradeLabel(s);
+  return `<div class="adv-card">
+    <div class="adv-h"><b>${esc(s.name||s.ticker)}</b> ${L.f(cur)}
+      <span class="badge ${stockGradeCls(s)}">${esc(g)}</span></div>
+    <table class="cmp adv-t"><tr><th>자리</th><th>가격</th><th>현재가 기준</th><th>내 평단 기준</th></tr>
+      ${line("내 평단", avg)}${line("단기 저항", L.res1)}${line("중기 저항", L.res2)}
+      ${line("20일선", L.ma20)}${line("단기 지지", L.sup1)}${line("중기 지지", L.sup2)}</table>
+    <p class="tkrec-note">${notes.join(" ")}</p>
+    <p class="tkrec-note">${hit
+      ? `이 종목의 개별 예측 적중률은 <b>${hit.tied?"공동 ":""}${hit.rank}위 / ${hit.total}종목</b>이에요 (최고 ${esc(hit.kindLabel)} +${hit.h}일 ${hit.rate}%, ${hit.n}건).`
+      : `이 종목은 아직 표본이 5건이 안 돼 적중률 순위가 없어요.`}</p>
+    <p class="tkrec-note adv-warn">⚠ 지지·저항은 최근 고저점일 뿐 <b>미래를 보장하지 않아요.</b>
+      공매도 잔고·수급·공시는 이 사이트가 수집하지 않아 여기에 <b>반영돼 있지 않습니다.</b>
+      매수·매도를 권하는 게 아니라 지금 자리를 숫자로 보여 드리는 거예요.</p>
+  </div>`;
+}
+function advisorTiming(s){
+  const L = cartLevels(s), cur = s.price;
+  const parts = [];
+  parts.push(`<b>${esc(s.name||s.ticker)}</b>는 지금 <b>${esc(stockGradeLabel(s))}</b>예요. ${esc(s.sig?s.sig.line:"")}`);
+  if(L.sup1!=null) parts.push(`아래로 ${L.f(L.sup1)}(${L.gap(L.sup1)}%)까지가 단기 지지 구간이에요.`);
+  if(L.res1!=null) parts.push(`위로는 ${L.f(L.res1)}(+${L.gap(L.res1)}%)에서 한 번 확인이 필요해요.`);
+  const hit = hitRankOf(s);
+  if(hit) parts.push(`이 종목은 <b>${esc(hit.kindLabel)}</b> 신호일 때 <b>+${hit.h}거래일</b>이 가장 잘 맞았어요(${hit.rate}%, ${hit.n}건). 보유기간을 정할 때 참고하세요.`);
+  else parts.push(`아직 이 종목만의 표본이 5건이 안 돼 '며칠 들고 있어야 하는지'는 말씀드릴 수 없어요.`);
+  return `<div class="adv-card"><p class="tkrec-note">${parts.join("<br>")}</p>
+    <p class="tkrec-note adv-warn">⚠ 언제 사고팔지는 결국 본인 판단이에요. 위 숫자는 <b>과거 실측</b>일 뿐입니다.</p></div>`;
+}
+function advisorToday(){
+  const buys = allStocks().filter(x => x.sig && x.sig.grade >= 5 && !x.earnings_hold);
+  const mk = (state.data && state.data.market) || {};
+  const b = breadthNow();
+  const edges = nasdaqEdgeBadges().map(x=>`${x.icon} ${x.label}`).join(" · ");
+  /* 섹터별 적중률은 개별 적중률 순위를 섹터로 접어 만든다 — 새 숫자를 만들지 않는다. */
+  const m = tickerHitRanks(), agg = {};
+  Object.keys(m).forEach(tk => {
+    const st = allStocks().find(x=>x.ticker===tk); if(!st) return;
+    const a = agg[st.category] || (agg[st.category] = {n:0, sum:0, tks:[]});
+    a.n++; a.sum += m[tk].rate; a.tks.push(tk);
+  });
+  const sec = Object.entries(agg).filter(([,v])=>v.n>=2)
+    .map(([c,v])=>({c, avg:Math.round(v.sum/v.n), n:v.n})).sort((a,b)=>b.avg-a.avg);
+  const top = sec.slice(0,3).map(x=>`${esc(x.c)} ${x.avg}%(${x.n}종목)`).join(" · ");
+  const bot = sec.slice(-3).reverse().map(x=>`${esc(x.c)} ${x.avg}%(${x.n}종목)`).join(" · ");
+  return `<div class="adv-card">
+    <p class="tkrec-note"><b>시장</b> — 나스닥 국면 <b>${esc(mk.level||"—")}</b>${edges?` · ${edges}`:""}${b?` · 20일선 위 ${b.pct}%(${b.above}/${b.n}종목)`:""}</p>
+    <p class="tkrec-note"><b>오늘 강한매수</b> ${buys.length}종목${buys.length?` — ${buys.slice(0,8).map(x=>esc(x.name||x.ticker)).join(", ")}${buys.length>8?" 외":""}` : " (없어요)"}</p>
+    <p class="tkrec-note"><b>적중률 높은 섹터</b> ${top||"표본 부족"}<br>
+       <b>낮은 섹터</b> ${bot||"표본 부족"}</p>
+    <p class="tkrec-note adv-warn">⚠ 섹터 적중률은 <b>종목별 최고 적중률의 평균</b>이라 표본이 얇은 섹터는 흔들려요.
+      왜 어떤 섹터가 낮은지는 공매도 잔고·수급 데이터가 있어야 답할 수 있는데, 지금은 <b>수집하지 않습니다.</b></p>
+  </div>`;
+}
+
 function openNasdaqEdgeModal(key){
   const on = new Set(nasdaqEdgeBadges().map(x=>x.key));
   const b = breadthNow();
