@@ -391,6 +391,12 @@ table.validation-cmp th[colspan="3"]{color:var(--ink);font-weight:800}
 .adv-nav-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;padding-top:9px;border-top:1px dashed var(--line)}
 .adv-nav{font-size:11.5px}
 .hl{background:rgba(255,214,74,.42);padding:0 3px;border-radius:3px;font-weight:800}
+.chat-wrap{max-height:56vh;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:4px 2px 8px}
+.cb{max-width:88%;padding:9px 12px;border-radius:14px;font-size:13px;line-height:1.75}
+.cb-bot{align-self:flex-start;background:var(--neutral-soft,rgba(120,130,150,.12));border-bottom-left-radius:4px}
+.cb-me{align-self:flex-end;background:var(--navy);color:#fff;border-bottom-right-radius:4px;font-weight:700}
+.cb-bot .adv-card{margin:0}
+.chat-chips{display:flex;flex-wrap:wrap;gap:6px;padding-top:8px;border-top:1px solid var(--line)}
 .adv-strong{font-weight:600}
 details.cf-fold>summary{cursor:pointer;user-select:none}
 details.cf-fold>summary.cf-h{display:block}
@@ -2447,33 +2453,90 @@ const ADVISOR_CHIPS = [
   {k:"today",  icon:"📈", label:"오늘의 추천·섹터",  hint:"오늘 신호와 적중률 높은 섹터"},
   {k:"timing", icon:"🎯", label:"매수·매도 타이밍",  hint:"지금 자리와 다음 분기점"},
 ];
-let _advTk = "", _advAvg = "";
-function openAdvisor(kind){
-  const k = kind || "avg";
-  const chips = ADVISOR_CHIPS.map(c =>
-    `<button type="button" class="perfbtn adv-chip${c.k===k?" on":""}" onclick="openAdvisor('${c.k}')">${c.icon} ${esc(c.label)}</button>`).join("");
-  /* 화면 이동도 여기서 한다 — 플로팅 버튼 하나로 비서와 메뉴를 겸하게 해 달라는 요청.
-     탭 전환은 기존 setTab()을 그대로 부르므로 메뉴에서 가는 것과 완전히 같다. */
-  const nav = [["theme","📊","테마랭킹"],["all","🔢","전체순위"],["help","📖","방명록·도움말"]]
-    .map(([t,i,l])=>`<button type="button" class="perfbtn adv-nav" onclick="advisorGo('${t}')">${i} ${l}</button>`).join("");
-  const list = allStocks().map(x=>`<option value="${esc(x.ticker)}">${esc(x.name||x.ticker)}</option>`).join("");
-  const needAvg = (k === "avg");
-  /* '오늘의 추천·섹터'는 종목과 무관한 전체 화면이다 — 종목 선택·확인이 있으면
-     눌러도 아무 변화가 없어 고장처럼 보인다(사용자 지적). 아예 숨긴다. */
-  const form = (k === "today") ? "" : `<div class="adv-form">
-      <label>종목 <select id="advTk">${list}</select></label>
-      ${needAvg ? `<label>내 평단 <input id="advAvg" type="number" step="any" inputmode="decimal" placeholder="예: 172.5" value="${esc(_advAvg)}"></label>` : ""}
-      <button type="button" class="primary" onclick="runAdvisor('${k}')">확인</button>
-    </div>`;
+let _advTk = "", _advAvg = "", _chatLog = [];
+/* ── 대화형 비서 — LLM 없음. 정해진 질문 칩 + 기존 계산 답변(§0 재구현 금지).
+   질문을 누르면 내 말풍선으로 올라가고, 답은 advisorAvg/Timing/Today가 만든
+   HTML을 봇 말풍선에 그대로 담는다. 추측이 없으므로 무료·즉답·오프라인이다. */
+function chatBot(html){ _chatLog.push({who:"bot", html}); }
+function chatMe(text){ _chatLog.push({who:"me", html:esc(text)}); }
+function chatRootChips(){
+  return [
+    ["chatPick('avg')","💼 내 평단 평가해줘"],
+    ["chatPick('timing')","🎯 언제 사고팔까?"],
+    ["chatPick('today')","📈 오늘 시장·추천"],
+    ["chatPick('rank')","🏅 뭘 사면 잘 맞았어?"],
+    ["advisorGo('theme')","📊 테마랭킹"],
+    ["advisorGo('all')","🔢 전체순위"],
+    ["advisorGo('help')","📖 도움말"],
+  ];
+}
+function renderChat(chips){
+  const msgs = _chatLog.map(m=>`<div class="cb cb-${m.who}">${m.html}</div>`).join("");
+  const chipRow = (chips||[]).map(([fn,label])=>
+    `<button type="button" class="perfbtn adv-chip" onclick="${fn}">${label}</button>`).join("");
   openModal(`<h3>🤖 투자 비서 <span class="tkrec-sub">계산으로만 답해요 · AI 추측 없음</span></h3>
-    <div class="adv-chips">${chips}</div>
-    <p class="tkrec-note">${esc(ADVISOR_CHIPS.find(c=>c.k===k).hint)}</p>
-    ${form}
-    <div id="advOut" class="adv-out">${advisorBody(k, _advTk || (allStocks()[0]||{}).ticker, _advAvg)}</div>
-    <div class="adv-nav-row">${nav}</div>
+    <div class="chat-wrap" id="chatWrap">${msgs}</div>
+    <div class="chat-chips">${chipRow}</div>
     <div class="modal-actions perf-sticky"><button class="primary" onclick="closeModal()">닫기</button></div>`);
-  const sel = document.getElementById("advTk");
-  if(sel && _advTk) sel.value = _advTk;
+  const w=document.getElementById("chatWrap");
+  if(w) w.scrollTop = w.scrollHeight;
+}
+function openAdvisor(kind){
+  _chatLog = [];
+  chatBot(`안녕하세요! 무엇이 궁금하세요? 아래에서 골라 주세요.`);
+  renderChat(chatRootChips());
+  if(kind==="avg"||kind==="timing") chatPick(kind);
+}
+function chatHome(){ chatBot(`또 무엇이 궁금하세요?`); renderChat(chatRootChips()); }
+function chatStockAsk(flow){
+  const list = allStocks().map(x=>`<option value="${esc(x.ticker)}"${x.ticker===_advTk?" selected":""}>${esc(x.name||x.ticker)}</option>`).join("");
+  chatBot(`어느 종목인가요?<br><span class="adv-form" style="margin-top:6px"><select id="chatTk">${list}</select>
+    <button type="button" class="primary" onclick="chatTkDone('${flow}')">이 종목!</button></span>`);
+  renderChat([["chatHome()","↩ 처음으로"]]);
+}
+function chatAskAvg(s){
+  chatBot(`<b>${esc(s.name||s.ticker)}</b> 평단이 얼마인가요? (현재가 ${cartLevels(s).f(s.price)})<br>
+    <span class="adv-form" style="margin-top:6px">
+    <input id="chatAvg" type="number" step="any" inputmode="decimal" placeholder="예: 172.5" value="${esc(_advAvg)}">
+    <button type="button" class="primary" onclick="chatAvgDone()">확인</button></span>`);
+  renderChat([["chatHome()","↩ 처음으로"]]);
+}
+function chatPick(k){
+  if(k==="avg"){ chatMe("내 평단 평가해줘"); chatStockAsk("avg"); return; }
+  if(k==="timing"){ chatMe("언제 사고팔까?"); chatStockAsk("timing"); return; }
+  if(k==="today"){ chatMe("오늘 시장이랑 추천 알려줘"); chatBot(advisorToday());
+    renderChat([["closeModal();openHitRankAll()","🏅 전체 적중률 순위"],["chatHome()","↩ 처음으로"]]); return; }
+  if(k==="rank"){ chatMe("뭘 사면 잘 맞았어?");
+    chatBot(`종목마다 <b>가장 잘 맞은 신호·보유일 한 칸</b>으로 줄 세운 실측 순위가 있어요. 표본 5건 미만은 뺀 정직한 순위예요.`);
+    renderChat([["closeModal();openHitRankAll()","🏅 순위표 열기"],["chatHome()","↩ 처음으로"]]); return; }
+}
+function chatFollowChips(from){
+  const chips=[];
+  if(from!=="timing") chips.push(["chatPickSame('timing')","🎯 이 종목 언제 사고팔까?"]);
+  if(from!=="avg") chips.push(["chatPickSame('avg')","💼 이 종목 평단 평가"]);
+  chips.push(["chatPick('"+from+"')","🔁 다른 종목으로"]);
+  chips.push(["chatHome()","↩ 처음으로"]);
+  return chips;
+}
+function chatTkDone(flow){
+  const sel=document.getElementById("chatTk"); if(sel) _advTk=sel.value;
+  const s=allStocks().find(x=>x.ticker===_advTk) || allStocks()[0]; if(!s) return;
+  _advTk = s.ticker;
+  chatMe(s.name||s.ticker);
+  if(flow==="timing"){ chatBot(advisorTiming(s)); renderChat(chatFollowChips("timing")); return; }
+  chatAskAvg(s);
+}
+function chatAvgDone(){
+  const av=document.getElementById("chatAvg"); if(av) _advAvg=av.value;
+  const s=allStocks().find(x=>x.ticker===_advTk); if(!s) return;
+  chatMe(`평단 ${_advAvg}`);
+  chatBot(advisorAvg(s,_advAvg));
+  renderChat(chatFollowChips("avg"));
+}
+function chatPickSame(flow){
+  const s=allStocks().find(x=>x.ticker===_advTk); if(!s){ chatPick(flow); return; }
+  if(flow==="timing"){ chatMe(`${s.name||s.ticker} 언제 사고팔까?`); chatBot(advisorTiming(s)); renderChat(chatFollowChips("timing")); return; }
+  chatMe(`${s.name||s.ticker} 평단 평가해줘`); chatAskAvg(s);
 }
 /* 비서 안에서 화면 이동. 탭 버튼을 누른 것과 같은 상태 전환을 그대로 쓴다. */
 function advisorGo(tab){
@@ -2482,13 +2545,6 @@ function advisorGo(tab){
   if(tab==="theme"){ state.themeFilter=""; state.displayLimit=20; }
   state.tab = tab; save(); render();
   try{ window.scrollTo({top:0,behavior:"smooth"}); }catch(e){ window.scrollTo(0,0); }
-}
-function runAdvisor(k){
-  const sel = document.getElementById("advTk"), av = document.getElementById("advAvg");
-  _advTk = sel ? sel.value : _advTk;
-  _advAvg = av ? av.value : _advAvg;
-  const out = document.getElementById("advOut");
-  if(out) out.innerHTML = advisorBody(k, _advTk, _advAvg);
 }
 function advisorBody(kind, tk, avgRaw){
   const s = allStocks().find(x => x.ticker === tk);
