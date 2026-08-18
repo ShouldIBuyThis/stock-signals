@@ -400,6 +400,9 @@ table.validation-cmp th[colspan="3"]{color:var(--ink);font-weight:800}
 .adv-mode-btn{margin-left:6px;padding:2px 9px;border-radius:999px;border:1px solid var(--line);background:var(--card,transparent);font-size:15px;line-height:1.4;cursor:pointer;vertical-align:middle}
 .adv-mode-btn:active{transform:scale(.94)}
 .hit-warn{display:block;margin-top:4px;color:var(--sell);font-weight:700;font-size:12px;line-height:1.6}
+.exit-list{margin:6px 0 0;padding-left:18px;font-size:12.5px;line-height:1.9}
+.exit-list li{margin-bottom:4px}
+.exit-list .tkrec-sub{display:block;font-weight:500}
 .adv-strong{font-weight:600}
 details.cf-fold>summary{cursor:pointer;user-select:none}
 details.cf-fold>summary.cf-h{display:block}
@@ -5165,15 +5168,18 @@ function cartExitBlock(mine){
      두드림 횟수는 실제로 잰 값(🔨 뱃지와 같은 계산)이고, '돌파하면 익절'은
      검증한 적 없는 참고선이다. 둘을 한 문장에 섞으면 둘 다 검증된 것처럼 읽힌다. */
   const rt = resTouchRecord(), t3 = rt.multi[3], s3 = rt.single[3];
+  /* 사용자 지시(2026-08-18): 중복 정리 + 요점 목록 + 형광펜. 긴 문단은 눈이 못 따라간다. */
   const touchLine = (t3 && t3.n >= 5 && s3 && s3.n >= 5)
-    ? `<br>같은 저항선을 <b>여러 번 두드린 뒤</b> 뜬 신호는 실측이 다릅니다 —
-       2번 이상 두드린 뒤 강한매수는 +3일 <b>${t3.rate}%</b>(${t3.n}건),
-       처음~1번은 ${s3.rate}%(${s3.n}건)로 <b>더 자주 이겼어요</b>.
-       다만 평균수익은 ${t3.avg>=0?"+":""}${t3.avg}% vs ${s3.avg>=0?"+":""}${s3.avg}%로 <b>더 적습니다</b> —
-       자주 이기지만 조금 버는 자리예요. 그래서 <b>점수에는 반영하지 않고</b> 카드에 🔨 표시만 합니다.
-       두드림이 많던 종목이 마침내 저항을 넘었다면 <b>더 밀어붙이기보다 일부 익절</b> 쪽에 가깝습니다.`
+    ? `<li>🔨 <b>여러 번 두드린 저항</b>을 넘었다면 → 밀어붙이기보다 <span class="hl">일부 익절</span> 쪽
+       <span class="tkrec-sub">실측: 2번+ 두드림 뒤 강한매수 +3일 <span class="hl">${t3.rate}%</span>(${t3.n}건) vs 처음~1번 ${s3.rate}%(${s3.n}건) — 자주 이기지만 평균수익은 ${t3.avg>=0?"+":""}${t3.avg}%로 더 적음</span></li>`
     : "";
-  const levelTip = `위 <b>📐 종목별 자리</b>와 같이 쓰세요 — 보유 중 가까운 <b>저항</b>(20일 고점)을 처음 돌파하면 그 자리가 일부 익절을 검토할 자리이고, 반대로 가까운 <b>지지</b>(20일 저점)를 처음 깨고 내려가면 분할이 아니라 청산(손절) 쪽 신호로 보세요. 이 지지·저항 연동 자체는 <b>실측 승률로 검증된 규칙이 아닌</b> 가격 참고선입니다.${touchLine}`;
+  const levelTip = `<ul class="exit-list">
+    <li><b>저항</b>(20일 고점) <span class="hl">첫 돌파</span> → <span class="hl">일부 익절</span> 검토 자리</li>
+    <li><b>지지</b>(20일 저점) <span class="hl">첫 이탈</span> → 분할이 아니라 <span class="hl">청산(손절)</span> 신호</li>
+    ${touchLine}
+  </ul>
+  <p class="cf-note" style="margin-top:6px">가격은 위 <b>📐 종목별 자리</b> 표에서 · 보유기간은 <b>위 종목별 적중률</b>에서 보세요.
+    자리 연동은 <b>가격 참고선</b>이지 검증된 승률 규칙이 아니고, <span class="hl">손절선은 반드시 따로</span> 정하세요.</p>`;
   const baseNote = basePlan
     ? `같은 기간 <b class="baseline-term" onclick="openBaselineHelp()">기준선</b>(전 종목 매수 시)은 평균수익이 +${basePlan.cells[0].h}일 ${av(basePlan.cells[0].avg)} → +${basePlan.cells[basePlan.cells.length-1].h}일 ${av(basePlan.cells[basePlan.cells.length-1].avg)}로 <b>줄어듭니다</b>. 오래 들고 있어서 버는 게 아니라, 신호가 고른 종목이라 버는 거예요.`
     : "";
@@ -5194,11 +5200,6 @@ function cartExitBlock(mine){
   <details class="cf cf-fold" style="margin-top:14px">
     <summary class="cf-h">⏳ 언제 팔까 — 자리 참고 <span class="cf-foldhint">눌러서 펼치기</span></summary>
     <div class="exit-tip">${levelTip}</div>
-    <p class="cf-note">보유기간은 <b>위 종목별 적중률</b>을 보세요 — 그 종목이 실제로 가장 잘 맞았던
-      신호와 거래일이 적혀 있습니다. 전체 평균보다 그쪽이 본인 종목에 가깝습니다.
-      전체 기준 보유기간 비교가 필요하면 도움말의 <b>⏳ 더 오래 들고 있었다면?</b>에 그대로 있어요.</p>
-    <p class="cf-note">최근 ${histWindowDays()}거래일 실측이며 표본이 적어 그대로 반복되지 않습니다.
-      실적발표·급락 같은 사건은 이 표에 없어요. <b>손절선은 반드시 따로 정하세요</b> — 이 표는 "언제 팔까"만 말하고 "얼마나 잃을까"는 말하지 않습니다.</p>
   </details>`;
 }
 
