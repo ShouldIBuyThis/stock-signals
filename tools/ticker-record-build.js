@@ -58,6 +58,25 @@ const res = ctx.runInPage(`(() => {
      '문턱을 올리면 어떻게 되나'를 잴 수 없기 때문이다. 원장 30일로 재면
      표본이 6건짜리가 나와 판단이 불가능하다. */
   const cat = {}; allStocks().forEach(s => cat[s.ticker] = s.category);
+  /* 신호일의 점수·핵심 입력을 (티커|날짜)로 미리 뽑아 둔다. _phaseRows에는
+     수익률과 등급만 있어서 '문턱을 올리면 뭐가 지워지나'를 잴 수 없었다.
+     evaluate()를 한 번 더 도는 것뿐이고, 판정은 여기서 하지 않는다. */
+  const meta = new Map();
+  allStocks().forEach(s => {
+    const hs = histStocks(s) || [];
+    hs.forEach((h, i) => {
+      if(!h.last_date || !has(h.price)) return;
+      const row = Object.assign({}, s, h);
+      if(i>0) withPrev(row, hs[i-1]);
+      row._prevOverallGrade = i>0 ? evaluate(hs[i-1]).grade : null;
+      const g = evaluate(row);
+      meta.set(s.ticker+'|'+h.last_date, {
+        buy:g.buyScore, pull:g.pullScore, rev:g.revScore, brk:g.breakScore,
+        rsi:has(row.rsi)?Math.round(row.rsi*10)/10:null,
+        bb:has(row.bb_pos)?Math.round(row.bb_pos*10)/10:null,
+        lvl:h.market_level||null });
+    });
+  });
   const phase = (strategyValidation() || {})._phaseRows || {};
   const byId = new Map();
   TICKER_KINDS.forEach(({k, src:key}) => {
@@ -65,7 +84,8 @@ const res = ctx.runInPage(`(() => {
       ((phase[key] || {})[h] || []).forEach(x => {
         const id = k+'|'+x.ticker+'|'+x.date;
         let row = byId.get(id);
-        if(!row){ row = {k, t:x.ticker, c:cat[x.ticker]||"", d:x.date, r:{}}; byId.set(id, row); }
+        if(!row){ row = Object.assign({k, t:x.ticker, c:cat[x.ticker]||"", d:x.date, r:{}},
+                                       meta.get(x.ticker+'|'+x.date) || {}); byId.set(id, row); }
         row.r[h] = Math.round(x.ret*100)/100;
       });
     });
