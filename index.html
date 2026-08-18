@@ -286,12 +286,15 @@ html[data-theme="dark"] .rkitem.top b{color:#a9c6ff}
 /* ── 모바일 FAB ── */
 .fab{display:none;position:fixed;right:14px;bottom:18px;height:46px;padding:0 18px;border-radius:999px;background:var(--navy);color:#fff;font-size:14px;font-weight:700;box-shadow:0 4px 16px rgba(16,24,40,.28);z-index:50;align-items:center;gap:7px}
 .fab:active{transform:scale(.96)}
-.fab-top{bottom:74px;width:46px;height:46px;padding:0;justify-content:center;font-size:13px}
-/* AI 비서는 모바일·PC 모두에서 항상 보인다. 메뉴 FAB(모바일 전용) 위에 쌓는다. */
-.fab-ai{display:flex;width:52px;height:52px;padding:0;justify-content:center;font-size:24px;
+/* ▲는 AI 알약 위에 쌓는다 — 예전엔 PC에서 둘이 같은 자리(bottom:18px)에 겹쳐
+   ▲가 🤖 뒤에 숨는 버그가 있었다. 겹치지 않게 층을 고정한다. */
+.fab-top{bottom:76px;width:46px;height:46px;padding:0;justify-content:center;font-size:13px}
+/* 사용자가 처음 구상한 형태: 메뉴 FAB 자리에, 같은 알약 모양으로 '🤖 AI 비서'.
+   화면 이동(테마랭킹·전체순위·도움말)은 비서 안의 이동 버튼이 메뉴를 대신한다. */
+.fab-ai{display:flex;height:46px;padding:0 16px;font-size:14px;gap:6px;
   right:14px;bottom:18px;background:linear-gradient(135deg,var(--navy),#2f4a7a);z-index:51}
-@media (max-width:640px){ .fab-ai{bottom:74px} .fab-top{bottom:134px} }
-@media (min-width:641px){ .fab-top{display:flex;right:14px;bottom:18px} }
+.fab-ai .fab-ai-ico{font-size:19px;line-height:1}
+@media (min-width:641px){ .fab-top{display:flex} }
 .sheet{position:fixed;inset:0;background:rgba(17,24,39,.45);z-index:60;opacity:0;pointer-events:none;transition:opacity .22s}
 .sheet.on{opacity:1;pointer-events:auto}
 .sheet-in{position:absolute;left:0;right:0;bottom:0;background:var(--surface);border-radius:18px 18px 0 0;padding:16px 16px 26px;max-height:86vh;overflow:auto;transform:translateY(100%);transition:transform .24s ease-out}
@@ -387,6 +390,17 @@ table.validation-cmp th[colspan="3"]{color:var(--ink);font-weight:800}
 .adv-warn{color:var(--sell)}
 .adv-nav-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;padding-top:9px;border-top:1px dashed var(--line)}
 .adv-nav{font-size:11.5px}
+.hl{background:rgba(255,214,74,.42);padding:0 3px;border-radius:3px;font-weight:800}
+.adv-strong{font-weight:600}
+details.cf-fold>summary{cursor:pointer;user-select:none}
+details.cf-fold>summary.cf-h{display:block}
+.cf-foldhint{font-size:10.5px;font-weight:600;color:var(--faint);margin-left:6px}
+details.tkrec-fold{display:block}
+details.tkrec-fold>summary{cursor:pointer;list-style:none;user-select:none}
+details.tkrec-fold>summary::-webkit-details-marker{display:none}
+details.tkrec-fold>summary.tkrec-1line::after{content:" ▾";color:var(--faint);font-size:10px}
+details.tkrec-fold[open]>summary.tkrec-1line::after{content:" ▴"}
+.tkrec-foldbody{padding:4px 2px 8px}
 .nedge{display:inline-block;margin-left:5px;padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:800;line-height:1.6;cursor:pointer;vertical-align:middle;border-bottom:1px dashed currentColor}
 .nedge-t td,.nedge-t th{padding:7px 8px;vertical-align:middle}
 .nedge-t .nedge-on td{background:var(--buy-soft)}
@@ -971,8 +985,7 @@ html[data-theme="dark"] .strategy-info{color:var(--muted)}
 </footer>
 
 <button class="fab fab-top hidden" id="fabTop" title="맨 위로">▲</button>
-<button class="fab" id="fab"><span>☰</span> 메뉴</button>
-<button class="fab fab-ai" id="fabAi" title="AI 투자 비서 — 평단 평가·오늘의 추천·매도 타이밍" aria-label="AI 투자 비서">🤖</button>
+<button class="fab fab-ai" id="fabAi" title="AI 투자 비서 — 평단 평가·오늘의 추천·매도 타이밍" aria-label="AI 투자 비서"><span class="fab-ai-ico">🤖</span>AI 비서</button>
 
 <div class="sheet" id="sheet">
   <div class="sheet-in">
@@ -2445,7 +2458,9 @@ function openAdvisor(kind){
     .map(([t,i,l])=>`<button type="button" class="perfbtn adv-nav" onclick="advisorGo('${t}')">${i} ${l}</button>`).join("");
   const list = allStocks().map(x=>`<option value="${esc(x.ticker)}">${esc(x.name||x.ticker)}</option>`).join("");
   const needAvg = (k === "avg");
-  const form = `<div class="adv-form">
+  /* '오늘의 추천·섹터'는 종목과 무관한 전체 화면이다 — 종목 선택·확인이 있으면
+     눌러도 아무 변화가 없어 고장처럼 보인다(사용자 지적). 아예 숨긴다. */
+  const form = (k === "today") ? "" : `<div class="adv-form">
       <label>종목 <select id="advTk">${list}</select></label>
       ${needAvg ? `<label>내 평단 <input id="advAvg" type="number" step="any" inputmode="decimal" placeholder="예: 172.5" value="${esc(_advAvg)}"></label>` : ""}
       <button type="button" class="primary" onclick="runAdvisor('${k}')">확인</button>
@@ -2505,9 +2520,16 @@ function advisorAvg(s, avgRaw){
     notes.push(cur >= L.ma20 ? `20일선(${L.f(L.ma20)}) <b>위</b>에 있어요.` : `20일선(${L.f(L.ma20)}) <b>아래</b>예요.`);
   const hit = hitRankOf(s);
   const g = stockGradeLabel(s);
+  /* 내 평단이 52주 범위의 어느 '몸 자리'인지 — 카드의 bodyPos와 같은 눈금을 쓴다. */
+  const hi52 = has(s.high_52w) && s.high_52w > 0 ? s.high_52w
+    : (has(cur) && has(s.pct_from_high) && (1 + s.pct_from_high/100) > 0 ? cur/(1 + s.pct_from_high/100) : null);
+  const bpAvg = hi52 ? bodyPosFromGap(Math.round((avg/hi52 - 1)*1000)/10) : null;
+  if(bpAvg) notes.unshift(`내 평단은 52주 기준 ${bpAvg.icon} <b>${esc(bpAvg.name)}</b>에서 산 자리예요 (52주 고가 대비 ${bpAvg.gap>=0?"+":""}${bpAvg.gap}%).`);
   return `<div class="adv-card">
     <div class="adv-h"><b>${esc(s.name||s.ticker)}</b> ${L.f(cur)}
-      <span class="badge ${stockGradeCls(s)}">${esc(g)}</span></div>
+      <span class="tkrec-sub">오늘 종가 신호</span><span class="badge ${stockGradeCls(s)}">${esc(g)}</span></div>
+    <p class="tkrec-note" style="margin-top:2px">⚠ 위 <b>${esc(g)}</b>는 <b>오늘 가격 기준</b>의 신호예요.
+      <b>내 평단에서의 판단이 아닙니다</b> — 평단 기준 자리는 아래 표와 문장을 보세요.</p>
     <table class="cmp adv-t"><tr><th>자리</th><th>가격</th><th>현재가 기준</th><th>내 평단 기준</th></tr>
       ${line("내 평단", avg)}${line("단기 저항", L.res1)}${line("중기 저항", L.res2)}
       ${line("20일선", L.ma20)}${line("단기 지지", L.sup1)}${line("중기 지지", L.sup2)}</table>
@@ -2523,14 +2545,22 @@ function advisorAvg(s, avgRaw){
 function advisorTiming(s){
   const L = cartLevels(s), cur = s.price;
   const parts = [];
-  parts.push(`<b>${esc(s.name||s.ticker)}</b>는 지금 <b>${esc(stockGradeLabel(s))}</b>예요. ${esc(s.sig?s.sig.line:"")}`);
-  if(L.sup1!=null) parts.push(`아래로 ${L.f(L.sup1)}(${L.gap(L.sup1)}%)까지가 단기 지지 구간이에요.`);
-  if(L.res1!=null) parts.push(`위로는 ${L.f(L.res1)}(+${L.gap(L.res1)}%)에서 한 번 확인이 필요해요.`);
+  parts.push(`<b>${esc(s.name||s.ticker)}</b>는 지금 <span class="hl">${esc(stockGradeLabel(s))}</span>예요. ${esc(s.sig?s.sig.line:"")}`);
+  if(L.sup1!=null) parts.push(`아래로 <span class="hl">${L.f(L.sup1)}</span>(${L.gap(L.sup1)}%)까지가 <b>단기 지지</b> 구간이에요.`);
+  if(L.res1!=null) parts.push(`위로는 <span class="hl">${L.f(L.res1)}</span>(+${L.gap(L.res1)}%)에서 한 번 확인이 필요해요.`);
+  /* 저항 두드림 — 🔨 뱃지와 같은 계산(resTouchCount) 하나만 쓴다. */
+  const knocks = resTouchCount(s);
+  if(knocks >= 2) parts.push(`이 저항선은 최근 20거래일 동안 <span class="hl">${knocks}번 두드렸어요</span> —
+    여러 번 두드린 저항은 매물이 그만큼 소화됐다는 뜻이라 넘어서면 의미가 큽니다.
+    <button type="button" class="perfbtn adv-nav" data-restouch="${esc(s.ticker)}">🔨 두드림별 실측 보기</button>`);
+  else if(knocks === 1) parts.push(`이 저항선은 최근 20거래일 동안 <b>1번 두드렸어요</b>.`);
+  else parts.push(`최근 20거래일 안에는 단기 저항선을 두드린 적이 없어요.`);
   const hit = hitRankOf(s);
-  if(hit) parts.push(`이 종목은 <b>${esc(hit.kindLabel)}</b> 신호일 때 <b>+${hit.h}거래일</b>이 가장 잘 맞았어요(${hit.rate}%, ${hit.n}건). 보유기간을 정할 때 참고하세요.`);
+  if(hit) parts.push(`이 종목은 <b>${esc(hit.kindLabel)}</b> 신호일 때 <span class="hl">+${hit.h}거래일</span>이 가장 잘 맞았어요
+    (<span class="hl">${hit.rate}%</span>, ${hit.n}건). <b>보유기간</b>을 정할 때 참고하세요.`);
   else parts.push(`아직 이 종목만의 표본이 5건이 안 돼 '며칠 들고 있어야 하는지'는 말씀드릴 수 없어요.`);
-  return `<div class="adv-card"><p class="tkrec-note">${parts.join("<br>")}</p>
-    <p class="tkrec-note adv-warn">⚠ 언제 사고팔지는 결국 본인 판단이에요. 위 숫자는 <b>과거 실측</b>일 뿐입니다.</p></div>`;
+  return `<div class="adv-card"><p class="tkrec-note adv-strong">${parts.join("<br>")}</p>
+    <p class="tkrec-note adv-warn">⚠ <b>언제 사고팔지는 결국 본인 판단</b>이에요. 위 숫자는 <b>과거 실측</b>일 뿐입니다.</p></div>`;
 }
 function advisorToday(){
   const buys = allStocks().filter(x => x.sig && x.sig.grade >= 5 && !x.earnings_hold);
@@ -2668,7 +2698,8 @@ function marketBar(){
           <div class="minor num">매수강도 ${r1(s.sig.buyScore)} · 추세 ${r1(s.sig.pullScore)} · 반등 ${r1(s.sig.revScore)} · 시장국면 ${esc(levelLabel)}<br>MA5 ${r1(s.ma5)} · MA20 ${r1(s.ma20)} · MA60 ${r1(s.ma60)}${has(s.atr_pct)?` · 변동성 ${r1(s.atr_pct)}%`:""}</div>
         </div>
       </div>
-      <div class="market-bench-h" style="margin-top:8px"><span class="sub">시장 기준 전용 · QQQ 시장필터 자기적용 없음 · 랭킹/정렬 제외</span></div>
+      <div class="market-bench-h" style="margin-top:8px"><span class="sub">시장 기준 전용 · QQQ 시장필터 자기적용 없음 · 랭킹/정렬 제외
+        · <span class="nedge nedge-br" role="button" tabindex="0" data-nedge="vxn-high" style="margin-left:2px">ⓘ 보조뱃지 규칙</span></span></div>
       ${histBtn?`<div class="market-bench-actions">${histBtn}</div>`:""}
     </div>
   </details>`;
@@ -3030,6 +3061,9 @@ function toStar(v, cuts){          // cuts = [1★상한, 2★상한, 3★상한
 function bodyPos(s){
   const d = has(s.pct_from_high) ? s.pct_from_high : null;
   if (d === null) return null;
+  return bodyPosFromGap(d);
+}
+function bodyPosFromGap(d){
   const t = d >= -3  ? ["🧠","정수리 부근","52주 고가 바로 아래"]
           : d >= -10 ? ["👀","눈 부근","고점권"]
           : d >= -20 ? ["❤️","가슴 부근","중간권"]
@@ -3593,7 +3627,27 @@ function tickerRecordTable(s, compact){
          <span class="tkrec-sub">${hit.n}건 · 평균 ${hit.avg>=0?"+":""}${hit.avg}%</span>
          <span class="tkrec-sub">적중률 ${hit.tied?"공동 ":""}${hit.rank}위/${hit.total}</span>`
       : `<span class="tkrec-thin">표본 부족 — 5건 이상인 칸 없음</span>`;
-    return `<div class="tkrec tkrec-1line"><b>${name}</b> ${body}</div>`;
+    /* 펼치면: 오늘 그 종목에 실제로 해당하는 신호(강한다중>다중>강한매수)의
+       +1·3·5·7일 전체. 오늘 해당 신호가 없으면 가장 잘 맞은 신호를 대신 편다. */
+    const hasKinds = !!rec.strong;
+    const todayKind = s._multiTier===1 ? "strict" : s._multiTier===2 ? "multi"
+      : (s.sig && s.sig.grade===5 ? "strong" : null);
+    let openKind = todayKind;
+    if(hasKinds && !openKind){
+      let best=null;
+      TICKER_KINDS.forEach(({k})=>{ const grp=rec[k]||{}; TICKER_HS.forEach(h=>{
+        const c=grp[h]; if(c&&c.n>=3&&c.rate!==null&&(!best||c.rate>best.rate)) best={k,rate:c.rate}; });});
+      openKind = best ? best.k : "strong";
+    }
+    const grp = hasKinds ? (rec[openKind||"strong"]||{}) : rec;
+    const km = TICKER_KINDS.find(x=>x.k===(hasKinds?(openKind||"strong"):"strong")) || TICKER_KINDS[0];
+    const kindNote = todayKind
+      ? `${km.icon} ${km.label} — <b>오늘 이 종목에 해당하는 신호</b>`
+      : `${km.icon} ${km.label} — 오늘 해당 신호 없음 · 가장 잘 맞은 신호를 대신 보여드려요`;
+    const detailTable = `<div class="tkrec-foldbody"><span class="tkrec-n">${kindNote}</span>
+      <table class="cmp tkrec-t"><tr>${TICKER_HS.map(h=>`<th>+${h}일</th>`).join("")}</tr>
+      <tr>${TICKER_HS.map(h=>tkrecCell(grp[h])).join("")}</tr></table></div>`;
+    return `<details class="tkrec tkrec-fold"><summary class="tkrec-1line"><b>${name}</b> ${body}</summary>${detailTable}</details>`;
   }
 
   const head = `<tr><th>신호</th>${TICKER_HS.map(h=>`<th>+${h}일</th>`).join("")}</tr>`;
@@ -4746,6 +4800,14 @@ function openModal(html){ modalBox.innerHTML = html; modal.classList.add("on"); 
 function closeModal(){ modal.classList.remove("on"); }
 modal.addEventListener("click", e=>{
   if (e.target.closest("[data-openmat]")){ openMaterialModal(); return; }
+  /* 팝업(비서·모의점검·카드 상세) 안에 렌더된 뱃지도 살아 있어야 한다.
+     이 리스너가 안 받으면 팝업 속 돌파·🔨 뱃지는 죽은 버튼이 된다 — 실제 버그였다. */
+  const ex = e.target.closest("[data-explain]");
+  if (ex){ explainStyle(ex.dataset.explain); return; }
+  const rt = e.target.closest("[data-restouch]");
+  if (rt){ openResTouchModal(rt.dataset.restouch); return; }
+  const ne = e.target.closest("[data-nedge]");
+  if (ne){ openNasdaqEdgeModal(ne.dataset.nedge); return; }
   if (e.target===modal) closeModal();
 });
 document.addEventListener("keydown", e=>{ if(e.key==="Escape"){ closeModal(); closeSheet(); } });
@@ -4790,6 +4852,26 @@ function explainStyle(kind){
          거래량이 줄어든 상태예요.<br><br>
          <b>강점</b> — 이미 오른 자리를 추격하지 않고, 손절선을 20일선 부근으로 가깝게 둘 수 있어요.<br>
          <b>주의</b> — 쉬는 것과 무너지는 것은 다릅니다. 거래량이 터지며 내려가면 눌림목이 아니라 이탈이에요.`) + close);
+    return;
+  }
+  if (kind === "돌파"){
+    /* 두드림별 실측은 🔨 팝업과 같은 resTouchRecord() 하나에서 나온다 — 따로 세면 어긋난다. */
+    const r = resTouchRecord();
+    const cell = c => !c || !c.n ? `<td><span class="tkrec-thin">—</span></td>`
+      : c.n < 3 ? `<td><span class="tkrec-thin">표본 부족</span><span class="tkrec-n">${c.n}건</span></td>`
+      : `<td${c.n<5?' class="tkrec-weak"':''}><span class="tkrec-rate">${c.rate===null?"—":c.rate+"%"}</span>
+          <span class="tkrec-avg">${c.avg>=0?"+":""}${c.avg}%</span>
+          <span class="tkrec-n">${c.n}건${c.n<5?" · 표본 부족":""}</span></td>`;
+    const rows = [["🔨 2번 이상 두드린 뒤", r.multi], ["처음~1번", r.single]]
+      .map(([lab, g]) => `<tr><td><b>${lab}</b></td>${r.hs.map(h=>cell(g[h])).join("")}</tr>`).join("");
+    openModal(`<h3>🚀 돌파 포착</h3>` +
+      P(`최근 저항(20일 고점) 부근을 <b>위로 넘어서는 움직임</b>이 확인된 상태예요.
+         돌파는 점수·등급에는 들어가지 않는 <b>보조 표시</b>입니다 — 실측에서 추세·반등보다 성적이 낮아 뱃지로만 남겼어요.<br><br>
+         같은 저항선을 <b>여러 번 두드린 뒤</b>의 돌파는 의미가 다릅니다. 아래는 강한매수 실측을 두드림 횟수로 가른 표예요.`) +
+      `<table class="cmp tkrec-t"><tr><th>강한매수</th>${r.hs.map(h=>`<th>+${h}일</th>`).join("")}</tr>${rows}</table>
+       <p style="font-size:12px;color:var(--reason);line-height:1.8;margin-top:8px">
+         여러 번 두드린 뒤가 <b>더 자주 이기지만 평균수익은 더 적어요</b> — 자주 이기고 조금 버는 자리.
+         그래서 점수에는 넣지 않고 카드에 🔨 표시만 합니다. 카드의 <b>🔨N</b>을 누르면 이 표가 그대로 나와요.</p>` + close);
     return;
   }
   const isTrend = kind === "돌파" || kind === "추세" || kind === "눌림";
@@ -4898,23 +4980,24 @@ function cartExitBlock(mine){
      실제로 2026-08-17이 그랬다 — 같은 날 신호 12건 중 빅테크·금융·주택은 내리고
      산업재·유가·반도체는 올랐다. 그래서 종목별 표를 위로 올리고, 전체 실측은
      '언제 팔까(보유기간)'라는 다른 질문에만 쓰도록 아래로 내려 이름을 붙였다. */
-  const perTicker = (mine||[]).map(x=>tickerRecordTable(x, true)).join("");
-  return `<div class="cf" style="margin-top:14px">
-    <div class="cf-h">📌 담은 종목별 예측 적중률 — 가장 잘 맞은 신호 하나</div>
+  /* _multiTier(💡/일반)가 붙은 flagged를 넘겨야 "오늘 해당 신호" 행을 고를 수 있다. */
+  const perTicker = (flagged||mine||[]).map(x=>tickerRecordTable(x, true)).join("");
+  return `<details class="cf cf-fold" style="margin-top:14px">
+    <summary class="cf-h">📌 담은 종목별 예측 적중률 <span class="cf-foldhint">눌러서 펼치기 · 종목 줄을 또 누르면 +1·3·5·7일 전체</span></summary>
     ${perTicker}
-    <p class="cf-note" style="margin-top:6px">위 표는 그 종목에서 <b>가장 승률이 높았던 신호·보유일 한 칸</b>입니다.
-      아래 전체 실측과 다를 수 있어요 — <b>전체가 좋아도 이 종목은 다를 수 있습니다.</b>
-      3~4건은 '표본 부족'을 같이 붙이고, 2건 이하는 숫자를 내지 않습니다.</p>
-  </div>
-  <div class="cf" style="margin-top:14px">
-    <div class="cf-h">⏳ 언제 팔까 — 자리 참고</div>
+    <p class="cf-note" style="margin-top:6px">줄에 보이는 건 그 종목에서 <b>가장 승률이 높았던 한 칸</b>이고,
+      줄을 누르면 <b>오늘 해당하는 신호의 +1·3·5·7일 적중률</b>이 펼쳐집니다.
+      전체가 좋아도 이 종목은 다를 수 있어요. 3~4건은 '표본 부족', 2건 이하는 숫자를 내지 않습니다.</p>
+  </details>
+  <details class="cf cf-fold" style="margin-top:14px">
+    <summary class="cf-h">⏳ 언제 팔까 — 자리 참고 <span class="cf-foldhint">눌러서 펼치기</span></summary>
     <div class="exit-tip">${levelTip}</div>
     <p class="cf-note">보유기간은 <b>위 종목별 적중률</b>을 보세요 — 그 종목이 실제로 가장 잘 맞았던
       신호와 거래일이 적혀 있습니다. 전체 평균보다 그쪽이 본인 종목에 가깝습니다.
       전체 기준 보유기간 비교가 필요하면 도움말의 <b>⏳ 더 오래 들고 있었다면?</b>에 그대로 있어요.</p>
     <p class="cf-note">최근 ${histWindowDays()}거래일 실측이며 표본이 적어 그대로 반복되지 않습니다.
       실적발표·급락 같은 사건은 이 표에 없어요. <b>손절선은 반드시 따로 정하세요</b> — 이 표는 "언제 팔까"만 말하고 "얼마나 잃을까"는 말하지 않습니다.</p>
-  </div>`;
+  </details>`;
 }
 
 /* 보유기간 비교 — 같은 신호를 며칠 들고 있었느냐로 성적이 어떻게 달라지는지.
@@ -5670,7 +5753,8 @@ window.addEventListener("scroll", () => {
 /* 모바일 시트 */
 const sheet = document.getElementById("sheet");
 function closeSheet(){ sheet.classList.remove("on"); }
-document.getElementById("fab").onclick = ()=>sheet.classList.add("on");
+/* 모바일 메뉴 FAB은 없앴다 — 비서 알약이 그 자리를 차지하고 이동 버튼을 품는다.
+   sheet(옛 메뉴)는 다른 진입점이 없으므로 코드만 남는다. */
 document.getElementById("fabAi").onclick = ()=>openAdvisor("avg");
 document.getElementById("sheetX").onclick = closeSheet;
 sheet.addEventListener("click", e=>{ if(e.target===sheet) closeSheet(); });
