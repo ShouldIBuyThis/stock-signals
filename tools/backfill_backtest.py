@@ -130,7 +130,9 @@ def build(days: int) -> dict:
     # ^TNX는 야후가 16일치만 줬다(2026-08-18 실측). 같은 금리를 보는 티커를 함께
     # 받아 두고, 검증 도구가 가장 긴 이력을 고르게 한다.
     for sym, key in (("^VXN", "vxn"), ("^TNX", "tnx"), ("ZN=F", "zn"),
-                     ("IEF", "ief"), ("TLT", "tlt"), ("NQ=F", "nq")):
+                     ("IEF", "ief"), ("TLT", "tlt"), ("NQ=F", "nq"),
+                     # SPY 대비 축(나스닥 전용 등급 후보) 측정용 — 2026-08-19
+                     ("SPY", "spy")):
         try:
             df = M._fetch_daily(sym)
             df = M.drop_unclosed(df, sym)
