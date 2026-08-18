@@ -973,6 +973,11 @@ def sync_prev_from_hist(results):
     """
     idx = {k: i for i, k in enumerate(HIST_FIELDS)}
     for r in results:
+        # carry된 행은 이미 고정된 snapshot과 글자 하나까지 같아야 한다.
+        # 신규 종목 과거 보충(seed_past_hist)으로 hist[-2]가 새로 생기면 여기서
+        # prev_*가 바뀌어 그날 snapshot과 어긋난다(2026-08-18 SKHY 실패 사례).
+        if str(r.get("data_status") or "").startswith("carried"):
+            continue
         hist = r.get("hist") or []
         if len(hist) < 2:
             continue
