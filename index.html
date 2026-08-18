@@ -367,9 +367,15 @@ table.validation-cmp th[colspan="3"]{color:var(--ink);font-weight:800}
 .hr-t td,.hr-t th{padding:7px 8px;vertical-align:middle}
 .hr-t .hr-rank{width:34px;text-align:center;font-weight:900;font-size:13px;color:var(--muted)}
 .hr-t tr:nth-child(-n+4) .hr-rank{color:var(--buy)}
+.hr-t .hr-tie{display:block;font-size:8.5px;font-weight:700;color:var(--faint)}
 .hr-t .hr-kind{font-size:11px;font-weight:700;white-space:nowrap}
 .hr-t .tkrec-rate{font-size:14px}
-.nedge{display:inline-block;margin-left:5px;padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:800;line-height:1.6;cursor:help;vertical-align:middle}
+.nedge{display:inline-block;margin-left:5px;padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:800;line-height:1.6;cursor:pointer;vertical-align:middle;border-bottom:1px dashed currentColor}
+.nedge-t td,.nedge-t th{padding:7px 8px;vertical-align:middle}
+.nedge-t .nedge-on td{background:var(--buy-soft)}
+.nedge-t .nedge-cur td{outline:2px solid var(--buy);outline-offset:-2px}
+.nedge-t tr.nedge-note td{padding-top:0;border-bottom:1px solid var(--line)}
+.nedge-t .tkrec-rate{font-size:14px}
 .nedge-vxn{color:var(--buy);background:var(--buy-soft)}
 .nedge-vxn2{color:var(--sell);background:var(--sell-soft)}
 .nedge-br{color:var(--down);background:var(--neutral-soft)}
@@ -2356,14 +2362,14 @@ function nasdaqEdgeBadges(){
        고변동 구간 자체가 +10~11%p라 표본 28건으로 '방향만' 등급은 된다. */
     const peaked = has(num(v.prev)) && v.value < v.prev;
     out.push(peaked
-      ? { cls:"nedge-vxn", icon:"💡⚡", label:"변동성 피크아웃",
+      ? { key:"vxn-peak", cls:"nedge-vxn", icon:"💡⚡", label:"변동성 피크아웃",
           tip:`VXN ${r1(v.value)} (전일 ${r1(v.prev)}에서 꺾임) · 실측 다음날 QQQ 상승 88%·+3일 75% (8건)` }
-      : { cls:"nedge-vxn2", icon:"⚡", label:"고변동 구간",
+      : { key:"vxn-high", cls:"nedge-vxn2", icon:"⚡", label:"고변동 구간",
           tip:`VXN ${r1(v.value)} · 실측 다음날 QQQ 상승 64%·+3일 71% (28건, 기준선 대비 +10~11%p)` });
   }
   const b = breadthNow();
   if(b && b.n >= 20 && b.pct < 30){
-    out.push({ cls:"nedge-br", icon:"🌊", label:"바닥권",
+    out.push({ key:"breadth-low", cls:"nedge-br", icon:"🌊", label:"바닥권",
       tip:`20일선 위 ${b.pct}% (${b.above}/${b.n}종목) · 실측 다음날 QQQ 상승 78%(9건)` });
   }
   return out;
@@ -2381,7 +2387,55 @@ function breadthNow(){
 function nasdaqEdgeHtml(){
   const b = nasdaqEdgeBadges();
   if(!b.length) return "";
-  return b.map(x=>`<span class="nedge ${x.cls}" title="${esc(x.tip)}">${x.icon} ${esc(x.label)}</span>`).join("");
+  return b.map(x=>`<span class="nedge ${x.cls}" role="button" tabindex="0" data-nedge="${esc(x.key)}"
+    title="${esc(x.tip)}">${x.icon} ${esc(x.label)}</span>`).join("");
+}
+/* 뱃지를 누르면 근거를 통째로 보여준다. 숫자는 2026-08-18에 188거래일
+   백테스트로 측정한 고정값이다 — 화면이 매번 다시 세는 값이 아니므로
+   '언제 무엇으로 쟀는지'를 같이 적는다. 백테스트를 다시 돌리면 여기도 고쳐야 한다. */
+const NEDGE_FACTS = [
+  { key:"vxn-peak", icon:"💡⚡", label:"변동성 피크아웃",
+    rule:"VXN ≥ 28 이면서 전일보다 꺾인 날",
+    d1:88, e1:34, d3:75, e3:15, n:8,
+    note:"§2 반쪽 전반 100%(2건) / 후반 83%(6건) — 양쪽 다 기준선 위" },
+  { key:"vxn-high", icon:"⚡", label:"고변동 구간",
+    rule:"VXN ≥ 28 (꺾임은 안 봄)",
+    d1:64, e1:10, d3:71, e3:11, n:28,
+    note:"VXN 25에서는 효과가 없다(-2%p). 28을 넘어야 나타나는 문턱이다." },
+  { key:"breadth-low", icon:"🌊", label:"바닥권",
+    rule:"20일선 위 종목이 30% 미만인 날",
+    d1:78, e1:24, d3:89, e3:29, n:9,
+    note:"관심종목으로 직접 세므로 외부 데이터가 필요 없다." },
+];
+function openNasdaqEdgeModal(key){
+  const on = new Set(nasdaqEdgeBadges().map(x=>x.key));
+  const b = breadthNow();
+  const mx = (state.data && state.data.market_extra) || {};
+  const rows = NEDGE_FACTS.map(f=>`
+    <tr class="${on.has(f.key)?"nedge-on":""}${f.key===key?" nedge-cur":""}">
+      <td><b>${f.icon} ${esc(f.label)}</b><span class="tkrec-n">${esc(f.rule)}</span></td>
+      <td><span class="tkrec-rate" style="color:var(--buy)">${f.d1}%</span>
+          <span class="vedge vedge-up">+${f.e1}%p</span></td>
+      <td><span class="tkrec-rate" style="color:var(--buy)">${f.d3}%</span>
+          <span class="vedge vedge-up">+${f.e3}%p</span></td>
+      <td><span class="tkrec-n">${f.n}건</span>${on.has(f.key)?`<span class="tkrec-n" style="color:var(--buy);font-weight:800">오늘 해당</span>`:""}</td>
+    </tr>
+    <tr class="nedge-note"><td colspan="4"><span class="tkrec-n">${esc(f.note)}</span></td></tr>`).join("");
+  openModal(`<h3>🌐 나스닥 전용 표시 — 무엇을 보고 붙였나</h3>
+    <p style="font-size:12.5px;color:var(--reason);line-height:1.8">
+      QQQ 카드에만 붙는 표시예요. <b>점수·등급·순위·시장 국면 판정에는 전혀 들어가지 않습니다.</b><br>
+      아래는 그 자리에서 <b>다음날 QQQ가 실제로 올랐는지</b>를 잰 결과예요.
+      같은 기간 기준선은 다음날 <b>54%</b> · +3일 <b>60%</b>입니다.</p>
+    <table class="cmp nedge-t"><tr><th>표시</th><th>다음날</th><th>+3일</th><th>표본</th></tr>${rows}</table>
+    <p style="font-size:11.5px;color:var(--reason);line-height:1.8;margin-top:8px">
+      지금 값 · VXN <b>${mx.vxn&&has(num(mx.vxn.value))?r1(mx.vxn.value):"—"}</b>
+      (전일 ${mx.vxn&&has(num(mx.vxn.prev))?r1(mx.vxn.prev):"—"}) ·
+      20일선 위 <b>${b?b.pct:"—"}%</b>${b?` (${b.above}/${b.n}종목)`:""}</p>
+    <p style="font-size:11.5px;color:var(--sell);line-height:1.8">
+      ⚠ 표본이 <b>8~28건</b>입니다. 우연과 구분되려면 보통 50건은 필요해요(방법론 §5-1).
+      그래서 <b>산식에는 넣지 않고 표시만</b> 합니다. 표본이 쌓이면 다시 검토할게요.<br>
+      2026-08-18 기준 · 188거래일 백테스트 측정값이라 화면에서 매번 다시 세지 않습니다.</p>
+    <div class="modal-actions perf-sticky"><button class="primary" onclick="closeModal()">닫기</button></div>`);
 }
 
 function qqqBenchmarkStock(){
@@ -3328,9 +3382,21 @@ function tickerHitRanks(){
     const sc = tickerHitScore(tickerStrongRecord(s));
     if(sc) list.push({tk:s.ticker, sc});
   });
-  list.sort((a,b) => (b.sc.rate - a.sc.rate) || (b.sc.top2 - a.sc.top2) || a.tk.localeCompare(b.tk));
+  /* 정렬: 최고 승률 → 동점이면 상위 두 칸 평균 → 그래도 동점이면 표본 많은 순.
+     세 값이 전부 같으면 순위를 나누지 않고 **공동 등수**로 준다 —
+     알파벳 순으로 억지로 갈라 놓으면 없는 차이를 있는 것처럼 보여주게 된다. */
+  const same = (a,b) => a.sc.rate===b.sc.rate && a.sc.top2===b.sc.top2 && a.sc.n===b.sc.n;
+  list.sort((a,b) => (b.sc.rate - a.sc.rate) || (b.sc.top2 - a.sc.top2) ||
+                     (b.sc.n - a.sc.n) || a.tk.localeCompare(b.tk));
   const m = {};
-  list.forEach((x,i) => m[x.tk] = Object.assign({rank:i+1, total:list.length}, x.sc));
+  let rank = 0;
+  list.forEach((x,i) => {
+    if(i === 0 || !same(x, list[i-1])) rank = i + 1;   // 동점이면 앞 등수를 그대로 물려받는다
+    m[x.tk] = Object.assign({rank, total:list.length}, x.sc);
+  });
+  Object.keys(m).forEach(tk => {
+    m[tk].tied = list.filter(x => m[x.tk].rank === m[tk].rank).length > 1;
+  });
   _hitRanks = m; _hitRanksFor = state.data; _hitRanksBt = TICKER_BT;
   return m;
 }
@@ -3369,7 +3435,7 @@ function tickerRecordTable(s, compact){
       ? `<span class="tkrec-best">${esc(hit.kindLabel)} · +${hit.h}일</span>
          <span class="tkrec-rate" style="color:${hit.rate>=60?"var(--buy)":hit.rate<=40?"var(--sell)":"var(--ink)"}">${hit.rate}%</span>
          <span class="tkrec-sub">${hit.n}건 · 평균 ${hit.avg>=0?"+":""}${hit.avg}%</span>
-         <span class="tkrec-sub">적중률 ${hit.rank}위/${hit.total}</span>`
+         <span class="tkrec-sub">적중률 ${hit.tied?"공동 ":""}${hit.rank}위/${hit.total}</span>`
       : `<span class="tkrec-thin">표본 부족 — 5건 이상인 칸 없음</span>`;
     return `<div class="tkrec tkrec-1line"><b>${name}</b> ${body}</div>`;
   }
@@ -3384,7 +3450,7 @@ function tickerRecordTable(s, compact){
       }).join("");
 
   const rankLine = hit
-    ? `<div class="tkrec-rank">🎯 개별 예측 적중률 <b>${hit.rank}위</b> / ${hit.total}종목
+    ? `<div class="tkrec-rank">🎯 개별 예측 적중률 <b>${hit.tied?"공동 ":""}${hit.rank}위</b> / ${hit.total}종목
         <span class="tkrec-sub">최고 ${esc(hit.kindLabel)} +${hit.h}일 <b>${hit.rate}%</b> (${hit.n}건)</span></div>`
     : `<div class="tkrec-rank tkrec-thin">🎯 개별 예측 적중률 — 표본 5건 이상인 칸이 없어 순위 없음</div>`;
 
@@ -3672,7 +3738,7 @@ function openHitRankAll(){
   const catOf  = tk => { const s = allStocks().find(x=>x.ticker===tk); return s ? (s.category||"") : ""; };
   const rows = list.map(([tk,x])=>{
     const c = x.rate>=70?"var(--buy)":x.rate<=45?"var(--sell)":"var(--ink)";
-    return `<tr><td class="hr-rank">${x.rank}</td>
+    return `<tr><td class="hr-rank">${x.rank}${x.tied?`<span class="hr-tie">공동</span>`:""}</td>
       <td><b>${esc(nameOf(tk))}</b><span class="tkrec-n">${esc(tk)} · ${esc(catOf(tk))}</span></td>
       <td class="hr-kind">${esc(x.kindLabel)}<span class="tkrec-n">+${x.h}일</span></td>
       <td><span class="tkrec-rate" style="color:${c}">${x.rate}%</span>
@@ -5326,6 +5392,8 @@ document.getElementById("main").addEventListener("click", e=>{
     e.preventDefault(); e.stopPropagation();
     state.themeFilter=""; state.displayLimit=20; save(); render(); return;
   }
+  const nedgeBtn = e.target.closest("[data-nedge]");
+  if(nedgeBtn){ e.preventDefault(); e.stopPropagation(); openNasdaqEdgeModal(nedgeBtn.dataset.nedge); return; }
   const resTouchBtn = e.target.closest("[data-restouch]");
   if(resTouchBtn){ e.preventDefault(); e.stopPropagation(); openResTouchModal(resTouchBtn.dataset.restouch); return; }
   const marketEventBtn = e.target.closest("[data-market-event]");
