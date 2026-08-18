@@ -26,6 +26,14 @@ main.py의 `analyze()`·`market_state()`를 **그대로** 재사용하되 HIST_D
 둘은 다른 주장이므로 절대 섞지 않는다. 이 스크립트는 signals.json도,
 history/도 건드리지 않는다.
 
+적용되는 필터
+--------------
+`analyze()`를 그대로 쓰므로 지표는 운영과 동일하고, 여기에 더해
+  · 시장 국면(그 날짜의 QQQ)  → attach_historical_market()
+  · 항복 바닥(K2) 해제        → qqq_card 동봉
+  · 실적 영향권 제외          → historical_earnings()
+까지 붙인다. 남는 차이는 아래 생존 편향뿐이다.
+
 ⚠ 생존 편향이 있다
 ------------------
 관심종목은 **지금 시점에서** 골랐다. 최근 눈에 띈 종목이 들어와 있으므로
@@ -45,6 +53,32 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import main as M
 
 
+
+def historical_earnings(tk: str, first_day: str, last_day: str) -> tuple[list, list]:
+    """백테스트 창 안의 과거 실적일을 모아 신호금지·종가오염 세션으로 바꾼다.
+
+    운영 경로(main.fetch_event_calendars)는 '앞으로 며칠' 캘린더만 본다. 백테스트는
+    9개월 전까지 거슬러야 하므로 티커별 `get_earnings_dates`(과거 분까지 준다)를 쓴다.
+    창을 만드는 규칙은 main._earnings_windows() 그대로다 — 여기서 다시 짜지 않는다.
+    """
+    if tk in M.NO_EARNINGS_TICKERS:
+        return [], []
+    try:
+        df = M.yf.Ticker(tk).get_earnings_dates(limit=24)
+    except Exception:
+        return [], []
+    if df is None or getattr(df, "empty", True):
+        return [], []
+    blocked, affected = set(), set()
+    for idx, _ in df.iterrows():
+        d = M._event_date(idx)
+        if not d or not (first_day <= d <= last_day):
+            continue
+        b, a, _rel, _sess = M._earnings_windows({"date": d, "timing": M._timing_from_timestamp(idx)})
+        blocked.update(b); affected.update(a)
+    return sorted(blocked), sorted(affected)
+
+
 def build(days: int) -> dict:
     # analyze()·market_state()가 모듈 전역 HIST_DAYS를 읽으므로 여기서 늘린다.
     M.HIST_DAYS = days
@@ -56,28 +90,50 @@ def build(days: int) -> dict:
     if len(mhist) < days * 0.5:
         print("⚠ 시장 이력이 요청 일수의 절반도 안 된다 — 종목 쪽도 짧을 것이다.")
 
-    rows, failed = [], []
+    rows, failed, earn_days = [], [], 0
     todo = [(tk, nm, cat) for cat, grp in M.WATCHLIST.items() for tk, nm in grp.items()]
     for i, (tk, nm, cat) in enumerate(todo, 1):
         try:
             r = M.analyze(tk, nm, cat)
             # 그날의 시장 입력을 각 hist 행에 붙인다 — 실행 시점 값으로 덮지 않는다.
+            hist = r.get("hist") or []
+            di = M.HIST_FIELDS.index("date")
+            days_seen = [str(h[di]) for h in hist if h and h[di]]
+            if days_seen:
+                b, a = historical_earnings(tk, days_seen[0], days_seen[-1])
+                r["validation_blocked_dates"] = b
+                r["validation_affected_dates"] = a
+                earn_days += len(b)
             rows.append(r)
-            print(f"  [{i}/{len(todo)}] OK   {tk:<10} hist {len(r.get('hist') or [])}행")
+            print(f"  [{i}/{len(todo)}] OK   {tk:<10} hist {len(hist)}행"
+                  f"{' · 실적창 ' + str(len(r.get('validation_blocked_dates') or [])) + '일' if r.get('validation_blocked_dates') else ''}")
         except Exception as e:
             failed.append(f"{tk} — {e}")
             print(f"  [{i}/{len(todo)}] SKIP {tk:<10} {e}")
         time.sleep(0.15)     # 야후 쪽 부담을 줄인다
 
     M.attach_historical_market(rows, mkt)
+
+    # 항복 바닥(K2) 해제는 qqq_card.hist의 그날 RSI를 읽는다. 이게 없으면 화면 산식이
+    # weak을 절대 못 풀어 백테스트만 더 보수적으로 나온다 — 운영과 같은 카드를 만들어 넣는다.
+    try:
+        qqq_card = M.prepare_qqq_card(M.analyze(M.MARKET_TICKER, "나스닥100 ETF", "시장 기준"), [], False)
+        print(f"QQQ 기준카드: hist {len(qqq_card.get('hist') or [])}행 (K2 항복바닥 해제용)")
+    except Exception as e:
+        qqq_card = None
+        print(f"⚠ QQQ 기준카드 실패 — K2 해제가 백테스트에 반영되지 않는다: {e}")
+
+    print(f"실적 영향권: 신호금지 세션 {earn_days}일 수집")
     return {
         "kind": "backtest",           # 원장이 아님을 파일 안에도 남긴다
         "note": "현재 산식을 과거 데이터에 소급 적용한 백테스트. signals.json의 frozen 원장과 다르다.",
         "survivorship_warning": "관심종목을 현재 시점에서 골랐으므로 과거 성적은 위로 편향된다.",
-        "earnings_excluded": False,   # 1년치 실적일 데이터가 없어 제외하지 못한다
+        # 티커별 get_earnings_dates로 과거 실적일까지 복원해 운영과 같은 창을 뺀다.
+        "earnings_excluded": True,
         "days_requested": days,
         "hist_fields": M.HIST_FIELDS,
         "market": mkt,
+        "qqq_card": qqq_card,
         "stocks": rows,
         "failed": failed,
     }

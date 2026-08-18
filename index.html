@@ -3041,7 +3041,8 @@ function tickerStrongRecord(s){
   const bt = TICKER_BT && TICKER_BT.records && TICKER_BT.records[s.ticker];
   if(bt){
     const res = { any:false, source:"backtest", signals:bt.signals||0,
-                  window:(TICKER_BT.window||{}).days || null };
+                  window:(TICKER_BT.window||{}).days || null,
+                  earnOut:TICKER_BT.earnings_excluded === true };
     TICKER_HS.forEach(h => {
       const c = bt[h] || bt[String(h)] || {n:0,rate:null,avg:null};
       res[h] = { n:c.n||0, rate:c.rate===undefined?null:c.rate, avg:c.avg===undefined?null:c.avg };
@@ -3100,12 +3101,15 @@ function tickerRecordTable(s, compact){
   const srcLabel = isBT
     ? `강한매수만 · <b>백테스트 ${rec.window||""}거래일</b>`
     : `강한매수만 · 원장 ${histWindowDays()}거래일`;
+  /* 경고는 파일이 실제로 무엇을 뺐는지 보고 쓴다 — 고정 문구로 적으면 거짓말이 된다. */
   const btNote = (isBT && !compact)
     ? `<p class="tkrec-note" style="color:var(--sell)">⚠ 이 표는 <b>백테스트</b>입니다 —
         지금 산식을 과거에 소급 적용한 결과지 그날 실제로 뜬 신호가 아니에요.
-        관심종목을 지금 시점에서 골랐으니 <b>성적이 위로 부풀려져 있고</b>,
-        실적발표 영향권도 빼지 못했습니다. 위 검증표(원장 ${histWindowDays()}거래일)와
-        직접 비교하지 마세요.</p>` : "";
+        관심종목을 지금 시점에서 골랐으니 <b>성적이 위로 부풀려져 있습니다.</b>
+        ${rec.earnOut
+          ? `시장 국면·항복 바닥·실적발표 영향권은 원장과 똑같이 뺐지만, 생존 편향은 남습니다.`
+          : `실적발표 영향권도 빼지 못했습니다.`}
+        위 검증표(원장 ${histWindowDays()}거래일)와 직접 비교하지 마세요.</p>` : "";
   return `<div class="tkrec">
     <div class="tkrec-h">📌 ${name} 개별 실측 <span class="tkrec-sub">${srcLabel}</span></div>
     <table class="cmp tkrec-t"><tr><th>보유</th>${TICKER_HS.map(h=>`<th>+${h}일</th>`).join("")}</tr>
@@ -4006,7 +4010,9 @@ async function fetchData(url, silent){
    frozen 원장은 30거래일뿐이라 종목당 강한매수가 1~5건이고 대부분 '표본 부족'이
    된다. 이 파일은 같은 산식을 1년 가까운 과거에 소급 적용해 표본을 6배로 늘린 것이다.
    ⚠ 원장이 아니다 — 그날 실제로 본 신호가 아니고, 관심종목을 지금 시점에서
-   골랐으므로 생존 편향이 있으며, 실적 영향권도 제외하지 못한다. 화면에 그대로 적는다.
+   골랐으므로 생존 편향이 있다. 시장 국면·항복 바닥(K2)·실적 영향권 제외는
+   원장 경로와 동일하게 적용되며, 무엇이 빠졌는지는 파일의 earnings_excluded를
+   읽어 화면에 그대로 적는다.
    실패해도 사이트 동작에 영향이 없어야 하므로 조용히 넘어간다. */
 let TICKER_BT = null;
 async function loadTickerBacktest(){
