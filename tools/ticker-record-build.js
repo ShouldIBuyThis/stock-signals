@@ -53,7 +53,25 @@ const res = ctx.runInPage(`(() => {
   });
   const days = [...new Set(allStocks().flatMap(s => (histStocks(s)||[]).map(h => h.last_date)))]
                  .filter(Boolean).sort();
-  return { records: out, days, kinds: TICKER_KINDS.map(x=>x.k), horizons: TICKER_HS };
+  /* 신호 단위 표본도 같이 뽑는다. 종목별 요약만으로는 §2 반쪽 검증도, 섹터별
+     컷 스윕도 못 한다 — 날짜가 없으면 반으로 자를 수 없고, 점수가 없으면
+     '문턱을 올리면 어떻게 되나'를 잴 수 없기 때문이다. 원장 30일로 재면
+     표본이 6건짜리가 나와 판단이 불가능하다. */
+  const cat = {}; allStocks().forEach(s => cat[s.ticker] = s.category);
+  const phase = (strategyValidation() || {})._phaseRows || {};
+  const byId = new Map();
+  TICKER_KINDS.forEach(({k, src:key}) => {
+    TICKER_HS.forEach(h => {
+      ((phase[key] || {})[h] || []).forEach(x => {
+        const id = k+'|'+x.ticker+'|'+x.date;
+        let row = byId.get(id);
+        if(!row){ row = {k, t:x.ticker, c:cat[x.ticker]||"", d:x.date, r:{}}; byId.set(id, row); }
+        row.r[h] = Math.round(x.ret*100)/100;
+      });
+    });
+  });
+  const samples = [...byId.values()];
+  return { records: out, days, samples, kinds: TICKER_KINDS.map(x=>x.k), horizons: TICKER_HS };
 })()`);
 
 const days = res.days;
@@ -68,6 +86,12 @@ const payload = {
   horizons: res.horizons,
   records: res.records,
 };
+/* 신호 단위 표본은 별도 파일로 낸다 — 사이트는 요약만 받으면 되고,
+   이건 도구(§2 반쪽·섹터 컷 스윕)가 읽는다. */
+const SOUT = OUT.replace(/\.json$/, '') + '-samples.json';
+fs.writeFileSync(SOUT, JSON.stringify({
+  kind:'backtest', note:payload.note, window:payload.window,
+  horizons:res.horizons, samples:res.samples }));
 fs.mkdirSync(path.dirname(OUT), { recursive: true });
 fs.writeFileSync(OUT, JSON.stringify(payload));
 
@@ -75,6 +99,7 @@ const tks = Object.keys(payload.records);
 console.log(`실적 제외: ${payload.earnings_excluded ? '적용' : '미적용'} · QQQ 기준카드(K2): ${base.qqq_card ? '있음' : '없음'}`);
 console.log(`저장: ${OUT} (${(fs.statSync(OUT).size/1024).toFixed(0)}KB) · ${tks.length}종목 · ` +
   `창 ${payload.window ? payload.window.from+'~'+payload.window.to+' ('+payload.window.days+'일)' : '없음'}`);
+console.log(`신호 표본: ${SOUT} (${(fs.statSync(SOUT).size/1024).toFixed(0)}KB) · ${res.samples.length}건`);
 res.kinds.forEach(k => {
   const n3 = tks.map(t => payload.records[t][k][3].n).sort((a,b)=>a-b);
   if(n3.length) console.log(`  ${k.padEnd(7)} +3일 표본 최소 ${n3[0]} · 중앙 ${n3[Math.floor(n3.length/2)]} · 최대 ${n3[n3.length-1]} · 5건+ ${n3.filter(x=>x>=5).length}/${n3.length}`);
