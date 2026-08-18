@@ -399,6 +399,7 @@ table.validation-cmp th[colspan="3"]{color:var(--ink);font-weight:800}
 .chat-chips{display:flex;flex-wrap:wrap;gap:6px;padding-top:8px;border-top:1px solid var(--line)}
 .adv-mode-btn{margin-left:6px;padding:2px 9px;border-radius:999px;border:1px solid var(--line);background:var(--card,transparent);font-size:15px;line-height:1.4;cursor:pointer;vertical-align:middle}
 .adv-mode-btn:active{transform:scale(.94)}
+.hit-warn{display:block;margin-top:4px;color:var(--sell);font-weight:700;font-size:12px;line-height:1.6}
 .adv-strong{font-weight:600}
 details.cf-fold>summary{cursor:pointer;user-select:none}
 details.cf-fold>summary.cf-h{display:block}
@@ -2730,7 +2731,7 @@ function advisorAvg(s, avgRaw){
     <p class="tkrec-note">${notes.join(" ")}</p>
     <p class="tkrec-note">${hit
       ? `이 종목의 개별 예측 적중률은 <span class="hl">${hit.tied?"공동 ":""}${hit.rank}위</span> / ${hit.total}종목이에요 (최고 ${esc(hit.kindLabel)} +${hit.h}일 <span class="hl">${hit.rate}%</span>, ${hit.n}건).`
-      : `이 종목은 아직 표본이 5건이 안 돼 적중률 순위가 없어요.`}</p>
+      : `이 종목은 아직 표본이 5건이 안 돼 적중률 순위가 없어요.`}${hitWarnHtml(hit)}</p>
     <p class="tkrec-note adv-warn">⚠ 지지·저항은 최근 고저점일 뿐 <b>미래를 보장하지 않아요.</b>
       공매도 잔고·수급·공시는 이 사이트가 수집하지 않아 여기에 <b>반영돼 있지 않습니다.</b>
       매수·매도를 권하는 게 아니라 지금 자리를 숫자로 보여 드리는 거예요.</p>
@@ -2750,8 +2751,9 @@ function advisorTiming(s){
   else if(knocks === 1) parts.push(`이 저항선은 최근 20거래일 동안 <b>1번 두드렸어요</b>.`);
   else parts.push(`최근 20거래일 안에는 단기 저항선을 두드린 적이 없어요.`);
   const hit = hitRankOf(s);
-  if(hit) parts.push(`이 종목은 <b>${esc(hit.kindLabel)}</b> 신호일 때 <span class="hl">+${hit.h}거래일</span>이 가장 잘 맞았어요
+  if(hit){ parts.push(`이 종목은 <b>${esc(hit.kindLabel)}</b> 신호일 때 <span class="hl">+${hit.h}거래일</span>이 가장 잘 맞았어요
     (<span class="hl">${hit.rate}%</span>, ${hit.n}건). <b>보유기간</b>을 정할 때 참고하세요.`);
+    const w=hitWarnHtml(hit); if(w) parts.push(w); }
   else parts.push(`아직 이 종목만의 표본이 5건이 안 돼 '며칠 들고 있어야 하는지'는 말씀드릴 수 없어요.`);
   return `<div class="adv-card"><p class="tkrec-note adv-strong">${parts.join("<br>")}</p>
     <p class="tkrec-note adv-warn">⚠ <b>언제 사고팔지는 결국 본인 판단</b>이에요. 위 숫자는 <b>과거 실측</b>일 뿐입니다.</p></div>`;
@@ -3785,6 +3787,12 @@ function tickerHitRanks(){
   return m;
 }
 function hitRankOf(s){ return s ? (tickerHitRanks()[s.ticker] || null) : null; }
+/* 적중률 60% 미만 경고 — 모의점검·비서가 같은 문구를 쓴다(사용자 지시 2026-08-18).
+   "가장 잘 맞은 칸"조차 60%가 안 되는 종목은 신호 신뢰가 낮다는 뜻이라 명시한다. */
+function hitWarnHtml(hit){
+  if(!hit || hit.rate===null || hit.rate>=60) return "";
+  return `<span class="hit-warn">⚠ 이 종목은 <b>가장 잘 맞은 신호조차 ${hit.rate}%</b>로 적중률 60%가 안 돼요 — 신호를 참고만 하고, 진입한다면 비중을 줄이는 게 안전합니다.</span>`;
+}
 
 /* 표기 규칙(사용자 지시): 3건부터는 숫자를 보여주되 '표본 부족'을 같이 적는다.
    2건 이하는 숫자를 아예 내지 않는다 — 한 건이 뒤집으면 0%와 100%를 오가서
@@ -3841,7 +3849,7 @@ function tickerRecordTable(s, compact){
     const detailTable = `<div class="tkrec-foldbody"><span class="tkrec-n">${kindNote}</span>
       <table class="cmp tkrec-t"><tr>${TICKER_HS.map(h=>`<th>+${h}일</th>`).join("")}</tr>
       <tr>${TICKER_HS.map(h=>tkrecCell(grp[h])).join("")}</tr></table></div>`;
-    return `<details class="tkrec tkrec-fold"><summary class="tkrec-1line"><b>${name}</b> ${body}</summary>${detailTable}</details>`;
+    return `<details class="tkrec tkrec-fold"><summary class="tkrec-1line"><b>${name}</b> ${body}${hitWarnHtml(hit)}</summary>${detailTable}</details>`;
   }
 
   const head = `<tr><th>신호</th>${TICKER_HS.map(h=>`<th>+${h}일</th>`).join("")}</tr>`;
