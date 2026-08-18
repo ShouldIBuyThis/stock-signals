@@ -553,7 +553,8 @@ PENDING_TICKERS = {"SKHY"}
 # 이때 볼린저·RSI가 null이라 강한매수 관문(pullBandOK는 볼린저, revStrong은
 # RSI를 요구)이 구조적으로 막히므로 가짜 신호는 뜨지 않는다 — 중립으로만 나온다.
 MIN_BARS = 30
-MIN_BARS_OVERRIDE = {"SKHY": 10}
+# 신규 상장은 30봉을 못 채운다. 있는 만큼이라도 흐름을 보여주는 게 낫다.
+MIN_BARS_OVERRIDE = {"SKHY": 10, "CBRS": 10}
 
 # 52주 고·저를 신뢰할 수 있는 최소 봉 수. 우리가 쓰는 가장 긴 이동평균이
 # 60일선이므로, 그조차 못 만드는 구간에서는 장기 고·저를 계산하지 않는다.
@@ -757,6 +758,32 @@ def _fetch_daily(ticker, days_back=520):
     except Exception as e:
         print(f"데이터 보정 실패: {ticker} — {e}")
     return df
+
+def seed_past_hist(kept, tk, nm, cat, date_i):
+    """원장에 1~2행뿐인 신규 종목만, carry 중에도 '지난 날짜'를 채워 준다.
+
+    합류 직후 종목은 hist가 한 줄이라 '최근 30거래일 신호 흐름'이 안 그려진다.
+    그런데 미국 피드가 역행하는 날에는 carry로 빠져 영원히 한 줄에 머문다.
+
+    여기서 하는 건 last_date를 앞으로 옮기는 게 아니다 — 현재 행(top-level)은
+    직전 값 그대로 두고, **그보다 이전 날짜의 hist 행만** 붙인다. 그 날짜들은
+    원장에 한 번도 기록된 적이 없으므로 append-only 원칙에 어긋나지 않는다.
+    """
+    if len(kept.get("hist") or []) > 2:
+        return kept
+    try:
+        fresh = analyze(tk, nm, cat)
+    except Exception as e:
+        print(f"  과거 보충 실패 {tk}: {e}")
+        return kept
+    cur = str(kept.get("last_date") or "")
+    rows = [h for h in (fresh.get("hist") or [])
+            if isinstance(h, list) and len(h) > date_i and str(h[date_i] or "") < cur]
+    if not rows:
+        return kept
+    kept["hist"] = rows + list(kept.get("hist") or [])
+    print(f"  과거 보충 {tk}: {len(rows)}행 (~{rows[-1][date_i]}) · 현재 행은 {cur} 유지")
+    return kept
 
 def analyze(ticker, name, category):
     df = _fetch_daily(ticker)
@@ -1390,6 +1417,8 @@ def main():
                 kept["name"], kept["category"] = nm, cat
                 kept["data_status"] = "carried_stale_feed"
                 kept["data_status_message"] = f"야후 이력 역행 — 직전 값 유지 ({prev_qqq})"
+                # 원장이 1~2행뿐인 신규 종목만 지난 날짜를 보충한다(현재 행은 그대로).
+                kept = seed_past_hist(kept, tk, nm, cat, HIST_FIELDS.index("date"))
                 results.append(kept); carried += 1
                 continue
 
@@ -1419,6 +1448,7 @@ def main():
                     kept["name"], kept["category"] = nm, cat
                     kept["data_status"] = "carried_after_fetch_error"
                     kept["data_status_message"] = str(e)
+                    kept = seed_past_hist(kept, tk, nm, cat, HIST_FIELDS.index("date"))
                     results.append(kept); carried += 1
                     fetch_carried.append(tk)
                     print("SKIP→KEEP", tk, e)
