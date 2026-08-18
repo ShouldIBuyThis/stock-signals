@@ -115,6 +115,19 @@ const res = ctx.runInPage(`(() => {
   }));
   const breadth = Object.keys(total).sort().map(d => ({
     d, pct: Math.round((above[d]||0)/total[d]*1000)/10, n: total[d] }));
+  /* ── QQQ 카드 자체 적중률(records.QQQ) ─────────────────────────────
+     QQQ는 랭킹 유니버스 밖이라 위 fold에 안 들어가고, 사이트는 벤치마크 단독
+     계산 경로(tickerStrongRecord — 강한매수 한 줄·시장 이벤트일 제외)로 원장
+     30일을 세고 있었다. 같은 함수를 백테스트 데이터 위에서 그대로 호출해
+     188일 표본을 실어 준다. 재구현 금지(§0) — flat 모양이라 사이트의
+     flat 판독 분기가 그대로 읽는다. */
+  const qqRec = qq ? tickerStrongRecord(qq) : null;
+  if(qqRec && qqRec.any){
+    const flat = { signals: qqRec.signals || 0 };
+    TICKER_HS.forEach(h => { const c = qqRec[h] || {n:0,rate:null,avg:null};
+      flat[h] = { n:c.n||0, rate:c.rate===undefined?null:c.rate, avg:c.avg===undefined?null:c.avg }; });
+    out.QQQ = flat;
+  }
   return { records: out, days, samples, qqq, breadth,
            kinds: TICKER_KINDS.map(x=>x.k), horizons: TICKER_HS };
 })()`);
