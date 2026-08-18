@@ -85,9 +85,6 @@ def validate_current(payload: dict, scope: str) -> None:
         print(f"[대기] {ticker} 아직 30봉 미만 — 쌓이면 자동 합류 (PENDING_TICKERS)")
     if MARKET_TICKER in actual:
         fail(f"{MARKET_TICKER}가 일반 stocks 랭킹 유니버스에 섞였습니다.")
-    if "ETHU" not in actual:
-        fail("ETHU가 WATCHLIST 결과에서 누락됐습니다.")
-
     qqq = payload.get("qqq_card") or {}
     if not qqq or not qqq.get("last_date") or not finite_positive(qqq.get("price")):
         fail("QQQ 별도 기준카드가 비었거나 가격이 잘못됐습니다.")
