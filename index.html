@@ -358,6 +358,10 @@ table.validation-cmp th[colspan="3"]{color:var(--ink);font-weight:800}
 .tkrec-n{display:block;font-size:10px;color:var(--faint)}
 .tkrec-thin{display:block;font-size:11px;font-weight:700;color:var(--faint)}
 .tkrec-none{font-size:12px;color:var(--reason);line-height:1.7}
+.tkrec-rank{margin-top:7px;font-size:11.5px;color:var(--ink);display:flex;flex-wrap:wrap;align-items:baseline;gap:2px}
+.tkrec-1line{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px;padding:7px 10px;font-size:11.5px}
+.tkrec-1line .tkrec-rate{font-size:13px}
+.tkrec-1line .tkrec-thin{display:inline}
 .tkrec-note{font-size:11px;color:var(--faint);line-height:1.7;margin-top:6px}
 html[data-theme="dark"] .perfbtn{background:#1c2532;color:#7fb0ff}
 html[data-theme="dark"] .perfbtn.on{background:var(--navy);color:#fff}
@@ -1105,7 +1109,12 @@ const CAT_MAP = {
    구조적으로 방어를 못 한다"가 아니라 "이번 급락에서 못 버텼다"이다.
    특히 UNH 17%는 종목 악재로 보인다. 사이클이 하나 더 쌓이면
    tools/sector-weak.js를 다시 돌려 재확인할 것. */
-const DEFENSIVE_CATS = ["금융","원자재·금","원자재·유가","주택"];
+/* 약세·주의장에서도 강한매수를 허용할 섹터.
+   주택은 2026-08-18에 뺐다 — §2 반쪽 검증에서 전반부 +3일 -15%p·+5일 -28%p로
+   기준선을 크게 밑돌았고(후반부만 좋았다), 금리에 직접 끌려다니는 업종이라
+   '방어'로 보기 어렵다는 사용자 판단이 겹쳤다. 현재 원장 30거래일 기준으로
+   이 제외가 지우는 강한매수 표본은 0건이라 지금 승률은 그대로다(앞으로만 영향). */
+const DEFENSIVE_CATS = ["금융","원자재·금","원자재·유가"];
 const LEVERAGED = { SOXL:{base:"반도체 지수",x:3}, GDXU:{base:"금광주 지수",x:3}, NAIL:{base:"주택건설 지수",x:3},
   UYG:{base:"금융 지수",x:2}, DUSL:{base:"산업재 지수",x:3} };
 const levX = tk => (LEVERAGED[tk] ? LEVERAGED[tk].x : 1);
@@ -3065,11 +3074,47 @@ function tickerStrongRecord(s){
   return res;
 }
 /* 카드·모의점검이 같이 쓰는 표. compact면 한 줄로 줄인다. */
+/* ── 개별 적중률 = 개별 실측 승률의 순위 ────────────────────────────────
+   승률·수익률과는 다른 값이다. "이 종목에 뜬 신호가 얼마나 잘 맞았나"를
+   종목끼리 줄 세운 것이다(사용자 정의, 2026-08-18).
+
+   비교 규칙
+     1) +1·3·5·7일 중 **가장 높은 승률**로 비교한다
+     2) 동점이면 그중 **가장 높은 두 구간의 평균**으로 비교한다
+   표본 5건 미만 칸은 후보에서 뺀다 — 화면에서 '표본 부족'으로 감추는 숫자를
+   순위 근거로 쓰면 우연이 1위가 된다(방법론 §5-1). */
+function tickerHitScore(rec){
+  if(!rec || !rec.any) return null;
+  const cells = TICKER_HS.map(h => ({h, r:rec[h]}))
+    .filter(x => x.r && x.r.n >= 5 && x.r.rate !== null)
+    .sort((a,b) => b.r.rate - a.r.rate);
+  if(!cells.length) return null;
+  const top2 = cells.length >= 2 ? (cells[0].r.rate + cells[1].r.rate)/2 : cells[0].r.rate;
+  return {h:cells[0].h, rate:cells[0].r.rate, n:cells[0].r.n, avg:cells[0].r.avg, top2};
+}
+let _hitRanks = null, _hitRanksFor = null, _hitRanksBt = null;
+function tickerHitRanks(){
+  if(_hitRanks && _hitRanksFor === state.data && _hitRanksBt === TICKER_BT) return _hitRanks;
+  const list = [];
+  allStocks().forEach(s => {
+    const sc = tickerHitScore(tickerStrongRecord(s));
+    if(sc) list.push({tk:s.ticker, sc});
+  });
+  list.sort((a,b) => (b.sc.rate - a.sc.rate) || (b.sc.top2 - a.sc.top2) || a.tk.localeCompare(b.tk));
+  const m = {};
+  list.forEach((x,i) => m[x.tk] = Object.assign({rank:i+1, total:list.length}, x.sc));
+  _hitRanks = m; _hitRanksFor = state.data; _hitRanksBt = TICKER_BT;
+  return m;
+}
+function hitRankOf(s){ return s ? (tickerHitRanks()[s.ticker] || null) : null; }
+
 function tickerRecordTable(s, compact){
   const rec = tickerStrongRecord(s);
   const name = esc(s && (s.name || s.ticker) || "");
   if(!rec || !rec.any)
-    return `<div class="tkrec"><div class="tkrec-h">📌 ${name} 개별 실측</div>
+    return compact
+      ? `<div class="tkrec tkrec-1line"><b>${name}</b> <span class="tkrec-thin">강한매수 기록 없음</span></div>`
+      : `<div class="tkrec"><div class="tkrec-h">📌 ${name} 개별 실측</div>
       <div class="tkrec-none">최근 ${histWindowDays()}거래일 동안 이 종목엔 <b>강한매수가 뜬 적이 없어요.</b>
       전체 승률은 이 종목의 성적이 아닙니다.</div></div>`;
   const cell = r => {
@@ -3097,11 +3142,30 @@ function tickerRecordTable(s, compact){
           ? `시장 국면·항복 바닥·실적발표 영향권은 원장과 똑같이 뺐지만, 생존 편향은 남습니다.`
           : `실적발표 영향권도 빼지 못했습니다.`}
         위 검증표(원장 ${histWindowDays()}거래일)와 직접 비교하지 마세요.</p>` : "";
+  const hit = hitRankOf(s);
+  /* 적중률 순위. 표본 5건 이상인 칸이 하나도 없으면 순위를 매기지 않는다 —
+     '몇 위'라는 말이 표본 2건짜리에 붙으면 그 자체가 거짓 정보가 된다. */
+  const rankLine = hit
+    ? `<div class="tkrec-rank">🎯 개별 적중률 <b>${hit.rank}위</b> / ${hit.total}종목
+        <span class="tkrec-sub">최고 +${hit.h}일 <b>${hit.rate}%</b> (${hit.n}건)</span></div>`
+    : `<div class="tkrec-rank tkrec-thin">🎯 개별 적중률 — 표본 5건 이상인 구간이 없어 순위 없음</div>`;
+
+  /* 모의점검(compact)은 칸이 좁다. 네 구간을 다 그리면 담은 종목마다 표가 하나씩
+     쌓여 화면을 먹으므로 **가장 높은 구간 하나만** 적는다(사용자 지시). */
+  if(compact){
+    const body = hit
+      ? `<span class="tkrec-rate" style="color:${hit.rate>=60?"var(--buy)":hit.rate<=40?"var(--sell)":"var(--ink)"}">${hit.rate}%</span>
+         <span class="tkrec-sub">+${hit.h}일 최고 · ${hit.n}건 · 평균 ${hit.avg>=0?"+":""}${hit.avg}%</span>
+         <span class="tkrec-sub">적중률 ${hit.rank}위/${hit.total}</span>`
+      : `<span class="tkrec-thin">표본 부족 — 5건 이상인 구간 없음</span>`;
+    return `<div class="tkrec tkrec-1line"><b>${name}</b> ${body}</div>`;
+  }
+
   return `<div class="tkrec">
     <div class="tkrec-h">📌 ${name} 개별 실측 <span class="tkrec-sub">${srcLabel}</span></div>
     <table class="cmp tkrec-t"><tr><th>보유</th>${TICKER_HS.map(h=>`<th>+${h}일</th>`).join("")}</tr>
       <tr><td><b>성적</b></td>${TICKER_HS.map(h=>cell(rec[h])).join("")}</tr></table>
-    ${detail}${btNote}</div>`;
+    ${rankLine}${detail}${btNote}</div>`;
 }
 
 function openTimeline(tk){
@@ -3228,7 +3292,11 @@ function externalRiskInfo(s){
     return {title:"원유 관련 종목 안내",text:"원유주는 유가·OPEC·지정학적 변수의 영향이 커 기술적 신호와 다르게 움직일 수 있어요."};
   if(cat.includes("암호화폐"))
     return {title:"코인 관련 종목 안내",text:"코인 관련주는 BTC 가격과 24시간 코인시장 영향을 크게 받아 일봉 기술신호와 다르게 움직일 수 있어요."};
-  if(cat.includes("헬스케어") || cat.includes("바이오"))
+  /* 대형 제약·헬스케어 펀드는 임상 하나에 주가가 뒤집히는 구조가 아니라
+     이 경고가 과했다(사용자 지적). 개별 파이프라인 리스크가 실제로 큰
+     중소형 바이오에만 남긴다. UI 전용이라 점수·등급에는 영향이 없다. */
+  const HEALTH_LARGE = ["LLY","UNH","HQH"];
+  if((cat.includes("헬스케어") || cat.includes("바이오")) && !HEALTH_LARGE.includes(tk))
     return {title:"헬스케어·바이오 안내",text:"헬스케어, 특히 바이오는 임상·FDA·실적 등 개별 이벤트 영향이 커 기술적 신호가 갑자기 무력화될 수 있어요."};
   return null;
 }

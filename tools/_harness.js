@@ -82,6 +82,9 @@ ${extractLine(/^const isKR = .*$/m)}
 ${BASE_CONSTS.concat(o.consts||[]).map(extractConst).join('\n')}
 const levX = tk => (LEVERAGED[tk] ? LEVERAGED[tk].x : 1);
 var TICKER_BT = null;
+/* index.html이 모듈 스코프에 두는 캐시 슬롯들. 함수만 추출하면 이 선언이 빠져
+   ReferenceError가 난다 — var로 미리 잡아 둔다(호이스팅되므로 순서 무관). */
+var _hitRanks = null, _hitRanksFor = null, _hitRanksBt = null;
 var state = { data:null, overrides:{}, holdings:[], cart:[], hidden:[],
               market:'all', showHoldings:false, themeFilter:null };
 ${BASE_FUNCS.concat(o.extra||[]).map(extractFunction).join('\n')}
