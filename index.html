@@ -2025,6 +2025,12 @@ function histRow(s, row, i, total){
     ma20_slope: num(o.ma20_slope), run5_max: num(o.run5_max), run3_sum: num(o.run3_sum),
     res_short: num(o.res_short), ret20: num(o.ret20), rs20: num(o.rs20),
     low_52w: num(o.low_52w), pct_from_low: num(o.pct_from_low),
+    /* ⚠ 이 반환은 화이트리스트다 — hist_fields에 꼬리 필드를 더해도 여기 적지 않으면
+       화면·검증·백테스트 어디에서도 그 값을 못 본다(2026-08-19 갭 필드가 전부
+       null로 나온 실제 원인). 필드를 늘렸으면 반드시 이 줄들도 같이 늘릴 것. */
+    ma120: num(o.ma120), ma200: num(o.ma200), ma200_slope: num(o.ma200_slope),
+    gap_pct: num(o.gap_pct), gap20_pct: num(o.gap20_pct),
+    gap20_ago: num(o.gap20_ago), gap20_vol: num(o.gap20_vol), gap20_fill: num(o.gap20_fill),
     market_ret20: marketRet20,
     range3: num(o.range3), range10: num(o.range10), vol3_ratio: num(o.vol3_ratio),
     /* QQQ 자체 히스토리는 시장필터를 자기 자신에게 다시 감점하지 않는다.
