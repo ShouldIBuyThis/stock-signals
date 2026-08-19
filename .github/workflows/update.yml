@@ -15,6 +15,15 @@ on:
     # 한국장 백업: 16:20 KST — 1차 schedule/업로드 실패 대비
     - cron: '20 16 * * 1-5'
       timezone: 'Asia/Seoul'
+    # 한국장 백업2·3 — GitHub이 schedule을 통째로 누락시키는 날이 실제로 있었다
+    # (2026-08-11·12·13 사흘 연속 KR 실행 0건, 같은 날 US는 정상 실행).
+    # 지연도 80~225분으로 커서, '정각·15·30·45분' 혼잡 시간을 피한 어중간한
+    # 분(:53, :37)에 두 번 더 시도한다. 같은 거래일을 다시 받아도 frozen 원장은
+    # 그대로이고 변경이 없으면 커밋도 없다 — 여러 번 시도해도 안전하다.
+    - cron: '53 16 * * 1-5'
+      timezone: 'Asia/Seoul'
+    - cron: '37 18 * * 1-5'
+      timezone: 'Asia/Seoul'
   workflow_dispatch:
     inputs:
       scope:
@@ -88,7 +97,7 @@ jobs:
               echo "value=us" >> "$GITHUB_OUTPUT"
               echo "자동 실행 → US ($SCHEDULE_EXPR)"
               ;;
-            "45 15 * * 1-5"|"20 16 * * 1-5")
+            "45 15 * * 1-5"|"20 16 * * 1-5"|"53 16 * * 1-5"|"37 18 * * 1-5")
               echo "value=kr" >> "$GITHUB_OUTPUT"
               echo "자동 실행 → KR ($SCHEDULE_EXPR)"
               ;;
