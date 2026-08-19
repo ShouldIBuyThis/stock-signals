@@ -245,11 +245,19 @@ for(const s of RAW){
                                filledAt, tracked, moved });
   }
 }
-/* 구간 H에서 판정 가능한 표본만 골라 메움률을 낸다 — 추적이 끊긴 건 모르는 것이지 '안 메운 것'이 아니다. */
+/* 메움률은 두 기준으로 낸다. 어느 쪽을 쓰느냐로 숫자가 크게 달라지기 때문이다.
+   ⚠ 추적이 끊기는 유일한 이유는 '그 사이 새 갭상승이 또 떴다'는 것이고, 그건
+   주가가 다시 위로 갔다는 뜻이다 — 즉 안 메운 사례다. 그래서 그것을 분모에서
+   빼면 메움률이 크게 부풀려진다(전체 24% → 44%). 보수적 기준을 주(主)로 쓴다.
+     cons : 새 갭 발생 = '안 메움' (보수적 · 기본)
+     opt  : 새 갭 발생 = 판정 제외 (낙관적 · 참고) */
 function fillAt(list, H){
-  const ok = list.filter(x => (x.filledAt !== null && x.filledAt <= H) || x.tracked >= H);
-  const f = ok.filter(x => x.filledAt !== null && x.filledAt <= H).length;
-  return { n: ok.length, rate: ok.length ? Math.round(f/ok.length*100) : null };
+  const done = list.filter(x => x.tracked >= H || x.filledAt !== null);
+  const f = list.filter(x => x.filledAt !== null && x.filledAt <= H).length;
+  const optOk = list.filter(x => (x.filledAt !== null && x.filledAt <= H) || x.tracked >= H);
+  const optF = optOk.filter(x => x.filledAt !== null && x.filledAt <= H).length;
+  return { n: list.length, rate: list.length ? Math.round(f/list.length*100) : null,
+           optN: optOk.length, optRate: optOk.length ? Math.round(optF/optOk.length*100) : null };
 }
 function fillRate(label, pred){
   const sel = cases.filter(pred);
@@ -321,7 +329,7 @@ console.log(`  ${'조합'.padEnd(46)} 5일메움(표본)  3일   10일   전반 
 for(const r of results.slice(0, 14)){
   const flag = (r.r5.rate >= 60 && r.h1.rate >= 55 && r.h2.rate >= 55) ? ' ★통과' : '';
   console.log(`  ${r.lab.padEnd(46)} ${String(r.r5.rate).padStart(3)}%(${String(r.r5.n).padStart(3)})` +
-              `  ${String(r.r3.rate).padStart(3)}%  ${String(r.r10.rate).padStart(3)}%` +
+              `  ${String(r.r5.optRate).padStart(3)}%  ${String(r.r3.rate).padStart(3)}%  ${String(r.r10.rate).padStart(3)}%` +
               `  ${String(r.h1.rate).padStart(3)}%(${String(r.h1.n).padStart(3)})  ${String(r.h2.rate).padStart(3)}%(${String(r.h2.n).padStart(3)})` +
               `  ${(r.avg>=0?'+':'')+r.avg.toFixed(2)}%${flag}`);
 }
