@@ -74,6 +74,13 @@ const res = ctx.runInPage(`(() => {
         buy:g.buyScore, pull:g.pullScore, rev:g.revScore, brk:g.breakScore,
         rsi:has(row.rsi)?Math.round(row.rsi*10)/10:null,
         bb:has(row.bb_pos)?Math.round(row.bb_pos*10)/10:null,
+        /* 갭(Gap) — 신호일에 '아래 안 메운 갭'이 있었는지를 나중에 가르기 위한 값.
+           판정은 하지 않는다. gap-lab.js가 이 값으로 구간을 잘라 승률을 잰다. */
+        gapD:has(row.gap_pct)?Math.round(row.gap_pct*10)/10:null,
+        gapP:has(row.gap20_pct)?Math.round(row.gap20_pct*10)/10:null,
+        gapA:(row.gap20_ago===undefined||row.gap20_ago===null)?null:row.gap20_ago,
+        gapV:has(row.gap20_vol)?Math.round(row.gap20_vol*100)/100:null,
+        gapF:has(row.gap20_fill)?Math.round(row.gap20_fill):null,
         lvl:h.market_level||null });
     });
   });
