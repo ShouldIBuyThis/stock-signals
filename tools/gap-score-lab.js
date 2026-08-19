@@ -222,7 +222,7 @@ for(const [lab, ex] of MIN_TESTS){
    늘어났는지로 확인한다(새 갭이 생기면 비교 대상이 바뀌므로 제외).
    그 다음 '그날의 조건'별로 발생률을 갈라 사전 예측력이 있는지 본다. */
 const RAW = makeCtx(0, base).rows(base);
-const FWD = 5, FILLED = 60;
+const FWD = 5, FILLED = 60, MAXH = 10;
 const cases = [];
 for(const s of RAW){
   const hs = s.hs;
@@ -230,16 +230,26 @@ for(const s of RAW){
     const r = hs[i];
     if(r.gF === null || r.gF === undefined || r.gF > 20) continue;   // 미메움 상태만
     if(r.gA === null || r.gA === undefined) continue;
-    let filled = null, moved = null;
-    for(let k=1;k<=FWD;k++){
+    /* 같은 갭을 며칠까지 따라갈 수 있었는지(tracked)와 언제 메웠는지(filledAt)를 나눠 센다.
+       새 갭이 생기면 비교 대상이 바뀌므로 거기서 추적을 끊는다. */
+    let filledAt = null, tracked = 0;
+    for(let k=1;k<=MAXH;k++){
       const n = hs[i+k]; if(!n) break;
-      if(n.gA !== r.gA + k) break;                 // 새 갭이 생겼다 — 같은 갭이 아니다
-      if(n.gF !== null && n.gF !== undefined && n.gF >= FILLED){ filled = k; break; }
+      if(n.gA !== r.gA + k) break;
+      tracked = k;
+      if(n.gF !== null && n.gF !== undefined && n.gF >= FILLED){ filledAt = k; break; }
     }
     const last = hs[Math.min(i+FWD, hs.length-1)];
-    if(last && last.px && r.px) moved = (last.px/r.px - 1)*100;
-    if(hs[i+FWD]) cases.push({ ...r, filled: filled !== null, moved });
+    const moved = (last && last.px && r.px) ? (last.px/r.px - 1)*100 : null;
+    if(hs[i+FWD]) cases.push({ ...r, filled: filledAt !== null && filledAt <= FWD,
+                               filledAt, tracked, moved });
   }
+}
+/* 구간 H에서 판정 가능한 표본만 골라 메움률을 낸다 — 추적이 끊긴 건 모르는 것이지 '안 메운 것'이 아니다. */
+function fillAt(list, H){
+  const ok = list.filter(x => (x.filledAt !== null && x.filledAt <= H) || x.tracked >= H);
+  const f = ok.filter(x => x.filledAt !== null && x.filledAt <= H).length;
+  return { n: ok.length, rate: ok.length ? Math.round(f/ok.length*100) : null };
 }
 function fillRate(label, pred){
   const sel = cases.filter(pred);
@@ -267,6 +277,59 @@ fillRate('20일선 아래', x => x.ma20 && x.px && x.px < x.ma20);
 fillRate('시장 약세·주의', x => x.lvl === 'weak' || x.lvl === 'caution');
 fillRate('우리 신호 강한매수', x => x.g === 5);
 fillRate('우리 신호 중립', x => x.g === 3);
+
+/* ══════════ D. 갭 메움(하락) 60%+ 조합 전수 탐색 ══════════
+   사용자 질문: "갭 메울 확률이 60% 넘는 경우의 수가 있나?"
+   단일 조건 최고가 44%였으므로 2~3개 조합을 전부 돌린다.
+   ⚠ 조합을 수십 개 훑으면 그중 몇 개는 **우연히** 60%를 넘는다(다중비교 함정).
+      그래서 ① 표본 30건 이상 ② 전·후반 양쪽 모두 55% 이상을 같이 요구하고,
+      몇 개를 훑었는지도 같이 찍는다. */
+const CONDS = [
+  ['20일선아래',      x => x.ma20 && x.px && x.px < x.ma20],
+  ['RSI45미만',       x => x.rsi !== null && x.rsi < 45],
+  ['보통갭(갭일량<1.5)', x => x.gV !== null && x.gV < 1.5],
+  ['시장약세·주의',    x => x.lvl === 'weak' || x.lvl === 'caution'],
+  ['당일거래량<0.8',   x => x.vr !== null && x.vr < 0.8],
+  ['갭직후1~2일',     x => x.gA !== null && x.gA <= 2],
+  ['갭작음<3%',       x => x.gP !== null && x.gP < 3],
+  ['중립등급',        x => x.g === 3],
+  ['볼린저30이하',     x => x.bb !== null && x.bb <= 30],
+];
+const CMID = (()=>{ const ds=[...new Set(cases.map(x=>x.d))].sort(); return ds[Math.floor(ds.length/2)]; })();
+const combos = [];
+for(let a=0;a<CONDS.length;a++){
+  for(let b=a+1;b<CONDS.length;b++){
+    combos.push([[a,b]]);
+    for(let c=b+1;c<CONDS.length;c++) combos.push([[a,b,c]]);
+  }
+}
+const results = [];
+for(const [idx] of combos){
+  const pred = x => idx.every(i => CONDS[i][1](x));
+  const sel = cases.filter(pred);
+  if(sel.length < 30) continue;
+  const r5 = fillAt(sel, 5);
+  const h1 = fillAt(sel.filter(x=>x.d < CMID), 5), h2 = fillAt(sel.filter(x=>x.d >= CMID), 5);
+  results.push({ lab: idx.map(i=>CONDS[i][0]).join(' + '), r5,
+                 r3: fillAt(sel,3), r10: fillAt(sel,10), h1, h2,
+                 avg: sel.reduce((p,c)=>p+(c.moved||0),0)/sel.length });
+}
+results.sort((a,b)=> b.r5.rate - a.r5.rate);
+console.log('\n\n══════ D. 갭 메움 60%+ 조합 탐색 (5일 기준) ══════');
+console.log(`  조합 ${combos.length}개 중 표본 30건 이상인 ${results.length}개를 줄세웠다. 전체 평균 메움률 ${fillAt(cases,5).rate}%`);
+console.log(`  ${'조합'.padEnd(46)} 5일메움(표본)  3일   10일   전반   후반   +5일평균`);
+for(const r of results.slice(0, 14)){
+  const flag = (r.r5.rate >= 60 && r.h1.rate >= 55 && r.h2.rate >= 55) ? ' ★통과' : '';
+  console.log(`  ${r.lab.padEnd(46)} ${String(r.r5.rate).padStart(3)}%(${String(r.r5.n).padStart(3)})` +
+              `  ${String(r.r3.rate).padStart(3)}%  ${String(r.r10.rate).padStart(3)}%` +
+              `  ${String(r.h1.rate).padStart(3)}%(${String(r.h1.n).padStart(3)})  ${String(r.h2.rate).padStart(3)}%(${String(r.h2.n).padStart(3)})` +
+              `  ${(r.avg>=0?'+':'')+r.avg.toFixed(2)}%${flag}`);
+}
+const pass = results.filter(r => r.r5.rate >= 60 && r.h1.rate >= 55 && r.h2.rate >= 55);
+console.log(`\n  ★ 60%+ 이면서 전·후반 모두 55%+ : ${pass.length}개`);
+if(!pass.length) console.log('  → 60%를 넘기면서 반쪽 검증까지 통과하는 조합은 없다. 갭 메움은 "확률을 높이는 정도"까지가 한계다.');
+console.log('\n※ 다중비교 주의: 위는 ' + combos.length + '개를 훑은 결과다. 하나가 60%를 넘었다고 바로 규칙이 되지 않는다.');
+console.log('  실전에 쓰려면 다음 사이클에서 같은 조합이 다시 통과하는지 확인해야 한다.');
 
 console.log('\n※ 채택 조건: ① 전체 승률이 P0보다 오르고 ② 전·후반 모두 같은 방향이며');
 console.log('  ③ 새로 편입된 신호 자체가 기준선보다 잘 이길 것. 셋 중 하나라도 아니면 가점은 기각한다.');
