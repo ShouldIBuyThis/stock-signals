@@ -51,7 +51,15 @@ HIST_FIELDS = ["date","price","change_1d","ma5","ma10","ma20","ma50","ma60","rsi
                # validate_signals.py의 append-only 검사도 꼬리 확장을 허용하도록 같이 고쳤다.
                "low_52w", "pct_from_low",
                # 2026-08-17 확장: 미너비니 ①(150·200일선 정배열)·②(200일선 상승세) 검증용
-               "ma120", "ma200", "ma200_slope"]
+               "ma120", "ma200", "ma200_slope",
+               # 2026-08-19 확장: 갭(Gap) 매매 검증용. 시가를 저장하지 않아
+               # '갭이 있었는지'조차 잴 수 없었다. 꼬리 확장이라 옛 행은 짧을 뿐이다.
+               #   gap_pct    당일 시가 갭 % (시가/전일종가-1)
+               #   gap20_pct  최근 20봉 안의 가장 최근 '유효 갭상승'(>=2%) 크기
+               #   gap20_ago  그 갭이 몇 봉 전인가 (0=오늘)
+               #   gap20_vol  그 갭일의 거래량비 — 돌파갭(대량) vs 보통갭(무덤덤) 구분용
+               #   gap20_fill 그 갭을 얼마나 메웠나 0~100% (0=미메움, 100=완전 메움)
+               "gap_pct", "gap20_pct", "gap20_ago", "gap20_vol", "gap20_fill"]
 
 # freeze 단계에서 옛 행에 뒤늦게 채워 넣는 열. 이미 값이 있으면 절대 덮지 않는다.
 HIST_BACKFILL_FIELDS = ["atr_pct", "market_level", "market_weak", "market_ret20", "market_events"]
@@ -833,6 +841,8 @@ def analyze(ticker, name, category):
     need = MIN_BARS_OVERRIDE.get(ticker, MIN_BARS)
     if df is None or len(df) < need: raise ValueError(f"데이터 부족 ({0 if df is None else len(df)}봉 < {need})")
     close, high, low, vol = df["Close"], df["High"], df["Low"], df["Volume"]
+    # 갭 판정에는 시가가 필요하다. 야후가 늘 주지만 없는 피드도 있어 방어한다.
+    op = df["Open"] if "Open" in df.columns else None
     ma5 = close.rolling(5).mean()
     ma10 = close.rolling(10).mean()
     ma20 = close.rolling(20).mean()
@@ -858,6 +868,36 @@ def analyze(ticker, name, category):
         """i=-1이면 오늘(확정 종가), i=-2면 직전 거래일. 같은 로직을 그대로 재사용한다."""
         end = len(close) + i + 1              # 해당 시점까지만 보이도록 자르는 위치
         c_i = close.iloc[i]
+        # ── 갭(Gap) ──────────────────────────────────────────────
+        # 갭은 '전일 종가와 오늘 시가 사이의 빈 구간'이다. 그 구간은 거래가
+        # 없었으므로 매물대가 얇고, 되돌림이 오면 빠르게 통과하는 성질이 있다.
+        # 여기서는 판정을 하지 않고 사실만 기록한다 — 점수 반영 여부는 실측 후
+        # 사용자 승인으로 정한다(방법론 §0: 산식은 index.html 한 곳).
+        p_abs = end - 1                      # 이 시점 봉의 절대 위치
+        def gap_at(q):
+            if op is None or q < 1: return None
+            try:
+                o_q, pc_q = float(op.iloc[q]), float(close.iloc[q-1])
+            except Exception:
+                return None
+            if not np.isfinite(o_q) or not np.isfinite(pc_q) or pc_q <= 0: return None
+            return (o_q / pc_q - 1) * 100
+        gap_pct = gap_at(p_abs)
+        g20_pct = g20_ago = g20_vol = g20_fill = None
+        if op is not None and p_abs >= 1:
+            for q in range(p_abs, max(1, p_abs - 19) - 1, -1):
+                gq = gap_at(q)
+                if gq is None or gq < 2.0:      # 2% 미만은 갭으로 보지 않는다(노이즈)
+                    continue
+                top, bot = float(op.iloc[q]), float(close.iloc[q-1])
+                span = top - bot
+                lo_since = low.iloc[q:p_abs+1].min()
+                if span > 0 and np.isfinite(lo_since):
+                    g20_fill = max(0.0, min(100.0, (top - float(lo_since)) / span * 100))
+                v_q = vavg.iloc[q]
+                g20_vol = (float(vol.iloc[q]) / float(v_q)) if v_q and float(v_q) > 0 else None
+                g20_pct, g20_ago = gq, p_abs - q
+                break
         bw = (upper.iloc[i] - lower.iloc[i])
         bb = ((c_i - lower.iloc[i]) / bw * 100) if bw and bw > 0 else None
         va = vavg.iloc[i]
@@ -941,6 +981,8 @@ def analyze(ticker, name, category):
             "ma120": safe(ma120.iloc[i], nd), "ma200": safe(ma200.iloc[i], nd),
             "ma200_slope": safe(ma200_slope),
             "range3": safe(range3), "range10": safe(range10), "vol3_ratio": safe(vol3_ratio),
+            "gap_pct": safe(gap_pct), "gap20_pct": safe(g20_pct), "gap20_ago": g20_ago,
+            "gap20_vol": safe(g20_vol), "gap20_fill": safe(g20_fill),
             "last_date": df.index[i].strftime("%Y-%m-%d"),
         }
 
@@ -980,6 +1022,7 @@ SNAPSHOT_FIELDS = [
     "prev_change_1d", "prev_vol_ratio", "prev_macd_hist", "prev_price", "prev_ma5", "prev_ma20",
     "market_level", "market_weak", "market_ret20", "market_events",
     "low_52w", "pct_from_low", "ma120", "ma200", "ma200_slope",
+    "gap_pct", "gap20_pct", "gap20_ago", "gap20_vol", "gap20_fill",
 ]
 
 def _storage_row(r, mkt):
