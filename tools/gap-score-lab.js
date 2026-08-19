@@ -325,7 +325,7 @@ for(const [idx] of combos){
 results.sort((a,b)=> b.r5.rate - a.r5.rate);
 console.log('\n\n══════ D. 갭 메움 60%+ 조합 탐색 (5일 기준) ══════');
 console.log(`  조합 ${combos.length}개 중 표본 30건 이상인 ${results.length}개를 줄세웠다. 전체 평균 메움률 ${fillAt(cases,5).rate}%`);
-console.log(`  ${'조합'.padEnd(46)} 5일메움(표본)  3일   10일   전반   후반   +5일평균`);
+console.log(`  ${'조합'.padEnd(46)} 5일메움(표본)  낙관   3일   10일   전반    후반    +5일평균`);
 for(const r of results.slice(0, 14)){
   const flag = (r.r5.rate >= 60 && r.h1.rate >= 55 && r.h2.rate >= 55) ? ' ★통과' : '';
   console.log(`  ${r.lab.padEnd(46)} ${String(r.r5.rate).padStart(3)}%(${String(r.r5.n).padStart(3)})` +
