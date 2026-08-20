@@ -502,8 +502,7 @@ def load_previous():
 # ── 관심종목 (카테고리: {티커: 이름}) ──────────────────────
 WATCHLIST = {
     "경기방어": {"KO":"코카콜라", "BRK-B":"버크셔해서웨이B", "SCHD":"미국 배당 ETF"},
-    "헬스케어": {"LLY":"일라이릴리", "UNH":"유나이티드헬스", "HQH":"헬스케어 펀드",
-                 "MRNA":"모더나", "PFE":"화이자"},
+    "헬스케어": {"LLY":"일라이릴리", "UNH":"유나이티드헬스", "HQH":"헬스케어 펀드"},
     "금융": {"JPM":"JP모건", "MA":"마스터카드", "V":"비자", "UYG":"금융 2x", "FXO":"금융 ETF"},
     "산업재": {"CAT":"캐터필러", "AIT":"어플라이드인더스트리얼", "DUSL":"산업재 3x"},
     "반도체·메모리":  {"MU":"마이크론", "SNDK":"샌디스크", "STX":"씨게이트", "SKHY":"SK하이닉스"},
@@ -539,7 +538,7 @@ WATCHLIST = {
 # HXSCL(SK하이닉스 OTC ADR)은 야후가 시세를 안 줘서 실패했고, 국장 원주 000660.KS는
 # 거래일이 미국장과 어긋나 사용자가 뺐다. 둘 다 재시도 금지 — SK하이닉스는
 # 나스닥 직상장 티커 SKHY로 간다(아래 PENDING_TICKERS).
-RETIRED_TICKERS = {
+RETIRED_TICKERS = {"MRNA", "PFE", 
     "MCD", "CURE", "RXL", "000660.KS", "HXSCL", "ANET",
     "VST", "SMR", "OKLO", "RCAT", "LHX", "HIMS", "PONY",
     "CRCL", "RDDT", "LUNR", "COIN", "MSTR", "ETHU",
