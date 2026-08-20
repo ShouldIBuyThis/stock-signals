@@ -149,16 +149,21 @@ const res = ctx.runInPage(`(() => {
      res_short는 항상 null이다. 오늘 행의 res_short로 돌파를 판정하면 조건이
      영원히 안 맞아 결과가 0건이 된다(2026-08-20 실제로 빈 배열이 나온 원인).
      반드시 **전일의 res_short**를 오늘 종가와 비교한다. 전일에 res_short가
-     살아 있었다는 것 자체가 "어제까진 못 넘었다"는 뜻이므로 '첫 돌파'도 자동이다. */
-  const qqqKnock = (() => {
+     살아 있었다는 것 자체가 "어제까진 못 넘었다"는 뜻이므로 '첫 돌파'도 자동이다.
+
+     ⚠ 표본이 구조적으로 얇다: QQQ는 대부분의 날을 신고가 근처에서 보내서
+     res_short가 아예 null인 날이 많다(위 고점이 없으면 저항도 없다). 189일에
+     단기 저항 돌파가 5건뿐이었다 — 그래서 중기(60일, res_mid) 기준도 같이 잰다.
+     두 정의를 섞지 않는다: 단기는 직전 20봉, 중기는 직전 60봉에서 두드림을 센다. */
+  const knockOn = (field, back) => {
     const arr = [];
     for(let i=1;i<qhs.length;i++){
       const r = qhs[i], prev = qhs[i-1];
-      const res = num(prev.res_short), p = num(r.price);
+      const res = num(prev[field]), p = num(r.price);
       if(!has(res) || !has(p) || !res) continue;
       if(!(p > res*1.005)) continue;                   // 오늘 그 저항을 넘었나
       let k = 0;
-      for(let j=Math.max(0,i-20); j<i; j++){
+      for(let j=Math.max(0,i-back); j<i; j++){
         const q = num(qhs[j].price);
         if(has(q) && q >= res*0.985 && q <= res*1.005) k++;
       }
@@ -167,8 +172,10 @@ const res = ctx.runInPage(`(() => {
                  ret: (fwd && fwd.price && p) ? Math.round((fwd.price/p - 1)*1000)/10 : null });
     }
     return arr;
-  })();
-  return { records: out, days, samples, qqq, breadth, qqqKnock,
+  };
+  const qqqKnock = knockOn('res_short', 20);
+  const qqqKnockMid = knockOn('res_mid', 60);
+  return { records: out, days, samples, qqq, breadth, qqqKnock, qqqKnockMid,
            kinds: TICKER_KINDS.map(x=>x.k), horizons: TICKER_HS };
 })()`);
 
@@ -185,6 +192,7 @@ const payload = {
   records: res.records,
   /* 나스닥 카드의 '두드림 → 돌파' 팝업이 읽는다. 배열이 작아 요약 파일에 같이 싣는다. */
   qqqKnock: res.qqqKnock,
+  qqqKnockMid: res.qqqKnockMid,
 };
 /* 신호 단위 표본은 별도 파일로 낸다 — 사이트는 요약만 받으면 되고,
    이건 도구(§2 반쪽·섹터 컷 스윕)가 읽는다. */
@@ -201,6 +209,12 @@ console.log(`실적 제외: ${payload.earnings_excluded ? '적용' : '미적용'
 console.log(`저장: ${OUT} (${(fs.statSync(OUT).size/1024).toFixed(0)}KB) · ${tks.length}종목 · ` +
   `창 ${payload.window ? payload.window.from+'~'+payload.window.to+' ('+payload.window.days+'일)' : '없음'}`);
 console.log(`QQQ 일별 ${res.qqq.length}일 · breadth ${res.breadth.length}일 · 거시 ${Object.keys(base.macro||{}).join(",")||"없음"}`);
+/* 팝업이 쓰는 세 구간(0~1 / 2~3 / 4+)이 실제로 몇 건씩인지 로그로 남긴다.
+   표본이 얇으면 표를 띄우는 것 자체가 사용자를 오도한다 — 숫자를 먼저 본다. */
+const kn = a => a.length
+  ? `${a.length}건 (0~1회 ${a.filter(x=>x.k<=1).length} · 2~3회 ${a.filter(x=>x.k>=2&&x.k<=3).length} · 4회+ ${a.filter(x=>x.k>=4).length})`
+  : '0건';
+console.log(`QQQ 두드림→돌파: 단기(20일) ${kn(res.qqqKnock)} · 중기(60일) ${kn(res.qqqKnockMid)}`);
 console.log(`신호 표본: ${SOUT} (${(fs.statSync(SOUT).size/1024).toFixed(0)}KB) · ${res.samples.length}건`);
 res.kinds.forEach(k => {
   const n3 = tks.map(t => payload.records[t][k][3].n).sort((a,b)=>a-b);

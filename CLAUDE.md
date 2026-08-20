@@ -93,8 +93,12 @@ node --check tools/무엇.js
 - 브랜치: `claude/signal-rank-validation-consistency-7ih0l3`. main 푸시는 사용자가 허락한 범위에서만.
 - Actions: `update.yml`(scope=all, force_resnap=false)이 데이터 갱신,
   `backtest-ticker-record.yml`이 종목별 백테스트 승률. 스케줄은 26~40분 지연된다.
-- Pages는 main의 `index.html`을 바로 서빙한다 — **산식은 푸시 즉시 반영**되고
-  워크플로우는 데이터만 새로 고친다.
+- **Pages는 푸시로 갱신되지 않는다.** 배포는 `update.yml` 마지막의
+  `upload-pages-artifact` + `deploy-pages` 단계에서만 일어난다. main에 `index.html`을
+  올려도 그 워크플로우가 한 번 돌기 전까지 사이트는 옛 화면 그대로다
+  (2026-08-20 실제로 "아직 그대론데" 지적을 받은 원인 — 마지막 배포가 08-19 22:00,
+  UI 커밋은 08-20 01:41~45였다). **UI를 고쳤으면 `update.yml`을 수동으로 돌릴 것**
+  (장중이 아닌 쪽 scope로. 국장 개장 중에 scope=kr을 돌리지 않는다).
 - 이 환경은 야후가 프록시에 막혀 있다. 가격 조회가 필요한 작업은 CI에서만 된다.
 
 ## 6. 진행 상황
