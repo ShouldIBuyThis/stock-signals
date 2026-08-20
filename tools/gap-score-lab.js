@@ -339,5 +339,73 @@ if(!pass.length) console.log('  → 60%를 넘기면서 반쪽 검증까지 통�
 console.log('\n※ 다중비교 주의: 위는 ' + combos.length + '개를 훑은 결과다. 하나가 60%를 넘었다고 바로 규칙이 되지 않는다.');
 console.log('  실전에 쓰려면 다음 사이클에서 같은 조합이 다시 통과하는지 확인해야 한다.');
 
+/* ══════════ E. 신규 티커 A/B — 넣으면 전체 승률이 내려가나 ══════════
+   사용자 지시: "모더나·화이자 추가해서 승률 시뮬레이션(떨어지면 폐기)".
+   같은 창·같은 산식에서 **유니버스만 다르게** 두 번 돌린다. 날짜가 다른 두 실행을
+   비교하면 종목 효과와 장세 효과가 섞여 판단이 불가능하다. */
+const NEW_TK = ['MRNA','PFE'];
+const present = NEW_TK.filter(t => base.stocks.some(s => s.ticker === t));
+console.log('\n\n══════ E. 신규 티커 A/B (' + NEW_TK.join('·') + ') ══════');
+if(!present.length){
+  console.log('  아직 백테스트 원본에 없다 — main.py에 추가한 뒤 이 워크플로우를 다시 돌려야 한다.');
+} else {
+  const dropped = JSON.parse(raw); dropped.stocks = dropped.stocks.filter(s => !NEW_TK.includes(s.ticker));
+  const vOut = run(0, dropped);
+  console.log(`  포함 ${present.join('·')} · 유니버스 ${base.stocks.length}종목 → 제외 시 ${dropped.stocks.length}종목`);
+  console.log(`  ${'신호'.padEnd(12)}` + HS.map(h=>('+'+h+'일').padEnd(19)).join(''));
+  for(const [lab,get] of ROWS){
+    console.log(`  ${(lab+' 제외').padEnd(12)}` + HS.map(h=>cell(get(vOut)[h], null).padEnd(19)).join(''));
+    console.log(`  ${(lab+' 포함').padEnd(12)}` + HS.map(h=>cell(get(P0)[h], get(vOut)[h]).padEnd(19)).join(''));
+  }
+  /* 신규 티커 자신의 성적도 따로 — 전체가 안 내려가도 그 종목이 지면 담을 이유가 없다 */
+  for(const tk of present){
+    const line = HS.map(h=>{
+      const a = (P0._sb[h]||[]).filter(x => x.ticker === tk);
+      const dec = a.filter(x=>Math.abs(x.ret)>1), w = dec.filter(x=>x.ret>1).length;
+      const avg = a.length ? (a.reduce((p,c)=>p+c.ret,0)/a.length).toFixed(2) : '—';
+      return `+${h}일 ${dec.length?Math.round(w/dec.length*100)+'%':'—'}(${a.length}건, ${avg}%)`;
+    }).join(' · ');
+    console.log(`  ↳ ${tk} 강한매수만: ${line}`);
+  }
+}
+
+/* ══════════ F. 회피 뱃지 시뮬레이션 ══════════
+   사용자 지시: 갭 메움 조건이 승률로는 60%를 못 넘겼지만 +5일 평균수익이 -2~-4%였으니
+   '회피 신호'로 쓸 수 있는지 본다. 질문은 하나다 —
+   **우리 신호 중 이 조건에 걸린 것이 실제로 더 나쁜가?**
+   나쁘지 않으면 뱃지는 사용자를 겁주기만 하는 장식이므로 붙이지 않는다. */
+const META = new Map();
+for(const s of RAW) for(const r of s.hs) META.set(s.tk + '|' + r.d, r);
+const AVOID = [
+  ['A1 미메움갭+20일선아래+거래량마름', r => r.gF !== null && r.gF <= 20 && r.ma20 && r.px < r.ma20 && r.vr !== null && r.vr < 0.8],
+  ['A2 미메움갭+RSI45미만+거래량마름',  r => r.gF !== null && r.gF <= 20 && r.rsi !== null && r.rsi < 45 && r.vr !== null && r.vr < 0.8],
+  ['A3 미메움갭+보통갭+거래량마름',     r => r.gF !== null && r.gF <= 20 && r.gV !== null && r.gV < 1.5 && r.vr !== null && r.vr < 0.8],
+  ['A4 20일선아래+거래량마름 (갭무관)',  r => r.ma20 && r.px < r.ma20 && r.vr !== null && r.vr < 0.8],
+  ['A5 미메움갭+20일선아래',           r => r.gF !== null && r.gF <= 20 && r.ma20 && r.px < r.ma20],
+  ['A6 거래량마름 단독',               r => r.vr !== null && r.vr < 0.8],
+];
+console.log('\n\n══════ F. 회피 뱃지 — 우리 신호 중 이 조건에 걸린 것이 더 나쁜가 ══════');
+console.log('  기준 = 🟢 강한매수 전체. 칸: 승률(표본) 대비%p · 아래줄은 평균수익 비교');
+for(const [lab, pred] of AVOID){
+  const line = [], avgs = [];
+  let halfOK = true;
+  for(const h of HS){
+    const all = P0._sb[h] || [];
+    const hit = all.filter(x => { const m = META.get(x.ticker+'|'+x.date); return m && pred(m); });
+    const dec = hit.filter(x=>Math.abs(x.ret)>1), w = dec.filter(x=>x.ret>1).length;
+    const rate = dec.length ? Math.round(w/dec.length*100) : null;
+    const refDec = all.filter(x=>Math.abs(x.ret)>1), refW = refDec.filter(x=>x.ret>1).length;
+    const ref = refDec.length ? Math.round(refW/refDec.length*100) : null;
+    line.push(`${rate===null?'—':rate+'%'}(${String(hit.length).padStart(3)})${rate!==null&&ref!==null?(rate-ref>=0?'+':'')+(rate-ref)+'%p':''}`.padEnd(19));
+    const avgHit = hit.length ? hit.reduce((p,c)=>p+c.ret,0)/hit.length : null;
+    const avgAll = all.length ? all.reduce((p,c)=>p+c.ret,0)/all.length : null;
+    avgs.push(`${avgHit===null?'—':(avgHit>=0?'+':'')+avgHit.toFixed(2)+'%'} vs ${avgAll===null?'—':(avgAll>=0?'+':'')+avgAll.toFixed(2)+'%'}`.padEnd(19));
+    if(h===5 && (rate === null || ref === null || rate >= ref)) halfOK = false;
+  }
+  console.log(`  ${lab.padEnd(30)}` + line.join(''));
+  console.log(`  ${''.padEnd(30)}` + avgs.join(''));
+}
+console.log('  → 뱃지는 "걸린 신호가 실제로 더 나쁠 때"만 정당하다. 표본 15건 미만이면 판단 보류.');
+
 console.log('\n※ 채택 조건: ① 전체 승률이 P0보다 오르고 ② 전·후반 모두 같은 방향이며');
 console.log('  ③ 새로 편입된 신호 자체가 기준선보다 잘 이길 것. 셋 중 하나라도 아니면 가점은 기각한다.');
