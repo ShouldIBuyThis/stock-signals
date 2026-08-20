@@ -1114,6 +1114,7 @@ function toast(msg){
 /* ══════════ 이름·테마 맵 ══════════ */
 const NAME_MAP = {
   KO:"코카콜라", "BRK-B":"버크셔해서웨이B", LLY:"일라이릴리", UNH:"유나이티드헬스",
+  MRNA:"모더나", PFE:"화이자",
   HQH:"헬스케어 펀드",
   JPM:"JP모건", UYG:"금융 2x", FXO:"금융 ETF", CAT:"캐터필러", AIT:"어플라이드인더스트리얼", DBA:"농산물 ETF",
   MU:"마이크론", SNDK:"샌디스크", STX:"씨게이트", SKHY:"SK하이닉스", CBRS:"세레브라스",
@@ -1144,7 +1145,7 @@ const MEM = "반도체·메모리";
 const GPU = "반도체·GPU";
 const CAT_MAP = {
   KO:DEFENSE, "BRK-B":DEFENSE,
-  LLY:HEALTH, UNH:HEALTH, HQH:HEALTH,
+  LLY:HEALTH, UNH:HEALTH, HQH:HEALTH, MRNA:HEALTH, PFE:HEALTH,
   JPM:FINANCE, MA:FINANCE, UYG:FINANCE, FXO:FINANCE,
   CAT:INDUSTRIAL, AIT:INDUSTRIAL,
   MU:MEM, SNDK:MEM, STX:MEM, SKHY:MEM,
@@ -3019,13 +3020,13 @@ function marketBar(){
   const histBtn=(s._hist&&s._hist.length>=2)?`<button data-timeline="QQQ">📈 최근 ${histWindowDays()}거래일 신호 흐름</button>`:"";
   const cartOn=state.cart.includes("QQQ");
   return `<details class="market-bench">
-    <summary><b>🌐 QQQ · 나스닥100 시장 기준</b><span class="badge ${stockGradeCls(s)}">${stockGradeLabel(s)}</span>${nasdaqEdgeHtml()}<span class="market-bench-summary-main">시장 ${esc(levelLabel)}</span></summary>
+    <summary><b>🌐 QQQ · 나스닥100 시장 기준</b><span class="badge ${stockGradeCls(s)}">${stockGradeLabel(s)}</span>${resTouchMark(s)}${nasdaqEdgeHtml()}<span class="market-bench-summary-main">시장 ${esc(levelLabel)}</span></summary>
     <div class="market-bench-body">
       <div class="market-bench-cardtop">
         <div class="s-price">
           <span class="p num">${fmtPrice(s)}</span>${s.last_date?`<span class="close-date">${esc(closeDateLabel(s.last_date))}</span>`:""}
           <span class="c num ${chgCls(s.change_1d)}">${fmtChg(s.change_1d)}</span>
-          <span class="badge ${gradeCls(s.sig)}">${gradeLabel(s.sig)}</span>${trendChip(s)}
+          <span class="badge ${gradeCls(s.sig)}">${gradeLabel(s.sig)}</span>${resTouchMark(s)}${trendChip(s)}
         </div>
         <button class="market-bench-cart ${cartOn?"on":""}" data-qcart="QQQ" title="나스닥100 모의점검 장바구니">${cartOn?"🛒✓ 장바구니":"🛒 장바구니"}</button>
       </div>
@@ -3459,7 +3460,7 @@ function compactRow(s, i, rankless=false){
       <span class="c-rank">${(()=>{ if(rankless||state.sort==="category"||state.sort==="hold") return "";
         const n=sortRankOf(s) ?? (i+1);
         return n<=3 ? ["🥇","🥈","🥉"][n-1] : `<span class="num">${n}</span>`; })()}</span>
-      <span class="c-name"><b>${esc(s.ticker)}${levMark(s.ticker)}</b>${s._multiStrict?multiBulb(s.ticker)+resTouchMark(s):""}<em>${esc(s.name||"")}</em></span>
+      <span class="c-name"><b>${esc(s.ticker)}${levMark(s.ticker)}</b>${s._multiStrict?multiBulb(s.ticker):""}${resTouchMark(s)}<em>${esc(s.name||"")}</em></span>
       <span class="c-badge ${stockGradeCls(s)}">${stockGradeLabel(s)}</span>
       <span class="c-price num">${fmtPrice(s)}<em class="${chgCls(s.change_1d)}">${fmtChg(s.change_1d)}</em></span>
       <span class="c-flag">${key?`<span class="tag ${key.c}">${key.t.replace(/\(.*\)/,"")}</span>`:""}</span>
@@ -4217,7 +4218,7 @@ function stockCard(s, i, rankless=false){
   return `<div class="stock g${g}${s.earnings_hold?" hold-card":""}${LEVERAGED[s.ticker]?" lev-card":""}${s._multiStrict?" multi-strict":""}" data-tk="${esc(s.ticker)}">
     <div class="s-top">
       ${rankMark(i, rankless, s)}
-      <span class="s-tk${externalRiskInfo(s)?" risk-ticker":""}"${riskTickerAttrs(s)}>${esc(s.ticker)}</span>${levMark(s.ticker)}${s._multiStrict?multiBulb(s.ticker)+resTouchMark(s):""}
+      <span class="s-tk${externalRiskInfo(s)?" risk-ticker":""}"${riskTickerAttrs(s)}>${esc(s.ticker)}</span>${levMark(s.ticker)}${s._multiStrict?multiBulb(s.ticker):""}${resTouchMark(s)}
       <span class="s-nm">${esc(s.name||"")}${LEVERAGED[s.ticker]?` <span class="levnote">(고변동 레버리지)</span>`:""}</span>
       <span class="s-tools">
         <button data-act="own" class="own ${s._hold?"on":""}" title="보유 종목으로 표시">보유${s._hold?"★":"☆"}</button>
