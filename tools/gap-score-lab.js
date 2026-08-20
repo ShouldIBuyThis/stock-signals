@@ -71,10 +71,8 @@ function validationSrc(){
   return f.replace(ANCHOR, ANCHOR + '\n  result._rows=out; result._sb=strongBuyOut;');
 }
 
-function makeCtx(bonus, data){
-  const ctx = { console, Math, Number, Object, Array, Set, Map, String, JSON };
-  vm.createContext(ctx);
-  vm.runInContext(`
+function progSrc(bonus){
+  return `
 ${extractLine(/^const has = .*$/m)}
 ${extractLine(/^const r1 = .*$/m)}
 ${extractLine(/^const num = .*$/m)}
@@ -104,10 +102,28 @@ this.rows = d => { state.data = normalize(d);
       ma20:r.ma20, m200s:r.ma200_slope, ma50:r.ma50, ma120:r.ma120, ma200:r.ma200, pfl:r.pct_from_low })) };
   });
 };
-`, ctx);
+`;
+}
+const PROG_SRC = progSrc(0);
+function makeCtx(bonus, data){
+  const ctx = { console, Math, Number, Object, Array, Set, Map, String, JSON };
+  vm.createContext(ctx);
+  vm.runInContext(progSrc(bonus), ctx);
   return ctx;
 }
 function run(bonus, data){ return makeCtx(bonus, data).run(data); }
+/* 프로그램 문자열 전체에 [찾을것, 바꿀것] 패치를 걸고 돌린다 — 💡 게이트 변형용 */
+function runProg(patches, data){
+  const ctx = { console, Math, Number, Object, Array, Set, Map, String, JSON };
+  vm.createContext(ctx);
+  let prog = PROG_SRC;
+  for(const [f, r] of (patches||[])){
+    if(!prog.includes(f)) die('패치 앵커 못 찾음: ' + f.slice(0, 60));
+    prog = prog.split(f).join(r);
+  }
+  vm.runInContext(prog, ctx);
+  return ctx.run(data);
+}
 
 const base = JSON.parse(raw);
 const F = base.hist_fields, I_D = F.indexOf('date');
@@ -406,6 +422,62 @@ for(const [lab, pred] of AVOID){
   console.log(`  ${''.padEnd(30)}` + avgs.join(''));
 }
 console.log('  → 뱃지는 "걸린 신호가 실제로 더 나쁠 때"만 정당하다. 표본 15건 미만이면 판단 보류.');
+
+/* ══════════ G. 💡 강한다중이 일반다중보다 낮은 이유 + 전환 조건 변형 ══════════
+   사용자 지적: "강한다중 승률이 일반다중보다 낮다."
+   먼저 두 집단이 무엇이 다른지 지표로 보고(왜), 그 다음 전환 요건을 바꿔 본다(어떻게). */
+const STRICT_ANCHOR = 'const strict=previousOverallGrade(s)===3 && strictMultiGate(s) && fallbackStrict && strictChase;';
+function tierStat(v, h, tier){
+  const a = (v._rows.multi[h] || []).filter(x => x.tier === tier);
+  const dec = a.filter(x => Math.abs(x.ret) > 1), w = dec.filter(x => x.ret > 1).length;
+  return { n: a.length, rate: dec.length ? Math.round(w/dec.length*100) : null,
+           avg: a.length ? Math.round(a.reduce((p,c)=>p+c.ret,0)/a.length*100)/100 : null, list: a };
+}
+console.log('\n\n══════ G-1. 💡(전환 초기) vs 일반다중 — 무엇이 다른가 ══════');
+console.log(`  ${'구분'.padEnd(14)}` + HS.map(h=>('+'+h+'일 승률/평균').padEnd(24)).join(''));
+for(const [lab, t] of [['💡 강한다중', 1], ['일반 다중', 2]]){
+  console.log(`  ${lab.padEnd(14)}` + HS.map(h=>{ const x = tierStat(P0, h, t);
+    return `${x.rate===null?'—':x.rate+'%'}(${String(x.n).padStart(3)}) ${(x.avg>=0?'+':'')+x.avg}%`.padEnd(24); }).join(''));
+}
+/* 신호일 지표 평균 — 왜 다른지의 실마리 */
+const avgOf = (list, key) => { const v = list.map(x => { const m = META.get(x.ticker+'|'+x.date); return m ? m[key] : null; })
+  .filter(x => x !== null && x !== undefined); return v.length ? (v.reduce((p,c)=>p+c,0)/v.length).toFixed(1) : '—'; };
+console.log('\n  신호일 지표 평균 (+3일 표본 기준)');
+for(const [lab, t] of [['💡 강한다중', 1], ['일반 다중', 2]]){
+  const L = tierStat(P0, 3, t).list;
+  console.log(`  ${lab.padEnd(14)} RSI ${avgOf(L,'rsi')} · 볼린저 ${avgOf(L,'bb')} · 거래량비 ${avgOf(L,'vr')} · 갭메움률 ${avgOf(L,'gF')}`);
+}
+/* 수익 분포 — 승률이 낮아도 평균이 높으면 '변동성이 큰 초기 신호'라는 뜻이다 */
+console.log('\n  +5일 수익 분포 (크게 이김 5%+ / 크게 짐 -5%↓)');
+for(const [lab, t] of [['💡 강한다중', 1], ['일반 다중', 2]]){
+  const L = tierStat(P0, 5, t).list;
+  const big = L.filter(x=>x.ret>=5).length, bad = L.filter(x=>x.ret<=-5).length;
+  console.log(`  ${lab.padEnd(14)} 크게이김 ${big}건(${L.length?Math.round(big/L.length*100):0}%) · 크게짐 ${bad}건(${L.length?Math.round(bad/L.length*100):0}%) · 표본 ${L.length}`);
+}
+
+console.log('\n══════ G-2. 전환 요건 변형 — 💡 승률을 올릴 수 있나 ══════');
+const GVAR = [
+  ['G0 현행 (전일 중립)', null],
+  ['G1 전일 중립 or 매수관심', STRICT_ANCHOR.replace('previousOverallGrade(s)===3', 'previousOverallGrade(s)<=4')],
+  ['G2 전환 요건 제거',      STRICT_ANCHOR.replace('previousOverallGrade(s)===3 && ', '')],
+  ['G3 전일·전전일 모두 중립', STRICT_ANCHOR.replace('previousOverallGrade(s)===3',
+     '(previousOverallGrade(s)===3 && (function(){const hs=histStocks(s)||[]; if(hs.length<3) return false; return evaluate(hs[hs.length-3]).grade===3;})())')],
+  ['G4 전환 + 거래량 1.2배+', STRICT_ANCHOR.replace('strictChase;', 'strictChase && has(s.vol_ratio) && s.vol_ratio>=1.2;')],
+  ['G5 전환 + 20일선 위',    STRICT_ANCHOR.replace('strictChase;', 'strictChase && has(s.ma20) && has(s.price) && s.price>=s.ma20;')],
+];
+console.log(`  ${'변형'.padEnd(24)}` + HS.map(h=>('+'+h+'일 승률/평균').padEnd(24)).join(''));
+for(const [lab, patched] of GVAR){
+  const v = patched ? runProg([[STRICT_ANCHOR, patched]], base) : P0;
+  console.log(`  ${lab.padEnd(24)}` + HS.map(h=>{ const x = tierStat(v, h, 1);
+    return `${x.rate===null?'—':x.rate+'%'}(${String(x.n).padStart(3)}) ${(x.avg>=0?'+':'')+x.avg}%`.padEnd(24); }).join(''));
+  if(patched){
+    const h1 = runProg([[STRICT_ANCHOR, patched]], clip(d=>d<MID)), h2 = runProg([[STRICT_ANCHOR, patched]], clip(d=>d>=MID));
+    const f = vv => HS.map(h=>{ const x = tierStat(vv, h, 1); return `${x.rate===null?'—':x.rate+'%'}(${String(x.n).padStart(3)})`.padEnd(24); }).join('');
+    console.log(`    ${'· 전반'.padEnd(22)}` + f(h1));
+    console.log(`    ${'· 후반'.padEnd(22)}` + f(h2));
+  }
+}
+console.log('  → 승률만 오르고 평균수익이 내려가면 채택하지 않는다(§6). 전·후반 둘 다 올라야 한다.');
 
 console.log('\n※ 채택 조건: ① 전체 승률이 P0보다 오르고 ② 전·후반 모두 같은 방향이며');
 console.log('  ③ 새로 편입된 신호 자체가 기준선보다 잘 이길 것. 셋 중 하나라도 아니면 가점은 기각한다.');

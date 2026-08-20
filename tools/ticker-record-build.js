@@ -139,7 +139,31 @@ const res = ctx.runInPage(`(() => {
       TICKER_HS.forEach(h => o[h] = {n:0,rate:null,avg:null}); return o; };
     out.QQQ = { strong, multi: empty(), strict: empty() };
   }
-  return { records: out, days, samples, qqq, breadth,
+  /* ── 나스닥 전용: 저항을 몇 번 두드린 뒤에 실제로 돌파했나 ──────────────
+     사용자 질문(2026-08-19): "과거에 몇 회부터 돌파했었는지".
+     돌파 = 종가가 단기 저항(res_short)을 0.5% 넘어선 첫날. 그날까지 직전 20봉에서
+     저항 근처(±1.5%)에 갔다가 못 넘은 날을 두드림으로 센다(🔨 뱃지와 같은 계산). */
+  const qqqKnock = (() => {
+    const arr = [];
+    for(let i=1;i<qhs.length;i++){
+      const r = qhs[i], res = num(r.res_short), p = num(r.price);
+      if(!has(res) || !has(p) || !res) continue;
+      let k = 0;
+      for(let j=Math.max(0,i-20); j<i; j++){
+        const q = num(qhs[j].price);
+        if(has(q) && q >= res*0.985 && q <= res*1.005) k++;
+      }
+      const prev = qhs[i-1], pres = num(prev.res_short), pp = num(prev.price);
+      const brokeToday = p > res*1.005;
+      const brokeYesterday = has(pres) && has(pp) && pp > pres*1.005;
+      if(!brokeToday || brokeYesterday) continue;      // '첫 돌파'만
+      const fwd = qhs[i+5];
+      arr.push({ d: r.last_date, k,
+                 ret: (fwd && fwd.price && p) ? Math.round((fwd.price/p - 1)*1000)/10 : null });
+    }
+    return arr;
+  })();
+  return { records: out, days, samples, qqq, breadth, qqqKnock,
            kinds: TICKER_KINDS.map(x=>x.k), horizons: TICKER_HS };
 })()`);
 
@@ -154,6 +178,8 @@ const payload = {
   kinds: res.kinds,
   horizons: res.horizons,
   records: res.records,
+  /* 나스닥 카드의 '두드림 → 돌파' 팝업이 읽는다. 배열이 작아 요약 파일에 같이 싣는다. */
+  qqqKnock: res.qqqKnock,
 };
 /* 신호 단위 표본은 별도 파일로 낸다 — 사이트는 요약만 받으면 되고,
    이건 도구(§2 반쪽·섹터 컷 스윕)가 읽는다. */

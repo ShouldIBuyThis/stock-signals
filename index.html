@@ -2927,6 +2927,45 @@ function advisorToday(){
   </div>`;
 }
 
+/* 나스닥 전용 — 저항을 몇 번 두드린 뒤에 실제로 넘었나.
+   숫자는 백테스트 빌더가 미리 접어 둔 qqqKnock(189거래일)이다. 화면에서 다시 세지 않는다.
+   ⚠ '보조뱃지 규칙' 팝업과 내용이 겹쳐서 이 자리를 이걸로 바꿨다(사용자 지적). */
+function openQqqKnockModal(){
+  const arr = (TICKER_BT && Array.isArray(TICKER_BT.qqqKnock)) ? TICKER_BT.qqqKnock : null;
+  const now = (()=>{ const q = qqqBenchmarkStock(); return q ? resTouchCount(q) : 0; })();
+  if(!arr || !arr.length){
+    openModal(`<h3>🔨 나스닥 저항 두드림</h3>
+      <p style="font-size:12.5px;color:var(--reason);line-height:1.8">
+        지금 QQQ는 최근 20거래일 동안 단기 저항을 <span class="hl">${now}번</span> 두드렸어요.<br>
+        과거 돌파 기록은 백테스트 파일이 있어야 보여드릴 수 있어요 — 다음 갱신 뒤에 다시 열어보세요.</p>
+      <div class="modal-actions"><button class="primary" onclick="closeModal()">닫기</button></div>`);
+    return;
+  }
+  const B = [["0~1번", x=>x.k<=1], ["2~3번", x=>x.k>=2&&x.k<=3], ["4번 이상", x=>x.k>=4]];
+  const rows = B.map(([lab, f])=>{
+    const g = arr.filter(f), r = g.filter(x=>x.ret!==null);
+    const w = r.filter(x=>x.ret>1).length, l = r.filter(x=>x.ret<-1).length;
+    const rate = (w+l) ? Math.round(w/(w+l)*100) : null;
+    const avg = r.length ? (r.reduce((p,c)=>p+c.ret,0)/r.length) : null;
+    const cur = (lab==="0~1번"&&now<=1)||(lab==="2~3번"&&now>=2&&now<=3)||(lab==="4번 이상"&&now>=4);
+    return `<tr${cur?' class="nedge-on"':''}><td><b>${lab}</b>${cur?'<span class="tkrec-n" style="color:var(--buy);font-weight:800">지금 여기</span>':''}</td>
+      <td><span class="tkrec-rate">${g.length}회</span></td>
+      <td>${rate===null?'—':`<span class="tkrec-rate">${rate}%</span>`}<span class="tkrec-n">${r.length}건</span></td>
+      <td><span class="tkrec-avg">${avg===null?'—':(avg>=0?'+':'')+avg.toFixed(2)+'%'}</span></td></tr>`;
+  }).join("");
+  const thin = arr.length < 15;
+  openModal(`<h3>🔨 나스닥 — 몇 번 두드린 뒤 돌파했나</h3>
+    <p style="font-size:12.5px;color:var(--reason);line-height:1.8">
+      <b>두드림</b>은 종가가 단기 저항 근처(±1.5%)까지 갔다가 <b>못 넘은 날</b>이에요.
+      <b>돌파</b>는 저항을 0.5% 넘어선 <b>첫날</b>입니다.<br>
+      지금 QQQ는 <span class="hl">${now}번</span> 두드린 상태예요.</p>
+    <table class="cmp nedge-t"><tr><th>돌파 전 두드림</th><th>돌파 횟수</th><th>돌파 후 +5일</th><th>평균수익</th></tr>${rows}</table>
+    <p style="font-size:11.5px;color:${thin?'var(--sell)':'var(--reason)'};line-height:1.8;margin-top:8px">
+      189거래일 백테스트에서 QQQ가 저항을 처음 넘은 날 <b>${arr.length}건</b>을 모은 겁니다.
+      ${thin?'⚠ 표본이 15건 미만이라 방향만 참고하세요.':'표본이 얇으면 한두 건에 크게 흔들립니다.'}
+      점수·등급·순위에는 <b>전혀 쓰지 않습니다</b> — 보는 값이에요.</p>
+    <div class="modal-actions perf-sticky"><button class="primary" onclick="closeModal()">닫기</button></div>`);
+}
 function openNasdaqEdgeModal(key){
   const on = new Set(nasdaqEdgeBadges().map(x=>x.key));
   const b = breadthNow();
@@ -3052,7 +3091,7 @@ function marketBar(){
              <span class="tkrec-sub">조건: VXN 피크아웃 · 바닥권(20일선 위 30%↓) · QQQ RSI 35↓ — 발동일 실측 +3일 81%(16건)</span>`;
       })()} <span class="nedge nedge-br" role="button" tabindex="0" data-nedge="qqq-grade">ⓘ 근거</span></div>
       <div class="market-bench-h" style="margin-top:8px"><span class="sub">시장 기준 전용 · QQQ 시장필터 자기적용 없음 · 랭킹/정렬 제외
-        · <span class="nedge nedge-br" role="button" tabindex="0" data-nedge="vxn-high" style="margin-left:2px">ⓘ 보조뱃지 규칙</span></span></div>
+        · <span class="nedge nedge-br" role="button" tabindex="0" data-qknock="1" style="margin-left:2px">🔨 두드림 ${resTouchCount(s)}회 · 과거 돌파 기록</span></span></div>
       ${histBtn?`<div class="market-bench-actions">${histBtn}</div>`:""}
     </div>
   </details>`;
@@ -5165,6 +5204,7 @@ modal.addEventListener("click", e=>{
   if (ex){ explainStyle(ex.dataset.explain); return; }
   const rt = e.target.closest("[data-restouch]");
   if (rt){ openResTouchModal(rt.dataset.restouch); return; }
+  if (e.target.closest("[data-qknock]")){ openQqqKnockModal(); return; }
   const ne = e.target.closest("[data-nedge]");
   if (ne){ openNasdaqEdgeModal(ne.dataset.nedge); return; }
   if (e.target===modal) closeModal();
@@ -6001,6 +6041,8 @@ document.getElementById("main").addEventListener("click", e=>{
     e.preventDefault(); e.stopPropagation();
     state.themeFilter=""; state.displayLimit=20; save(); render(); return;
   }
+  const qknockBtn = e.target.closest("[data-qknock]");
+  if(qknockBtn){ e.preventDefault(); e.stopPropagation(); openQqqKnockModal(); return; }
   const nedgeBtn = e.target.closest("[data-nedge]");
   if(nedgeBtn){ e.preventDefault(); e.stopPropagation(); openNasdaqEdgeModal(nedgeBtn.dataset.nedge); return; }
   const resTouchBtn = e.target.closest("[data-restouch]");
