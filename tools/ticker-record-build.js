@@ -142,21 +142,26 @@ const res = ctx.runInPage(`(() => {
   /* ── 나스닥 전용: 저항을 몇 번 두드린 뒤에 실제로 돌파했나 ──────────────
      사용자 질문(2026-08-19): "과거에 몇 회부터 돌파했었는지".
      돌파 = 종가가 단기 저항(res_short)을 0.5% 넘어선 첫날. 그날까지 직전 20봉에서
-     저항 근처(±1.5%)에 갔다가 못 넘은 날을 두드림으로 센다(🔨 뱃지와 같은 계산). */
+     저항 근처(±1.5%)에 갔다가 못 넘은 날을 두드림으로 센다(🔨 뱃지와 같은 계산).
+
+     ⚠ main.py의 res_short는 hi_above(20) — "이미 뚫었으면 저항이 아니다"라서
+     현재가 위 고점이 없으면 **null**이 된다(main.py:942-950). 즉 돌파한 날의
+     res_short는 항상 null이다. 오늘 행의 res_short로 돌파를 판정하면 조건이
+     영원히 안 맞아 결과가 0건이 된다(2026-08-20 실제로 빈 배열이 나온 원인).
+     반드시 **전일의 res_short**를 오늘 종가와 비교한다. 전일에 res_short가
+     살아 있었다는 것 자체가 "어제까진 못 넘었다"는 뜻이므로 '첫 돌파'도 자동이다. */
   const qqqKnock = (() => {
     const arr = [];
     for(let i=1;i<qhs.length;i++){
-      const r = qhs[i], res = num(r.res_short), p = num(r.price);
+      const r = qhs[i], prev = qhs[i-1];
+      const res = num(prev.res_short), p = num(r.price);
       if(!has(res) || !has(p) || !res) continue;
+      if(!(p > res*1.005)) continue;                   // 오늘 그 저항을 넘었나
       let k = 0;
       for(let j=Math.max(0,i-20); j<i; j++){
         const q = num(qhs[j].price);
         if(has(q) && q >= res*0.985 && q <= res*1.005) k++;
       }
-      const prev = qhs[i-1], pres = num(prev.res_short), pp = num(prev.price);
-      const brokeToday = p > res*1.005;
-      const brokeYesterday = has(pres) && has(pp) && pp > pres*1.005;
-      if(!brokeToday || brokeYesterday) continue;      // '첫 돌파'만
       const fwd = qhs[i+5];
       arr.push({ d: r.last_date, k,
                  ret: (fwd && fwd.price && p) ? Math.round((fwd.price/p - 1)*1000)/10 : null });
