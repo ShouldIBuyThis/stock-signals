@@ -429,6 +429,7 @@ details.tkrec-fold[open]>summary.tkrec-1line::after{content:" ▴"}
 .nedge-vxn2{color:var(--sell);background:var(--sell-soft)}
 .nedge-br{color:var(--down);background:var(--neutral-soft)}
 .res-touch{margin-left:3px;font-size:10.5px;font-weight:800;color:var(--buy);vertical-align:middle;cursor:help}
+.earn-mark{margin-left:3px;font-size:10.5px;font-weight:800;color:var(--sell);vertical-align:middle;cursor:pointer}
 .tkrec-note{font-size:11px;color:var(--faint);line-height:1.7;margin-top:6px}
 html[data-theme="dark"] .perfbtn{background:#1c2532;color:#7fb0ff}
 html[data-theme="dark"] .perfbtn.on{background:var(--navy);color:#fff}
@@ -3498,7 +3499,7 @@ function compactRow(s, i, rankless=false){
       <span class="c-rank">${(()=>{ if(rankless||state.sort==="category"||state.sort==="hold") return "";
         const n=sortRankOf(s) ?? (i+1);
         return n<=3 ? ["🥇","🥈","🥉"][n-1] : `<span class="num">${n}</span>`; })()}</span>
-      <span class="c-name"><b>${esc(s.ticker)}${levMark(s.ticker)}</b>${s._multiStrict?multiBulb(s.ticker):""}${resTouchMark(s)}<em>${esc(s.name||"")}</em></span>
+      <span class="c-name"><b>${esc(s.ticker)}${levMark(s.ticker)}</b>${s._multiStrict?multiBulb(s.ticker):""}${resTouchMark(s)}${earnStreakMark(s)}<em>${esc(s.name||"")}</em></span>
       <span class="c-badge ${stockGradeCls(s)}">${stockGradeLabel(s)}</span>
       <span class="c-price num">${fmtPrice(s)}<em class="${chgCls(s.change_1d)}">${fmtChg(s.change_1d)}</em></span>
       <span class="c-flag">${key?`<span class="tag ${key.c}">${key.t.replace(/\(.*\)/,"")}</span>`:""}</span>
@@ -4256,7 +4257,7 @@ function stockCard(s, i, rankless=false){
   return `<div class="stock g${g}${s.earnings_hold?" hold-card":""}${LEVERAGED[s.ticker]?" lev-card":""}${s._multiStrict?" multi-strict":""}" data-tk="${esc(s.ticker)}">
     <div class="s-top">
       ${rankMark(i, rankless, s)}
-      <span class="s-tk${externalRiskInfo(s)?" risk-ticker":""}"${riskTickerAttrs(s)}>${esc(s.ticker)}</span>${levMark(s.ticker)}${s._multiStrict?multiBulb(s.ticker):""}${resTouchMark(s)}
+      <span class="s-tk${externalRiskInfo(s)?" risk-ticker":""}"${riskTickerAttrs(s)}>${esc(s.ticker)}</span>${levMark(s.ticker)}${s._multiStrict?multiBulb(s.ticker):""}${resTouchMark(s)}${earnStreakMark(s)}
       <span class="s-nm">${esc(s.name||"")}${LEVERAGED[s.ticker]?` <span class="levnote">(고변동 레버리지)</span>`:""}</span>
       <span class="s-tools">
         <button data-act="own" class="own ${s._hold?"on":""}" title="보유 종목으로 표시">보유${s._hold?"★":"☆"}</button>
@@ -4399,6 +4400,98 @@ function resTouchMark(s){
     ? `최근 20거래일 중 ${n}번 이 저항선에서 막혔어요 · 같은 조건 실측 +3일 ${t3.rate}%(${t3.n}건)`
     : `최근 20거래일 중 ${n}번 이 저항선에서 막혔어요`;
   return `<span class="res-touch" role="button" tabindex="0" data-restouch="${esc(s.ticker)}" title="${esc(tip)}">\u{1F528}${n}</span>`;
+}
+
+/* ── 실적 임박 · 발표 전 연속 음봉 표시 (표시 전용) ────────────────────────
+   사용자 가설(2026-08-20): "발표 1~2주 전 연속 음봉이면 어닝 서프라이즈가 나온다".
+   3년 · 63종목 · 697건으로 실측한 결과는 **반쪽만 맞았다**:
+     · EPS 서프라이즈 자체는 예고되지 않는다 — 연속음봉 3일+의 상회율 72%로
+       오히려 전체(78%)보다 낮고, 상관계수도 전부 ±0.09 안(무관계)이다.
+     · 그런데 **발표 후 주가**는 확실히 다르다. 눌려 있을수록 잘 오른다.
+   즉 실적이 더 좋아서가 아니라 기대치가 낮아져 있어서 넘기 쉬운 것이다.
+
+   ⚠ 점수·등급·순위에는 절대 넣지 않는다. 실적 갭은 ±15%씩 튀어서 승률이 높아도
+     한 번에 반납할 수 있고, 우리 사이트는 실적 영향권을 '보류'하는 것이 원칙이다.
+     이 표시는 "지금 이 자리가 과거에 어땠는지" 알려 주는 정보일 뿐이다.
+   출처: tools/earnings-lab.py (2026-08-22 측정). 숫자를 갱신하면 여기도 같이. */
+const EARN_FACTS = {
+  window: "2023-09 ~ 2026-08 · 63종목 697건",
+  base: { 1:49, 3:51, 5:53, avg1:1.04, avg3:1.99, avg5:2.43 },
+  rows: [
+    { k:"0",  lab:"연속 음봉 없음",  n:366, r:{1:46,3:50,5:51}, avg:{1:0.54,3:1.42,5:1.48} },
+    { k:"1",  lab:"1일",            n:209, r:{1:50,3:50,5:54}, avg:{1:1.44,3:2.74,5:3.23} },
+    { k:"2",  lab:"2일",            n: 71, r:{1:48,3:48,5:53}, avg:{1:0.29,3:0.51,5:2.76} },
+    { k:"3",  lab:"3일 이상",       n: 51, r:{1:60,3:67,5:64}, avg:{1:4.04,3:5.05,5:5.58} },
+    { k:"4",  lab:"(그중 4일 이상)", n: 21, r:{1:67,3:72,5:69}, avg:{1:5.96,3:7.47,5:6.93} }
+  ]
+};
+
+/* 오늘까지 이어진 연속 음봉 일수. hist의 종가 흐름으로 센다(전일 대비 하락). */
+function earnDownStreak(s){
+  const hs = histStocks(s) || [];
+  let n = 0;
+  for(let i = hs.length - 1; i > 0; i--){
+    const c = num(hs[i].price), p = num(hs[i-1].price);
+    if(!has(c) || !has(p) || !(c < p)) break;
+    n++;
+  }
+  return n;
+}
+
+/* 실적까지 남은 날(달력 기준). 지났거나 일정이 없으면 null. */
+function earnDaysLeft(s){
+  const d = s && s.earnings && s.earnings.date;
+  if(!d) return null;
+  const t = Date.parse(d + "T00:00:00Z");
+  if(!Number.isFinite(t)) return null;
+  const today = Date.parse((s.last_date || "") + "T00:00:00Z");
+  if(!Number.isFinite(today)) return null;
+  const left = Math.round((t - today) / 86400000);
+  return left >= 0 ? left : null;
+}
+
+/* 뱃지를 붙일 자리인가 — 실적이 14일 안이고, 연속 음봉이 실제로 있어야 한다.
+   보류(earnings_hold) 중인 카드에도 붙인다. 그때가 오히려 제일 궁금한 자리다. */
+function earnStreakMark(s){
+  const left = earnDaysLeft(s);
+  if(left === null || left > 14) return "";
+  const n = earnDownStreak(s);
+  if(n < 1) return "";
+  const row = EARN_FACTS.rows.find(x => x.k === String(Math.min(n, 3))) || EARN_FACTS.rows[0];
+  const tip = `실적 D-${left} · 발표 전 ${n}일 연속 음봉 — 과거 같은 자리 +3일 ${row.r[3]}%(${row.n}건)`;
+  return `<span class="earn-mark" role="button" tabindex="0" data-earnstreak="${esc(s.ticker)}" title="${esc(tip)}">\u{1F4C9}${n}</span>`;
+}
+
+function openEarnStreakModal(tk){
+  const s = allStocks().find(x => x.ticker === tk);
+  if(!s) return;
+  const n = earnDownStreak(s), left = earnDaysLeft(s);
+  const curKey = String(Math.min(Math.max(n, 0), 3));
+  const B = EARN_FACTS.base;
+  const rows = EARN_FACTS.rows.map(x => {
+    const cur = x.k === curKey;
+    const d = h => { const e = x.r[h] - B[h]; return `<span class="vedge ${e>=0?"vedge-up":"vedge-dn"}">${e>=0?"+":""}${e}%p</span>`; };
+    return `<tr${cur?' class="nedge-on"':''}><td><b>${x.lab}</b>${cur?'<span class="tkrec-n" style="color:var(--buy);font-weight:800">지금 여기</span>':''}
+        <span class="tkrec-n">${x.n}건</span></td>
+      <td><span class="tkrec-rate">${x.r[1]}%</span>${d(1)}</td>
+      <td><span class="tkrec-rate">${x.r[3]}%</span>${d(3)}</td>
+      <td><span class="tkrec-rate">${x.r[5]}%</span>${d(5)}</td>
+      <td><span class="tkrec-avg">+${x.avg[3]}%</span></td></tr>`;
+  }).join("");
+  openModal(`<h3>\u{1F4C9} 발표 전 연속 음봉 — 과거엔 어땠나</h3>
+    <p style="font-size:12.5px;color:var(--reason);line-height:1.8">
+      <b>${esc(s.name||tk)}</b>는 실적 <span class="hl">D-${left}</span>이고, 지금 <span class="hl">${n}일 연속 음봉</span>이에요.<br>
+      아래는 <b>발표 직전 종가</b>에서 사서 며칠 뒤 팔았다면 어땠는지를 ${esc(EARN_FACTS.window)}로 잰 값입니다.
+      기준선은 <b>실적 이벤트 전체 평균</b>(+1일 ${B[1]}% · +3일 ${B[3]}% · +5일 ${B[5]}%)이에요.</p>
+    <table class="cmp nedge-t"><tr><th>발표 전 연속 음봉</th><th>+1일</th><th>+3일</th><th>+5일</th><th>+3일 평균</th></tr>${rows}</table>
+    <p style="font-size:12px;color:var(--reason);line-height:1.9;margin-top:8px">
+      <b>왜 그런가</b> — 실적이 더 좋아서가 아니에요. 연속 음봉 3일+ 그룹의 <span class="hl">EPS 상회율은 72%</span>로
+      전체 평균 78%보다 오히려 <b>낮습니다</b>. 눌린 정도와 서프라이즈의 상관도 사실상 0이에요.
+      <span class="hl">기대치가 이미 낮아져 있어서</span> 같은 실적에도 주가가 더 오르는 겁니다.</p>
+    <p class="tkrec-note adv-warn">⚠ <b>점수·등급·순위에는 전혀 쓰지 않습니다.</b> 실적 발표는 하루에 ±15%씩 튀는 자리라
+      승률이 높아도 한 번에 반납할 수 있어요. 저희는 실적 영향권에서 등급을 <b>보류</b>하는 쪽이고,
+      이건 "이 자리가 과거엔 어땠는지"만 보여 주는 참고 정보입니다. 표본 51건(3일+)은 신뢰 등급의 하한이에요.</p>
+    <div class="modal-actions perf-sticky"><button class="primary" onclick="closeModal()">닫기</button></div>`);
 }
 
 function multiBulb(tk){
@@ -5203,6 +5296,8 @@ modal.addEventListener("click", e=>{
   if (ex){ explainStyle(ex.dataset.explain); return; }
   const rt = e.target.closest("[data-restouch]");
   if (rt){ openResTouchModal(rt.dataset.restouch); return; }
+  const es = e.target.closest("[data-earnstreak]");
+  if (es){ openEarnStreakModal(es.dataset.earnstreak); return; }
   if (e.target.closest("[data-qknock]")){ openQqqKnockModal(); return; }
   const ne = e.target.closest("[data-nedge]");
   if (ne){ openNasdaqEdgeModal(ne.dataset.nedge); return; }
@@ -6046,6 +6141,8 @@ document.getElementById("main").addEventListener("click", e=>{
   if(nedgeBtn){ e.preventDefault(); e.stopPropagation(); openNasdaqEdgeModal(nedgeBtn.dataset.nedge); return; }
   const resTouchBtn = e.target.closest("[data-restouch]");
   if(resTouchBtn){ e.preventDefault(); e.stopPropagation(); openResTouchModal(resTouchBtn.dataset.restouch); return; }
+  const earnBtn = e.target.closest("[data-earnstreak]");
+  if(earnBtn){ e.preventDefault(); e.stopPropagation(); openEarnStreakModal(earnBtn.dataset.earnstreak); return; }
   const marketEventBtn = e.target.closest("[data-market-event]");
   if(marketEventBtn){ e.preventDefault(); e.stopPropagation(); openMarketEventModal(marketEventBtn.dataset.marketEvent); return; }
   const rankGoto = e.target.closest("[data-rankgoto]");
