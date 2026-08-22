@@ -1,8 +1,9 @@
-name: 실적 발표 전 흐름 검증 (실험 · 로그만)
+name: 실적 전 흐름 · 캔들 패턴 검증 (실험 · 로그만)
 
 # 사용자 가설(2026-08-20) 검증 전용 수동 워크플로우.
 #   A) 실적 발표 1~2주 전 '연속 음봉' → 어닝 서프라이즈가 나온다
 #   B) 그 반대 — 발표 전에 올려놨으면 발표는 실망
+#   C) 종가 캔들 모양(망치형·장악형·샛별형 등 16종)으로 잡는 신호의 실제 승률
 #
 # ⚠ 아무 파일도 커밋하지 않는다. 원장(signals.json·history/)도, 백테스트 산출물도
 #    건드리지 않는다. 결과는 이 잡의 로그에만 남는다.
@@ -32,7 +33,12 @@ jobs:
         run: pip install -q yfinance pandas numpy exchange_calendars
 
       - name: 실적 전 흐름 검증
+        continue-on-error: true
         run: python tools/earnings-lab.py --years "${{ inputs.years || '3' }}"
+
+      - name: 캔들 패턴 승률 검증
+        continue-on-error: true
+        run: python tools/candle-lab.py --years "${{ inputs.years || '3' }}"
 
       - name: 아무것도 안 바뀌었는지 확인
         run: |
