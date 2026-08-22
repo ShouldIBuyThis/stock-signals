@@ -1,0 +1,43 @@
+name: 실적 발표 전 흐름 검증 (실험 · 로그만)
+
+# 사용자 가설(2026-08-20) 검증 전용 수동 워크플로우.
+#   A) 실적 발표 1~2주 전 '연속 음봉' → 어닝 서프라이즈가 나온다
+#   B) 그 반대 — 발표 전에 올려놨으면 발표는 실망
+#
+# ⚠ 아무 파일도 커밋하지 않는다. 원장(signals.json·history/)도, 백테스트 산출물도
+#    건드리지 않는다. 결과는 이 잡의 로그에만 남는다.
+# ⚠ 로컬은 야후가 프록시에 막혀 있어 여기서만 돈다.
+
+on:
+  workflow_dispatch:
+    inputs:
+      years:
+        description: '주가 수집 기간(년) — 실적 분기 수를 좌우한다'
+        required: false
+        default: '3'
+
+permissions:
+  contents: read
+
+jobs:
+  lab:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 의존성 설치
+        run: pip install -q yfinance pandas numpy exchange_calendars
+
+      - name: 실적 전 흐름 검증
+        run: python tools/earnings-lab.py --years "${{ inputs.years || '3' }}"
+
+      - name: 아무것도 안 바뀌었는지 확인
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::실험 워크플로우가 파일을 바꿨다 — 읽기 전용이어야 한다"
+            git status --porcelain
+            exit 1
+          fi
