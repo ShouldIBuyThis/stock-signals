@@ -59,7 +59,17 @@ HIST_FIELDS = ["date","price","change_1d","ma5","ma10","ma20","ma50","ma60","rsi
                #   gap20_ago  그 갭이 몇 봉 전인가 (0=오늘)
                #   gap20_vol  그 갭일의 거래량비 — 돌파갭(대량) vs 보통갭(무덤덤) 구분용
                #   gap20_fill 그 갭을 얼마나 메웠나 0~100% (0=미메움, 100=완전 메움)
-               "gap_pct", "gap20_pct", "gap20_ago", "gap20_vol", "gap20_fill"]
+               "gap_pct", "gap20_pct", "gap20_ago", "gap20_vol", "gap20_fill",
+               # 2026-08-22 확장: 주봉·월봉 상위 시간대 맥락 (사용자 요청).
+               # "일봉 타이밍은 상위 시간대 추세 안에서만 유효하다"를 검증하려면
+               # 그날 시점의 주봉·월봉 상태가 저장돼 있어야 한다. 전부 **완성된**
+               # 봉만 쓴다 — 진행 중인 주/월을 쓰면 미래를 보는 셈이 된다.
+               #   w_rsi        완성된 마지막 주봉 기준 RSI(14)
+               #   w_ma20_pos   현재가가 20주선 대비 몇 % 위/아래인가
+               #   w_streak     연속 주봉 방향 (+n 양봉 n주, -n 음봉 n주)
+               #   m_ma6_pos    현재가가 6개월선 대비 몇 % 위/아래인가
+               #   m_streak     연속 월봉 방향
+               "w_rsi", "w_ma20_pos", "w_streak", "m_ma6_pos", "m_streak"]
 
 # freeze 단계에서 옛 행에 뒤늦게 채워 넣는 열. 이미 값이 있으면 절대 덮지 않는다.
 HIST_BACKFILL_FIELDS = ["atr_pct", "market_level", "market_weak", "market_ret20", "market_events"]
@@ -265,6 +275,23 @@ def _fallback_earnings(ticker, start_day, end_day, existing=None):
                     if match:
                         return {"date": target, "timing": match[1], "timing_raw": match[2],
                                 "source": "Yahoo/yfinance Ticker.get_earnings_dates"}
+                    # 하루 어긋나는 경우를 버리지 않는다. 전체 캘린더의 'Event Start Date'는
+                    # tz가 없는 UTC로 오는 일이 있어(장마감 후 발표 = UTC 다음날) 뉴욕 현지일과
+                    # 하루 밀린다. 그 탓에 정확 매칭이 전부 실패해 timing 보강이 0건이었다
+                    # (2026-08-22 화면: 시간미확인 18 · fallback 해결 0).
+                    # get_earnings_dates 쪽은 tz가 붙은 뉴욕 시각이라 더 정확하므로,
+                    # ±1일 후보가 있으면 그쪽 날짜와 timing을 함께 채택한다.
+                    try:
+                        td = datetime.strptime(target, "%Y-%m-%d").date()
+                        near = [x for x in rows
+                                if abs((datetime.strptime(x[0], "%Y-%m-%d").date() - td).days) <= 1
+                                and x[1] != "UNKNOWN"]
+                    except Exception:
+                        near = []
+                    if near:
+                        d, timing, raw = near[0]
+                        return {"date": d, "timing": timing, "timing_raw": raw,
+                                "source": "Yahoo/yfinance Ticker.get_earnings_dates(±1일 보정)"}
                 else:
                     today = datetime.now(_NY).date()
                     rows.sort(key=lambda x: abs((datetime.strptime(x[0], "%Y-%m-%d").date()-today).days))
@@ -305,7 +332,11 @@ def fetch_event_calendars(now_kst, wanted_tickers):
     ny_now = now_kst.astimezone(_NY) if now_kst.tzinfo else now_kst.replace(tzinfo=_KST).astimezone(_NY)
     today_ny = ny_now.date()
     start_day = today_ny - timedelta(days=16)
-    end_day   = today_ny + timedelta(days=7)
+    # 전방 21일. +7일이던 것을 늘렸다 — 7일이면 '실적 임박' 표시가 D-7 안쪽에서만
+    # 붙어서 발표 2~3주 전 흐름을 보여 줄 수 없었다(2026-08-22 사용자 지적).
+    # 먼 이벤트는 _earnings_windows()가 blocked 날짜를 오늘에 걸지 않으므로
+    # 창을 넓혀도 등급 보류가 미리 걸리지는 않는다.
+    end_day   = today_ny + timedelta(days=21)
     # wanted에는 애초에 미국 종목만 담긴다(한국 종목은 여기서 제외).
     # 따라서 NO_EARNINGS_TICKERS의 한국 ETF 2종목은 이 집계에 등장하지 않는다.
     # 실적 조회 '대상'은 그중 ETF·지수를 뺀 나머지다. 누락 집계는 반드시 이 기준으로 센다.
@@ -356,8 +387,9 @@ def fetch_event_calendars(now_kst, wanted_tickers):
         fb=_fallback_earnings(tk, start_day, end_day, before)
         if not fb: continue
         if before:
-            # 기존 날짜는 유지하고, 같은 날짜에서 timing이 확인된 경우에만 개선한다.
-            if fb.get("date")==before.get("date") and before.get("timing")=="UNKNOWN" and fb.get("timing")!="UNKNOWN":
+            # timing이 UNKNOWN이던 것을 확정지어 줄 때만 교체한다. 날짜가 하루 어긋난
+            # 경우도 포함한다 — tz가 붙은 get_earnings_dates 쪽이 더 정확하기 때문이다.
+            if before.get("timing")=="UNKNOWN" and fb.get("timing")!="UNKNOWN":
                 out_earn[tk]=fb; status["fallback_resolved"] += 1
         else:
             out_earn[tk]=fb; status["fallback_resolved"] += 1
@@ -864,6 +896,49 @@ def analyze(ticker, name, category):
     is_kr = ticker.endswith(".KS") or ticker.endswith(".KQ")
     nd = 0 if is_kr else 2
 
+    # ── 상위 시간대(주봉·월봉) 맥락 ──────────────────────────────────
+    # 티커당 한 번만 만든다. 봉마다 resample하면 180배 느려진다.
+    # ⚠ 진행 중인 주/월은 쓰지 않는다. 각 봉 i에서는 **그 날짜보다 먼저 끝난**
+    #   주/월만 참조한다 — 안 그러면 그 주의 남은 날들을 미리 보게 된다.
+    def _tf(freq, ma_n):
+        try:
+            ser = close.resample(freq).last().dropna()
+        except Exception:
+            return None
+        if len(ser) < 3:
+            return None
+        ends = [pd.Timestamp(x).normalize() for x in ser.index]   # 각 봉의 마지막 날짜(달력)
+        return {"end": ends, "val": ser.values.astype(float),
+                "ma": ser.rolling(ma_n).mean().values.astype(float),
+                "rsi": wilder_rsi(ser).values.astype(float)}
+    WK = _tf("W-FRI", 20)          # 주봉 · 20주선
+    MO = _tf("ME", 6)              # 월봉 · 6개월선  (12개월선은 1년 데이터로 못 만든다)
+
+    def _tf_at(tf, day):
+        """day(그 봉의 날짜)보다 먼저 끝난 마지막 상위봉의 인덱스. 없으면 None."""
+        if not tf:
+            return None
+        j = -1
+        for k, e in enumerate(tf["end"]):
+            if e < day:
+                j = k
+            else:
+                break
+        return j if j >= 1 else None
+
+    def _streak(tf, j):
+        """연속 방향. 양봉이 이어지면 +n, 음봉이 이어지면 -n."""
+        v = tf["val"]
+        if j is None or j < 1:
+            return None
+        up = v[j] > v[j-1]
+        n = 0
+        k = j
+        while k >= 1 and ((v[k] > v[k-1]) == up):
+            n += 1
+            k -= 1
+        return n if up else -n
+
     def snap(i):
         """i=-1이면 오늘(확정 종가), i=-2면 직전 거래일. 같은 로직을 그대로 재사용한다."""
         end = len(close) + i + 1              # 해당 시점까지만 보이도록 자르는 위치
@@ -953,6 +1028,25 @@ def analyze(ticker, name, category):
         sup_mid   = lo_below(60)
         ret20 = ((c_i / close.iloc[i-20] - 1) * 100) if end >= 21 else None
 
+        # ── 주봉·월봉 맥락 (완성된 상위봉만 참조) ────────────────────
+        day_i = pd.Timestamp(close.index[i]).normalize()
+        wj = _tf_at(WK, day_i)
+        mj = _tf_at(MO, day_i)
+        w_rsi = w_ma20_pos = w_streak = None
+        m_ma6_pos = m_streak = None
+        if wj is not None:
+            r_ = WK["rsi"][wj]
+            w_rsi = float(r_) if not np.isnan(r_) else None
+            ma_ = WK["ma"][wj]
+            if not np.isnan(ma_) and ma_ > 0 and c_i:
+                w_ma20_pos = (c_i / float(ma_) - 1) * 100
+            w_streak = _streak(WK, wj)
+        if mj is not None:
+            ma_ = MO["ma"][mj]
+            if not np.isnan(ma_) and ma_ > 0 and c_i:
+                m_ma6_pos = (c_i / float(ma_) - 1) * 100
+            m_streak = _streak(MO, mj)
+
         return {
             "price": safe(c_i, nd), "change_1d": safe(chg),
             "volume": int(vol.iloc[i]) if not np.isnan(vol.iloc[i]) else None,
@@ -983,6 +1077,9 @@ def analyze(ticker, name, category):
             "range3": safe(range3), "range10": safe(range10), "vol3_ratio": safe(vol3_ratio),
             "gap_pct": safe(gap_pct), "gap20_pct": safe(g20_pct), "gap20_ago": g20_ago,
             "gap20_vol": safe(g20_vol), "gap20_fill": safe(g20_fill),
+            "w_rsi": safe(w_rsi, 1), "w_ma20_pos": safe(w_ma20_pos, 1),
+            "w_streak": w_streak,
+            "m_ma6_pos": safe(m_ma6_pos, 1), "m_streak": m_streak,
             "last_date": df.index[i].strftime("%Y-%m-%d"),
         }
 
@@ -1023,6 +1120,7 @@ SNAPSHOT_FIELDS = [
     "market_level", "market_weak", "market_ret20", "market_events",
     "low_52w", "pct_from_low", "ma120", "ma200", "ma200_slope",
     "gap_pct", "gap20_pct", "gap20_ago", "gap20_vol", "gap20_fill",
+    "w_rsi", "w_ma20_pos", "w_streak", "m_ma6_pos", "m_streak",
 ]
 
 def _storage_row(r, mkt):
