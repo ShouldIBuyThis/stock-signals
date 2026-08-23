@@ -2650,6 +2650,8 @@ function chatMoreChips(){
     ["chatKw('overheat')","🔥 오늘 과열(익절 주의) 종목"],
     ["chatKw('earnings')","📅 실적 앞둔(보류) 종목"],
     ["chatKw('knock')","🔨 저항 여러 번 두드린 종목"],
+    ["chatKw('knockRule')","🔨 두드림이 뭐야?"],
+    ["chatKw('earnStreak')","📉 실적 전 연속 음봉"],
     ["chatHome()","↩ 처음으로"],
   ];
 }
@@ -2794,6 +2796,49 @@ function chatKw(k){
         ks.map(x=>`· <b>${esc(x.s.name||x.s.ticker)}</b> 🔨${x.n}번 <span class="tkrec-sub">${esc(x.s.category||"")}</span>`).join("<br>")
       : `지금 저항선을 2번 이상 두드린 종목은 없어요.`);
     renderChat([["closeModal();openResTouchModal('"+(ks[0]?ks[0].s.ticker:"NVDA")+"')","🔨 두드림별 실측 보기"],["chatHome()","↩ 처음으로"]]); return;
+  }
+  if(k==="knockRule"){
+    chatMe("두드림이 뭐야?");
+    const r = resTouchRecord(), t3 = r.multi[3], s3 = r.single[3];   /* 키는 multi(2번+) / single(0~1번) */
+    chatBot(`<b>두드림</b>은 종가가 <span class="hl">단기 저항선 근처(±1.5%)</span>까지 갔다가
+      <b>못 넘고 돌아선 날</b>이에요. 최근 20거래일에서 셉니다.<br>
+      같은 벽을 여러 번 두드릴수록 그 위에 쌓인 <span class="hl">팔 물량이 얇아져서</span>,
+      막상 넘을 때는 잘 나가요. 🔨 뒤 숫자가 두드린 횟수예요.<br><br>
+      실측으로는 ${t3&&t3.n>=5
+        ? `2번 이상 두드린 뒤의 강한매수가 +3일 <span class="hl">${t3.rate}%</span>(${t3.n}건)로,
+           처음~1번(${s3?s3.rate+"%("+s3.n+"건)":"—"})보다 <b>자주 이깁니다.</b>`
+        : `표본이 아직 얇아 방향만 참고하세요.`}<br>
+      다만 <b>평균 수익은 오히려 적어요</b> — 자주 이기지만 조금 법니다.
+      그래서 <span class="hl">점수·등급·순위에는 전혀 넣지 않고</span> 표시만 해요.`);
+    renderChat([["closeModal();openResTouchModal()","🔨 두드림별 실측 표 보기"],
+                ["chatKw('knock')","🔨 오늘 두드린 종목"],["chatHome()","↩ 처음으로"]]); return;
+  }
+  if(k==="earnStreak"){
+    chatMe("실적 전 연속 음봉이 뭐야?");
+    const xs = allStocks().map(s2=>({s:s2, left:earnDaysLeft(s2), n:earnDownStreak(s2)}))
+                 .filter(x=>x.left!==null && x.left<=14 && x.n>=1)
+                 .sort((a,b)=>b.n-a.n || a.left-b.left);
+    const B = EARN_FACTS.base, R3 = EARN_FACTS.rows.find(x=>x.k==="3"), R4 = EARN_FACTS.rows.find(x=>x.k==="4");
+    chatBot(`실적 발표를 앞두고 주가가 <span class="hl">며칠 연속 음봉</span>으로 눌린 자리예요.
+      카드에 <b>📉숫자</b>로 붙어요.<br><br>
+      ${EARN_FACTS.window} 실측입니다. 기준선은 실적 이벤트 전체 평균
+      (+1일 ${B[1]}% · +3일 ${B[3]}% · +5일 ${B[5]}%)이에요.<br>
+      · 연속 음봉 <b>3일 이상</b> → +3일 <span class="hl">${R3.r[3]}%</span>(${R3.n}건) · 평균 +${R3.avg[3]}%<br>
+      · 연속 음봉 <b>4일 이상</b> → +3일 <span class="hl">${R4.r[3]}%</span>(${R4.n}건) · 평균 +${R4.avg[3]}%<br>
+      · 음봉이 없거나 1~2일이면 기준선과 <b>같거나 조금 낮아요.</b><br><br>
+      <b>실적이 잘 나와서가 아니에요.</b> 오히려 눌린 종목의
+      <span class="hl">EPS 상회율은 72%로 전체 평균 78%보다 낮습니다.</span>
+      눌린 정도와 실적 서프라이즈의 상관은 사실상 0이에요.
+      <span class="hl">기대치가 이미 낮아져 있어서</span> 같은 실적에도 주가가 더 오르는 겁니다.`);
+    chatBot(xs.length
+      ? `지금 해당하는 종목이에요.<br>` +
+        xs.slice(0,8).map(x=>`· <b>${esc(x.s.name||x.s.ticker)}</b> 📉${x.n}일 <span class="tkrec-sub">실적 D-${x.left}</span>`).join("<br>")
+      : `지금은 실적 2주 안이면서 연속 음봉인 종목이 없어요.`);
+    chatBot(`⚠ 이건 <b>점수·등급·순위에 전혀 안 들어갑니다.</b>
+      실적 발표일은 하루에 <span class="hl">±15%씩 튀는 자리</span>라 승률이 높아도 한 번에 반납할 수 있어요.
+      저희는 실적 영향권에서 등급을 <b>보류</b>하는 쪽이고, 이건 참고 정보예요.`);
+    renderChat((xs.length?[["closeModal();openEarnStreakModal('"+xs[0].s.ticker+"')","📉 실측 표 보기"]]:[])
+      .concat([["chatKw('earnings')","📅 실적 보류 종목"],["chatHome()","↩ 처음으로"]])); return;
   }
   if(k==="baseline"){
     chatMe("기준선이 뭐야?");
@@ -4428,6 +4473,12 @@ const EARN_FACTS = {
   ]
 };
 
+/* 연속 음봉 n일이 EARN_FACTS의 어느 행인가.
+   ⚠ 행은 0 / 1 / 2 / 3일이상 / (그중)4일이상 이라 **3과 4가 포함 관계**다.
+   Math.min(n,3)으로 자르면 6일 연속인 종목이 '3일 이상' 칸에 찍힌다
+   (2026-08-23 엔비디아 6일에서 실제로 나온 오류). 가장 구체적인 행을 고른다. */
+function earnRowKey(n){ return n >= 4 ? "4" : n >= 3 ? "3" : String(Math.max(0, n|0)); }
+
 /* 오늘까지 이어진 연속 음봉 일수. hist의 종가 흐름으로 센다(전일 대비 하락). */
 function earnDownStreak(s){
   const hs = histStocks(s) || [];
@@ -4459,7 +4510,7 @@ function earnStreakMark(s){
   if(left === null || left > 14) return "";
   const n = earnDownStreak(s);
   if(n < 1) return "";
-  const row = EARN_FACTS.rows.find(x => x.k === String(Math.min(n, 3))) || EARN_FACTS.rows[0];
+  const row = EARN_FACTS.rows.find(x => x.k === earnRowKey(n)) || EARN_FACTS.rows[0];
   const tip = `실적 D-${left} · 발표 전 ${n}일 연속 음봉 — 과거 같은 자리 +3일 ${row.r[3]}%(${row.n}건)`;
   return `<span class="earn-mark" role="button" tabindex="0" data-earnstreak="${esc(s.ticker)}" title="${esc(tip)}">\u{1F4C9}${n}</span>`;
 }
@@ -4468,12 +4519,13 @@ function openEarnStreakModal(tk){
   const s = allStocks().find(x => x.ticker === tk);
   if(!s) return;
   const n = earnDownStreak(s), left = earnDaysLeft(s);
-  const curKey = String(Math.min(Math.max(n, 0), 3));
+  const curKey = earnRowKey(n);
   const B = EARN_FACTS.base;
   const rows = EARN_FACTS.rows.map(x => {
     const cur = x.k === curKey;
+    const inc = !cur && x.k === "3" && n >= 4;      // 4일 이상은 3일 이상에도 포함된다
     const d = h => { const e = x.r[h] - B[h]; return `<span class="vedge ${e>=0?"vedge-up":"vedge-dn"}">${e>=0?"+":""}${e}%p</span>`; };
-    return `<tr${cur?' class="nedge-on"':''}><td><b>${x.lab}</b>${cur?'<span class="tkrec-n" style="color:var(--buy);font-weight:800">지금 여기</span>':''}
+    return `<tr${cur?' class="nedge-on"':''}><td><b>${x.lab}</b>${cur?'<span class="tkrec-n" style="color:var(--buy);font-weight:800">지금 여기</span>':inc?'<span class="tkrec-n">여기에도 포함</span>':''}
         <span class="tkrec-n">${x.n}건</span></td>
       <td><span class="tkrec-rate">${x.r[1]}%</span>${d(1)}</td>
       <td><span class="tkrec-rate">${x.r[3]}%</span>${d(3)}</td>
