@@ -146,8 +146,9 @@ def grade(n):
 
 
 def stat(vals):
-    """승률 규칙은 화면·검증표와 같다 — ±1% 보합 제외."""
-    a = [v for v in vals if v == v]
+    """승률 규칙은 화면·검증표와 같다 — ±1% 보합 제외.
+    ⚠ None은 `v == v`로 안 걸러진다(None == None 이 True). 따로 뺀다."""
+    a = [v for v in vals if v is not None and v == v]
     dec = [v for v in a if abs(v) > 1]
     w = len([v for v in dec if v > 1])
     return {"n": len(a),
