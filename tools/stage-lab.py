@@ -104,7 +104,9 @@ for tk in UNIV:
         if st is None:
             prev_stage, prev_above = None, None
             continue
-        above = C[i] > ma
+        # ⚠ numpy.bool_ 는 `is True/False` 가 항상 거짓이다. 파이썬 bool로 바꿔 둔다
+        #   (2026-08-23 이 한 줄 때문에 진입 표본이 0건으로 나왔다).
+        above = bool(C[i] > ma)
         stage_days.append({"tk": tk, "d": dates[i], "st": st,
                            "f": {h: (C[i + h] / C[i] - 1) * 100 for h in HS}})
 
@@ -132,7 +134,7 @@ for tk in UNIV:
 SD = pd.DataFrame(stage_days)
 DF = pd.DataFrame(rows)
 if SD.empty or DF.empty:
-    print("[ERROR] 표본을 못 모았다 — 야후 응답 확인")
+    print(f"[ERROR] 표본을 못 모았다 — 단계 일봉 {len(SD)}개 · 진입 {len(DF)}건 (야후 응답/판정 확인)")
     sys.exit(1)
 DF = DF.sort_values("d").reset_index(drop=True)
 MID = DF["d"].iloc[len(DF) // 2]
