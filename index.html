@@ -2419,21 +2419,73 @@ function marketEventTypes(events){
    이웃 조합(꺾임|바닥권 73/80 · VXN28|바닥권 66/72)도 같은 방향 — 고원이다.
    관망(과열) 신호는 실측이 반대(RSI 70+에서도 +3일 78% 상승)라 만들지 않았다.
    점수·랭킹·시장 국면 판정에는 절대 들어가지 않는다. tools/qqq-grade-lab.js 로 재측정. */
-function qqqGradeNow(){
-  const mx = (state.data && state.data.market_extra) || {};
-  const q = state.data && state.data.qqq_card;
-  const v = mx.vxn, b = breadthNow();
-  const hits = [];
-  if(v && has(num(v.value)) && has(num(v.prev)) && v.value >= 28 && v.value < v.prev) hits.push("VXN 피크아웃");
-  if(b && b.n >= 20 && b.pct < 30) hits.push("바닥권");
-  if(q && has(num(q.rsi)) && num(q.rsi) <= 35) hits.push("QQQ RSI≤35");
-  return hits;
+/* ── 나스닥 전용 등급 v2 (2026-08-24 · 694거래일 3년 재측정) ──────────────
+   기준선(아무 날이나 산 경우): +1일 58% · +3일 61% · +5일 61% · +10일 64%
+
+   방법론 28종을 같은 판에서 비교했다(tools/qqq-method-lab.py).
+   **추세 계열은 전멸했다** — 20일선 위·50일선 위·200일선 위·20일선 상승 전부
+   ±3%p 안이다. 지수는 694일 중 481일이 20일선 위라 그 사실 자체에 정보가 없다.
+   살아남은 것은 '짧은 연속 하락 뒤 되돌림'과 VXN뿐이다:
+     · 2일 연속 하락  122건  +3/+7/+7/+8%p   전반 64/69/67/76 · 후반 59/67/69/69
+     · 3일 연속 하락   47건  +8/+9/+9/+15%p  전반 67/67/67/76 · 후반 65/73/73/81
+     · VXN≥28 & 꺾임   22건 +10/+12/+12/+27%p (참고 등급)
+   2일→3일로 갈수록 세지는 단조 관계라 봉우리가 아니다(§3 고원).
+   지수가 개별주와 다른 이유도 여기서 보인다 — 100종목 분산이라 되돌림이 빠르다.
+
+   ⚠ VXN≥28 단독(56건)은 숫자가 제일 좋지만(+3일 +10%p) **전반 표본이 5건**뿐이라
+     §2가 사실상 미검증이다. 56일 중 51일이 후반 고변동 국면에 몰려 있다.
+     그래서 단독 재료로 쓰지 않고 '꺾임'까지 확인된 것만 강한 쪽에 넣는다.
+   ⚠ 구 등급(VXN꺾임 ∪ 바닥권 ∪ RSI≤35)은 3년으로 늘리자 +3일 **+2%p**로
+     쪼그라들었고 전반이 기준선 아래(-3%p)였다. 188일 창에서만 좋았던 값이라
+     교체한다. 바닥권(20일선 위 30%↓)도 전반 -2%p로 §2를 통과하지 못했다.
+
+   점수·랭킹·시장 국면 판정에는 절대 들어가지 않는다(QQQ가 시장필터의 기준이라
+   자기 자신에게 적용하면 순환이 된다). 표시 전용이다. */
+const QQQ_FACTS = {
+  window: "2023-10 ~ 2026-08 · 694거래일",
+  base: { 1:58, 3:61, 5:61, 10:64 },
+  down2: { n:122, r:{1:61,3:68,5:68,10:72}, half:"전반 69% · 후반 67% (+3일)" },
+  down3: { n:47,  r:{1:66,3:70,5:70,10:79}, half:"전반 67% · 후반 73% (+3일)" },
+  vxn:   { n:22,  r:{1:68,3:73,5:73,10:91}, half:"표본 22건 — 반쪽을 가를 수 없음" },
+};
+
+/* QQQ가 오늘까지 며칠 연속 내렸나. hist 종가로 센다. */
+function qqqDownStreak(){
+  const q = qqqBenchmarkStock();
+  const hs = q ? (histStocks(q) || []) : [];
+  let n = 0;
+  for(let i = hs.length - 1; i > 0; i--){
+    const c = num(hs[i].price), p = num(hs[i-1].price);
+    if(!has(c) || !has(p) || !(c < p)) break;
+    n++;
+  }
+  return n;
 }
+
+/* 등급 2 = 강한 매수 우위 · 1 = 매수 우위 · 0 = 중립 */
+function qqqGrade(){
+  const mx = (state.data && state.data.market_extra) || {};
+  const v = mx.vxn;
+  const peak = !!(v && has(num(v.value)) && has(num(v.prev)) && v.value >= 28 && v.value < v.prev);
+  const n = qqqDownStreak();
+  const why = [];
+  if(n >= 3) why.push(`${n}일 연속 하락`);
+  if(peak) why.push(`VXN ${r1(v.value)} 꺾임`);
+  if(why.length) return { tier:2, why, streak:n, peak };
+  if(n === 2) return { tier:1, why:["2일 연속 하락"], streak:n, peak };
+  return { tier:0, why:[], streak:n, peak };
+}
+/* 옛 이름을 쓰던 자리(비서 답변 등)를 위한 호환 — 발동 사유 배열만 돌려준다. */
+function qqqGradeNow(){ return qqqGrade().why; }
 function nasdaqEdgeBadges(){
   const out = [];
-  const g = qqqGradeNow();
-  if(g.length) out.push({ key:"qqq-grade", cls:"nedge-vxn", icon:"🟢", label:"나스닥 매수 우위",
-    tip:`${g.join(" · ")} · 실측 다음날 75%·+3일 81% (16건, 기준선 +21%p)` });
+  const g = qqqGrade();
+  if(g.tier){
+    const f = g.tier === 2 ? (g.streak >= 3 ? QQQ_FACTS.down3 : QQQ_FACTS.vxn) : QQQ_FACTS.down2;
+    out.push({ key:"qqq-grade", cls:"nedge-vxn", icon: g.tier === 2 ? "🟢" : "🔵",
+      label: g.tier === 2 ? "나스닥 강한 매수 우위" : "나스닥 매수 우위",
+      tip:`${g.why.join(" · ")} · 실측 +3일 ${f.r[3]}%(${f.n}건, 기준선 ${QQQ_FACTS.base[3]}%)` });
+  }
   const mx = (state.data && state.data.market_extra) || {};
   const v = mx.vxn;
   if(v && has(num(v.value)) && v.value >= 28){
@@ -2473,10 +2525,10 @@ function nasdaqEdgeHtml(){
    백테스트로 측정한 고정값이다 — 화면이 매번 다시 세는 값이 아니므로
    '언제 무엇으로 쟀는지'를 같이 적는다. 백테스트를 다시 돌리면 여기도 고쳐야 한다. */
 const NEDGE_FACTS = [
-  { key:"qqq-grade", icon:"🟢", label:"나스닥 매수 우위 (전용 등급)",
-    rule:"VXN≥28 꺾임 · 또는 바닥권(20일선 위 30%↓) · 또는 QQQ RSI≤35",
-    d1:75, e1:21, d3:81, e3:21, n:16,
-    note:"세 재료의 합집합. §2 반쪽 전반 71/100·후반 78/67로 양쪽 다 기준선 위. 개별주 산식(강한매수 40%대)이 지수에 안 맞아 지수 전용으로 만든 등급 — 표시 전용이며 점수·국면 판정에 안 들어간다. 과열 관망 신호는 실측이 반대(RSI 70+에서도 +3일 78% 상승)라 만들지 않았다 (2026-08-19 · 188거래일)" },
+  { key:"qqq-grade", icon:"🟢", label:"나스닥 전용 등급 v2",
+    rule:"3일 이상 연속 하락 또는 VXN≥28 꺾임 = 강한 매수 우위 · 2일 연속 하락 = 매수 우위",
+    d1:70, e1:12, d3:70, e3:9, n:47,
+    note:"694거래일(3년) 재측정. 방법론 28종을 비교했더니 추세 계열(20일선·50일선·200일선 위)은 전부 ±3%p로 무효였다 — 지수는 694일 중 481일이 20일선 위라 그 사실에 정보가 없다. 살아남은 건 '짧은 연속 하락 뒤 되돌림'뿐이다: 2일 연속 122건 +3일 68%(+7%p, 전반 69·후반 67) · 3일 연속 47건 +3일 70%(+9%p, 전반 67·후반 73) · VXN≥28 꺾임 22건 +3일 73%. 2일→3일로 갈수록 세지는 단조 관계라 봉우리가 아니다. ⚠ 구 등급(VXN꺾임∪바닥권∪RSI≤35)은 3년으로 늘리자 +3일 +2%p로 쪼그라들고 전반이 기준선 아래여서 교체했다 — 188일 창에서만 좋았던 값이다. VXN≥28 단독은 전반 표본이 5건뿐이라 단독으로 쓰지 않는다 (2026-08-24 · 694거래일)" },
   { key:"vxn-peak", icon:"💡⚡", label:"변동성 피크아웃",
     rule:"VXN ≥ 28 이면서 전일보다 꺾인 날",
     d1:88, e1:34, d3:75, e3:15, n:8,
@@ -3106,13 +3158,13 @@ function marketBar(){
   const histBtn=(s._hist&&s._hist.length>=2)?`<button data-timeline="QQQ">📈 최근 ${histWindowDays()}거래일 신호 흐름</button>`:"";
   const cartOn=state.cart.includes("QQQ");
   return `<details class="market-bench">
-    <summary><b>🌐 QQQ · 나스닥100 시장 기준</b><span class="badge ${stockGradeCls(s)}">${stockGradeLabel(s)}</span>${resTouchMark(s)}${nasdaqEdgeHtml()}<span class="market-bench-summary-main">시장 ${esc(levelLabel)}</span></summary>
+    <summary><b>🌐 QQQ · 나스닥100 시장 기준</b>${resTouchMark(s)}${nasdaqEdgeHtml()}<span class="market-bench-summary-main">시장 ${esc(levelLabel)}</span></summary>
     <div class="market-bench-body">
       <div class="market-bench-cardtop">
         <div class="s-price">
           <span class="p num">${fmtPrice(s)}</span>${s.last_date?`<span class="close-date">${esc(closeDateLabel(s.last_date))}</span>`:""}
           <span class="c num ${chgCls(s.change_1d)}">${fmtChg(s.change_1d)}</span>
-          <span class="badge ${gradeCls(s.sig)}">${gradeLabel(s.sig)}</span>${resTouchMark(s)}${trendChip(s)}
+          <span class="badge gHold" title="개별주 산식은 지수에 안 맞는다 — 아래 나스닥 전용 등급을 본다">개별주 등급 미적용</span>${trendChip(s)}
         </div>
         <button class="market-bench-cart ${cartOn?"on":""}" data-qcart="QQQ" title="나스닥100 모의점검 장바구니">${cartOn?"🛒✓ 장바구니":"🛒 장바구니"}</button>
       </div>
@@ -3130,12 +3182,14 @@ function marketBar(){
           <div class="minor num">매수강도 ${r1(s.sig.buyScore)} · 추세 ${r1(s.sig.pullScore)} · 반등 ${r1(s.sig.revScore)} · 시장국면 ${esc(levelLabel)}<br>MA5 ${r1(s.ma5)} · MA20 ${r1(s.ma20)} · MA60 ${r1(s.ma60)}${has(s.atr_pct)?` · 변동성 ${r1(s.atr_pct)}%`:""}</div>
         </div>
       </div>
-      <div class="qgrade">${(()=>{ const g=qqqGradeNow();
-        return g.length
-          ? `🟢 <b>나스닥 전용 등급 — <span class="hl">매수 우위</span></b> (${g.map(esc).join(" · ")})
-             <span class="tkrec-sub">발동일 실측: 다음날 <span class="hl">75%</span> · +3일 <span class="hl">81%</span> (16건 · 기준선 +21%p)</span>`
-          : `⚪ <b>나스닥 전용 등급</b> — 오늘은 발동 없음
-             <span class="tkrec-sub">조건: VXN 피크아웃 · 바닥권(20일선 위 30%↓) · QQQ RSI 35↓ — 발동일 실측 +3일 81%(16건)</span>`;
+      <div class="qgrade">${(()=>{ const g=qqqGrade(), B=QQQ_FACTS.base;
+        if(!g.tier) return `⚪ <b>나스닥 전용 등급</b> — 오늘은 발동 없음
+             <span class="tkrec-sub">발동 조건: 2일 이상 연속 하락 · 또는 VXN 꺾임 —
+             ${QQQ_FACTS.window} 기준선 +3일 ${B[3]}%</span>`;
+        const f = g.tier===2 ? (g.streak>=3 ? QQQ_FACTS.down3 : QQQ_FACTS.vxn) : QQQ_FACTS.down2;
+        return `${g.tier===2?"🟢":"🔵"} <b>나스닥 전용 등급 — <span class="hl">${g.tier===2?"강한 매수 우위":"매수 우위"}</span></b> (${g.why.map(esc).join(" · ")})
+             <span class="tkrec-sub">실측: +1일 <span class="hl">${f.r[1]}%</span> · +3일 <span class="hl">${f.r[3]}%</span> · +10일 ${f.r[10]}%
+             (${f.n}건 · 기준선 ${B[1]}/${B[3]}/${B[10]}%)</span>`;
       })()} <span class="nedge nedge-br" role="button" tabindex="0" data-nedge="qqq-grade">ⓘ 근거</span></div>
       <div class="market-bench-h" style="margin-top:8px"><span class="sub">시장 기준 전용 · QQQ 시장필터 자기적용 없음 · 랭킹/정렬 제외
         · <span class="nedge nedge-br" role="button" tabindex="0" data-qknock="1" style="margin-left:2px">🔨 두드림 ${resTouchCount(s)}회 · 과거 돌파 기록</span></span></div>
