@@ -107,7 +107,11 @@ const COND = [
 ];
 
 /* ── 화면 산식 한 번만 돌린다 ─────────────────────────────────────────── */
-const page = H.loadPage({ patch: [['result._diag=diag;', 'result._diag=diag; result._all=out;']] });
+const page = H.loadPage({ patch: [
+  ['result._diag=diag;', 'result._diag=diag; result._all=out;'],
+  /* 기준선 행에는 ticker가 없다(화면은 날짜만 쓴다). 종목별 조건으로 기준선을
+     가르려면 티커가 있어야 하므로 여기서만 덧붙인다 — 집계 규칙은 그대로다. */
+  ['baseOut[h].push({ret:(hs[i+h].price/row.price-1)*100, date:row.last_date});', 'baseOut[h].push({ret:(hs[i+h].price/row.price-1)*100, date:row.last_date, ticker:row.ticker});']] });
 page.runInPage('this.__run = j => { state.data = normalize(JSON.parse(j)); return strategyValidation(); };');
 const V = page.__run(RAW);
 

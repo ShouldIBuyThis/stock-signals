@@ -84,7 +84,10 @@ const PATCHED = `  const _patB = (typeof __PAT !== 'undefined' && __PAT.has(s.ti
   const revScore  =Math.round((rPos+rNeg+cNeg+_patB)*10)/10;`;
 
 function makePage(bonus, set) {
-  const patch = [['result._diag=diag;', 'result._diag=diag; result._all=out;']];
+  const patch = [['result._diag=diag;', 'result._diag=diag; result._all=out;'],
+    /* 기준선 행에는 ticker가 없다(화면은 날짜만 쓴다). 종목별 조건으로 기준선을
+       가르려면 티커가 있어야 하므로 여기서만 덧붙인다 — 집계 규칙은 그대로다. */
+    ['baseOut[h].push({ret:(hs[i+h].price/row.price-1)*100, date:row.last_date});', 'baseOut[h].push({ret:(hs[i+h].price/row.price-1)*100, date:row.last_date, ticker:row.ticker});']];
   if (bonus) patch.push([SCORE_ANCHOR, PATCHED]);
   const page = H.loadPage({ patch });
   page.__PAT = set || new Set();
