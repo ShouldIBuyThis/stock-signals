@@ -2445,7 +2445,7 @@ function marketEventTypes(events){
    자기 자신에게 적용하면 순환이 된다). 표시 전용이다. */
 const QQQ_FACTS = {
   window: "2023-10 ~ 2026-08 · 694거래일",
-  base: { 1:58, 3:61, 5:61, 10:64 },
+  base: { 1:58, 3:61, 5:61, 10:64 }, baseN: 694,
   down2: { n:122, r:{1:61,3:68,5:68,10:72}, half:"전반 69% · 후반 67% (+3일)" },
   down3: { n:47,  r:{1:66,3:70,5:70,10:79}, half:"전반 67% · 후반 73% (+3일)" },
   vxn:   { n:22,  r:{1:68,3:73,5:73,10:91}, half:"표본 22건 — 반쪽을 가를 수 없음" },
@@ -4137,7 +4137,56 @@ function tkrecCell(r){
     <span class="tkrec-n">${r.n}건</span>${tag}</td>`;
 }
 
+/* 지수(QQQ) 전용 적중률 표 — 개별주 '강한매수' 승률을 여기 두면 안 된다.
+   화면에 붙는 등급이 나스닥 전용 등급으로 바뀌었는데(§5-2) 적중률 표만 개별주
+   산식으로 남아 있으면 **보여주는 등급과 재는 등급이 다른** 표가 된다
+   (사용자 지적 2026-08-25). 숫자는 뱃지·설명과 같은 출처인 QQQ_FACTS 하나만 쓴다
+   — tools/qqq-method-lab.py가 3년 694거래일로 잰 값이다.
+   지수는 변동폭이 작아 ±1% 승패가 아니라 '오르면 승'(0 기준)으로 센 값이라
+   개별 종목 표와 같은 자로 잰 숫자가 아니다. 그 사실도 표 밑에 적는다. */
+function qqqGradeRecordTable(compact){
+  const B = QQQ_FACTS.base, HS = [1,3,5,10];
+  const g = qqqGrade();
+  const rows = [
+    { lab:"🟢 강한 매수 우위", sub:"3일 이상 연속 하락", f:QQQ_FACTS.down3, on:g.tier===2 && g.streak>=3 },
+    { lab:"🟢 강한 매수 우위", sub:"VXN 28+ 꺾임(변동성 피크아웃)", f:QQQ_FACTS.vxn, on:g.tier===2 && g.peak },
+    { lab:"🔵 매수 우위",     sub:"2일 연속 하락",       f:QQQ_FACTS.down2, on:g.tier===1 },
+  ];
+  const cell = (f, h) => {
+    const d = f.r[h] - B[h];
+    const c = d >= 5 ? "var(--buy)" : d <= 0 ? "var(--sell)" : "var(--ink)";
+    return `<td><span class="tkrec-rate" style="color:${c}">${f.r[h]}%</span>
+      <span class="tkrec-avg">기준선 ${d>=0?"+":""}${d}%p</span>
+      <span class="tkrec-n">${f.n}건</span>${
+        f.n<30 ? `<span class="tkrec-n" style="color:var(--sell);font-weight:800">표본 부족</span>`
+      : f.n<50 ? `<span class="tkrec-n" style="color:var(--muted)">방향만</span>` : ""}</td>`;
+  };
+  if(compact){
+    const cur = rows.find(r => r.on);
+    return `<div class="tkrec tkrec-1line"><b>나스닥100 ETF</b> ` + (cur
+      ? `<span class="tkrec-best">${cur.lab} · ${cur.sub}</span>
+         <span class="tkrec-rate" style="color:var(--buy)">${cur.f.r[3]}%</span>
+         <span class="tkrec-sub">+3일 · ${cur.f.n}건 · 기준선 ${B[3]}%</span>`
+      : `<span class="tkrec-thin">오늘은 중립 — 전용 등급이 발동하지 않았어요</span>`) + `</div>`;
+  }
+  return `<div class="tkrec">
+    <div class="tkrec-h">📌 나스닥100 ETF 전용 등급 적중률 <span class="tkrec-sub"><b>${QQQ_FACTS.window}</b></span></div>
+    <table class="cmp tkrec-t">
+      <tr><th>등급</th>${HS.map(h=>`<th>+${h}일</th>`).join("")}</tr>
+      <tr><td><b>(아무 날이나 = 기준선)</b></td>${HS.map(h=>`<td><span class="tkrec-rate">${B[h]}%</span><span class="tkrec-n">${QQQ_FACTS.baseN}건</span></td>`).join("")}</tr>
+      ${rows.map(r => `<tr${r.on?' style="background:var(--buy-soft)"':''}><td><b>${r.lab}</b>
+        <span class="tkrec-n">${r.sub}${r.on?" · <b>지금 여기</b>":""}</span></td>${HS.map(h=>cell(r.f,h)).join("")}</tr>`).join("")}
+    </table>
+    <p class="tkrec-note">지수는 개별주 산식을 쓰지 않아요(§5-2). 이 표는 화면에 붙는
+      <b>나스닥 전용 등급</b> 그대로의 성적이고, 기준선은 <b>같은 기간 아무 날이나 산 경우</b>입니다.
+      지수는 하루 변동이 작아 <b>오르면 승(0% 기준)</b>으로 셌어요 —
+      개별 종목 표(±1% 밖만 승패)와 <b>같은 자로 잰 숫자가 아닙니다.</b></p>
+    <p class="tkrec-note" style="color:var(--sell)">⚠ VXN 줄은 22건뿐이라 §2 반쪽을 가를 수 없어요.
+      연속 하락 축은 2일→3일로 단조롭게 좋아지지만, 이것도 3년 한 구간의 값입니다.</p></div>`;
+}
+
 function tickerRecordTable(s, compact){
+  if(s && s._benchmark) return qqqGradeRecordTable(compact);
   const rec = tickerStrongRecord(s);
   const name = esc(s && (s.name || s.ticker) || "");
   if(!rec || !rec.any)

@@ -53,6 +53,20 @@ jobs:
         continue-on-error: true
         run: node tools/gap-score-lab.js backtest/raw.json
 
+      - name: 실험 — 시장 국면 판정 후보 비교 (로그 출력 전용)
+        # 사용자 지시(2026-08-25): "국면판정부터 고쳐줘 측정하고 보고하고".
+        # 8/13~8/21 국면이 neutral로 남아 방어섹터 게이트가 한 번도 안 걸린 건이 발단.
+        # 국면 라벨만 갈아끼우고 화면 산식(strategyValidation)을 그대로 다시 돌린다.
+        continue-on-error: true
+        run: node tools/regime-lab.js backtest/raw.json
+
+      - name: 실험 — 반등 매수관심(등급4) 문턱 후보 (로그 출력 전용)
+        # 사용자 지시(2026-08-25): "반등 매수관심 문턱을 올려주고".
+        # 189일 실측에서 47/46/39/38%로 기준선 -14%p. 현행 문턱은 30거래일
+        # 표본 56/28/15건에서 정해진 값이다. 등급4 조건 한 줄만 갈아끼워 비교한다.
+        continue-on-error: true
+        run: node tools/rev4-lab.js backtest/raw.json
+
       - name: 원본은 커밋하지 않는다 (약 5MB)
         run: rm -f backtest/raw.json
 
