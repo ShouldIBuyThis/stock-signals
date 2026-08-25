@@ -85,6 +85,13 @@ jobs:
         continue-on-error: true
         run: node tools/vol-lab.js backtest/raw.json
 
+      - name: 실험 — 반등 매수관심 문턱을 변동성으로 조인다 (로그 출력 전용)
+        # 사용자 지시(2026-08-25): "반등 매수관심 변동성 활용해서 승률 문턱 높여봐".
+        # 앞선 두 실험이 방향을 정해 줬다 — 이 계층은 시장이 밀린 날일수록 더 나쁘다.
+        # 그래서 점수를 더 요구하는 대신 '그런 날엔 등급4를 안 준다'로 건다.
+        continue-on-error: true
+        run: node tools/rev4-vol-lab.js backtest/raw.json
+
       - name: 원본은 커밋하지 않는다 (약 5MB)
         run: rm -f backtest/raw.json backtest/pattern-entries.json
 

@@ -1963,7 +1963,10 @@ function decorate(s){
 const HIST_FIELDS_DEFAULT = ["date","price","change_1d","ma5","ma10","ma20","ma50","ma60","rsi","macd_hist","macd_cross","macd_zero",
   "bb_pos","stoch_k","stoch_d","stoch_cross","vol_ratio","near_high","pct_from_high",
   "ma20_slope","run5_max","run3_sum","range3","range10","vol3_ratio","res_short","ret20","rs20","atr_pct",
-  "market_level","market_weak","market_ret20","market_events"];
+  "market_level","market_weak","market_ret20","market_events",
+  "low_52w","pct_from_low","ma120","ma200","ma200_slope",
+  "gap_pct","gap20_pct","gap20_ago","gap20_vol","gap20_fill",
+  "w_rsi","w_ma20_pos","w_streak","m_ma6_pos","m_streak","market_vxn"];
 /* 화면 문구에 쓰는 '최근 N거래일'. 데이터의 실제 이력 길이를 따른다.
    main.py의 HIST_DAYS를 바꾸면 문구가 자동으로 따라간다. */
 function histWindowDays(){
@@ -2036,6 +2039,7 @@ function histRow(s, row, i, total){
     gap20_ago: num(o.gap20_ago), gap20_vol: num(o.gap20_vol), gap20_fill: num(o.gap20_fill),
     w_rsi: num(o.w_rsi), w_ma20_pos: num(o.w_ma20_pos), w_streak: num(o.w_streak),
     m_ma6_pos: num(o.m_ma6_pos), m_streak: num(o.m_streak),
+    market_vxn: num(o.market_vxn),   /* 그날의 VXN — 화이트리스트에 꼭 있어야 보인다 */
     market_ret20: marketRet20,
     range3: num(o.range3), range10: num(o.range10), vol3_ratio: num(o.vol3_ratio),
     /* QQQ 자체 히스토리는 시장필터를 자기 자신에게 다시 감점하지 않는다.

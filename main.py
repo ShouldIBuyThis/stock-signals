@@ -69,10 +69,17 @@ HIST_FIELDS = ["date","price","change_1d","ma5","ma10","ma20","ma50","ma60","rsi
                #   w_streak     연속 주봉 방향 (+n 양봉 n주, -n 음봉 n주)
                #   m_ma6_pos    현재가가 6개월선 대비 몇 % 위/아래인가
                #   m_streak     연속 월봉 방향
-               "w_rsi", "w_ma20_pos", "w_streak", "m_ma6_pos", "m_streak"]
+               "w_rsi", "w_ma20_pos", "w_streak", "m_ma6_pos", "m_streak",
+               # 2026-08-25 확장: 그날의 나스닥 변동성지수(VXN).
+               # 189일 실측에서 **VXN>=25인 날 강한매수가 62/67/72/73%**로 그날
+               # 기준선(51/52/52/52%)을 +11~+21%p 넘었다. 그런데 VXN 과거값이
+               # 원장에 없어 화면·검증 어디에서도 쓸 수 없었다(backtest raw.json의
+               # macro.vxn 에만 있었다). market_level과 같은 '그날의 시장 입력'이므로
+               # 같은 방식으로 얼려 둔다 — 야후가 소급 수정해도 과거 판정이 안 흔들린다.
+               "market_vxn"]
 
 # freeze 단계에서 옛 행에 뒤늦게 채워 넣는 열. 이미 값이 있으면 절대 덮지 않는다.
-HIST_BACKFILL_FIELDS = ["atr_pct", "market_level", "market_weak", "market_ret20", "market_events"]
+HIST_BACKFILL_FIELDS = ["atr_pct", "market_level", "market_weak", "market_ret20", "market_events", "market_vxn"]
 
 RUN_SCOPE = os.environ.get("RUN_SCOPE", "all").strip().lower()
 if RUN_SCOPE not in ("all", "kr", "us"):
@@ -830,7 +837,11 @@ def fetch_market_extra():
                         "value": round(float(c.iloc[-1]), 4),
                         "prev": round(float(c.iloc[-2]), 4),
                         "date": c.index[-1].strftime("%Y-%m-%d"),
-                        "inverse": sym in ("IEF", "TLT")}
+                        "inverse": sym in ("IEF", "TLT"),
+                        # 일자별 이력. hist에 '그날의 값'을 얼려 넣는 데만 쓰고
+                        # payload에서는 빼낸다(파일만 커진다).
+                        "series": {d.strftime("%Y-%m-%d"): round(float(v), 4)
+                                   for d, v in c.tail(400).items()}}
                 print(f"보조 지표 {sym}: {cand['days']}일 · 최신 {cand['value']} ({cand['date']})")
                 if best is None or cand["days"] > best["days"]:
                     best = cand
@@ -1123,6 +1134,7 @@ SNAPSHOT_FIELDS = [
     "low_52w", "pct_from_low", "ma120", "ma200", "ma200_slope",
     "gap_pct", "gap20_pct", "gap20_ago", "gap20_vol", "gap20_fill",
     "w_rsi", "w_ma20_pos", "w_streak", "m_ma6_pos", "m_streak",
+    "market_vxn",
 ]
 
 def _storage_row(r, mkt):
@@ -1493,20 +1505,27 @@ def attach_historical_rs20(results, mkt):
                 h[irs] = safe(float(rr)-float(qr))
 
 
-def attach_historical_market(results, mkt):
+def attach_historical_market(results, mkt, vxn_series=None):
     """각 hist 행에 '그 날짜의' 시장 입력을 붙인다. 이미 있으면 덮지 않는다.
 
     이 값이 행 안에 없으면 화면이 매번 최신 QQQ 계산으로 과거를 다시 채점하게 되고,
     산식을 하나도 안 건드렸는데 어제 신호 등급이 오늘 바뀌는 일이 생긴다.
     """
     qmap = market_hist_map(mkt)
+    vmap = vxn_series or {}
     idx={k:i for i,k in enumerate(HIST_FIELDS)}
     idate = idx["date"]; ilv = idx["market_level"]; iwk = idx["market_weak"]; irt = idx["market_ret20"]
-    need = max(idate, ilv, iwk, irt)
+    ivx = idx["market_vxn"]
+    need = max(idate, ilv, iwk, irt, ivx)
     for r in results:
         tk = r.get("ticker")
         for h in r.get("hist") or []:
             while len(h) <= need: h.append(None)
+            # VXN은 뒤늦게 추가된 열이라 국면이 이미 고정된 옛 행에도 채워야 한다.
+            # 값이 있으면 절대 덮지 않는다(append-only) — 없을 때만 한 번 채운다.
+            if h[ivx] is None:
+                v = vmap.get(str(h[idate]))
+                if v is not None: h[ivx] = v
             if h[ilv] is not None and h[irt] is not None: continue   # 이미 고정됨
             q = qmap.get(str(h[idate]))
             if not q: continue
@@ -1715,7 +1734,8 @@ def main():
             _s["rs20"] = None
     attach_historical_rs20(results, mkt)
     # 각 hist 행에 '그 날짜의' 시장 입력을 붙인다. 이미 붙어 있으면 그대로 둔다.
-    attach_historical_market(results, mkt)
+    attach_historical_market(results, mkt,
+                             ((market_extra.get("vxn") or {}).get("series") or {}))
 
     # 신뢰도용 최근 hist는 여기서 고정한다.
     # 과거 날짜는 직전 signals.json 값을 그대로 유지하고 새 거래일만 append한다.
@@ -1735,7 +1755,9 @@ def main():
         "market": mkt,
         "qqq_card": qqq_card,
         "spy_card": spy_card,
-        "market_extra": market_extra,
+        # series(일자별 이력)는 hist에 얼려 넣는 용도라 payload에서는 뺀다.
+        "market_extra": {k: {kk: vv for kk, vv in (v or {}).items() if kk != "series"}
+                         for k, v in (market_extra or {}).items()},
         "market_events": market_events,
         "calendar_status": calendar_status,
         "sectors": sectors,
