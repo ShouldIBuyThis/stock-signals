@@ -359,7 +359,10 @@ console.log('  실전에 쓰려면 다음 사이클에서 같은 조합이 다�
    사용자 지시: "모더나·화이자 추가해서 승률 시뮬레이션(떨어지면 폐기)".
    같은 창·같은 산식에서 **유니버스만 다르게** 두 번 돌린다. 날짜가 다른 두 실행을
    비교하면 종목 효과와 장세 효과가 섞여 판단이 불가능하다. */
-const NEW_TK = ['MRNA','PFE'];
+/* 신규 티커 A/B — 유니버스만 바꿔 검증표가 어떻게 움직이는지 본다.
+   MRNA·PFE는 이 A/B에서 전 신호 0~-2%p가 나와 폐기했다(2026-08-20).
+   2026-08-24 교체: 테라울프·허트8(비트코인 채굴→AI 데이터센터), 웰타워(헬스케어 리츠). */
+const NEW_TK = ['WULF','HUT','WELL'];
 const present = NEW_TK.filter(t => base.stocks.some(s => s.ticker === t));
 console.log('\n\n══════ E. 신규 티커 A/B (' + NEW_TK.join('·') + ') ══════');
 if(!present.length){
