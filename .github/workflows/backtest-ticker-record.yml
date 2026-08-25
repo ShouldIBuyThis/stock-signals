@@ -60,6 +60,13 @@ jobs:
         continue-on-error: true
         run: node tools/regime-lab.js backtest/raw.json
 
+      - name: 실험 — 반등 매수관심(등급4) 문턱 후보 (로그 출력 전용)
+        # 사용자 지시(2026-08-25): "반등 매수관심 문턱을 올려주고".
+        # 189일 실측에서 47/46/39/38%로 기준선 -14%p. 현행 문턱은 30거래일
+        # 표본 56/28/15건에서 정해진 값이다. 등급4 조건 한 줄만 갈아끼워 비교한다.
+        continue-on-error: true
+        run: node tools/rev4-lab.js backtest/raw.json
+
       - name: 원본은 커밋하지 않는다 (약 5MB)
         run: rm -f backtest/raw.json
 
