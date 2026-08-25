@@ -78,6 +78,13 @@ jobs:
         continue-on-error: true
         run: node tools/pattern-score-lab.js backtest/raw.json backtest/pattern-entries.json
 
+      - name: 실험 — 변동성 꺾임·연속하락 축을 개별주에 적용 (로그 출력 전용)
+        # 사용자 지시(2026-08-25): "나스닥에 쓰던 변동성 꺾임 등 지표를 개별주에도
+        # 일부 적용해서 승률 시뮬레이션, 반등매수관심 등에."
+        # VXN 과거값은 원장에 없고 raw.json의 macro.vxn 에만 있으므로 여기서만 잰다.
+        continue-on-error: true
+        run: node tools/vol-lab.js backtest/raw.json
+
       - name: 원본은 커밋하지 않는다 (약 5MB)
         run: rm -f backtest/raw.json backtest/pattern-entries.json
 
