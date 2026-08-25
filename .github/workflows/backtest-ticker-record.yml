@@ -67,8 +67,19 @@ jobs:
         continue-on-error: true
         run: node tools/rev4-lab.js backtest/raw.json
 
+      - name: 실험 — 차트 패턴 18종 진입 목록 생성 (야후 OHLC · 로그 출력 전용)
+        # 패턴 판정은 High/Low가 필요한데 원장에는 종가만 있다. 여기서 확정 피벗
+        # (리페인트 금지)으로 진입일 목록을 만들어 다음 단계에 넘긴다.
+        continue-on-error: true
+        run: python tools/pattern-lab.py --years 3 --emit backtest/pattern-entries.json
+
+      - name: 실험 — 역헤숄·쌍바닥 뱃지/가산점 시뮬레이션 (로그 출력 전용)
+        # 사용자 지시(2026-08-25): "역헤숄 쌍바닥은 뱃지도 달아주고 가산점 한다면 승률은?"
+        continue-on-error: true
+        run: node tools/pattern-score-lab.js backtest/raw.json backtest/pattern-entries.json
+
       - name: 원본은 커밋하지 않는다 (약 5MB)
-        run: rm -f backtest/raw.json
+        run: rm -f backtest/raw.json backtest/pattern-entries.json
 
       - name: 원장이 바뀌지 않았는지 확인
         # 이 워크플로우는 backtest/ 밖을 절대 건드리면 안 된다.
