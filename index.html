@@ -2477,6 +2477,36 @@ function qqqGrade(){
 }
 /* 옛 이름을 쓰던 자리(비서 답변 등)를 위한 호환 — 발동 사유 배열만 돌려준다. */
 function qqqGradeNow(){ return qqqGrade().why; }
+
+/* 과거 어느 날의 나스닥 전용 등급. hist 종가로 연속 하락일만 센다.
+   ⚠ VXN은 hist에 저장하지 않아 과거 '꺾임'은 되짚을 수 없다 — 그 사실을 화면에 적는다.
+   그래서 여기 등급은 '연속 하락' 축만 반영한 값이고, 오늘 카드보다 보수적이다. */
+function qqqTierAt(hs, i){
+  let n = 0;
+  for(let j = i; j > 0; j--){
+    const c = num(hs[j].price), p = num(hs[j-1].price);
+    if(!has(c) || !has(p) || !(c < p)) break;
+    n++;
+  }
+  return { tier: n >= 3 ? 2 : n === 2 ? 1 : 0, streak: n };
+}
+
+/* QQQ 카드의 등급 뱃지. 개별주 뱃지가 있던 자리를 그대로 쓴다 —
+   '미적용'이라고 비워 두면 고장 난 것처럼 보인다(2026-08-24 사용자 지적).
+   색은 개별주 등급과 같은 팔레트를 쓰되(g5 강한매수 / g4 매수관심 / g3 중립),
+   판정 근거는 지수 전용 산식이다. */
+function qqqGradeBadge(){
+  const g = qqqGrade();
+  const [cls, lab] = g.tier === 2 ? ["g5", "강한 매수 우위"]
+                   : g.tier === 1 ? ["g4", "매수 우위"]
+                   : ["g3", "중립"];
+  const f = g.tier === 2 ? (g.streak >= 3 ? QQQ_FACTS.down3 : QQQ_FACTS.vxn)
+          : g.tier === 1 ? QQQ_FACTS.down2 : null;
+  const tip = g.tier
+    ? `나스닥 전용 등급 · ${g.why.join(" · ")} · 실측 +3일 ${f.r[3]}%(${f.n}건, 기준선 ${QQQ_FACTS.base[3]}%)`
+    : `나스닥 전용 등급 · 발동 조건(2일 이상 연속 하락 · VXN 꺾임) 없음`;
+  return `<span class="badge ${cls}" title="${esc(tip)}">${lab}</span>`;
+}
 function nasdaqEdgeBadges(){
   const out = [];
   const g = qqqGrade();
@@ -3158,13 +3188,13 @@ function marketBar(){
   const histBtn=(s._hist&&s._hist.length>=2)?`<button data-timeline="QQQ">📈 최근 ${histWindowDays()}거래일 신호 흐름</button>`:"";
   const cartOn=state.cart.includes("QQQ");
   return `<details class="market-bench">
-    <summary><b>🌐 QQQ · 나스닥100 시장 기준</b>${resTouchMark(s)}${nasdaqEdgeHtml()}<span class="market-bench-summary-main">시장 ${esc(levelLabel)}</span></summary>
+    <summary><b>🌐 QQQ · 나스닥100 시장 기준</b>${qqqGradeBadge()}${resTouchMark(s)}${nasdaqEdgeHtml()}<span class="market-bench-summary-main">시장 ${esc(levelLabel)}</span></summary>
     <div class="market-bench-body">
       <div class="market-bench-cardtop">
         <div class="s-price">
           <span class="p num">${fmtPrice(s)}</span>${s.last_date?`<span class="close-date">${esc(closeDateLabel(s.last_date))}</span>`:""}
           <span class="c num ${chgCls(s.change_1d)}">${fmtChg(s.change_1d)}</span>
-          <span class="badge gHold" title="개별주 산식은 지수에 안 맞는다 — 아래 나스닥 전용 등급을 본다">개별주 등급 미적용</span>${trendChip(s)}
+          ${qqqGradeBadge()}${resTouchMark(s)}${trendChip(s)}
         </div>
         <button class="market-bench-cart ${cartOn?"on":""}" data-qcart="QQQ" title="나스닥100 모의점검 장바구니">${cartOn?"🛒✓ 장바구니":"🛒 장바구니"}</button>
       </div>
@@ -4189,6 +4219,7 @@ function tickerRecordTable(s, compact){
 
 function openTimeline(tk){
   const s = tk==="QQQ" ? qqqBenchmarkStock() : allStocks().find(x=>x.ticker===tk); if(!s) return;
+  const isQQQ = tk === "QQQ";      // 지수는 개별주 등급을 쓰지 않는다(§5-2)
   const hs = histStocks(s);
   if (!hs || hs.length < 2){ toast("아직 이력이 충분하지 않아요"); return; }
   /* 신호일 자체가 실적 영향권이면 기술점수는 투명하게 남기되 신규진입/검증 제외임을 표시한다. */
@@ -4196,7 +4227,9 @@ function openTimeline(tk){
   const rows = hs.map(h => {
     // 과거 원시지표를 현재 산식으로 재평가한다. 히스토리 게이지는 변화칩과 같은 buyScore 기준.
     const sig = evaluate(h);
-    return Object.assign({d:h.last_date, historyScore:sig.buyScore, earningsBlocked:blocked.has(h.last_date), marketEvents:marketEventsForRow(h)}, sig);
+    const qt = isQQQ ? qqqTierAt(hs, hs.indexOf(h)) : null;
+    return Object.assign({d:h.last_date, historyScore:sig.buyScore, earningsBlocked:blocked.has(h.last_date),
+      marketEvents:marketEventsForRow(h), qt}, sig);
   });
   const vals = rows.map(r=>r.historyScore);
   const lo = Math.min(...vals, 0), hi = Math.max(...vals, 1);
@@ -4213,14 +4246,18 @@ function openTimeline(tk){
       <span class="tldate">${esc(md(r.d))}</span>
       ${bar(r.historyScore)}
       <span class="tlnum">${r.historyScore}${dd}</span>
-      <span class="tlg ${gradeCls(r)}">${gradeLabel(r)}</span>
+      <span class="tlg ${r.qt ? ["g3","g4","g5"][r.qt.tier] : gradeCls(r)}">${
+        r.qt ? ["중립","매수 우위","강한 매수 우위"][r.qt.tier] : gradeLabel(r)}</span>
     </div>
-    <div class="tlsub">추세 ${r.pullScore} · 반등 ${r.revScore}${r.earningsBlocked ? ` · <b>💤 실적 영향권 · 신규진입/검증 제외</b>` : ""}${marketEventTypes(r.marketEvents).length ? ` · <span class="tl-event">⚠ ${esc(marketEventTypes(r.marketEvents).join(" · "))} 시장이벤트 · 기술신호 오차 가능</span>` : ""}</div>`;
+    <div class="tlsub">${r.qt ? `연속 하락 ${r.qt.streak}일 · <span style="color:var(--faint)">추세 ${r.pullScore} · 반등 ${r.revScore} (개별주 산식 · 지수 등급엔 안 씀)</span>` : `추세 ${r.pullScore} · 반등 ${r.revScore}`}${r.earningsBlocked ? ` · <b>💤 실적 영향권 · 신규진입/검증 제외</b>` : ""}${marketEventTypes(r.marketEvents).length ? ` · <span class="tl-event">⚠ ${esc(marketEventTypes(r.marketEvents).join(" · "))} 시장이벤트 · 기술신호 오차 가능</span>` : ""}</div>`;
   /* 화면은 최근 날짜가 맨 위. 변화량(+0.5 등)은 '직전 거래일 대비'라서 계산은
      시간순 그대로 두고 다 만든 뒤에만 뒤집는다 — 뒤집은 배열로 계산하면 부호가 반대가 된다. */
   }).reverse().join("");
   openModal(`<h3>📈 ${esc(s.ticker)} 신호 히스토리</h3>
     <p style="font-size:12px;color:var(--muted);margin-bottom:9px">최근 ${rows.length}거래일 · 최신순 · 매수강도 = 추세·반등 중 높은 쪽</p>
+    ${isQQQ ? `<p class="tkrec-note adv-warn">🌐 지수는 <b>나스닥 전용 등급</b>으로 표시합니다 — 개별주 산식은 지수에 안 맞아요(§5-2).
+      다만 <b>VXN은 과거값을 저장하지 않아</b> 여기 등급은 <span class="hl">연속 하락 축만</span> 반영한 값이고,
+      오늘 카드보다 보수적입니다.</p>` : ""}
     <div class="tl">${body}</div>
     <p style="font-size:12px;color:var(--reason);line-height:1.75;margin-top:11px">
       점수가 <b>어느 방향으로 쌓여왔는지</b>를 보는 화면이에요. 오르는 중이면 신호가 만들어지는 과정,
