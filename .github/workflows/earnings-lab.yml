@@ -8,6 +8,7 @@ name: 가설 검증 실험 (실험 · 로그만)
 #   E) 장 초반 30~60분의 '기운'이 그날 종가를 예고하나 (장중 갱신 기능 도입 전 전제 검증)
 #   F) 피보나치 되돌림·하모닉(XABCD) — 만들 가치가 있나 (리페인트 금지로 측정)
 #   G) 나스닥 전용 등급 — 방법론 25종 비교 (개별주 산식이 지수에 안 맞는 문제)
+#   H) 반전 패턴 6종(쌍바닥·헤드앤숄더·쐐기) — 넥라인 돌파 진입 + 목표/손절 선착 판정
 #
 # ⚠ 아무 파일도 커밋하지 않는다. 원장(signals.json·history/)도, 백테스트 산출물도
 #    건드리지 않는다. 결과는 이 잡의 로그에만 남는다.
@@ -59,6 +60,10 @@ jobs:
       - name: 나스닥 전용 등급 · 방법론 25종 비교
         continue-on-error: true
         run: python tools/qqq-method-lab.py --years "${{ inputs.years || '3' }}"
+
+      - name: 반전 패턴 6종 승률 검증
+        continue-on-error: true
+        run: python tools/pattern-lab.py --years "${{ inputs.years || '3' }}"
 
       - name: 아무것도 안 바뀌었는지 확인
         run: |

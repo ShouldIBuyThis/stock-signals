@@ -101,8 +101,18 @@ ${o.tail || ''}
 
    최상위 let/const(state, evaluate 등)는 컨텍스트 객체에 안 붙으므로
    반드시 runInPage()로 코드 문자열을 넣어 호출한다. */
-function loadPage(){
-  const code = /<script[^>]*>([\s\S]*?)<\/script>/.exec(src())[1];
+/**
+ * @param {object} opts
+ *   patch  [[찾을 문자열, 바꿀 문자열], ...] — 페이지를 올리기 전에 코드를 고친다.
+ *          진단용으로 내부 값을 밖으로 빼낼 때만 쓴다(예: result._rows=out).
+ *          찾는 문자열이 없으면 즉시 죽는다 — 조용히 원본이 도는 걸 막는다.
+ */
+function loadPage(opts){
+  let code = /<script[^>]*>([\s\S]*?)<\/script>/.exec(src())[1];
+  ((opts && opts.patch) || []).forEach(([from, to]) => {
+    if(!code.includes(from)) die(`loadPage patch 앵커 없음: ${from.slice(0,60)}`);
+    code = code.replace(from, to);
+  });
   const noop = () => {};
   const el = () => ({ style:{}, dataset:{}, children:[],
     classList:{add:noop,remove:noop,toggle:noop,contains:()=>false},
