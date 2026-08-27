@@ -566,17 +566,11 @@ WATCHLIST = {
     "빅테크":        {"META":"메타", "AAPL":"애플", "GOOGL":"구글", "AMZN":"아마존"},
     "국장":          {
         "069500.KS":"코스피", "229200.KS":"코스닥",
-        "497570.KS":"TIGER 미국필라델피아AI반도체나스닥",
         "0173Y0.KS":"KODEX 미국AI광통신네트워크",
         "0123G0.KS":"TIGER 미국AI전력SMR",
-        "0127R0.KS":"RISE 미국AI클라우드인프라",
-        "453630.KS":"KODEX 미국S&P500필수소비재",
-        "474800.KS":"KIWOOM 미국원유에너지기업",
         "453650.KS":"KODEX 미국S&P500금융",
         "0183J0.KS":"TIGER 미국우주테크",
         "0144M0.KS":"KODEX 미국드론UAM TOP10",
-        "494840.KS":"TIGER 미국방산TOP10",
-        "458730.KS":"TIGER 미국배당다우존스",
     },
 }
 
@@ -592,6 +586,8 @@ RETIRED_TICKERS = {"MRNA", "PFE",
     "MCD", "CURE", "RXL", "000660.KS", "HXSCL", "ANET",
     "VST", "SMR", "OKLO", "RCAT", "LHX", "HIMS", "PONY",
     "CRCL", "RDDT", "LUNR", "COIN", "MSTR", "ETHU",
+    "497570.KS", "0127R0.KS", "453630.KS", "474800.KS",
+    "494840.KS", "458730.KS",
 }
 
 # ── 상장 대기 티커 — 야후에 있지만 일봉이 아직 30개가 안 된 신규 상장 ──────
@@ -627,9 +623,8 @@ LEVERAGED = {"SOXL", "GDXU", "NAIL", "UYG", "DUSL"}
 NO_EARNINGS_TICKERS = {
     "SOXL", "GDXU", "GLD", "USO", "ITB", "NAIL",
     "UYG", "FXO", "HQH", "DBA", "DUSL", "SCHD",
-    "069500.KS", "229200.KS", "497570.KS", "0173Y0.KS", "0123G0.KS",
-    "0127R0.KS", "453630.KS", "474800.KS", "453650.KS", "0183J0.KS",
-    "0144M0.KS", "494840.KS", "458730.KS",
+    "069500.KS", "229200.KS", "0173Y0.KS", "0123G0.KS",
+    "453650.KS", "0183J0.KS", "0144M0.KS",
 }
 
 # ── 시장 필터 기준 지수 (QQQ만) ────────────────────────────
