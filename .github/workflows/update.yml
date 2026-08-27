@@ -1,6 +1,15 @@
 name: 관심종목 자동 갱신
 
 on:
+  # 화면·계산기·워크플로 자체를 수정하면 다음 정기 실행을 기다리지 않고 배포한다.
+  # 자동 갱신이 커밋하는 signals.json/history는 대상이 아니므로 재귀 실행되지 않는다.
+  push:
+    branches:
+      - main
+    paths:
+      - 'index.html'
+      - 'main.py'
+      - '.github/workflows/update.yml'
   schedule:
     # 미국장 1차: 뉴욕 현지 16:40 — 장 마감 40분 후
     - cron: '40 16 * * 1-5'
@@ -84,6 +93,12 @@ jobs:
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             echo "value=$MANUAL_SCOPE" >> "$GITHUB_OUTPUT"
             echo "수동 실행 → scope=$MANUAL_SCOPE"
+            exit 0
+          fi
+
+          if [ "$EVENT_NAME" = "push" ]; then
+            echo "value=all" >> "$GITHUB_OUTPUT"
+            echo "코드 변경 실행 → scope=all"
             exit 0
           fi
 
