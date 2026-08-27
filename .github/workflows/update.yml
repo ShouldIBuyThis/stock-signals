@@ -53,9 +53,6 @@ concurrency:
 jobs:
   update:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
 
     steps:
       - uses: actions/checkout@v4
@@ -227,6 +224,18 @@ jobs:
         with:
           path: '.'
 
+  # 데이터 생성/업로드와 Pages 배포를 분리한다.
+  # deploy-pages만 실패했을 때 "실패한 작업 재실행"을 눌러도 위 update 작업과
+  # github-pages 아티팩트를 다시 만들지 않으므로, 같은 실행에 동명 아티팩트가
+  # 2개 생겨 배포가 막히는 문제를 피한다.
+  deploy:
+    needs: update
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
       - name: Pages 배포
         id: deploy
         uses: actions/deploy-pages@v4
