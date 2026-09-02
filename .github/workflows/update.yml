@@ -1,6 +1,15 @@
 name: 관심종목 자동 갱신
 
 on:
+  # 화면·계산기·워크플로 자체를 수정하면 다음 정기 실행을 기다리지 않고 배포한다.
+  # 자동 갱신이 커밋하는 signals.json/history는 대상이 아니므로 재귀 실행되지 않는다.
+  push:
+    branches:
+      - main
+    paths:
+      - 'index.html'
+      - 'main.py'
+      - '.github/workflows/update.yml'
   schedule:
     # 미국장 1차: 뉴욕 현지 16:40 — 장 마감 40분 후
     - cron: '40 16 * * 1-5'
@@ -53,9 +62,6 @@ concurrency:
 jobs:
   update:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
 
     steps:
       - uses: actions/checkout@v4
@@ -87,6 +93,12 @@ jobs:
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             echo "value=$MANUAL_SCOPE" >> "$GITHUB_OUTPUT"
             echo "수동 실행 → scope=$MANUAL_SCOPE"
+            exit 0
+          fi
+
+          if [ "$EVENT_NAME" = "push" ]; then
+            echo "value=all" >> "$GITHUB_OUTPUT"
+            echo "코드 변경 실행 → scope=all"
             exit 0
           fi
 
@@ -227,6 +239,18 @@ jobs:
         with:
           path: '.'
 
+  # 데이터 생성/업로드와 Pages 배포를 분리한다.
+  # deploy-pages만 실패했을 때 "실패한 작업 재실행"을 눌러도 위 update 작업과
+  # github-pages 아티팩트를 다시 만들지 않으므로, 같은 실행에 동명 아티팩트가
+  # 2개 생겨 배포가 막히는 문제를 피한다.
+  deploy:
+    needs: update
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
       - name: Pages 배포
         id: deploy
         uses: actions/deploy-pages@v4

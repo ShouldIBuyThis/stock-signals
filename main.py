@@ -35,6 +35,9 @@ PERIOD = "1y"    # 52주 신고가 계산 위해 1년
 # 잘려나가 검증 표본이 영원히 10일에 갇혔고, history/ 폴더 스냅샷이 시작되기 전
 # 날짜(2026-08-03~06)는 잘리는 순간 복구할 방법이 없었다.
 HIST_DAYS = 30
+# QQQ 카드 전용 신호 흐름도 같은 30거래일만 유지한다. 일반 종목 hist와
+# 섞지 않는 별도 원장이라, 개별주 산식 변경이 지수 흐름을 바꾸지 않는다.
+QQQ_SIGNAL_HIST_DAYS = 30
 # 뒤에 필드를 덧붙이는 건 안전하다(옛 행은 짧을 뿐이고 freeze 단계에서 보강한다).
 # 순서를 바꾸거나 중간에 끼워 넣으면 이미 저장된 위치 기반 배열이 전부 어긋난다.
 HIST_FIELDS = ["date","price","change_1d","ma5","ma10","ma20","ma50","ma60","rsi","macd_hist","macd_cross","macd_zero",
@@ -542,7 +545,8 @@ def load_previous():
 WATCHLIST = {
     "경기방어": {"KO":"코카콜라", "BRK-B":"버크셔해서웨이B", "SCHD":"미국 배당 ETF"},
     "헬스케어": {"LLY":"일라이릴리", "UNH":"유나이티드헬스", "HQH":"헬스케어 펀드"},
-    "금융": {"JPM":"JP모건", "MA":"마스터카드", "V":"비자", "UYG":"금융 2x", "FXO":"금융 ETF"},
+    "금융": {"JPM":"JP모건", "MA":"마스터카드", "V":"비자", "UYG":"금융 2x", "FXO":"금융 ETF",
+             "453650.KS":"KODEX 미국S&P500금융"},
     "산업재": {"CAT":"캐터필러", "AIT":"어플라이드인더스트리얼", "DUSL":"산업재 3x"},
     "반도체·메모리":  {"MU":"마이크론", "SNDK":"샌디스크", "STX":"씨게이트", "SKHY":"SK하이닉스"},
     "반도체·파운드리":{"TSM":"TSMC", "INTC":"인텔"},
@@ -552,9 +556,11 @@ WATCHLIST = {
     "데이터센터":    {"APLD":"어플라이드디지털", "NBIS":"네비우스", "CRWV":"코어위브", "IREN":"아이렌",},
     "소프트웨어":    {"MSFT":"마이크로소프트", "NOW":"서비스나우", "PLTR":"팔란티어", "CRWD":"크라우드스트라이크", "SNOW":"스노우플레이크", "DDOG":"데이터독", "NET":"클라우드플레어"},
     "광통신":        {"AAOI":"어플라이드옵토", "GLW":"코닝", "LITE":"루멘텀", "CIEN":"시에나", "POET":"포엣테크놀로지",
-                      "CRDO":"크레도테크놀로지", "COHR":"코히런트"},
+                      "CRDO":"크레도테크놀로지", "COHR":"코히런트",
+                      "0173Y0.KS":"KODEX 미국AI광통신네트워크"},
     "전기차·자율주행":{"TSLA":"테슬라"},
-    "에너지·원전":   {"CEG":"컨스텔레이션에너지", "BE":"블룸에너지"},
+    "에너지·원전":   {"CEG":"컨스텔레이션에너지", "BE":"블룸에너지",
+                      "0123G0.KS":"TIGER 미국AI전력SMR"},
     "원자재·금":     {"GDXU":"금광주 3x", "GLD":"금 현물 ETF"},
     "원자재·유가":   {"XOM":"엑슨모빌", "USO":"미국 원유 ETF"},
     "원자재·농산물": {"DBA":"농산물 ETF"},
@@ -564,11 +570,15 @@ WATCHLIST = {
     "리츠":          {"WELL":"웰타워(헬스케어 리츠)"},
     "양자컴퓨팅":    {"IONQ":"아이온큐", "QBTS":"디웨이브", "INFQ":"인플렉션", "RGTI":"리게티컴퓨팅"},
     "우주·UAM":      {"RKLB":"로켓랩", "SPCX":"스페이스X", "PL":"플래닛랩스",
-                      "JOBY":"조비에비에이션", "RDW":"레드와이어"},
+                      "JOBY":"조비에비에이션", "RDW":"레드와이어",
+                      "0183J0.KS":"TIGER 미국우주테크",
+                      "0144M0.KS":"KODEX 미국드론UAM TOP10"},
     "방산·드론":     {"LMT":"록히드마틴", "AXON":"액손"},
     "주택":          {"ITB":"미국주택건설 ETF", "NAIL":"주택건설 3x"},
     "빅테크":        {"META":"메타", "AAPL":"애플", "GOOGL":"구글", "AMZN":"아마존"},
-    "국장":          {"069500.KS":"코스피", "229200.KS":"코스닥"},
+    "국장":          {
+        "069500.KS":"코스피", "229200.KS":"코스닥",
+    },
 }
 
 # ── 관심종목에서 빠진 티커 — 과거 frozen snapshot(history/*.json)에는 남아 있다 ──
@@ -583,6 +593,8 @@ RETIRED_TICKERS = {"MRNA", "PFE",
     "MCD", "CURE", "RXL", "000660.KS", "HXSCL", "ANET",
     "VST", "SMR", "OKLO", "RCAT", "LHX", "HIMS", "PONY",
     "CRCL", "RDDT", "LUNR", "COIN", "MSTR", "ETHU",
+    "497570.KS", "0127R0.KS", "453630.KS", "474800.KS",
+    "494840.KS", "458730.KS",
 }
 
 # ── 상장 대기 티커 — 야후에 있지만 일봉이 아직 30개가 안 된 신규 상장 ──────
@@ -618,7 +630,8 @@ LEVERAGED = {"SOXL", "GDXU", "NAIL", "UYG", "DUSL"}
 NO_EARNINGS_TICKERS = {
     "SOXL", "GDXU", "GLD", "USO", "ITB", "NAIL",
     "UYG", "FXO", "HQH", "DBA", "DUSL", "SCHD",
-    "069500.KS", "229200.KS",
+    "069500.KS", "229200.KS", "0173Y0.KS", "0123G0.KS",
+    "453650.KS", "0183J0.KS", "0144M0.KS",
 }
 
 # ── 시장 필터 기준 지수 (QQQ만) ────────────────────────────
@@ -842,6 +855,14 @@ def fetch_market_extra():
                         # payload에서는 빼낸다(파일만 커진다).
                         "series": {d.strftime("%Y-%m-%d"): round(float(v), 4)
                                    for d, v in c.tail(400).items()}}
+                # QQQ 전용 등급의 VXN 꺾임은 과거 날짜별 값이 있어야 다시
+                # 판정할 수 있다. 화면에 이 전체 시계열을 노출하지는 않고,
+                # 아래에서 QQQ 전용 30일 원장을 최초 1회 채우는 데만 쓴다.
+                if key == "vxn":
+                    cand["hist"] = [
+                        {"date": day.strftime("%Y-%m-%d"), "value": round(float(value), 4)}
+                        for day, value in c.tail(QQQ_SIGNAL_HIST_DAYS + 2).items()
+                    ]
                 print(f"보조 지표 {sym}: {cand['days']}일 · 최신 {cand['value']} ({cand['date']})")
                 if best is None or cand["days"] > best["days"]:
                     best = cand
@@ -852,6 +873,77 @@ def fetch_market_extra():
         if best:
             out[key] = best
     return out
+
+
+def build_qqq_signal_hist(qqq_card, vxn_history, previous_payload):
+    """QQQ 전용 등급의 표시용 30거래일 원장.
+
+    일반 종목의 ``hist``는 개별주 evaluate()를 재현하기 위한 원시값이다.
+    QQQ는 그 점수로 등급을 정하지 않으므로, 연속 하락·VXN 꺾임만 담은 별도
+    행을 만든다. 처음 한 번만 현재 시계열로 과거 30일을 채우고, 그 뒤 같은
+    날짜는 절대 덮어쓰지 않아 화면에서 본 전용 등급도 고정된다.
+    """
+    fields = HIST_FIELDS
+    date_i, price_i = fields.index("date"), fields.index("price")
+    raw = [r for r in (qqq_card or {}).get("hist") or []
+           if isinstance(r, list) and len(r) > max(date_i, price_i) and r[date_i] and r[price_i] is not None]
+    raw.sort(key=lambda r: str(r[date_i]))
+    if not raw:
+        return []
+
+    old = {}
+    for r in (previous_payload or {}).get("qqq_signal_hist") or []:
+        if isinstance(r, dict) and r.get("date"):
+            old[str(r["date"])] = r
+
+    vxn_by_date = {}
+    for r in vxn_history or []:
+        if not isinstance(r, dict) or not r.get("date") or r.get("value") is None:
+            continue
+        vxn_by_date[str(r["date"])] = safe(r["value"], 4)
+
+    out, streak = [], 0
+    prev_price = None
+    for row in raw:
+        day, price = str(row[date_i]), safe(row[price_i], 4)
+        if prev_price is not None and price is not None and price < prev_price:
+            streak += 1
+        else:
+            streak = 0
+        prev_price = price
+
+        # 이미 공개한 날짜는 다시 계산하지 않는다. 새 필드는 '오늘'부터만
+        # 원장으로 고정되고, 최초 30일은 source=backfill로 성격을 남긴다.
+        if day in old:
+            out.append(old[day])
+            continue
+
+        vxn = vxn_by_date.get(day)
+        # VXN은 미국 거래일이 같으므로 직전 QQQ 행의 날짜를 쓴다.
+        prev_day = str(raw[len(out) - 1][date_i]) if out else ""
+        vxn_prev = vxn_by_date.get(prev_day)
+        peak = bool(vxn is not None and vxn_prev is not None and vxn >= 28 and vxn < vxn_prev)
+        why = []
+        if streak >= 3:
+            why.append(f"{streak}일 연속 하락")
+        if peak:
+            why.append(f"VXN {vxn:.1f} 꺾임")
+        tier = 2 if why else (1 if streak == 2 else 0)
+        if tier == 1:
+            why = ["2일 연속 하락"]
+        out.append({
+            "date": day, "price": price, "streak": streak,
+            "vxn": vxn, "vxn_prev": vxn_prev, "vxn_peak": peak,
+            "tier": tier, "why": why, "source": "backfill",
+        })
+
+    # 새로 추가되는 마지막 날짜만 실제 일일 스냅샷이다. 기존 행은 위에서
+    # 보존하므로, 롤링 창에서 사라지는 것 외에는 수정되지 않는다.
+    if out:
+        newest = out[-1]
+        if str(newest.get("date")) not in old:
+            newest["source"] = "snapshot"
+    return out[-QQQ_SIGNAL_HIST_DAYS:]
 
 def seed_past_hist(kept, tk, nm, cat, date_i):
     """원장에 1~2행뿐인 신규 종목만, carry 중에도 '지난 날짜'를 채워 준다.
@@ -1615,6 +1707,11 @@ def main():
         market_extra = fetch_market_extra()
     except Exception as e:
         print("보조 지표 수집 실패:", e)
+    # fetch_market_extra()가 VXN 이력을 잠깐 붙여 주지만, 공개 payload에는
+    # 오늘/전일 값만 남긴다. 과거값은 QQQ 전용 신호 원장에 날짜별로 고정한다.
+    vxn_history = []
+    if isinstance(market_extra.get("vxn"), dict):
+        vxn_history = market_extra["vxn"].pop("hist", []) or []
 
     # SPY 보조 시장카드 — 나스닥(QQQ)만으로는 시장 전반을 못 본다는 지적에 따라 추가.
     # 국면 판정에는 아직 쓰지 않는다(판정은 여전히 QQQ 기준). 데이터를 쌓아
@@ -1743,6 +1840,10 @@ def main():
     # '어제 값'의 출처를 frozen 원장 하나로 통일한다 — snapshot/top 불일치 방지.
     sync_prev_from_hist(results)
 
+    # QQQ는 개별주 evaluate()가 아닌 전용 등급(연속 하락·VXN 꺾임)을 쓴다.
+    # 일반 종목 hist·신뢰도 검증·시장국면에는 전혀 관여하지 않는 표시용 원장이다.
+    qqq_signal_hist = build_qqq_signal_hist(qqq_card, vxn_history, prev_payload)
+
     payload = {
         "generated_at": now_kst.strftime("%Y-%m-%d %H:%M") + " KST",
         "generation_status": {
@@ -1754,6 +1855,7 @@ def main():
         "note": "yfinance 무료 데이터 · 15~20분 지연 · 참고용",
         "market": mkt,
         "qqq_card": qqq_card,
+        "qqq_signal_hist": qqq_signal_hist,
         "spy_card": spy_card,
         # series(일자별 이력)는 hist에 얼려 넣는 용도라 payload에서는 뺀다.
         "market_extra": {k: {kk: vv for kk, vv in (v or {}).items() if kk != "series"}

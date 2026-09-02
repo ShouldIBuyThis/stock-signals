@@ -1136,7 +1136,12 @@ const NAME_MAP = {
   LMT:"록히드마틴", AXON:"액손",
   ITB:"미국주택건설 ETF", NAIL:"주택건설 3x",
   META:"메타", AAPL:"애플", GOOGL:"구글", AMZN:"아마존",
-  "069500.KS":"코스피", "229200.KS":"코스닥"
+  "069500.KS":"코스피", "229200.KS":"코스닥",
+  "0173Y0.KS":"KODEX 미국AI광통신네트워크",
+  "0123G0.KS":"TIGER 미국AI전력SMR",
+  "453650.KS":"KODEX 미국S&P500금융",
+  "0183J0.KS":"TIGER 미국우주테크",
+  "0144M0.KS":"KODEX 미국드론UAM TOP10"
 };
 const DEFENSE = "경기방어";
 const HEALTH = "헬스케어";
@@ -1147,22 +1152,22 @@ const GPU = "반도체·GPU";
 const CAT_MAP = {
   KO:DEFENSE, "BRK-B":DEFENSE,
   LLY:HEALTH, UNH:HEALTH, HQH:HEALTH,
-  JPM:FINANCE, MA:FINANCE, UYG:FINANCE, FXO:FINANCE,
+  JPM:FINANCE, MA:FINANCE, UYG:FINANCE, FXO:FINANCE, "453650.KS":FINANCE,
   CAT:INDUSTRIAL, AIT:INDUSTRIAL,
   MU:MEM, SNDK:MEM, STX:MEM, SKHY:MEM,
   NVDA:GPU, AMD:GPU, CBRS:GPU, SOXL:GPU, ALAB:GPU, AMAT:GPU, DELL:GPU, AVGO:GPU, MRVL:GPU,
   TSM:"반도체·파운드리", INTC:"반도체·파운드리",
   APLD:"데이터센터", NBIS:"데이터센터", CRWV:"데이터센터", IREN:"데이터센터",
   MSFT:"소프트웨어", NOW:"소프트웨어", PLTR:"소프트웨어", CRWD:"소프트웨어", SNOW:"소프트웨어", NET:"소프트웨어",
-  AAOI:"광통신", GLW:"광통신", LITE:"광통신", CIEN:"광통신", POET:"광통신", CRDO:"광통신", COHR:"광통신",
+  AAOI:"광통신", GLW:"광통신", LITE:"광통신", CIEN:"광통신", POET:"광통신", CRDO:"광통신", COHR:"광통신", "0173Y0.KS":"광통신",
   TSLA:"전기차·자율주행",
-  CEG:"에너지·원전", BE:"에너지·원전",
+  CEG:"에너지·원전", BE:"에너지·원전", "0123G0.KS":"에너지·원전",
   GDXU:"원자재·금", GLD:"원자재·금",
   XOM:"원자재·유가", USO:"원자재·유가", DBA:"원자재·농산물", MP:"원자재·희토류", UUUU:"원자재·희토류",
   BMNR:"암호화폐", CIFR:"암호화폐", WULF:"암호화폐", HUT:"암호화폐",
   WELL:"리츠",
   IONQ:"양자컴퓨팅", QBTS:"양자컴퓨팅", INFQ:"양자컴퓨팅", RGTI:"양자컴퓨팅",
-  RKLB:"우주·UAM", SPCX:"우주·UAM", PL:"우주·UAM", JOBY:"우주·UAM", RDW:"우주·UAM",
+  RKLB:"우주·UAM", SPCX:"우주·UAM", PL:"우주·UAM", JOBY:"우주·UAM", RDW:"우주·UAM", "0183J0.KS":"우주·UAM", "0144M0.KS":"우주·UAM",
   LMT:"방산·드론", AXON:"방산·드론",
   ITB:"주택", NAIL:"주택",
   META:"빅테크", AAPL:"빅테크", GOOGL:"빅테크", AMZN:"빅테크",
@@ -2497,6 +2502,44 @@ function qqqTierAt(hs, i){
   return { tier: n >= 3 ? 2 : n === 2 ? 1 : 0, streak: n };
 }
 
+/* QQQ 전용 30일 원장. 새 main.py가 만든 행에는 VXN까지 함께 고정돼 있어
+   현재 카드와 같은 산식으로 흐름을 읽을 수 있다. 구 데이터만 받은 경우에는
+   연속 하락 축으로만 보수적으로 되살린다. */
+function qqqSignalHistory(s){
+  const saved = state.data && state.data.qqq_signal_hist;
+  if(Array.isArray(saved) && saved.length){
+    return saved.filter(r=>r && r.date).map(r=>({
+      d:String(r.date), tier:Math.max(0,Math.min(2,Number(r.tier)||0)),
+      streak:Number(r.streak)||0, vxn:num(r.vxn), vxnPrev:num(r.vxn_prev),
+      peak:!!r.vxn_peak, why:Array.isArray(r.why)?r.why:[], source:r.source||"snapshot"
+    }));
+  }
+  const hs=histStocks(s)||[];
+  return hs.map((h,i)=>{
+    const q=qqqTierAt(hs,i);
+    return {d:h.last_date,tier:q.tier,streak:q.streak,vxn:null,vxnPrev:null,
+      peak:false,why:q.tier?[`${q.streak}일 연속 하락`]:[],source:"legacy"};
+  });
+}
+
+function qqqGauges(){
+  const g=qqqGrade(), mx=(state.data&&state.data.market_extra)||{}, v=mx.vxn||{};
+  const vv=num(v.value), vp=num(v.prev);
+  const delta=(vv!==null&&vp!==null)?vv-vp:null;
+  const streakColor=g.streak>=3?"#0f9d58":g.streak===2?"#2f6fd0":"#9aa4b2";
+  const vxnColor=g.peak?"#0f9d58":vv!==null&&vv>=28?"#f0872b":"#9aa4b2";
+  const deltaColor=g.peak?"#0f9d58":delta!==null&&delta>0?"#f0872b":"#9aa4b2";
+  const vxnPct=vv===null?0:clamp((vv-15)/20*100,0,100);
+  const deltaPct=delta===null?50:clamp(50+delta*12,0,100);
+  const deltaText=delta===null?"—":`${delta<0?"▼":delta>0?"▲":"·"} ${Math.abs(delta).toFixed(1)}`;
+  return `<div class="gauges">
+    ${gauge("하락 연속", clamp(g.streak/3*100,0,100), `${g.streak}일`, {color:streakColor,ticks:[66]})}
+    ${gauge("VXN 수준", vxnPct, vv===null?"—":r1(vv), {color:vxnColor,ticks:[65]})}
+    ${gauge("VXN 변화", deltaPct, deltaText, {color:deltaColor,ticks:[50]})}
+  </div>
+  <div class="minor">나스닥 전용 기준 · <b>2일 연속 하락</b> = 매수 우위 · <b>3일 연속 하락</b> 또는 <b>VXN 28 이상 후 하락 전환</b> = 강한 매수 우위</div>`;
+}
+
 /* QQQ 카드의 등급 뱃지. 개별주 뱃지가 있던 자리를 그대로 쓴다 —
    '미적용'이라고 비워 두면 고장 난 것처럼 보인다(2026-08-24 사용자 지적).
    색은 개별주 등급과 같은 팔레트를 쓰되(g5 강한매수 / g4 매수관심 / g3 중립),
@@ -3189,8 +3232,6 @@ function marketBar(){
     </details>`;
   }
 
-  const shownTags=displayTags(s.sig.tags,5);
-  const tags=shownTags.map(t=>`<span class="tag ${t.c} ${t.click?"clickable":""}" ${t.click?`data-explain="${t.click}"`:""}>${t.t}</span>`).join("");
   const histBtn=(s._hist&&s._hist.length>=2)?`<button data-timeline="QQQ">📈 최근 ${histWindowDays()}거래일 신호 흐름</button>`:"";
   const cartOn=state.cart.includes("QQQ");
   return `<details class="market-bench">
@@ -3200,23 +3241,13 @@ function marketBar(){
         <div class="s-price">
           <span class="p num">${fmtPrice(s)}</span>${s.last_date?`<span class="close-date">${esc(closeDateLabel(s.last_date))}</span>`:""}
           <span class="c num ${chgCls(s.change_1d)}">${fmtChg(s.change_1d)}</span>
-          ${qqqGradeBadge()}${resTouchMark(s)}${trendChip(s)}
+          ${qqqGradeBadge()}${resTouchMark(s)}
         </div>
         <button class="market-bench-cart ${cartOn?"on":""}" data-qcart="QQQ" title="나스닥100 모의점검 장바구니">${cartOn?"🛒✓ 장바구니":"🛒 장바구니"}</button>
       </div>
-      <div class="market-bench-reason">${esc(s.sig.line)}${s.last_date?` · ${esc(closeDateLabel(s.last_date))}`:""}</div>
-      <div class="tags">${tags}</div>
-      <div class="market-bench-wide">
-        <div>${techStars(s)}</div>
-        <div class="market-bench-indicators">
-          <div class="gauges">
-            ${gauge("RSI", s.rsi??0, r1(s.rsi), {color:has(s.rsi)&&s.rsi>=70?"#e5484d":has(s.rsi)&&s.rsi<=30?"#0f9d58":"#9aa4b2",ticks:[30,70]})}
-            ${gauge("볼린저", s.bb_pos??0, r1(s.bb_pos), {color:has(s.bb_pos)&&s.bb_pos>=90?"#e5484d":has(s.bb_pos)&&s.bb_pos<=10?"#0f9d58":"#9aa4b2",ticks:[10,90]})}
-            ${gauge("스토캐스틱", s.stoch_k??0, `${r1(s.stoch_k)}/${r1(s.stoch_d)}`, {ticks:[20,80],dot:s.stoch_d})}
-            ${gauge("거래량비", has(s.vol_ratio)?clamp(s.vol_ratio/3*100,0,100):0, has(s.vol_ratio)?r1(s.vol_ratio)+"배":"—", {color:has(s.vol_ratio)&&s.vol_ratio>=1.5?"#f0872b":"#9aa4b2",ticks:[33]})}
-          </div>
-          <div class="minor num">매수강도 ${r1(s.sig.buyScore)} · 추세 ${r1(s.sig.pullScore)} · 반등 ${r1(s.sig.revScore)} · 시장국면 ${esc(levelLabel)}<br>MA5 ${r1(s.ma5)} · MA20 ${r1(s.ma20)} · MA60 ${r1(s.ma60)}${has(s.atr_pct)?` · 변동성 ${r1(s.atr_pct)}%`:""}</div>
-        </div>
+      <div class="market-bench-reason">나스닥 전용 등급은 개별주 매수강도·추세·반등 점수를 쓰지 않습니다.${s.last_date?` · ${esc(closeDateLabel(s.last_date))}`:""}</div>
+      <div class="market-bench-indicators" style="margin-top:9px">
+        ${qqqGauges()}
       </div>
       <div class="qgrade">${(()=>{ const g=qqqGrade(), B=QQQ_FACTS.base;
         if(!g.tier) return `⚪ <b>나스닥 전용 등급</b> — 오늘은 발동 없음
@@ -4272,9 +4303,38 @@ function tickerRecordTable(s, compact){
     ${rankLine}${detail}${btNote}</div>`;
 }
 
+function openQqqTimeline(s){
+  const rows=qqqSignalHistory(s);
+  if(rows.length<2){ toast("아직 이력이 충분하지 않아요"); return; }
+  const label=["중립","매수 우위","강한 매수 우위"];
+  const cls=["g3","g4","g5"];
+  const md=d=>{const p=String(d).split("-");return p.length===3?`${+p[1]}/${+p[2]}`:d;};
+  const body=rows.map((r,i)=>{
+    const vxnText=r.vxn===null?"VXN 과거값 대기":`VXN ${r1(r.vxn)}${r.vxnPrev===null?"":` · 전일 ${r1(r.vxnPrev)}${r.peak?"에서 꺾임":""}`}`;
+    const why=r.why&&r.why.length?r.why.join(" · "):"발동 조건 없음";
+    const width=[18,58,100][r.tier];
+    return `<div class="tlrow${i===rows.length-1?" now":""}">
+      <span class="tldate">${esc(md(r.d))}</span>
+      <span class="tlbar"><i style="width:${width}%" class="${r.tier===2?"pos":r.tier===1?"up":"neg"}"></i></span>
+      <span class="tlnum">${r.tier===2?"강":r.tier===1?"매":"·"}</span>
+      <span class="tlg ${cls[r.tier]}">${label[r.tier]}</span>
+    </div>
+    <div class="tlsub">${esc(why)} · ${esc(vxnText)}${r.source==="backfill"?` · <span style="color:var(--faint)">소급 판정</span>`:""}</div>`;
+  }).reverse().join("");
+  openModal(`<h3>📈 QQQ 나스닥 전용 신호 흐름</h3>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:9px">최근 ${rows.length}거래일 · 최신순 · 개별주 점수와 분리</p>
+    <div class="tl">${body}</div>
+    <p style="font-size:12px;color:var(--reason);line-height:1.75;margin-top:11px">
+      <b>매수 우위</b>는 2일 연속 하락, <b>강한 매수 우위</b>는 3일 연속 하락 또는 VXN 28 이상 후 하락 전환이에요.<br>
+      VXN 과거값이 있는 행은 같은 전용 기준으로 소급 판정했고, 이후 새 거래일은 해당 종가 시점의 값으로 고정합니다.
+      이 흐름은 나스닥 자리 참고용이며 일반 종목 점수·랭킹에는 영향을 주지 않아요.</p>
+    ${qqqGradeRecordTable(false)}
+    <div class="modal-actions perf-sticky"><button class="primary" onclick="document.getElementById('modal').classList.remove('on')">닫기</button></div>`);
+}
+
 function openTimeline(tk){
   const s = tk==="QQQ" ? qqqBenchmarkStock() : allStocks().find(x=>x.ticker===tk); if(!s) return;
-  const isQQQ = tk === "QQQ";      // 지수는 개별주 등급을 쓰지 않는다(§5-2)
+  if(tk==="QQQ"){ openQqqTimeline(s); return; }
   const hs = histStocks(s);
   if (!hs || hs.length < 2){ toast("아직 이력이 충분하지 않아요"); return; }
   /* 신호일 자체가 실적 영향권이면 기술점수는 투명하게 남기되 신규진입/검증 제외임을 표시한다. */
@@ -4282,9 +4342,8 @@ function openTimeline(tk){
   const rows = hs.map(h => {
     // 과거 원시지표를 현재 산식으로 재평가한다. 히스토리 게이지는 변화칩과 같은 buyScore 기준.
     const sig = evaluate(h);
-    const qt = isQQQ ? qqqTierAt(hs, hs.indexOf(h)) : null;
     return Object.assign({d:h.last_date, historyScore:sig.buyScore, earningsBlocked:blocked.has(h.last_date),
-      marketEvents:marketEventsForRow(h), qt}, sig);
+      marketEvents:marketEventsForRow(h)}, sig);
   });
   const vals = rows.map(r=>r.historyScore);
   const lo = Math.min(...vals, 0), hi = Math.max(...vals, 1);
@@ -4301,18 +4360,14 @@ function openTimeline(tk){
       <span class="tldate">${esc(md(r.d))}</span>
       ${bar(r.historyScore)}
       <span class="tlnum">${r.historyScore}${dd}</span>
-      <span class="tlg ${r.qt ? ["g3","g4","g5"][r.qt.tier] : gradeCls(r)}">${
-        r.qt ? ["중립","매수 우위","강한 매수 우위"][r.qt.tier] : gradeLabel(r)}</span>
+      <span class="tlg ${gradeCls(r)}">${gradeLabel(r)}</span>
     </div>
-    <div class="tlsub">${r.qt ? `연속 하락 ${r.qt.streak}일 · <span style="color:var(--faint)">추세 ${r.pullScore} · 반등 ${r.revScore} (개별주 산식 · 지수 등급엔 안 씀)</span>` : `추세 ${r.pullScore} · 반등 ${r.revScore}`}${r.earningsBlocked ? ` · <b>💤 실적 영향권 · 신규진입/검증 제외</b>` : ""}${marketEventTypes(r.marketEvents).length ? ` · <span class="tl-event">⚠ ${esc(marketEventTypes(r.marketEvents).join(" · "))} 시장이벤트 · 기술신호 오차 가능</span>` : ""}</div>`;
+    <div class="tlsub">추세 ${r.pullScore} · 반등 ${r.revScore}${r.earningsBlocked ? ` · <b>💤 실적 영향권 · 신규진입/검증 제외</b>` : ""}${marketEventTypes(r.marketEvents).length ? ` · <span class="tl-event">⚠ ${esc(marketEventTypes(r.marketEvents).join(" · "))} 시장이벤트 · 기술신호 오차 가능</span>` : ""}</div>`;
   /* 화면은 최근 날짜가 맨 위. 변화량(+0.5 등)은 '직전 거래일 대비'라서 계산은
      시간순 그대로 두고 다 만든 뒤에만 뒤집는다 — 뒤집은 배열로 계산하면 부호가 반대가 된다. */
   }).reverse().join("");
   openModal(`<h3>📈 ${esc(s.ticker)} 신호 히스토리</h3>
     <p style="font-size:12px;color:var(--muted);margin-bottom:9px">최근 ${rows.length}거래일 · 최신순 · 매수강도 = 추세·반등 중 높은 쪽</p>
-    ${isQQQ ? `<p class="tkrec-note adv-warn">🌐 지수는 <b>나스닥 전용 등급</b>으로 표시합니다 — 개별주 산식은 지수에 안 맞아요(§5-2).
-      다만 <b>VXN은 과거값을 저장하지 않아</b> 여기 등급은 <span class="hl">연속 하락 축만</span> 반영한 값이고,
-      오늘 카드보다 보수적입니다.</p>` : ""}
     <div class="tl">${body}</div>
     <p style="font-size:12px;color:var(--reason);line-height:1.75;margin-top:11px">
       점수가 <b>어느 방향으로 쌓여왔는지</b>를 보는 화면이에요. 오르는 중이면 신호가 만들어지는 과정,
