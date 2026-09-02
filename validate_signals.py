@@ -12,7 +12,7 @@ import math
 import os
 from pathlib import Path
 
-from main import (HIST_FIELDS, MARKET_TICKER, PENDING_TICKERS, RETIRED_TICKERS,
+from main import (HIST_BACKFILL_FIELDS, HIST_FIELDS, MARKET_TICKER, PENDING_TICKERS, RETIRED_TICKERS,
                   SNAPSHOT_FIELDS, WATCHLIST, is_kr_ticker)
 
 
@@ -139,8 +139,33 @@ def validate_current(payload: dict, scope: str) -> None:
             for name in SNAPSHOT_FIELDS:
                 if name == "ticker":
                     continue
+                # 뒤늦게 추가된 열은 그 열이 생기기 전에 고정된 snapshot에 없다.
+                # snapshot 파일은 불변이므로 '없음'만 허용하고, 값이 다른 것은 오류다.
+                if name in HIST_BACKFILL_FIELDS and frozen.get(name) is None:
+                    continue
                 if not same_value(stock.get(name), frozen.get(name)):
                     fail(f"{path} {stock['ticker']} snapshot/top 불일치: {name}")
+
+
+def backfill_ok(old_row: list, new_row: list, fields: list[str]) -> bool:
+    """고정된 행이 바뀌지 않았는지 본다 — 단 두 가지만 허용한다.
+
+    ① 꼬리 확장: 옛 행이 짧으면 뒤에 새 열(None 또는 값)이 붙을 수 있다.
+    ② 뒤늦게 추가된 열(HIST_BACKFILL_FIELDS)은 None이던 칸을 한 번 채울 수 있다.
+       값이 있던 칸을 다른 값으로 바꾸는 것은 여전히 변조다.
+    2026-09-02 실제 사례: market_vxn 열을 옛 행에 채우자(main.py attach_historical_market)
+    통째 비교가 '변조'로 잡아 배포가 두 번 멈췄다(run #283·#285).
+    """
+    if len(new_row) < len(old_row):
+        return False
+    backfill_idx = {fields.index(n) for n in HIST_BACKFILL_FIELDS if n in fields}
+    for i, (a, b) in enumerate(zip(old_row, new_row)):
+        if same_value(a, b):
+            continue
+        if a is None and i in backfill_idx:
+            continue
+        return False
+    return True
 
 
 def validate_append_only(old: dict, new: dict, force_resnap: bool, scope: str) -> None:
@@ -165,7 +190,7 @@ def validate_append_only(old: dict, new: dict, force_resnap: bool, scope: str) -
                 if not new_oldest or day >= new_oldest:
                     fail(f"{ticker} frozen hist 중간/최신 행 삭제: {day}")
                 continue
-            if row != new_hist[day] and day != allowed_resnap_day:
+            if day != allowed_resnap_day and not backfill_ok(row, new_hist[day], new_fields):
                 fail(f"{ticker} frozen hist 변조 감지: {day}")
 
         for key in ("validation_blocked_dates", "validation_affected_dates"):
