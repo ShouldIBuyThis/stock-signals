@@ -1773,6 +1773,7 @@ def main():
     vxn_history = []
     if isinstance(market_extra.get("vxn"), dict):
         vxn_history = market_extra["vxn"].pop("hist", []) or []
+    vxn_series = ((market_extra.get("vxn") or {}).get("series") or {})
 
     # SPY 보조 시장카드 — 나스닥(QQQ)만으로는 시장 전반을 못 본다는 지적에 따라 추가.
     # 국면 판정에는 아직 쓰지 않는다(판정은 여전히 QQQ 기준). 데이터를 쌓아
@@ -1843,6 +1844,9 @@ def main():
                 row["market_level"] = lv
                 row["market_weak"] = wk
                 row["market_ret20"] = rt
+                # 그날의 VXN — v12 공포 구간 가점의 입력. hist 행에는 attach_historical_market()가
+                # 같은 시계열로 채우므로 출처가 하나다(야후 소급 수정에도 hist가 기준).
+                row["market_vxn"] = vxn_series.get(new_day)
                 results.append(row); print("OK", tk)
             except Exception as e:
                 # 실패해도 대시보드에서 사라지지 않게 직전 값을 유지한다
