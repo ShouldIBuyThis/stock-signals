@@ -902,7 +902,47 @@ def fetch_market_extra():
     return out
 
 
-def build_qqq_signal_hist(qqq_card, vxn_history, previous_payload):
+def breadth_by_date(results):
+    """날짜별 20일선 위 종목 비율(%). 관심종목 hist의 price·ma20으로 직접 센다.
+    나스닥 전용 등급의 '바닥권' 축에 쓴다(2026-09-02). 20종목 미만인 날은 값을 주지 않는다."""
+    di, pi, mi = HIST_FIELDS.index("date"), HIST_FIELDS.index("price"), HIST_FIELDS.index("ma20")
+    acc = {}
+    for r in results or []:
+        for row in r.get("hist") or []:
+            if not isinstance(row, list) or len(row) <= max(di, pi, mi):
+                continue
+            d, p, m = row[di], row[pi], row[mi]
+            if not d or p is None or m is None:
+                continue
+            a = acc.setdefault(str(d), [0, 0])
+            a[1] += 1
+            if float(p) > float(m):
+                a[0] += 1
+    return {d: round(a[0] / a[1] * 100, 1) for d, a in acc.items() if a[1] >= 20}
+
+
+def qqq_tier_rule(streak, vxn, vxn_prev, breadth):
+    """index.html의 qqqTierRule()과 같은 규칙. 두 곳이 어긋나면 화면과 원장이 갈린다."""
+    peak = bool(vxn is not None and vxn_prev is not None and vxn >= 28 and vxn < vxn_prev)
+    bottom = bool(breadth is not None and breadth < 30)
+    vxn_down = bool(vxn is not None and vxn_prev is not None and vxn < vxn_prev)
+    why = []
+    if streak >= 3:
+        why.append(f"{streak}일 연속 하락")
+    if peak:
+        why.append(f"VXN {vxn:.1f} 꺾임")
+    if bottom and vxn_down:
+        why.append(f"바닥권(20일선 위 {breadth:.1f}%) + VXN 꺾임")
+    if why:
+        return 2, why, peak
+    if streak == 2:
+        why.append("2일 연속 하락")
+    if bottom:
+        why.append(f"바닥권 · 20일선 위 {breadth:.1f}%")
+    return (1 if why else 0), why, peak
+
+
+def build_qqq_signal_hist(qqq_card, vxn_history, previous_payload, breadth_map=None):
     """QQQ 전용 등급의 표시용 30거래일 원장.
 
     일반 종목의 ``hist``는 개별주 evaluate()를 재현하기 위한 원시값이다.
@@ -949,18 +989,12 @@ def build_qqq_signal_hist(qqq_card, vxn_history, previous_payload):
         # VXN은 미국 거래일이 같으므로 직전 QQQ 행의 날짜를 쓴다.
         prev_day = str(raw[len(out) - 1][date_i]) if out else ""
         vxn_prev = vxn_by_date.get(prev_day)
-        peak = bool(vxn is not None and vxn_prev is not None and vxn >= 28 and vxn < vxn_prev)
-        why = []
-        if streak >= 3:
-            why.append(f"{streak}일 연속 하락")
-        if peak:
-            why.append(f"VXN {vxn:.1f} 꺾임")
-        tier = 2 if why else (1 if streak == 2 else 0)
-        if tier == 1:
-            why = ["2일 연속 하락"]
+        breadth = (breadth_map or {}).get(day)
+        tier, why, peak = qqq_tier_rule(streak, vxn, vxn_prev, breadth)
         out.append({
             "date": day, "price": price, "streak": streak,
             "vxn": vxn, "vxn_prev": vxn_prev, "vxn_peak": peak,
+            "breadth": breadth,
             "tier": tier, "why": why, "source": "backfill",
         })
 
@@ -1867,9 +1901,10 @@ def main():
     # '어제 값'의 출처를 frozen 원장 하나로 통일한다 — snapshot/top 불일치 방지.
     sync_prev_from_hist(results)
 
-    # QQQ는 개별주 evaluate()가 아닌 전용 등급(연속 하락·VXN 꺾임)을 쓴다.
+    # QQQ는 개별주 evaluate()가 아닌 전용 등급(연속 하락·VXN 꺾임·바닥권)을 쓴다.
     # 일반 종목 hist·신뢰도 검증·시장국면에는 전혀 관여하지 않는 표시용 원장이다.
-    qqq_signal_hist = build_qqq_signal_hist(qqq_card, vxn_history, prev_payload)
+    qqq_signal_hist = build_qqq_signal_hist(qqq_card, vxn_history, prev_payload,
+                                            breadth_by_date(results))
 
     payload = {
         "generated_at": now_kst.strftime("%Y-%m-%d %H:%M") + " KST",

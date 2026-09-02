@@ -2458,6 +2458,13 @@ const QQQ_FACTS = {
   down2: { n:122, r:{1:61,3:68,5:68,10:72}, half:"전반 69% · 후반 67% (+3일)" },
   down3: { n:47,  r:{1:66,3:70,5:70,10:79}, half:"전반 67% · 후반 73% (+3일)" },
   vxn:   { n:22,  r:{1:68,3:73,5:73,10:91}, half:"표본 22건 — 반쪽을 가를 수 없음" },
+  /* 2026-09-02 사용자 지시로 편입한 바닥권 축 (692거래일 재측정, tools/qqq-method-lab.py).
+     바닥권 단독은 §2를 못 넘는다 — 전반 53/53/53/58%로 기준선 아래, 후반 60/70/70/93%.
+     현행 등급에 없던 순증분 37일은 49/54/57/62%(전반 50/46/50/50)라 국면 산물에 가깝다.
+     그래서 '강한'이 아니라 '매수 우위'에만 두고, 표에 §2 미달을 그대로 적는다. */
+  bottom:    { n:73, r:{1:56,3:60,5:60,10:73}, half:"전반 53/53/53/58 · 후반 60/70/70/93 — 전반이 기준선 아래(§2 ✗)" },
+  /* 바닥권 + VXN 꺾임: +3·+5일은 전·후반 모두 기준선 위(63/63 · 67/67), +1·+10일은 전반 미달. 31건 '방향만'. */
+  bottomVxn: { n:31, r:{1:58,3:65,5:65,10:74}, half:"전반 53/63/63/58 · 후반 67/67/67/100 — +3·+5일만 양쪽 통과" },
 };
 
 /* QQQ가 오늘까지 며칠 연속 내렸나. hist 종가로 센다. */
@@ -2473,18 +2480,35 @@ function qqqDownStreak(){
   return n;
 }
 
-/* 등급 2 = 강한 매수 우위 · 1 = 매수 우위 · 0 = 중립 */
+/* 등급 2 = 강한 매수 우위 · 1 = 매수 우위 · 0 = 중립
+   연속 하락·VXN 꺾임·바닥권(20일선 위 30% 미만) 세 축을 본다. 같은 규칙이
+   qqqTierRule() 한 곳에 있고, 오늘 카드·30일 흐름·main.py가 전부 그것을 쓴다. */
+function qqqTierRule(streak, vxn, vxnPrev, breadth){
+  const peak = has(vxn) && has(vxnPrev) && vxn >= 28 && vxn < vxnPrev;
+  const bottom = has(breadth) && breadth < 30;
+  const vxnDown = has(vxn) && has(vxnPrev) && vxn < vxnPrev;
+  const bottomPeak = bottom && vxnDown;
+  const why = [];
+  if(streak >= 3) why.push(`${streak}일 연속 하락`);
+  if(peak) why.push(`VXN ${r1(vxn)} 꺾임`);
+  if(bottomPeak) why.push(`바닥권(20일선 위 ${r1(breadth)}%) + VXN 꺾임`);
+  if(why.length) return { tier:2, why, streak, peak, bottom, bottomPeak, breadth };
+  if(streak === 2) why.push("2일 연속 하락");
+  if(bottom) why.push(`바닥권 · 20일선 위 ${r1(breadth)}%`);
+  if(why.length) return { tier:1, why, streak, peak, bottom, bottomPeak, breadth };
+  return { tier:0, why:[], streak, peak, bottom, bottomPeak, breadth };
+}
 function qqqGrade(){
   const mx = (state.data && state.data.market_extra) || {};
-  const v = mx.vxn;
-  const peak = !!(v && has(num(v.value)) && has(num(v.prev)) && v.value >= 28 && v.value < v.prev);
-  const n = qqqDownStreak();
-  const why = [];
-  if(n >= 3) why.push(`${n}일 연속 하락`);
-  if(peak) why.push(`VXN ${r1(v.value)} 꺾임`);
-  if(why.length) return { tier:2, why, streak:n, peak };
-  if(n === 2) return { tier:1, why:["2일 연속 하락"], streak:n, peak };
-  return { tier:0, why:[], streak:n, peak };
+  const v = mx.vxn || {};
+  const b = breadthNow();
+  return qqqTierRule(qqqDownStreak(), num(v.value), num(v.prev), (b && b.n >= 20) ? b.pct : null);
+}
+/* 등급의 근거 표본 — 강한 쪽은 연속 하락 → VXN 꺾임 → 바닥권+꺾임 순으로 센 근거를 든다. */
+function qqqGradeFact(g){
+  if(g.tier === 2) return g.streak >= 3 ? QQQ_FACTS.down3 : g.peak ? QQQ_FACTS.vxn : QQQ_FACTS.bottomVxn;
+  if(g.tier === 1) return g.streak === 2 ? QQQ_FACTS.down2 : QQQ_FACTS.bottom;
+  return null;
 }
 /* 옛 이름을 쓰던 자리(비서 답변 등)를 위한 호환 — 발동 사유 배열만 돌려준다. */
 function qqqGradeNow(){ return qqqGrade().why; }
@@ -2505,14 +2529,37 @@ function qqqTierAt(hs, i){
 /* QQQ 전용 30일 원장. 새 main.py가 만든 행에는 VXN까지 함께 고정돼 있어
    현재 카드와 같은 산식으로 흐름을 읽을 수 있다. 구 데이터만 받은 경우에는
    연속 하락 축으로만 보수적으로 되살린다. */
+/* 날짜별 20일선 위 종목 비율. 관심종목 원장(price·ma20)으로 직접 센다 —
+   과거 바닥권을 되짚는 데 쓰고, 20종목 미만인 날은 값을 주지 않는다. */
+let _breadthByDate = null;
+function breadthByDate(){
+  if(_breadthByDate) return _breadthByDate;
+  const acc = {};
+  allStocks().forEach(s => {
+    (histStocks(s) || []).forEach(h => {
+      const p = num(h.price), m = num(h.ma20);
+      if(!h.last_date || !has(p) || !has(m)) return;
+      const a = acc[h.last_date] || (acc[h.last_date] = { above:0, n:0 });
+      a.n++; if(p > m) a.above++;
+    });
+  });
+  const out = {};
+  Object.keys(acc).forEach(d => { if(acc[d].n >= 20) out[d] = Math.round(acc[d].above/acc[d].n*1000)/10; });
+  return (_breadthByDate = out);
+}
 function qqqSignalHistory(s){
   const saved = state.data && state.data.qqq_signal_hist;
   if(Array.isArray(saved) && saved.length){
-    return saved.filter(r=>r && r.date).map(r=>({
-      d:String(r.date), tier:Math.max(0,Math.min(2,Number(r.tier)||0)),
-      streak:Number(r.streak)||0, vxn:num(r.vxn), vxnPrev:num(r.vxn_prev),
-      peak:!!r.vxn_peak, why:Array.isArray(r.why)?r.why:[], source:r.source||"snapshot"
-    }));
+    const br = breadthByDate();
+    return saved.filter(r=>r && r.date).map(r=>{
+      const d = String(r.date);
+      /* 저장된 행은 연속 하락·VXN만 고정돼 있다. 바닥권은 원장으로 되짚어
+         현재 규칙으로 다시 매긴다 — 이 화면은 '과거 원시지표를 현재 산식으로 재평가'한다. */
+      const breadth = has(num(r.breadth)) ? num(r.breadth) : (br[d] ?? null);
+      const g = qqqTierRule(Number(r.streak)||0, num(r.vxn), num(r.vxn_prev), breadth);
+      return { d, tier:g.tier, streak:g.streak, vxn:num(r.vxn), vxnPrev:num(r.vxn_prev),
+        peak:g.peak, bottom:g.bottom, breadth, why:g.why, source:r.source||"snapshot" };
+    });
   }
   const hs=histStocks(s)||[];
   return hs.map((h,i)=>{
@@ -2532,12 +2579,15 @@ function qqqGauges(){
   const vxnPct=vv===null?0:clamp((vv-15)/20*100,0,100);
   const deltaPct=delta===null?50:clamp(50+delta*12,0,100);
   const deltaText=delta===null?"—":`${delta<0?"▼":delta>0?"▲":"·"} ${Math.abs(delta).toFixed(1)}`;
+  const br = has(g.breadth) ? g.breadth : null;
+  const brColor = g.bottomPeak ? "#0f9d58" : g.bottom ? "#2f6fd0" : "#9aa4b2";
   return `<div class="gauges">
     ${gauge("하락 연속", clamp(g.streak/3*100,0,100), `${g.streak}일`, {color:streakColor,ticks:[66]})}
     ${gauge("VXN 수준", vxnPct, vv===null?"—":r1(vv), {color:vxnColor,ticks:[65]})}
     ${gauge("VXN 변화", deltaPct, deltaText, {color:deltaColor,ticks:[50]})}
+    ${gauge("20일선 위", br===null?0:clamp(100-br,0,100), br===null?"—":`${r1(br)}%`, {color:brColor,ticks:[70]})}
   </div>
-  <div class="minor">나스닥 전용 기준 · <b>2일 연속 하락</b> = 매수 우위 · <b>3일 연속 하락</b> 또는 <b>VXN 28 이상 후 하락 전환</b> = 강한 매수 우위</div>`;
+  <div class="minor">나스닥 전용 기준 · <b>2일 연속 하락</b> 또는 <b>바닥권(20일선 위 30% 미만)</b> = 매수 우위 · <b>3일 연속 하락</b>, <b>VXN 28 이상 후 하락 전환</b>, <b>바닥권 + VXN 하락 전환</b> = 강한 매수 우위</div>`;
 }
 
 /* QQQ 카드의 등급 뱃지. 개별주 뱃지가 있던 자리를 그대로 쓴다 —
@@ -2549,18 +2599,17 @@ function qqqGradeBadge(){
   const [cls, lab] = g.tier === 2 ? ["g5", "강한 매수 우위"]
                    : g.tier === 1 ? ["g4", "매수 우위"]
                    : ["g3", "중립"];
-  const f = g.tier === 2 ? (g.streak >= 3 ? QQQ_FACTS.down3 : QQQ_FACTS.vxn)
-          : g.tier === 1 ? QQQ_FACTS.down2 : null;
+  const f = qqqGradeFact(g);
   const tip = g.tier
     ? `나스닥 전용 등급 · ${g.why.join(" · ")} · 실측 +3일 ${f.r[3]}%(${f.n}건, 기준선 ${QQQ_FACTS.base[3]}%)`
-    : `나스닥 전용 등급 · 발동 조건(2일 이상 연속 하락 · VXN 꺾임) 없음`;
+    : `나스닥 전용 등급 · 발동 조건(2일 이상 연속 하락 · VXN 꺾임 · 바닥권) 없음`;
   return `<span class="badge ${cls}" title="${esc(tip)}">${lab}</span>`;
 }
 function nasdaqEdgeBadges(){
   const out = [];
   const g = qqqGrade();
   if(g.tier){
-    const f = g.tier === 2 ? (g.streak >= 3 ? QQQ_FACTS.down3 : QQQ_FACTS.vxn) : QQQ_FACTS.down2;
+    const f = qqqGradeFact(g);
     out.push({ key:"qqq-grade", cls:"nedge-vxn", icon: g.tier === 2 ? "🟢" : "🔵",
       label: g.tier === 2 ? "나스닥 강한 매수 우위" : "나스닥 매수 우위",
       tip:`${g.why.join(" · ")} · 실측 +3일 ${f.r[3]}%(${f.n}건, 기준선 ${QQQ_FACTS.base[3]}%)` });
@@ -2605,7 +2654,7 @@ function nasdaqEdgeHtml(){
    '언제 무엇으로 쟀는지'를 같이 적는다. 백테스트를 다시 돌리면 여기도 고쳐야 한다. */
 const NEDGE_FACTS = [
   { key:"qqq-grade", icon:"🟢", label:"나스닥 전용 등급 v2",
-    rule:"3일 이상 연속 하락 또는 VXN≥28 꺾임 = 강한 매수 우위 · 2일 연속 하락 = 매수 우위",
+    rule:"3일 이상 연속 하락 · VXN≥28 꺾임 · 바닥권(20일선 위 30% 미만)+VXN 꺾임 = 강한 매수 우위 · 2일 연속 하락 또는 바닥권 = 매수 우위 (바닥권은 2026-09-02 사용자 지시로 편입 — 단독은 §2 미달, 73건 56/60/60/73%)",
     d1:70, e1:12, d3:70, e3:9, n:47,
     note:"694거래일(3년) 재측정. 방법론 28종을 비교했더니 추세 계열(20일선·50일선·200일선 위)은 전부 ±3%p로 무효였다 — 지수는 694일 중 481일이 20일선 위라 그 사실에 정보가 없다. 살아남은 건 '짧은 연속 하락 뒤 되돌림'뿐이다: 2일 연속 122건 +3일 68%(+7%p, 전반 69·후반 67) · 3일 연속 47건 +3일 70%(+9%p, 전반 67·후반 73) · VXN≥28 꺾임 22건 +3일 73%. 2일→3일로 갈수록 세지는 단조 관계라 봉우리가 아니다. ⚠ 구 등급(VXN꺾임∪바닥권∪RSI≤35)은 3년으로 늘리자 +3일 +2%p로 쪼그라들고 전반이 기준선 아래여서 교체했다 — 188일 창에서만 좋았던 값이다. VXN≥28 단독은 전반 표본이 5건뿐이라 단독으로 쓰지 않는다 (2026-08-24 · 694거래일)" },
   { key:"vxn-peak", icon:"💡⚡", label:"변동성 피크아웃",
@@ -3251,9 +3300,9 @@ function marketBar(){
       </div>
       <div class="qgrade">${(()=>{ const g=qqqGrade(), B=QQQ_FACTS.base;
         if(!g.tier) return `⚪ <b>나스닥 전용 등급</b> — 오늘은 발동 없음
-             <span class="tkrec-sub">발동 조건: 2일 이상 연속 하락 · 또는 VXN 꺾임 —
+             <span class="tkrec-sub">발동 조건: 2일 이상 연속 하락 · VXN 꺾임 · 바닥권(20일선 위 30% 미만) —
              ${QQQ_FACTS.window} 기준선 +3일 ${B[3]}%</span>`;
-        const f = g.tier===2 ? (g.streak>=3 ? QQQ_FACTS.down3 : QQQ_FACTS.vxn) : QQQ_FACTS.down2;
+        const f = qqqGradeFact(g);
         return `${g.tier===2?"🟢":"🔵"} <b>나스닥 전용 등급 — <span class="hl">${g.tier===2?"강한 매수 우위":"매수 우위"}</span></b> (${g.why.map(esc).join(" · ")})
              <span class="tkrec-sub">실측: +1일 <span class="hl">${f.r[1]}%</span> · +3일 <span class="hl">${f.r[3]}%</span> · +10일 ${f.r[10]}%
              (${f.n}건 · 기준선 ${B[1]}/${B[3]}/${B[10]}%)</span>`;
@@ -4186,7 +4235,9 @@ function qqqGradeRecordTable(compact){
   const rows = [
     { lab:"🟢 강한 매수 우위", sub:"3일 이상 연속 하락", f:QQQ_FACTS.down3, on:g.tier===2 && g.streak>=3 },
     { lab:"🟢 강한 매수 우위", sub:"VXN 28+ 꺾임(변동성 피크아웃)", f:QQQ_FACTS.vxn, on:g.tier===2 && g.peak },
-    { lab:"🔵 매수 우위",     sub:"2일 연속 하락",       f:QQQ_FACTS.down2, on:g.tier===1 },
+    { lab:"🟢 강한 매수 우위", sub:"바닥권(20일선 위 30%↓) + VXN 꺾임", f:QQQ_FACTS.bottomVxn, on:g.tier===2 && g.bottomPeak },
+    { lab:"🔵 매수 우위",     sub:"2일 연속 하락",       f:QQQ_FACTS.down2, on:g.tier===1 && g.streak===2 },
+    { lab:"🔵 매수 우위",     sub:"바닥권 · 20일선 위 30% 미만", f:QQQ_FACTS.bottom, on:g.tier===1 && g.bottom },
   ];
   const cell = (f, h) => {
     const d = f.r[h] - B[h];
@@ -4218,7 +4269,10 @@ function qqqGradeRecordTable(compact){
       지수는 하루 변동이 작아 <b>오르면 승(0% 기준)</b>으로 셌어요 —
       개별 종목 표(±1% 밖만 승패)와 <b>같은 자로 잰 숫자가 아닙니다.</b></p>
     <p class="tkrec-note" style="color:var(--sell)">⚠ VXN 줄은 22건뿐이라 §2 반쪽을 가를 수 없어요.
-      연속 하락 축은 2일→3일로 단조롭게 좋아지지만, 이것도 3년 한 구간의 값입니다.</p></div>`;
+      연속 하락 축은 2일→3일로 단조롭게 좋아지지만, 이것도 3년 한 구간의 값입니다.<br>
+      ⚠ <b>바닥권 줄은 §2 반쪽을 못 넘습니다</b> — 전반 3년의 앞 절반은 53/53/53/58%로 기준선 아래였고,
+      뒤 절반(60/70/70/93%)이 평균을 끌어올렸어요. 그래서 '강한'이 아니라 '매수 우위'에만 두었고,
+      VXN 꺾임까지 겹친 날(31건)만 +3·+5일이 앞뒤 모두 기준선 위였습니다.</p></div>`;
 }
 
 function tickerRecordTable(s, compact){
@@ -4320,13 +4374,14 @@ function openQqqTimeline(s){
       <span class="tlnum">${r.tier===2?"강":r.tier===1?"매":"·"}</span>
       <span class="tlg ${cls[r.tier]}">${label[r.tier]}</span>
     </div>
-    <div class="tlsub">${esc(why)} · ${esc(vxnText)}${r.source==="backfill"?` · <span style="color:var(--faint)">소급 판정</span>`:""}</div>`;
+    <div class="tlsub">${esc(why)} · ${esc(vxnText)}${has(r.breadth)?` · 20일선 위 ${r1(r.breadth)}%`:""}${r.source==="backfill"?` · <span style="color:var(--faint)">소급 판정</span>`:""}</div>`;
   }).reverse().join("");
   openModal(`<h3>📈 QQQ 나스닥 전용 신호 흐름</h3>
     <p style="font-size:12px;color:var(--muted);margin-bottom:9px">최근 ${rows.length}거래일 · 최신순 · 개별주 점수와 분리</p>
     <div class="tl">${body}</div>
     <p style="font-size:12px;color:var(--reason);line-height:1.75;margin-top:11px">
-      <b>매수 우위</b>는 2일 연속 하락, <b>강한 매수 우위</b>는 3일 연속 하락 또는 VXN 28 이상 후 하락 전환이에요.<br>
+      <b>매수 우위</b>는 2일 연속 하락 또는 바닥권(20일선 위 30% 미만), <b>강한 매수 우위</b>는 3일 연속 하락 · VXN 28 이상 후 하락 전환 · 바닥권+VXN 하락 전환이에요.
+      바닥권은 관심종목 원장으로 되짚어 현재 규칙으로 다시 매깁니다.<br>
       VXN 과거값이 있는 행은 같은 전용 기준으로 소급 판정했고, 이후 새 거래일은 해당 종가 시점의 값으로 고정합니다.
       이 흐름은 나스닥 자리 참고용이며 일반 종목 점수·랭킹에는 영향을 주지 않아요.</p>
     ${qqqGradeRecordTable(false)}
