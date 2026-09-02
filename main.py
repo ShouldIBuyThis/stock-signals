@@ -1421,7 +1421,7 @@ def hist_row_from_current(r):
     ]
 
 
-def freeze_signal_hist(results, prev_rows, mkt=None, market_events=None, market_events_ok=False):
+def freeze_signal_hist(results, prev_rows, mkt=None, market_events=None, market_events_ok=False, vxn_series=None):
     """
     공개된 종가 스냅샷을 append-only로 고정한다.
 
@@ -1438,6 +1438,7 @@ def freeze_signal_hist(results, prev_rows, mkt=None, market_events=None, market_
     last_i = len(HIST_FIELDS) - 1
     qmap = market_hist_map(mkt)
     emap = market_event_map(market_events)
+    vmap = vxn_series or {}
     snap_cache = {}
 
     def day_snapshot(ticker, day):
@@ -1497,6 +1498,15 @@ def freeze_signal_hist(results, prev_rows, mkt=None, market_events=None, market_
         if iev is not None and h[iev] is None and market_events_ok:
             h[iev] = emap.get(str(d), [])
             backfilled["market_events"] += 1
+        # 그날의 VXN. attach_historical_market()가 채운 값은 여기서 prev 원장으로
+        # 되돌리며 사라지므로(2026-09-02 배포 #286: 미국 80종목 전부 None) 같은 시계열로
+        # 여기서도 한 번 채운다. 값이 있으면 건드리지 않는다.
+        ivx = idx.get("market_vxn")
+        if ivx is not None and h[ivx] is None:
+            v = vmap.get(str(d))
+            if v is not None:
+                h[ivx] = v
+                backfilled["market_vxn"] += 1
         return h
 
     frozen_count = 0
@@ -1913,7 +1923,7 @@ def main():
 
     # 신뢰도용 최근 hist는 여기서 고정한다.
     # 과거 날짜는 직전 signals.json 값을 그대로 유지하고 새 거래일만 append한다.
-    freeze_signal_hist(results, prev_rows, mkt, market_events, market_events_ok)
+    freeze_signal_hist(results, prev_rows, mkt, market_events, market_events_ok, vxn_series)
     # '어제 값'의 출처를 frozen 원장 하나로 통일한다 — snapshot/top 불일치 방지.
     sync_prev_from_hist(results)
     # 그날의 VXN도 출처를 원장 하나로 통일한다. carry된 종목(스코프 밖·조회 실패)은
