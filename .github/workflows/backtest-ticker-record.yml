@@ -92,7 +92,7 @@ jobs:
         continue-on-error: true
         run: node tools/rev4-vol-lab.js backtest/raw.json
 
-      - name: 실험 — 강한매수 재배정: 지지반등 가점 · VXN 가점 · 국면 감점 보정 (로그 출력 전용)
+      - name: 실험 — 강한매수 재배정 — 지지반등 가점 · VXN 가점 · 국면 감점 보정 (로그 출력 전용)
         # 사용자 지시(2026-08-25): "단기지지·중기지지를 크게 안 깨고 반등한 주식에 가산점,
         # 시장 4단계·공포지수 보정해서 강한매수 산식 재배정하면 승률 어떻게 되나".
         continue-on-error: true
