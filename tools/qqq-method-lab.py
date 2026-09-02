@@ -159,6 +159,30 @@ METHODS = [
     ("X3 2일 연속 하락 & 50일선 위", V.down2 & (V.c > V.ma50)),
     ("X4 볼린저≤20 & 50일선 위",    (V.bb <= 20) & (V.c > V.ma50)),
     ("X5 V2 ∪ B2 ∪ R2 (완화)",   ((V.vxn >= 28) & (V.vxn < V.vxnPrev)) | (V.br < 40) | (V.rsi <= 40)),
+    # ── 2026-09-02 추가 — 사용자 지시 "바닥권인데 전용등급 발동 안 함 · VXN 적용 안 됨".
+    #    09-01 실제 자리: breadth 25% · VXN 21.96(전일 20.18에서 상승) · 연속하락 1일.
+    #    그 자리를 잡을 수 있는 후보와 그 이웃값을 같이 잰다(§3 고원 확인).
+    ("B4 20일선 위 25% 미만",      V.br < 25),
+    ("B5 20일선 위 20% 미만",      V.br < 20),
+    ("B6 바닥권(30↓) & VXN 꺾임",  (V.br < 30) & (V.vxn < V.vxnPrev)),
+    ("B7 바닥권(30↓) & VXN 상승",  (V.br < 30) & (V.vxn > V.vxnPrev)),
+    ("B8 바닥권(30↓) & 2일 연속하락", (V.br < 30) & V.down2),
+    ("B9 바닥권(30↓) & 20일선 아래", (V.br < 30) & (V.c < V.ma20)),
+    ("B10 바닥권 첫날(전일 30↑)",    (V.br < 30) & (V.br.shift(1) >= 30)),
+    ("B11 바닥권 탈출(30↑, 전일 30↓)", (V.br >= 30) & (V.br.shift(1) < 30)),
+    ("V5 VXN ≥ 22 & 꺾임",       (V.vxn >= 22) & (V.vxn < V.vxnPrev)),
+    ("V6 VXN ≥ 25",             V.vxn >= 25),
+    ("V7 VXN ≥ 22",             V.vxn >= 22),
+    ("V8 VXN 2일 연속 상승",       (V.vxn > V.vxnPrev) & (V.vxnPrev > V.vxn.shift(2))),
+    ("V9 VXN 20일평균 대비 +15%↑",  V.vxn >= V.vxn.rolling(20).mean() * 1.15),
+    ("V10 V9 & 꺾임",             (V.vxn >= V.vxn.rolling(20).mean() * 1.15) & (V.vxn < V.vxnPrev)),
+    ("V11 VXN 5일 고점 뒤 꺾임",    (V.vxnPrev >= V.vxn.shift(1).rolling(5).max()) & (V.vxn < V.vxnPrev)),
+    ("C1 R7∪R8∪V2 (현행 v2 등급)",  V.down2 | ((V.vxn >= 28) & (V.vxn < V.vxnPrev))),
+    ("C2 현행 v2 ∪ B1",           V.down2 | ((V.vxn >= 28) & (V.vxn < V.vxnPrev)) | (V.br < 30)),
+    ("C3 현행 v2 ∪ B4",           V.down2 | ((V.vxn >= 28) & (V.vxn < V.vxnPrev)) | (V.br < 25)),
+    ("C4 현행 v2 ∪ B6",           V.down2 | ((V.vxn >= 28) & (V.vxn < V.vxnPrev)) | ((V.br < 30) & (V.vxn < V.vxnPrev))),
+    ("C5 현행 v2 ∪ V5",           V.down2 | ((V.vxn >= 22) & (V.vxn < V.vxnPrev))),
+    ("C6 B1 단독 − 현행 v2 (순증분)", (V.br < 30) & ~V.down2 & ~((V.vxn >= 28) & (V.vxn < V.vxnPrev))),
 ]
 
 print(f"\n  기준 = 아무 날이나 산 경우. 칸: 상승비율(표본) 대비%p 평균수익 · +1/+3/+5/+10일")
