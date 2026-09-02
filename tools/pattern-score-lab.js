@@ -77,11 +77,12 @@ function clip(pred) {
 }
 const H1 = clip(d => d < MID), H2 = clip(d => d >= MID);
 
-const SCORE_ANCHOR = `  const pullScore =Math.round((pPos+tNeg+cNeg)*10)/10;   // 📉 눌림목 — 최종 판정 축
-  const revScore  =Math.round((rPos+rNeg+cNeg)*10)/10;   // 🔄 역추세 반등 — 최종 판정 축`;
+/* v12(2026-09-02)부터 점수 확정 줄에 vxnBonus가 들어 있다 — 앵커를 그 줄에 맞춘다. */
+const SCORE_ANCHOR = `  const pullScore =Math.round((pPos+tNeg+cNeg+vxnBonus)*10)/10;   // 📉 눌림목 — 최종 판정 축
+  const revScore  =Math.round((rPos+rNeg+cNeg+vxnBonus)*10)/10;   // 🔄 역추세 반등 — 최종 판정 축`;
 const PATCHED = `  const _patB = (typeof __PAT !== 'undefined' && __PAT.has(s.ticker + '|' + s.last_date)) ? __BONUS : 0;
-  const pullScore =Math.round((pPos+tNeg+cNeg+_patB)*10)/10;
-  const revScore  =Math.round((rPos+rNeg+cNeg+_patB)*10)/10;`;
+  const pullScore =Math.round((pPos+tNeg+cNeg+vxnBonus+_patB)*10)/10;
+  const revScore  =Math.round((rPos+rNeg+cNeg+vxnBonus+_patB)*10)/10;`;
 
 function makePage(bonus, set) {
   const patch = [['result._diag=diag;', 'result._diag=diag; result._all=out;'],
