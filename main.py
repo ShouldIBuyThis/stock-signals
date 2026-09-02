@@ -1658,6 +1658,18 @@ def attach_historical_rs20(results, mkt):
                 h[irs] = safe(float(rr)-float(qr))
 
 
+def sync_market_vxn_from_hist(results):
+    """top 행의 market_vxn을 last_date와 같은 hist 행 값으로 맞춘다(원장이 진실)."""
+    idx = {k: i for i, k in enumerate(HIST_FIELDS)}
+    idate, ivx = idx["date"], idx["market_vxn"]
+    for r in results:
+        day = str(r.get("last_date") or "")
+        for h in reversed(r.get("hist") or []):
+            if isinstance(h, list) and len(h) > ivx and str(h[idate]) == day:
+                r["market_vxn"] = h[ivx]
+                break
+
+
 def attach_historical_market(results, mkt, vxn_series=None):
     """각 hist 행에 '그 날짜의' 시장 입력을 붙인다. 이미 있으면 덮지 않는다.
 
@@ -1904,6 +1916,10 @@ def main():
     freeze_signal_hist(results, prev_rows, mkt, market_events, market_events_ok)
     # '어제 값'의 출처를 frozen 원장 하나로 통일한다 — snapshot/top 불일치 방지.
     sync_prev_from_hist(results)
+    # 그날의 VXN도 출처를 원장 하나로 통일한다. carry된 종목(스코프 밖·조회 실패)은
+    # top 행에 market_vxn이 없는데 hist 행은 attach_historical_market()가 채워 둬서
+    # validate_signals가 top/hist 불일치로 멈췄다(2026-09-02 run #281·#283 실제 사례).
+    sync_market_vxn_from_hist(results)
 
     # QQQ는 개별주 evaluate()가 아닌 전용 등급(연속 하락·VXN 꺾임·바닥권)을 쓴다.
     # 일반 종목 hist·신뢰도 검증·시장국면에는 전혀 관여하지 않는 표시용 원장이다.

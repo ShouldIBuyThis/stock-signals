@@ -86,6 +86,8 @@ const CANDS = [
   ['D1 A1 + B1',                      { sup: 'any', supB: 0.3, vxT: 25, vxB: 0.3 }],
   ['D2 A2 + B2 + C3 (전부)',           { sup: 'any', supB: 0.5, vxT: 25, vxB: 0.5, relax: true }],
   ['D3 A1 + C3',                      { sup: 'any', supB: 0.3, relax: true }],
+  // 2026-09-02 사용자 승인으로 B3(v12)와 C3를 실제 적용했다 — 둘을 합친 성적은 따로 재야 한다.
+  ['E1 B3 + C3 (v12 실제 적용)',       { vxT: 28, vxB: 0.5, relax: true }],
 ];
 
 const SCORE_ANCHOR = `  const pullScore =Math.round((pPos+tNeg+cNeg)*10)/10;   // 📉 눌림목 — 최종 판정 축
