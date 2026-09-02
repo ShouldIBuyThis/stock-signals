@@ -1,13 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-반전 패턴 6종 승률 — 넥라인 돌파 진입 · 패턴 높이로 목표/손절 (읽기 전용 · 로그만)
+차트 패턴 18종 승률 — 넥라인 돌파 진입 · 패턴 높이로 목표/손절 (읽기 전용 · 로그만)
 
 사용자 요청(2026-08-25): 패턴 매매법을 적용한 승률 산식 시뮬레이션.
 사용자가 짚은 대로 **패턴의 기준값은 지지선·저항선(넥라인)과 패턴 높이**로 만든다.
 
-  쌍바닥 / 역헤드앤숄더 / 하락 쐐기   → 상승 반전 (매수)
-  쌍봉  / 헤드앤숄더   / 상승 쐐기   → 하락 반전 (우리 신호와 겹치면 나쁜가)
+  상승형 10 : 쌍바닥 · 역헤드앤숄더 · 삼중바닥 · 하락 쐐기 · 상승 삼각형 ·
+             하락 채널 돌파 · 직사각형↑ · 삼각수렴↑ · 깃발 · 페넌트
+  하락형  8 : 쌍봉 · 헤드앤숄더 · 삼중천장 · 상승 쐐기 · 하락 삼각형 ·
+             상승 채널 이탈 · 직사각형↓ · 삼각수렴↓
+  (2026-08-25 사용자가 준 차트 패턴 16종 그림을 그대로 옮겼다. 방향이 중립인
+   삼각수렴·직사각형은 위·아래를 따로 재므로 18줄이 된다.)
+
+⚠ 18종을 한 판에서 훑으면 그중 한둘은 우연히 좋다(다중비교). 그래서 채택은
+   기준선 대비 %p · §2 전·후반 같은 방향 · 표본 15+ 세 관문을 전부 넘은 것만 한다.
 
 진입·목표·손절 (그림의 정의 그대로)
   진입 = 넥라인(직전 고점/저점)을 종가로 0.5% 넘어선 첫날
@@ -21,9 +28,9 @@
    (하모닉 검증과 같은 규칙. 이걸 안 지키면 승률이 가짜로 오른다.)
 ⚠ 아무 파일도 안 고친다. CI에서만 돈다.
 
-사용: python tools/pattern-lab.py [--years 3] [--confirm 3]
+사용: python tools/pattern-lab.py [--years 3] [--confirm 3] [--emit out.json]
 """
-import sys, argparse
+import sys, argparse, json
 import numpy as np
 import pandas as pd
 import yfinance as yf
@@ -34,11 +41,12 @@ import main as M
 ap = argparse.ArgumentParser()
 ap.add_argument("--years", type=int, default=3)
 ap.add_argument("--confirm", type=int, default=3)
+ap.add_argument("--emit", default="", help="진입 목록을 JSON으로 떨군다 (가산점 시뮬레이션용)")
 args = ap.parse_args()
 K = args.confirm
 
 UNIV = sorted({tk for d in M.WATCHLIST.values() for tk in d} - set(M.LEVERAGED))
-print(f"■ 반전 패턴 6종 — {len(UNIV)}종목 · {args.years}년 · 피벗 확정 {K}봉(리페인트 금지)")
+print(f"■ 차트 패턴 18종 — {len(UNIV)}종목 · {args.years}년 · 피벗 확정 {K}봉(리페인트 금지)")
 
 px = yf.download(UNIV, period=f"{args.years}y", auto_adjust=True,
                  progress=False, group_by="ticker", threads=True)
@@ -132,6 +140,66 @@ for tk in UNIV:
         if kinds == "LHLH" and v2 > v0 and v3 > v1 and (v1 - v0) > (v3 - v2) > 0:
             scan(i3, v2, v3, False, "상승 쐐기", cf3)
 
+        # ══ 아래는 사용자가 준 차트 패턴 그림의 나머지 종목 (2026-08-25) ══
+        #   방향이 정해진 것(삼각형·채널)은 교과서 방향 그대로,
+        #   방향이 중립인 것(삼각수렴·직사각형)은 위·아래를 따로 잰다.
+        #   ⚠ 쐐기와 채널은 같은 4점 배열을 공유한다(폭이 줄면 쐐기, 유지면 채널).
+        #      경계에서 겹치는 진입이 있으므로 두 줄을 합산하지 말 것.
+        near = lambda a, b: abs(a - b) / max(abs(a), 1e-9) < TOL
+
+        # ── 상승 삼각형 : 저항은 수평, 저점만 높아진다 → 저항 돌파 ────
+        if kinds == "HLHL" and near(v0, v2) and v3 > v1:
+            scan(i3, max(v0, v2), min(v1, v3), True, "상승 삼각형", cf3)
+        # ── 하락 삼각형 : 지지는 수평, 고점만 낮아진다 → 지지 이탈 ────
+        if kinds == "LHLH" and near(v0, v2) and v3 < v1:
+            scan(i3, min(v0, v2), max(v1, v3), False, "하락 삼각형", cf3)
+        # ── 삼각수렴(대칭) : 고점은 낮아지고 저점은 높아진다 ──────────
+        #    방향이 중립인 패턴이라 위·아래를 따로 잰다. 둘 중 하나는 반드시
+        #    맞으므로 '둘을 합쳐서 좋다'고 말하면 안 된다.
+        if kinds == "HLHL" and v2 < v0 and v3 > v1:
+            scan(i3, v2, v3, True, "삼각수렴↑", cf3)
+        if kinds == "LHLH" and v2 > v0 and v3 < v1:
+            scan(i3, v2, v3, False, "삼각수렴↓", cf3)
+        # ── 하락 채널 : 고점·저점 모두 낮아지고 폭은 유지 → 상단 돌파 ─
+        if kinds == "HLHL" and v2 < v0 and v3 < v1 and (v0 - v1) > 0 and 0.8 <= (v2 - v3) / max(v0 - v1, 1e-9) <= 1.6:
+            scan(i3, v2, v3, True, "하락 채널 돌파", cf3)
+        # ── 상승 채널 : 고점·저점 모두 높아지고 폭은 유지 → 하단 이탈 ─
+        if kinds == "LHLH" and v2 > v0 and v3 > v1 and (v1 - v0) > 0 and 0.8 <= (v3 - v2) / max(v1 - v0, 1e-9) <= 1.6:
+            scan(i3, v2, v3, False, "상승 채널 이탈", cf3)
+        # ── 직사각형(박스) : 고점 둘·저점 둘이 모두 비슷 ─────────────
+        if kinds in ("HLHL", "LHLH"):
+            his = [v0, v2] if kinds[0] == "H" else [v1, v3]
+            los = [v1, v3] if kinds[0] == "H" else [v0, v2]
+            if near(his[0], his[1]) and near(los[0], los[1]) and min(his) > max(los) * 1.03:
+                scan(i3, max(his), min(los), True,  "직사각형↑", cf3)
+                scan(i3, min(los), max(his), False, "직사각형↓", cf3)
+        # ── 깃발·페넌트 : 급등(장대) 뒤의 짧은 되돌림 ────────────────
+        #    장대가 없으면 그냥 쐐기·채널이다. 장대를 진입 조건에 넣는 것이
+        #    이 두 패턴의 전부이므로 그것부터 확인한다.
+        if kinds == "HLHL" and i0 >= 20:
+            lo = float(min(C[i0 - 20:i0 + 1]))
+            pole = lo > 0 and (v0 / lo - 1) >= 0.15
+            if pole and v2 < v0 and v3 < v1 and (v0 - v1) > 0:
+                ratio = (v2 - v3) / max(v0 - v1, 1e-9)
+                if ratio >= 0.8:
+                    scan(i3, v2, v3, True, "깃발", cf3)
+                elif ratio > 0:
+                    scan(i3, v2, v3, True, "페넌트", cf3)
+
+    # ── 5점 배열이 필요한 것: 삼중천장·삼중바닥 ─────────────────────
+    for c in range(4, len(Z)):
+        w = Z[c - 4:c + 1]
+        kinds = "".join(x[2] for x in w)
+        vs = [x[1] for x in w]
+        i4, cf4 = w[4][0], w[4][3]
+        near = lambda a, b: abs(a - b) / max(abs(a), 1e-9) < TOL
+        # 삼중천장 : H L H L H — 고점 셋이 비슷, 넥라인 = 두 저점 중 낮은 쪽
+        if kinds == "HLHLH" and near(vs[0], vs[2]) and near(vs[2], vs[4]):
+            scan(i4, min(vs[1], vs[3]), max(vs[0], vs[2], vs[4]), False, "삼중천장", cf4)
+        # 삼중바닥 : L H L H L — 저점 셋이 비슷, 넥라인 = 두 고점 중 높은 쪽
+        if kinds == "LHLHL" and near(vs[0], vs[2]) and near(vs[2], vs[4]):
+            scan(i4, max(vs[1], vs[3]), min(vs[0], vs[2], vs[4]), True, "삼중바닥", cf4)
+
 BASE = pd.DataFrame(base_rows)
 DF = pd.DataFrame(rows)
 if BASE.empty or DF.empty:
@@ -168,7 +236,10 @@ print("\n── ① 넥라인 돌파 진입 후 고정 구간 성적 · +5/+10/+
 print("     ※ 하락 반전(쌍봉·헤드앤숄더·상승 쐐기)은 **승률이 기준선보다 낮아야** 패턴이 맞는 것")
 print("  " + "─" * 74)
 print(f"  {'(아무 날이나 = 기준선)':<20} [{grade(len(BASE))}] " + " ".join(cell(B[h]) for h in HS))
-ORDER = ["쌍바닥", "역헤드앤숄더", "하락 쐐기", "쌍봉", "헤드앤숄더", "상승 쐐기"]
+ORDER = ["쌍바닥", "역헤드앤숄더", "삼중바닥", "하락 쐐기", "상승 삼각형", "하락 채널 돌파",
+         "직사각형↑", "삼각수렴↑", "깃발", "페넌트",
+         "쌍봉", "헤드앤숄더", "삼중천장", "상승 쐐기", "하락 삼각형", "상승 채널 이탈",
+         "직사각형↓", "삼각수렴↓"]
 for nm in ORDER:
     sub = DF[DF.pat == nm]
     if not len(sub):
@@ -204,3 +275,10 @@ print("    반대로 승률이 높아도 손익비가 1 미만이면 결국 잃�
 print("\n※ 채택 기준(방법론): 기준선 대비 +%p · §2 전·후반 같은 방향 · 표본 15+(§5-1).")
 print("  캔들 16종·하모닉 4종이 이미 같은 문턱에서 전부 기각됐다 — 사전 확률은 낮다.")
 print("  이 도구는 실험 전용이다. 화면 반영은 사용자 승인 후에만.")
+
+if args.emit:
+    with open(args.emit, "w", encoding="utf-8") as f:
+        json.dump({"window": f"{args.years}y", "confirm": K,
+                   "entries": [{"tk": r["tk"], "d": r["d"], "pat": r["pat"], "up": r["up"]}
+                               for r in rows]}, f, ensure_ascii=False)
+    print(f"\n  → 진입 {len(rows)}건을 {args.emit} 에 떨궜다 (가산점 시뮬레이션용, 커밋 안 함)")

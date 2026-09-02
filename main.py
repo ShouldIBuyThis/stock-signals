@@ -16,7 +16,7 @@ import pandas as pd
 import numpy as np
 import json
 import exchange_calendars as xcals
-from datetime import datetime, timedelta, time as dtime
+from datetime import datetime, date, timedelta, time as dtime
 from zoneinfo import ZoneInfo
 
 PERIOD = "1y"    # 52주 신고가 계산 위해 1년
@@ -72,10 +72,17 @@ HIST_FIELDS = ["date","price","change_1d","ma5","ma10","ma20","ma50","ma60","rsi
                #   w_streak     연속 주봉 방향 (+n 양봉 n주, -n 음봉 n주)
                #   m_ma6_pos    현재가가 6개월선 대비 몇 % 위/아래인가
                #   m_streak     연속 월봉 방향
-               "w_rsi", "w_ma20_pos", "w_streak", "m_ma6_pos", "m_streak"]
+               "w_rsi", "w_ma20_pos", "w_streak", "m_ma6_pos", "m_streak",
+               # 2026-08-25 확장: 그날의 나스닥 변동성지수(VXN).
+               # 189일 실측에서 **VXN>=25인 날 강한매수가 62/67/72/73%**로 그날
+               # 기준선(51/52/52/52%)을 +11~+21%p 넘었다. 그런데 VXN 과거값이
+               # 원장에 없어 화면·검증 어디에서도 쓸 수 없었다(backtest raw.json의
+               # macro.vxn 에만 있었다). market_level과 같은 '그날의 시장 입력'이므로
+               # 같은 방식으로 얼려 둔다 — 야후가 소급 수정해도 과거 판정이 안 흔들린다.
+               "market_vxn"]
 
 # freeze 단계에서 옛 행에 뒤늦게 채워 넣는 열. 이미 값이 있으면 절대 덮지 않는다.
-HIST_BACKFILL_FIELDS = ["atr_pct", "market_level", "market_weak", "market_ret20", "market_events"]
+HIST_BACKFILL_FIELDS = ["atr_pct", "market_level", "market_weak", "market_ret20", "market_events", "market_vxn"]
 
 RUN_SCOPE = os.environ.get("RUN_SCOPE", "all").strip().lower()
 if RUN_SCOPE not in ("all", "kr", "us"):
@@ -142,6 +149,30 @@ MAJOR_EVENT_KEYS = {
     "PCE": ["personal consumption", "pce price"],
     "고용": ["nonfarm", "non-farm", "employment situation", "unemployment rate", "jobless claims", "jolts"],
 }
+
+def quad_witching_dates(start_day, end_day):
+    """네마녀의 날(Quadruple Witching) — 3·6·9·12월 셋째 금요일.
+
+    지수선물·지수옵션·개별주옵션·개별주선물이 같은 날 만기라 종가 부근 수급이
+    평소와 다르다. 경제 캘린더 API에는 안 올라오므로 달력으로 직접 만든다.
+    사용자 지시(2026-09-02): "네마녀의 날도 미국시장 이벤트로 추가".
+    다른 이벤트와 마찬가지로 경고 표시 전용이며 점수·등급에는 쓰지 않는다.
+    """
+    out = []
+    y, m = start_day.year, start_day.month
+    while (y, m) <= (end_day.year, end_day.month):
+        if m in (3, 6, 9, 12):
+            first = date(y, m, 1)
+            # 첫 금요일 = 1일 + (4 - weekday) mod 7, 셋째 금요일은 +14일
+            third_fri = first + timedelta(days=(4 - first.weekday()) % 7 + 14)
+            if start_day <= third_fri <= end_day:
+                out.append({"type": "네마녀의 날",
+                            "name": "선물·옵션 동시 만기 (Quadruple Witching)",
+                            "date": third_fri.strftime("%Y-%m-%d")})
+        m += 1
+        if m > 12:
+            y, m = y + 1, 1
+    return out
 
 def _event_date(v):
     """pandas/yfinance datetime을 YYYY-MM-DD로 안전하게 정규화."""
@@ -450,6 +481,9 @@ def fetch_event_calendars(now_kst, wanted_tickers):
     except Exception as e:
         status["economic_events_error"] = f"{type(e).__name__}: {e}"
         print("경제 이벤트 캘린더 조회 실패:", e)
+
+    # 네마녀의 날은 캘린더 조회와 무관하게 달력으로 넣는다(조회가 실패한 날에도 붙는다).
+    out_market.extend(quad_witching_dates(start_day, end_day))
 
     uniq=[]; seen=set()
     for x in sorted(out_market, key=lambda z:(z.get("date") or "", z.get("name") or "")):
@@ -843,7 +877,11 @@ def fetch_market_extra():
                         "value": round(float(c.iloc[-1]), 4),
                         "prev": round(float(c.iloc[-2]), 4),
                         "date": c.index[-1].strftime("%Y-%m-%d"),
-                        "inverse": sym in ("IEF", "TLT")}
+                        "inverse": sym in ("IEF", "TLT"),
+                        # 일자별 이력. hist에 '그날의 값'을 얼려 넣는 데만 쓰고
+                        # payload에서는 빼낸다(파일만 커진다).
+                        "series": {d.strftime("%Y-%m-%d"): round(float(v), 4)
+                                   for d, v in c.tail(400).items()}}
                 # QQQ 전용 등급의 VXN 꺾임은 과거 날짜별 값이 있어야 다시
                 # 판정할 수 있다. 화면에 이 전체 시계열을 노출하지는 않고,
                 # 아래에서 QQQ 전용 30일 원장을 최초 1회 채우는 데만 쓴다.
@@ -864,7 +902,47 @@ def fetch_market_extra():
     return out
 
 
-def build_qqq_signal_hist(qqq_card, vxn_history, previous_payload):
+def breadth_by_date(results):
+    """날짜별 20일선 위 종목 비율(%). 관심종목 hist의 price·ma20으로 직접 센다.
+    나스닥 전용 등급의 '바닥권' 축에 쓴다(2026-09-02). 20종목 미만인 날은 값을 주지 않는다."""
+    di, pi, mi = HIST_FIELDS.index("date"), HIST_FIELDS.index("price"), HIST_FIELDS.index("ma20")
+    acc = {}
+    for r in results or []:
+        for row in r.get("hist") or []:
+            if not isinstance(row, list) or len(row) <= max(di, pi, mi):
+                continue
+            d, p, m = row[di], row[pi], row[mi]
+            if not d or p is None or m is None:
+                continue
+            a = acc.setdefault(str(d), [0, 0])
+            a[1] += 1
+            if float(p) > float(m):
+                a[0] += 1
+    return {d: round(a[0] / a[1] * 100, 1) for d, a in acc.items() if a[1] >= 20}
+
+
+def qqq_tier_rule(streak, vxn, vxn_prev, breadth):
+    """index.html의 qqqTierRule()과 같은 규칙. 두 곳이 어긋나면 화면과 원장이 갈린다."""
+    peak = bool(vxn is not None and vxn_prev is not None and vxn >= 28 and vxn < vxn_prev)
+    bottom = bool(breadth is not None and breadth < 30)
+    vxn_down = bool(vxn is not None and vxn_prev is not None and vxn < vxn_prev)
+    why = []
+    if streak >= 3:
+        why.append(f"{streak}일 연속 하락")
+    if peak:
+        why.append(f"VXN {vxn:.1f} 꺾임")
+    if bottom and vxn_down:
+        why.append(f"바닥권(20일선 위 {breadth:.1f}%) + VXN 꺾임")
+    if why:
+        return 2, why, peak
+    if streak == 2:
+        why.append("2일 연속 하락")
+    if bottom:
+        why.append(f"바닥권 · 20일선 위 {breadth:.1f}%")
+    return (1 if why else 0), why, peak
+
+
+def build_qqq_signal_hist(qqq_card, vxn_history, previous_payload, breadth_map=None):
     """QQQ 전용 등급의 표시용 30거래일 원장.
 
     일반 종목의 ``hist``는 개별주 evaluate()를 재현하기 위한 원시값이다.
@@ -911,18 +989,12 @@ def build_qqq_signal_hist(qqq_card, vxn_history, previous_payload):
         # VXN은 미국 거래일이 같으므로 직전 QQQ 행의 날짜를 쓴다.
         prev_day = str(raw[len(out) - 1][date_i]) if out else ""
         vxn_prev = vxn_by_date.get(prev_day)
-        peak = bool(vxn is not None and vxn_prev is not None and vxn >= 28 and vxn < vxn_prev)
-        why = []
-        if streak >= 3:
-            why.append(f"{streak}일 연속 하락")
-        if peak:
-            why.append(f"VXN {vxn:.1f} 꺾임")
-        tier = 2 if why else (1 if streak == 2 else 0)
-        if tier == 1:
-            why = ["2일 연속 하락"]
+        breadth = (breadth_map or {}).get(day)
+        tier, why, peak = qqq_tier_rule(streak, vxn, vxn_prev, breadth)
         out.append({
             "date": day, "price": price, "streak": streak,
             "vxn": vxn, "vxn_prev": vxn_prev, "vxn_peak": peak,
+            "breadth": breadth,
             "tier": tier, "why": why, "source": "backfill",
         })
 
@@ -1215,6 +1287,7 @@ SNAPSHOT_FIELDS = [
     "low_52w", "pct_from_low", "ma120", "ma200", "ma200_slope",
     "gap_pct", "gap20_pct", "gap20_ago", "gap20_vol", "gap20_fill",
     "w_rsi", "w_ma20_pos", "w_streak", "m_ma6_pos", "m_streak",
+    "market_vxn",
 ]
 
 def _storage_row(r, mkt):
@@ -1585,20 +1658,27 @@ def attach_historical_rs20(results, mkt):
                 h[irs] = safe(float(rr)-float(qr))
 
 
-def attach_historical_market(results, mkt):
+def attach_historical_market(results, mkt, vxn_series=None):
     """각 hist 행에 '그 날짜의' 시장 입력을 붙인다. 이미 있으면 덮지 않는다.
 
     이 값이 행 안에 없으면 화면이 매번 최신 QQQ 계산으로 과거를 다시 채점하게 되고,
     산식을 하나도 안 건드렸는데 어제 신호 등급이 오늘 바뀌는 일이 생긴다.
     """
     qmap = market_hist_map(mkt)
+    vmap = vxn_series or {}
     idx={k:i for i,k in enumerate(HIST_FIELDS)}
     idate = idx["date"]; ilv = idx["market_level"]; iwk = idx["market_weak"]; irt = idx["market_ret20"]
-    need = max(idate, ilv, iwk, irt)
+    ivx = idx["market_vxn"]
+    need = max(idate, ilv, iwk, irt, ivx)
     for r in results:
         tk = r.get("ticker")
         for h in r.get("hist") or []:
             while len(h) <= need: h.append(None)
+            # VXN은 뒤늦게 추가된 열이라 국면이 이미 고정된 옛 행에도 채워야 한다.
+            # 값이 있으면 절대 덮지 않는다(append-only) — 없을 때만 한 번 채운다.
+            if h[ivx] is None:
+                v = vmap.get(str(h[idate]))
+                if v is not None: h[ivx] = v
             if h[ilv] is not None and h[irt] is not None: continue   # 이미 고정됨
             q = qmap.get(str(h[idate]))
             if not q: continue
@@ -1812,7 +1892,8 @@ def main():
             _s["rs20"] = None
     attach_historical_rs20(results, mkt)
     # 각 hist 행에 '그 날짜의' 시장 입력을 붙인다. 이미 붙어 있으면 그대로 둔다.
-    attach_historical_market(results, mkt)
+    attach_historical_market(results, mkt,
+                             ((market_extra.get("vxn") or {}).get("series") or {}))
 
     # 신뢰도용 최근 hist는 여기서 고정한다.
     # 과거 날짜는 직전 signals.json 값을 그대로 유지하고 새 거래일만 append한다.
@@ -1820,9 +1901,10 @@ def main():
     # '어제 값'의 출처를 frozen 원장 하나로 통일한다 — snapshot/top 불일치 방지.
     sync_prev_from_hist(results)
 
-    # QQQ는 개별주 evaluate()가 아닌 전용 등급(연속 하락·VXN 꺾임)을 쓴다.
+    # QQQ는 개별주 evaluate()가 아닌 전용 등급(연속 하락·VXN 꺾임·바닥권)을 쓴다.
     # 일반 종목 hist·신뢰도 검증·시장국면에는 전혀 관여하지 않는 표시용 원장이다.
-    qqq_signal_hist = build_qqq_signal_hist(qqq_card, vxn_history, prev_payload)
+    qqq_signal_hist = build_qqq_signal_hist(qqq_card, vxn_history, prev_payload,
+                                            breadth_by_date(results))
 
     payload = {
         "generated_at": now_kst.strftime("%Y-%m-%d %H:%M") + " KST",
@@ -1837,7 +1919,9 @@ def main():
         "qqq_card": qqq_card,
         "qqq_signal_hist": qqq_signal_hist,
         "spy_card": spy_card,
-        "market_extra": market_extra,
+        # series(일자별 이력)는 hist에 얼려 넣는 용도라 payload에서는 뺀다.
+        "market_extra": {k: {kk: vv for kk, vv in (v or {}).items() if kk != "series"}
+                         for k, v in (market_extra or {}).items()},
         "market_events": market_events,
         "calendar_status": calendar_status,
         "sectors": sectors,

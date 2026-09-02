@@ -67,8 +67,39 @@ jobs:
         continue-on-error: true
         run: node tools/rev4-lab.js backtest/raw.json
 
+      - name: 실험 — 차트 패턴 18종 진입 목록 생성 (야후 OHLC · 로그 출력 전용)
+        # 패턴 판정은 High/Low가 필요한데 원장에는 종가만 있다. 여기서 확정 피벗
+        # (리페인트 금지)으로 진입일 목록을 만들어 다음 단계에 넘긴다.
+        continue-on-error: true
+        run: python tools/pattern-lab.py --years 3 --emit backtest/pattern-entries.json
+
+      - name: 실험 — 역헤숄·쌍바닥 뱃지/가산점 시뮬레이션 (로그 출력 전용)
+        # 사용자 지시(2026-08-25): "역헤숄 쌍바닥은 뱃지도 달아주고 가산점 한다면 승률은?"
+        continue-on-error: true
+        run: node tools/pattern-score-lab.js backtest/raw.json backtest/pattern-entries.json
+
+      - name: 실험 — 변동성 꺾임·연속하락 축을 개별주에 적용 (로그 출력 전용)
+        # 사용자 지시(2026-08-25): "나스닥에 쓰던 변동성 꺾임 등 지표를 개별주에도
+        # 일부 적용해서 승률 시뮬레이션, 반등매수관심 등에."
+        # VXN 과거값은 원장에 없고 raw.json의 macro.vxn 에만 있으므로 여기서만 잰다.
+        continue-on-error: true
+        run: node tools/vol-lab.js backtest/raw.json
+
+      - name: 실험 — 반등 매수관심 문턱을 변동성으로 조인다 (로그 출력 전용)
+        # 사용자 지시(2026-08-25): "반등 매수관심 변동성 활용해서 승률 문턱 높여봐".
+        # 앞선 두 실험이 방향을 정해 줬다 — 이 계층은 시장이 밀린 날일수록 더 나쁘다.
+        # 그래서 점수를 더 요구하는 대신 '그런 날엔 등급4를 안 준다'로 건다.
+        continue-on-error: true
+        run: node tools/rev4-vol-lab.js backtest/raw.json
+
+      - name: 실험 — 강한매수 재배정 — 지지반등 가점 · VXN 가점 · 국면 감점 보정 (로그 출력 전용)
+        # 사용자 지시(2026-08-25): "단기지지·중기지지를 크게 안 깨고 반등한 주식에 가산점,
+        # 시장 4단계·공포지수 보정해서 강한매수 산식 재배정하면 승률 어떻게 되나".
+        continue-on-error: true
+        run: node tools/rebalance-lab.js backtest/raw.json
+
       - name: 원본은 커밋하지 않는다 (약 5MB)
-        run: rm -f backtest/raw.json
+        run: rm -f backtest/raw.json backtest/pattern-entries.json
 
       - name: 원장이 바뀌지 않았는지 확인
         # 이 워크플로우는 backtest/ 밖을 절대 건드리면 안 된다.
@@ -91,10 +122,14 @@ jobs:
             # 이 잡은 몇 분 걸린다. 그 사이 사람이 main에 커밋하면 push가 막히고,
             # 다 만들어 놓은 결과를 버리게 된다(2026-08-18 run #… 실제 사례).
             # 산출물은 backtest/ 두 파일뿐이라 리베이스로 안전하게 얹을 수 있다.
+            # 현재 체크아웃된 브랜치로 리베이스해야 한다. main으로 고정해 두면
+            # 브랜치에서 돌릴 때 영원히 못 따라잡는다(2026-08-25 run #27 실제 사례:
+            # 리베이스는 성공하는데 push는 계속 거부 → 결과를 통째로 버렸다).
+            BR="${GITHUB_REF_NAME}"
             for i in 1 2 3; do
-              if git push; then exit 0; fi
+              if git push origin "HEAD:${BR}"; then exit 0; fi
               echo "push 충돌 — 리베이스 후 재시도 ($i/3)"
-              git pull --rebase origin main
+              git pull --rebase origin "${BR}"
               sleep $((i*5))
             done
             echo "::error::리베이스 재시도 3회 실패"
