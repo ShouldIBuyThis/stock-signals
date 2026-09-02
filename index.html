@@ -996,7 +996,7 @@ html[data-theme="dark"] .strategy-info{color:var(--muted)}
   <b>꼭 읽어주세요</b><br>
   · 신호 등급은 <b>일봉 종가</b> 기준으로 이동평균·RSI·MACD·볼린저밴드·스토캐스틱·거래량을 조합한 <b>기계적 판정</b>일 뿐, 매매 추천이 아닙니다.<br>
   · <b>공매도 수급·뉴스·공시·규제·유상증자·지수 편입</b> 같은 이벤트는 이 신호에 전혀 반영되지 않습니다.<br>
-  · <b>FOMC·CPI·PCE·주요 고용지표 전후에는 신호 신뢰도가 낮아질 수 있습니다.</b> 시장 이벤트는 랭킹을 중단하지 않고 경고만 표시합니다.<br>
+  · <b>FOMC·CPI·PCE·주요 고용지표·네마녀의 날(선물·옵션 동시 만기) 전후에는 신호 신뢰도가 낮아질 수 있습니다.</b> 시장 이벤트는 랭킹을 중단하지 않고 경고만 표시합니다.<br>
   <div style="margin-top:18px;padding-top:12px;border-top:1px solid var(--line);font-size:11px;color:var(--faint)">
     © 2026 <b>지금이니?</b> · shouldibuythis.github.io/stock-signals<br>신호 산출 방식·화면 구성·문구를 포함한 모든 콘텐츠의 무단 복제·재배포를 금합니다.<br>
     시세 출처 yfinance · 투자 판단과 그 결과에 대한 책임은 이용자 본인에게 있습니다.
@@ -3707,7 +3707,8 @@ function openMarketEventModal(date){
     openModal(`<h3>시장 이벤트</h3>
       <p style="font-size:13px;color:var(--reason);line-height:1.8"><b>미국 ${esc(md)} 종가 기준</b><br><br>${failed?"오늘의 주요 경제 이벤트 캘린더를 정상 확인하지 못했어요. 기술적 신호만 보고 판단하지 말고 외부 일정을 한 번 더 확인해 주세요.":"현재 수집된 오늘의 주요 시장 이벤트 경고가 없어요."}<br><br>
       <b>여기서 잡는 것</b> — FOMC · 금리(연준 발언·의사록 포함) · CPI · PCE · 고용지표.
-      미국 경제 캘린더에 <b>예정으로 올라온 발표</b>만 봅니다.<br>
+      미국 경제 캘린더에 <b>예정으로 올라온 발표</b>만 봅니다.
+      여기에 <b>네마녀의 날</b>(3·6·9·12월 셋째 금요일 — 지수·개별주 선물·옵션 동시 만기)은 달력으로 직접 계산해 붙입니다.<br>
       <b>여기서 못 잡는 것</b> — 연준 인사 지명·돌발 발언, 지정학 사건처럼
       <b>일정에 없던 충격</b>은 캘린더에 나오지 않아 표시되지 않아요.</p>${close}`);
     return;
@@ -3718,7 +3719,7 @@ function openMarketEventModal(date){
     return `<div class="help-card" style="margin-top:7px"><b>⚠ ${esc(type)}</b>${name&&name!==type?`<br><span style="font-size:11.5px;color:var(--muted)">${esc(name)}</span>`:""}</div>`;
   }).join("");
   openModal(`<h3>시장 이벤트</h3>
-    <p style="font-size:13px;color:var(--reason);line-height:1.8"><b>미국 ${esc(md)} 종가 기준</b> · ${esc(types.join(" · "))}<br><br>FOMC·CPI·PCE·주요 고용지표 같은 시장 이벤트일에는 변동성이 커져 <b>기술적 신호가 평소보다 빗나갈 수 있어요.</b><br>점수·등급·랭킹은 바꾸지 않고 경고만 표시합니다.</p>
+    <p style="font-size:13px;color:var(--reason);line-height:1.8"><b>미국 ${esc(md)} 종가 기준</b> · ${esc(types.join(" · "))}<br><br>FOMC·CPI·PCE·주요 고용지표·네마녀의 날 같은 시장 이벤트일에는 변동성이 커져 <b>기술적 신호가 평소보다 빗나갈 수 있어요.</b><br>점수·등급·랭킹은 바꾸지 않고 경고만 표시합니다.</p>
     ${rows}${close}`);
 }
 const badgeKey = t => String(t).replace(/\(오늘[^)]*\)/,"").replace(/[\d.]+배/,"").replace(/—.*$/,"").trim();

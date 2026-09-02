@@ -16,7 +16,7 @@ import pandas as pd
 import numpy as np
 import json
 import exchange_calendars as xcals
-from datetime import datetime, timedelta, time as dtime
+from datetime import datetime, date, timedelta, time as dtime
 from zoneinfo import ZoneInfo
 
 PERIOD = "1y"    # 52주 신고가 계산 위해 1년
@@ -149,6 +149,30 @@ MAJOR_EVENT_KEYS = {
     "PCE": ["personal consumption", "pce price"],
     "고용": ["nonfarm", "non-farm", "employment situation", "unemployment rate", "jobless claims", "jolts"],
 }
+
+def quad_witching_dates(start_day, end_day):
+    """네마녀의 날(Quadruple Witching) — 3·6·9·12월 셋째 금요일.
+
+    지수선물·지수옵션·개별주옵션·개별주선물이 같은 날 만기라 종가 부근 수급이
+    평소와 다르다. 경제 캘린더 API에는 안 올라오므로 달력으로 직접 만든다.
+    사용자 지시(2026-09-02): "네마녀의 날도 미국시장 이벤트로 추가".
+    다른 이벤트와 마찬가지로 경고 표시 전용이며 점수·등급에는 쓰지 않는다.
+    """
+    out = []
+    y, m = start_day.year, start_day.month
+    while (y, m) <= (end_day.year, end_day.month):
+        if m in (3, 6, 9, 12):
+            first = date(y, m, 1)
+            # 첫 금요일 = 1일 + (4 - weekday) mod 7, 셋째 금요일은 +14일
+            third_fri = first + timedelta(days=(4 - first.weekday()) % 7 + 14)
+            if start_day <= third_fri <= end_day:
+                out.append({"type": "네마녀의 날",
+                            "name": "선물·옵션 동시 만기 (Quadruple Witching)",
+                            "date": third_fri.strftime("%Y-%m-%d")})
+        m += 1
+        if m > 12:
+            y, m = y + 1, 1
+    return out
 
 def _event_date(v):
     """pandas/yfinance datetime을 YYYY-MM-DD로 안전하게 정규화."""
@@ -457,6 +481,9 @@ def fetch_event_calendars(now_kst, wanted_tickers):
     except Exception as e:
         status["economic_events_error"] = f"{type(e).__name__}: {e}"
         print("경제 이벤트 캘린더 조회 실패:", e)
+
+    # 네마녀의 날은 캘린더 조회와 무관하게 달력으로 넣는다(조회가 실패한 날에도 붙는다).
+    out_market.extend(quad_witching_dates(start_day, end_day))
 
     uniq=[]; seen=set()
     for x in sorted(out_market, key=lambda z:(z.get("date") or "", z.get("name") or "")):
