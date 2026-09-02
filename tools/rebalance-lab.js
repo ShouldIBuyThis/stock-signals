@@ -36,7 +36,7 @@ const fs = require('fs'), H = require('./_harness');
 
 const IN = process.argv[2] || 'backtest/raw.json';
 if (!fs.existsSync(IN)) { console.error(`[ERROR] ${IN} 없음 — 워크플로우 안에서만 실행된다.`); process.exit(1); }
-const RAW = fs.readFileSync(IN, 'utf8');
+let RAW = fs.readFileSync(IN, 'utf8');
 const base = JSON.parse(RAW);
 const F = base.hist_fields;
 const I = {}; ['date', 'price'].forEach(k => { I[k] = F.indexOf(k); });
@@ -68,35 +68,51 @@ const SUP_ANY = new Set([...SUP_S, ...SUP_M]);
 
 /* ── B. VXN ─────────────────────────────────────────────────────────────── */
 const VXN = ((base.macro || {}).vxn) || {};
+/* v12 산식은 hist 행의 market_vxn을 읽는다. 백테스트 원본(raw.json)은 그 칸이 비어
+   있어(VXN은 macro.vxn에만) 그대로 두면 P0가 v12가 아니라 v11이 된다. 실제 원장과
+   같은 모양이 되도록 그날 VXN을 행에 채워 넣는다 — 값이 있으면 건드리지 않는다. */
+{
+  const iv = F.indexOf('market_vxn');
+  let filled = 0;
+  if (iv >= 0) {
+    for (const s of base.stocks || []) for (const r of s.hist || []) {
+      if (!r || !r[I.date]) continue;
+      while (r.length <= iv) r.push(null);
+      if (r[iv] == null && VXN[String(r[I.date])] != null) { r[iv] = Number(VXN[String(r[I.date])]); filled++; }
+    }
+    RAW = JSON.stringify(base);
+  }
+  console.log(`  hist 행 market_vxn 주입: ${filled}칸 (v12 산식 입력)`);
+}
 
 /* ── 후보 ───────────────────────────────────────────────────────────────── */
 /* sup: 가점을 줄 집합 · supB: 가점 · vxT: VXN 문턱 · vxB: 가점 ·
    weak/cau: 국면 감점(현행 1.0/0.5) · relax: VXN≥25면 국면 감점 0 */
 const CANDS = [
-  ['P0 현행',                          {}],
-  ['A1 지지반등(단·중) +0.3',           { sup: 'any', supB: 0.3 }],
-  ['A2 지지반등(단·중) +0.5',           { sup: 'any', supB: 0.5 }],
-  ['A3 중기지지 반등만 +0.5',           { sup: 'mid', supB: 0.5 }],
-  ['B1 VXN≥25 +0.3',                  { vxT: 25, vxB: 0.3 }],
-  ['B2 VXN≥25 +0.5',                  { vxT: 25, vxB: 0.5 }],
-  ['B3 VXN≥28 +0.5',                  { vxT: 28, vxB: 0.5 }],
-  ['C1 caution 감점 해제(−0.5→0)',      { cau: 0 }],
-  ['C2 weak 감점 절반(−1.0→−0.5)',     { weak: 0.5 }],
-  ['C3 VXN≥25면 국면 감점 전부 해제',    { relax: true }],
-  ['D1 A1 + B1',                      { sup: 'any', supB: 0.3, vxT: 25, vxB: 0.3 }],
-  ['D2 A2 + B2 + C3 (전부)',           { sup: 'any', supB: 0.5, vxT: 25, vxB: 0.5, relax: true }],
-  ['D3 A1 + C3',                      { sup: 'any', supB: 0.3, relax: true }],
-  // 2026-09-02 사용자 승인으로 B3(v12)와 C3를 실제 적용했다 — 둘을 합친 성적은 따로 재야 한다.
-  ['E1 B3 + C3 (v12 실제 적용)',       { vxT: 28, vxB: 0.5, relax: true }],
+  // 2026-09-02: 화면 산식이 v12(VXN≥28 +0.5 · VXN≥25면 국면 감점 해제)가 됐다.
+  // P0가 곧 v12 실측(E1)이고, v11은 두 요소를 끈 Z0로 복원해 비교한다.
+  ['P0 현행 = v12 (B3+C3 적용)',       {}],
+  ['Z0 v11 복원 (가점·해제 모두 끔)',    { noBonus: true, noRelax: true }],
+  ['Z1 B3만 (감점 해제 끔)',            { noRelax: true }],
+  ['Z2 C3만 (VXN 가점 끔)',             { noBonus: true }],
+  ['A1 v12 + 지지반등(단·중) +0.3',     { sup: 'any', supB: 0.3 }],
+  ['A2 v12 + 지지반등(단·중) +0.5',     { sup: 'any', supB: 0.5 }],
 ];
 
-const SCORE_ANCHOR = `  const pullScore =Math.round((pPos+tNeg+cNeg)*10)/10;   // 📉 눌림목 — 최종 판정 축
-  const revScore  =Math.round((rPos+rNeg+cNeg)*10)/10;   // 🔄 역추세 반등 — 최종 판정 축`;
+/* v12(2026-09-02)부터 화면 산식에 VXN 가점(vxnBonus)과 공포 구간 감점 해제(vxnFear)가
+   들어 있다. 앵커는 그 줄에 맞춘다 — 줄이 바뀌면 '앵커 없음'으로 즉시 죽는다(run #34). */
+const SCORE_ANCHOR = `  const pullScore =Math.round((pPos+tNeg+cNeg+vxnBonus)*10)/10;   // 📉 눌림목 — 최종 판정 축
+  const revScore  =Math.round((rPos+rNeg+cNeg+vxnBonus)*10)/10;   // 🔄 역추세 반등 — 최종 판정 축`;
 const SCORE_PATCH = `  const _rbB = (typeof __RB !== 'undefined') ? __RB(s) : 0;
-  const pullScore =Math.round((pPos+tNeg+cNeg+_rbB)*10)/10;
-  const revScore  =Math.round((rPos+rNeg+cNeg+_rbB)*10)/10;`;
-const WEAK_A = 'if (lv==="weak"){ cNeg-=1.0; tags.push({c:"t-warn",t:"⚠ 시장 약세"});';
-const WEAK_B = 'if (lv==="weak"){ cNeg-=__WPEN(s); tags.push({c:"t-warn",t:"⚠ 시장 약세"});';
+  const pullScore =Math.round((pPos+tNeg+cNeg+vxnBonus+_rbB)*10)/10;
+  const revScore  =Math.round((rPos+rNeg+cNeg+vxnBonus+_rbB)*10)/10;`;
+/* v12 요소를 끄는 앵커 — 'v11 복원'·'B3만'·'C3만'을 같은 판에서 비교하기 위해 */
+const BONUS_A = '    vxnBonus=0.5;';
+const BONUS_B = '    vxnBonus=0;';
+const FEAR_A  = 'const vxnFear = has(s.market_vxn) && s.market_vxn>=25;';
+const FEAR_B  = 'const vxnFear = false;';
+const WEAK_A = 'else if (lv==="weak"){ cNeg-=1.0; tags.push({c:"t-warn",t:"⚠ 시장 약세"});';
+const WEAK_B = 'else if (lv==="weak"){ cNeg-=__WPEN(s); tags.push({c:"t-warn",t:"⚠ 시장 약세"});';
 const CAU_A  = 'else if (lv==="caution"){ cNeg-=0.5; tags.push({c:"t-warn",t:"⚠ 시장 주의"});';
 const CAU_B  = 'else if (lv==="caution"){ cNeg-=__CPEN(s); tags.push({c:"t-warn",t:"⚠ 시장 주의"});';
 const BASEROW = 'baseOut[h].push({ret:(hs[i+h].price/row.price-1)*100, date:row.last_date});';
@@ -107,6 +123,8 @@ function makePage(o) {
   const useScore = o.sup || o.vxT, usePen = o.cau !== undefined || o.weak !== undefined || o.relax;
   if (useScore) patch.push([SCORE_ANCHOR, SCORE_PATCH]);
   if (usePen) { patch.push([WEAK_A, WEAK_B]); patch.push([CAU_A, CAU_B]); }
+  if (o.noBonus) patch.push([BONUS_A, BONUS_B]);
+  if (o.noRelax) patch.push([FEAR_A, FEAR_B]);
   const page = H.loadPage({ patch });
   const supSet = o.sup === 'mid' ? SUP_M : o.sup === 'short' ? SUP_S : SUP_ANY;
   const vx = d => (VXN[d] == null ? null : Number(VXN[d]));
