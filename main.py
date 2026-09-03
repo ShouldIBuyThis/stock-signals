@@ -79,7 +79,14 @@ HIST_FIELDS = ["date","price","change_1d","ma5","ma10","ma20","ma50","ma60","rsi
                # 원장에 없어 화면·검증 어디에서도 쓸 수 없었다(backtest raw.json의
                # macro.vxn 에만 있었다). market_level과 같은 '그날의 시장 입력'이므로
                # 같은 방식으로 얼려 둔다 — 야후가 소급 수정해도 과거 판정이 안 흔들린다.
-               "market_vxn"]
+               "market_vxn",
+               # 2026-09-03 확장: 외부 산식 후보 두 개의 일봉 근사 표시(docs/외부-산식-후보.md).
+               #   ext_pair  페어 리버설 근사 — 하락 추세선(스윙고점 3개 회귀) + 수평 넥라인을
+               #             같은 봉·1봉 차로 함께 상향 돌파한 날 (1/0)
+               #   ext_root  Root 타격 근사 — 20봉 저점 스윕 복귀 → 2봉 안 변위 양봉 → 5봉 안
+               #             되돌림 확인 종가가 된 날 (1/0). 3년 실측 74건 57/68/68/68 · 103건 60/64/62/70.
+               # 점수·등급에는 쓰지 않는다. 카드 표시와 원장 축적용.
+               "ext_pair", "ext_root"]
 
 # freeze 단계에서 옛 행에 뒤늦게 채워 넣는 열. 이미 값이 있으면 절대 덮지 않는다.
 HIST_BACKFILL_FIELDS = ["atr_pct", "market_level", "market_weak", "market_ret20", "market_events", "market_vxn"]
@@ -1036,6 +1043,53 @@ def seed_past_hist(kept, tk, nm, cat, date_i):
     print(f"  과거 보충 {tk}: {len(rows)}행 (~{rows[-1][date_i]}) · 현재 행은 {cur} 유지")
     return kept
 
+def _swing_highs_lows(H, L, k=3):
+    hi, lo = [], []
+    for i in range(k, len(H) - k):
+        if H[i] == max(H[i-k:i+k+1]): hi.append(i)
+        if L[i] == min(L[i-k:i+k+1]): lo.append(i)
+    return hi, lo
+
+def ext_pair_reversal(C, H, L, end):
+    """페어 리버설 일봉 근사 — end-1 봉이 '하락 추세선 + 수평 넥라인 동시 상향 돌파'인가.
+    추세선: 최근 60봉 스윙고점 마지막 3개 회귀선(기울기 음수, 터치 ±1.5%). 넥라인: 최근 40봉 고점(2회 이상 반응).
+    같은 봉 또는 1봉 차로 둘 다 위로 넘어선 날 1, 아니면 0. 데이터 부족이면 None. tools/external-lab.py와 같은 규칙."""
+    i = end - 1
+    if i < 80: return None
+    hi, _ = _swing_highs_lows(H[i-60:i+1], L[i-60:i+1]); hi = [x + i - 60 for x in hi if x + i - 60 < i - 2]
+    if len(hi) < 3: return 0
+    xs, ys = np.array(hi[-3:], dtype=float), np.array(H[hi[-3:]], dtype=float)
+    a, b = np.polyfit(xs, ys, 1)
+    if a >= 0: return 0
+    if any(abs(H[x] - (a*x + b)) / H[x] > 0.015 for x in hi[-3:]): return 0
+    seg = H[i-40:i-1]; neck = float(max(seg))
+    touches = sum(1 for v in seg if abs(v - neck) / neck <= 0.015)
+    if touches < 2: return 0
+    tl = a*i + b
+    cross_tl = C[i] > tl and (C[i-1] <= a*(i-1)+b or C[i-2] <= a*(i-2)+b)
+    cross_nk = C[i] > neck and (C[i-1] <= neck or C[i-2] <= neck)
+    return 1 if (cross_tl and cross_nk) else 0
+
+def ext_root_strike(C, H, L, O, end):
+    """Root 타격 일봉 근사 — end-1 봉이 '스윕 → 변위 → 되돌림 확인' 진입 봉인가 (1/0, 부족하면 None)."""
+    k = end - 1
+    if k < 80 or O is None: return None
+    tr = np.maximum(H[1:k+1] - L[1:k+1], np.maximum(abs(H[1:k+1] - C[:k]), abs(L[1:k+1] - C[:k])))
+    if len(tr) < 15: return None
+    atr = float(np.mean(tr[-14:]))
+    for i in range(max(20, k - 8), k):
+        prior_low = float(min(L[i-20:i]))
+        if not (L[i] < prior_low and C[i] > prior_low): continue
+        disp = None
+        for j in range(i, min(i + 3, k + 1)):
+            if C[j] > O[j] and (C[j] - O[j]) >= atr and C[j] > H[i-1]: disp = j; break
+        if disp is None or disp >= k: continue
+        lo_d, hi_d = O[disp], C[disp]; mid = (lo_d + hi_d) / 2
+        for m in range(disp + 1, min(disp + 6, k + 1)):
+            if L[m] <= hi_d and C[m] >= mid:
+                return 1 if m == k else 0
+    return 0
+
 def analyze(ticker, name, category):
     df = _fetch_daily(ticker)
     df = drop_unclosed(df, ticker)
@@ -1250,6 +1304,8 @@ def analyze(ticker, name, category):
             "w_rsi": safe(w_rsi, 1), "w_ma20_pos": safe(w_ma20_pos, 1),
             "w_streak": w_streak,
             "m_ma6_pos": safe(m_ma6_pos, 1), "m_streak": m_streak,
+            "ext_pair": ext_pair_reversal(close.values, high.values, low.values, end),
+            "ext_root": ext_root_strike(close.values, high.values, low.values, (op.values if op is not None else None), end),
             "last_date": df.index[i].strftime("%Y-%m-%d"),
         }
 
@@ -1292,6 +1348,7 @@ SNAPSHOT_FIELDS = [
     "gap_pct", "gap20_pct", "gap20_ago", "gap20_vol", "gap20_fill",
     "w_rsi", "w_ma20_pos", "w_streak", "m_ma6_pos", "m_streak",
     "market_vxn",
+    "ext_pair", "ext_root",
 ]
 
 def _storage_row(r, mkt):
