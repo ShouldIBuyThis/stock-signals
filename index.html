@@ -2893,7 +2893,7 @@ function advisorClassic(kind){
   const form = (k === "today") ? "" : `<div class="adv-form">
       <label>종목 ${cur?`<span class="tksearch-pick" id="advTkPick">${esc(cur.name||cur.ticker)} (${esc(cur.ticker)})</span>`:`<span class="tksearch-pick" id="advTkPick">아직 안 골랐어요</span>`}
         ${tickerSearchHtml("advTkSearch", tk=>{ const el=document.getElementById("advTkPick"); const x=allStocks().find(y=>y.ticker===tk); if(el&&x) el.textContent=`${x.name||x.ticker} (${x.ticker})`; const r=document.getElementById("advTkSearchRes"); if(r) r.innerHTML=""; const i=document.getElementById("advTkSearch"); if(i) i.value=""; if(!needAvg) runAdvisorClassic(k); })}</label>
-      ${needAvg ? `<label>내 평단 <input id="advAvg" type="number" step="any" inputmode="decimal" placeholder="예: 172.5" value="${esc(_advAvg)}"></label>` : ""}
+      ${needAvg ? `<label>내 평단 <input id="advAvg" type="number" step="any" inputmode="decimal" placeholder="예: 172.5" value="${esc(_advAvg)}" onkeydown="if(event.key==='Enter'){event.preventDefault();runAdvisorClassic('${k}');}"></label>` : ""}
       <button type="button" class="primary" onclick="runAdvisorClassic('${k}')">확인</button>
     </div>`;
   openModal(`<h3>🤖 투자 비서 ${advModeBtn()} <span class="tkrec-sub">계산으로만 답해요</span></h3>
@@ -2906,8 +2906,8 @@ function advisorClassic(kind){
 }
 function runAdvisorClassic(k){
   const av = document.getElementById("advAvg");
+  if(av && av.value.trim()!=="") _advAvg = av.value.trim();
   if(!_advTk) _advTk = (allStocks()[0]||{}).ticker || "";
-  _advAvg = av ? av.value : _advAvg;
   const out = document.getElementById("advOut");
   if(out) out.innerHTML = advisorBody(k, _advTk, _advAvg);
 }
@@ -2918,12 +2918,14 @@ function chatStockAsk(flow){
   renderChat([["chatHome()","↩ 처음으로"]]);
   setTimeout(()=>{ const i=document.getElementById(id); if(i){ tickerSearchInput(id); i.focus(); } }, 0);
 }
-let _chatTkSeq = 0;
+let _chatTkSeq = 0, _chatAvgId = "";
 function chatAskAvg(s){
   chatBot(`<b>${esc(s.name||s.ticker)}</b> 평단이 얼마인가요? (현재가 ${cartLevels(s).f(s.price)})<br>
     <span class="adv-form" style="margin-top:6px">
-    <input id="chatAvg" type="number" step="any" inputmode="decimal" placeholder="예: 172.5" value="${esc(_advAvg)}">
+    <input id="${_chatAvgId = "chatAvg" + (++_chatTkSeq)}" type="number" step="any" inputmode="decimal" placeholder="예: 172.5" value="${esc(_advAvg)}"
+      onkeydown="if(event.key==='Enter'){event.preventDefault();chatAvgDone();}">
     <button type="button" class="primary" onclick="chatAvgDone()">확인</button></span>`);
+  setTimeout(()=>{ const i=document.getElementById(_chatAvgId); if(i) i.focus(); }, 0);
   renderChat([["chatHome()","↩ 처음으로"]]);
 }
 function chatPick(k){
@@ -2961,7 +2963,7 @@ function chatTkDone(flow, tk){
   chatAskAvg(s);
 }
 function chatAvgDone(){
-  const av=document.getElementById("chatAvg"); if(av) _advAvg=av.value;
+  const av=document.getElementById(_chatAvgId); if(av && av.value.trim()!=="") _advAvg=av.value.trim();
   const s=allStocks().find(x=>x.ticker===_advTk); if(!s) return;
   chatMe(`평단 ${_advAvg}`);
   chatBot(advisorAvg(s,_advAvg));
