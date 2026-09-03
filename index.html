@@ -5068,10 +5068,38 @@ function openHitRankAll(){
     <div class="modal-actions perf-sticky"><button class="primary" onclick="closeModal()">닫기</button></div>`);
 }
 
+/* 이 종목이 과거에 몇 번 두드리고 돌파했나 — 종목별 이력 (사용자 지시 2026-09-03: 전체 종목 통계보다
+   개별 종목의 과거가 더 유의미). 원장(최근 N거래일)의 각 날짜에서 '전날 단기 저항을 종가로 처음 넘은 날'을
+   돌파로 잡고, 그 직전 20거래일 동안 저항 ±1.5%에 몇 번 닿았는지(두드림)와 +3/+5일 결과를 같이 센다. */
+function tickerKnockHistory(s){
+  const hs = histStocks(s) || []; const out = [];
+  for(let i = 1; i < hs.length; i++){
+    const res = num(hs[i-1].res_short), p = num(hs[i].price), p0 = num(hs[i-1].price);
+    if(!has(res) || !res || !has(p) || !has(p0)) continue;
+    if(!(p > res*1.005 && p0 <= res*1.005)) continue;
+    let knocks = 0;
+    for(let j = Math.max(0, i-21); j < i; j++){ const q = num(hs[j].price); if(has(q) && q >= res*0.985 && q <= res*1.005) knocks++; }
+    const fwd = h => (i+h < hs.length && has(num(hs[i+h].price))) ? (num(hs[i+h].price)/p-1)*100 : null;
+    out.push({ date: String(hs[i].last_date||""), knocks, r3: fwd(3), r5: fwd(5), chg: (p/p0-1)*100 });
+  }
+  return out;
+}
 function openResTouchModal(tk){
   const s = allStocks().find(x => x.ticker === tk);
   const n = s ? resTouchCount(s) : 0;
   const r = resTouchRecord();
+  const hist = s ? tickerKnockHistory(s) : [];
+  const f1 = v => v === null ? "—" : `${v>=0?"+":""}${v.toFixed(1)}%`;
+  const cls = v => v === null ? "" : v > 0 ? "var(--buy)" : v < 0 ? "var(--sell)" : "var(--muted)";
+  const done3 = hist.filter(x => x.r3 !== null), up3 = done3.filter(x => x.r3 > 0).length;
+  const done5 = hist.filter(x => x.r5 !== null), up5 = done5.filter(x => x.r5 > 0).length;
+  const mine = hist.length
+    ? `<table class="cmp tkrec-t"><tr><th>돌파한 날</th><th>직전 두드림</th><th>돌파 당일</th><th>+3일</th><th>+5일</th></tr>${
+        hist.slice().reverse().map(x=>`<tr><td>${esc(dateShort(x.date))}</td><td>🔨${x.knocks}</td><td><span class="num" style="color:${cls(x.chg)}">${f1(x.chg)}</span></td><td><span class="num" style="color:${cls(x.r3)}">${f1(x.r3)}</span></td><td><span class="num" style="color:${cls(x.r5)}">${f1(x.r5)}</span></td></tr>`).join("")}</table>
+       <p class="tkrec-note"><b>${esc(s.name||tk)}</b>는 최근 ${histWindowDays()}거래일 동안 단기 저항을 <b>${hist.length}번</b> 넘었고,
+       그중 3일 뒤 올라 있던 경우 <b>${done3.length?`${up3}/${done3.length}번`:"—"}</b>, 5일 뒤 <b>${done5.length?`${up5}/${done5.length}번`:"—"}</b>이에요.
+       ${hist.length < 5 ? `<span style="color:var(--sell)">표본이 ${hist.length}번뿐이라 참고만 하세요.</span>` : ""}</p>`
+    : `<p class="tkrec-note">최근 ${histWindowDays()}거래일 동안 이 종목이 단기 저항을 넘은 날이 없어요.</p>`;
   const cell = c => !c || !c.n ? `<td><span class="tkrec-thin">—</span></td>`
     : c.n < 3 ? `<td><span class="tkrec-thin">표본 부족</span><span class="tkrec-n">${c.n}건</span></td>`
     : `<td${c.n<5?' class="tkrec-weak"':''}><span class="tkrec-rate">${c.rate===null?"—":c.rate+"%"}</span>
@@ -5083,13 +5111,16 @@ function openResTouchModal(tk){
     <p style="font-size:12.5px;color:var(--reason);line-height:1.8">
       최근 20거래일 중 종가가 저항선 근처(±1.5%)까지 갔다가 <b>넘지 못한 날</b>을 센 거예요.
       여러 번 두드렸다는 건 그 가격대의 <b>매물이 그만큼 소화됐다</b>는 뜻입니다.</p>
+    <h4 style="margin:10px 0 4px">📒 이 종목의 과거 돌파 이력</h4>
+    ${mine}
+    <details class="acc" style="margin-top:8px"><summary style="cursor:pointer;font-size:12px;color:var(--muted)">전체 종목 통계 (강한매수 표본 기준)</summary>
     <table class="cmp tkrec-t"><tr><th>강한매수</th>${r.hs.map(h=>`<th>+${h}일</th>`).join("")}</tr>${rows}</table>
     <p style="font-size:12px;color:var(--reason);line-height:1.8;margin-top:8px">
       최근 ${histWindowDays()}거래일 원장에서 <b>강한매수가 뜬 날</b>만 모아 방금 계산한 숫자예요.
       위: 이길 확률 · 가운데: 평균수익 · 아래: 표본 수.<br>
       ⚠ <b>승률은 높지만 평균수익은 낮습니다.</b> 자주 이기지만 조금 버는 자리예요 —
       그래서 이 뱃지는 <b>점수·등급·순위에 전혀 반영하지 않고</b> 표시만 합니다.
-      순위를 올리면 승률은 오르고 수익률은 내려가거든요.</p>
+      순위를 올리면 승률은 오르고 수익률은 내려가거든요.</p></details>
     <div class="modal-actions"><button class="primary" onclick="closeModal()">닫기</button></div>`);
 }
 
