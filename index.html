@@ -1288,6 +1288,9 @@ function normalize(raw){
   });
   return { generated_at: stamp, stocks, failed: raw.failed||[], market: raw.market||null,
            qqq_card: raw.qqq_card || null,
+           /* QQQ 전용 30일 원장(연속 하락·VXN 고정). 여기 없으면 흐름 팝업이 '연속 하락 축만'으로
+              떨어져 'VXN 과거값 대기'가 영원히 찍힌다(2026-09-03 사용자 지적 — 실제로 그랬다). */
+           qqq_signal_hist: Array.isArray(raw.qqq_signal_hist) ? raw.qqq_signal_hist : null,
            market_extra: raw.market_extra || null,
            spy_card: raw.spy_card || null,
            market_events: Array.isArray(raw.market_events) ? raw.market_events : [],
@@ -2617,7 +2620,8 @@ function qqqGauges(){
     ${gauge("VXN 변화", deltaPct, deltaText, {color:deltaColor,ticks:[50]})}
     ${gauge("20일선 위", br===null?0:clamp(100-br,0,100), br===null?"—":`${r1(br)}%`, {color:brColor,ticks:[70]})}
   </div>
-  <div class="minor">나스닥 전용 기준 · <b>2일 연속 하락</b> 또는 <b>바닥권(20일선 위 30% 미만)</b> = 매수 우위 · <b>3일 연속 하락</b>, <b>VXN 28 이상 후 하락 전환</b>, <b>바닥권 + VXN 하락 전환</b> = 강한 매수 우위</div>`;
+  <div class="minor">나스닥 전용 기준 · <b>2일 연속 하락</b> 또는 <b>바닥권(20일선 위 30% 미만)</b> = 매수 우위 · <b>3일 연속 하락</b>, <b>VXN 28 이상 후 하락 전환</b>, <b>바닥권 + VXN 하락 전환</b> = 강한 매수 우위<br>
+  <b>왜 '내렸는데' 매수 우위?</b> 지수는 100종목 묶음이라 개별주처럼 추세를 타기보다 <b>짧게 빠지면 되돌아오는</b> 성질이 셌어요. 3년 실측에서 사흘 연속 내린 날(47번) 뒤 3일 안에 올라 있던 경우가 <b>10번 중 7번</b>, 아무 날이나 산 경우는 10번 중 6번이었어요. 개별 종목과는 반대로 읽어야 해요.</div>`;
 }
 
 /* QQQ 카드의 등급 뱃지. 개별주 뱃지가 있던 자리를 그대로 쓴다 —
@@ -3674,10 +3678,11 @@ function themeForecastHtml(){
       <td><span class="tkrec-n">${t.flags.map(x=>`<span class="tag t-good" style="margin:0 2px 0 0">${esc(x)}</span>`).join("")}</span></td>
       <td><span class="num ${chgCls(t.m20)}">${pct(t.m20)}</span></td><td><span class="num ${chgCls(t.r5)}">${pct(t.r5)}</span></td><td><span class="num">${Math.round(t.br)}%</span></td></tr>`).join("")}
     </table>
-    <p class="tkrec-note">${M ? `실측 <b>${esc(THEME_FACTS.window)}</b>: 이 다중 TOP3가 5일 뒤 전체 테마 중앙값을 이긴 날 <b>${M.top3[5]}%</b>, 10일 뒤 <b>${M.top3[10]}%</b> (초과 +${M.ex[5]}/+${M.ex[10]}%p${M.half?` · ${esc(M.half)}`:""}).` : "실측 대기 — CI 측정값이 들어오면 여기에 적힌다."}
-      개별 점수의 TOP3 적중률은 추세형 ${THEME_FACTS.top3[5]}/${THEME_FACTS.top3[10]}%, 되돌림형 ${THEME_FACTS.rev[5]}/${THEME_FACTS.rev[10]}%, 전일 등락(위 열지도 순서)은 47/51%로 동전 던지기였어요.
-      📒 <b>30거래일 원장</b>: ${n ? `<b>${hits}/${n}일</b> 적중 (평균 초과 ${ex>=0?"+":""}${ex.toFixed(2)}%p)${n<15?` · <span style="color:var(--sell)">표본 ${n}일은 판단 불가</span>`:""}` : "5일 뒤가 있는 날짜가 아직 없어요"}</p>
-    <p class="tkrec-note" style="color:var(--faint)">추세와 되돌림이 같은 테마를 가리키면 겹침이 커져요 · 과거 비슷한 자리의 통계일 뿐 예언이 아니에요 · 점수·등급·순위에는 쓰지 않습니다 · 투자 권유가 아닙니다</p>
+    <p class="tkrec-note"><b>어떻게 고르나</b> — 잘 맞았던 잣대 4개(요즘 잘 오르는 테마 · 최근 5일 많이 빠진 테마 · 최근 한 달 많이 빠진 테마 · 20일선 위 종목이 많은 테마)로 각각 상위 3개를 뽑고, <b>여러 잣대에 동시에 걸린 테마</b>를 위로 올려요. 다중신호와 같은 방식이에요.</p>
+    <p class="tkrec-note"><b>얼마나 맞았나</b> — ${M ? `지난 ${esc(THEME_FACTS.window)} 동안 이렇게 고른 3개는 <b>5일 뒤 10번 중 ${Math.round(M.top3[5]/10)}번</b>, 10일 뒤 10번 중 ${Math.round(M.top3[10]/10)}번 다른 테마 평균보다 더 올랐어요(앞선 폭 +${M.ex[5]}/+${M.ex[10]}%p, 기간 앞뒤 절반 모두 같은 방향).` : "실측 대기 중이에요."}
+      전일 등락 순서(위 열지도)는 10번 중 5번이라 동전 던지기였고, 그래서 열지도 순서로는 안 골라요.
+      📒 <b>최근 30거래일</b>로 다시 세어 보면 ${n ? `<b>${n}일 중 ${hits}일</b> 더 올랐어요(앞선 폭 평균 ${ex>=0?"+":""}${ex.toFixed(2)}%p)${n<15?` · <span style="color:var(--sell)">30일은 짧아서 참고만</span>`:""}` : "아직 5일 뒤가 있는 날이 없어요"}.</p>
+    <p class="tkrec-note" style="color:var(--faint)">상위 3개까지만 의미가 있어요(4위 아래 순서는 정보가 없었어요) · 과거 통계일 뿐 예언이 아니에요 · 점수·등급·순위에는 쓰지 않아요 · 투자 권유가 아닙니다</p>
   </div>`;
 }
 function renderTheme(){

@@ -183,6 +183,15 @@ METHODS = [
     ("C4 현행 v2 ∪ B6",           V.down2 | ((V.vxn >= 28) & (V.vxn < V.vxnPrev)) | ((V.br < 30) & (V.vxn < V.vxnPrev))),
     ("C5 현행 v2 ∪ V5",           V.down2 | ((V.vxn >= 22) & (V.vxn < V.vxnPrev))),
     ("C6 B1 단독 − 현행 v2 (순증분)", (V.br < 30) & ~V.down2 & ~((V.vxn >= 28) & (V.vxn < V.vxnPrev))),
+    # ── 2026-09-03 사용자 질문 "전용 등급 발동 조건이 여럿 겹치면 💡(나스닥 강한다중)로 올리는 게 맞지 않나"
+    #    화면 v3 발동 축 = 3일 연속 하락 · VXN≥28 꺾임 · 바닥권(30↓)+VXN 꺾임. 겹침 수로 잰다.
+    ("D1 강한 축 2개 이상 겹침",     (V.down3.astype(int) + ((V.vxn >= 28) & (V.vxn < V.vxnPrev)).astype(int)
+                                    + ((V.br < 30) & (V.vxn < V.vxnPrev)).astype(int)) >= 2),
+    ("D2 3일 연속하락 & VXN 꺾임(문턱 없음)", V.down3 & (V.vxn < V.vxnPrev)),
+    ("D3 3일 연속하락 & 바닥권(30↓)",   V.down3 & (V.br < 30)),
+    ("D4 2일 연속하락 & 바닥권 & VXN 꺾임", V.down2 & (V.br < 30) & (V.vxn < V.vxnPrev)),
+    ("D5 강한 축 1개만 (겹침 없음)",    (V.down3.astype(int) + ((V.vxn >= 28) & (V.vxn < V.vxnPrev)).astype(int)
+                                    + ((V.br < 30) & (V.vxn < V.vxnPrev)).astype(int)) == 1),
 ]
 
 print(f"\n  기준 = 아무 날이나 산 경우. 칸: 상승비율(표본) 대비%p 평균수익 · +1/+3/+5/+10일")
