@@ -521,10 +521,10 @@ if (ONLY.has('P')) {
    현행 등급4 = pullSetup & 점수≥0.8 & 볼밴>70. 189일 485건 52/50/55/59로 기준선(51/52/53/52)과 거의 같다 —
    '관심'이 정보가 없다는 뜻이다. 주봉·월봉·상대강도·자금흐름·갭·외부 산식·VXN 등을 하나씩 얹어
    지워지는 표본이 지는 표본인지, 남는 표본이 기준선을 넘는지 본다. */
-const PIO_A = 'const pullInterestOK = has(bb) && bb>70;';
+const PIO_A = 'const pullInterestOK = has(bb) && bb>70 && (!has(s.rs20) || s.rs20>0);';
 if (ONLY.has('Q')) {
   console.log('\n══ Q. 📈 추세 매수관심(등급4) 게이트 변형 — 현행 볼밴>70');
-  const q = expr => ({ extra: [[PIO_A, `const pullInterestOK = has(bb) && bb>70 && (${expr});`]] });
+  const q = expr => ({ extra: [[PIO_A, `const pullInterestOK = has(bb) && bb>70 && (!has(s.rs20) || s.rs20>0) && (${expr});`]] });
   const Qc = [
     ['Q0 현행',                                   {}],
     ['Q1 + 주봉 20주선 위 (w_ma20_pos>0)',           q('has(s.w_ma20_pos) && s.w_ma20_pos>0')],
