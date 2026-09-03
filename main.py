@@ -934,12 +934,12 @@ def qqq_tier_rule(streak, vxn, vxn_prev, breadth):
     if bottom and vxn_down:
         why.append(f"바닥권(20일선 위 {breadth:.1f}%) + VXN 꺾임")
     if why:
-        return 2, why, peak
+        return 2, why, peak, len(why) >= 2      # 강한 축 2개 이상 겹침 = 💡 (index.html qqqTierRule과 동일)
     if streak == 2:
         why.append("2일 연속 하락")
     if bottom:
         why.append(f"바닥권 · 20일선 위 {breadth:.1f}%")
-    return (1 if why else 0), why, peak
+    return (1 if why else 0), why, peak, False
 
 
 def build_qqq_signal_hist(qqq_card, vxn_history, previous_payload, breadth_map=None):
@@ -990,12 +990,12 @@ def build_qqq_signal_hist(qqq_card, vxn_history, previous_payload, breadth_map=N
         prev_day = str(raw[len(out) - 1][date_i]) if out else ""
         vxn_prev = vxn_by_date.get(prev_day)
         breadth = (breadth_map or {}).get(day)
-        tier, why, peak = qqq_tier_rule(streak, vxn, vxn_prev, breadth)
+        tier, why, peak, bulb = qqq_tier_rule(streak, vxn, vxn_prev, breadth)
         out.append({
             "date": day, "price": price, "streak": streak,
             "vxn": vxn, "vxn_prev": vxn_prev, "vxn_peak": peak,
             "breadth": breadth,
-            "tier": tier, "why": why, "source": "backfill",
+            "tier": tier, "bulb": bulb, "why": why, "source": "backfill",
         })
 
     # 새로 추가되는 마지막 날짜만 실제 일일 스냅샷이다. 기존 행은 위에서

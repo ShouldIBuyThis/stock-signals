@@ -428,6 +428,19 @@ details.tkrec-fold[open]>summary.tkrec-1line::after{content:" ▴"}
 .nedge-vxn{color:var(--buy);background:var(--buy-soft)}
 .nedge-vxn2{color:var(--sell);background:var(--sell-soft)}
 .nedge-br{color:var(--down);background:var(--neutral-soft)}
+/* 앞설 테마 TOP3 — 표 대신 카드형 목록 (모바일에서 6열 표가 밀려서 2026-09-03 교체) */
+.tf-list{margin-top:6px}
+.tf-row{display:flex;gap:9px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--line,#e6e8ee)}
+.tf-row:first-child{border-top:0}
+.tf-medal{font-size:20px;line-height:1.15;flex:0 0 auto}
+.tf-body{flex:1 1 auto;min-width:0}
+.tf-name{font-size:14px;font-weight:800;line-height:1.3;word-break:keep-all}
+.tf-name b{cursor:pointer}
+.tf-tags{margin-top:3px;display:flex;flex-wrap:wrap;gap:4px}
+.tf-tags .tag{font-size:11px;padding:1px 7px;margin:0;line-height:1.5}
+.tf-nums{margin-top:4px;font-size:12px;color:var(--muted);line-height:1.5;word-break:keep-all}
+.tf-nums b{font-weight:700}
+html[data-theme="dark"] .tf-row{border-top-color:#2a3140}
 .res-touch{margin-left:3px;font-size:10.5px;font-weight:800;color:var(--buy);vertical-align:middle;cursor:help}
 .earn-mark{margin-left:3px;font-size:10.5px;font-weight:800;color:var(--sell);vertical-align:middle;cursor:pointer}
 .tkrec-note{font-size:11px;color:var(--faint);line-height:1.7;margin-top:6px}
@@ -2498,6 +2511,8 @@ const QQQ_FACTS = {
   bottom:    { n:73, r:{1:56,3:60,5:60,10:73}, half:"전반 53/53/53/58 · 후반 60/70/70/93 — 전반이 기준선 아래(§2 ✗)" },
   /* 바닥권 + VXN 꺾임: +3·+5일은 전·후반 모두 기준선 위(63/63 · 67/67), +1·+10일은 전반 미달. 31건 '방향만'. */
   bottomVxn: { n:31, r:{1:58,3:65,5:65,10:74}, half:"전반 53/63/63/58 · 후반 67/67/67/100 — +3·+5일만 양쪽 통과" },
+  /* 💡 강한 축 2개 이상 겹침 (2026-09-03, 692거래일 · tools/qqq-method-lab.py D1). 한 축만은 70건 61/64/64/69%. */
+  multi:     { n:15, r:{1:67,3:73,5:73,10:100}, half:"표본 15건 — 반쪽을 가를 수 없음 · 참고 등급" },
 };
 
 /* QQQ가 오늘까지 며칠 연속 내렸나. hist 종가로 센다. */
@@ -2525,11 +2540,15 @@ function qqqTierRule(streak, vxn, vxnPrev, breadth){
   if(streak >= 3) why.push(`${streak}일 연속 하락`);
   if(peak) why.push(`VXN ${r1(vxn)} 꺾임`);
   if(bottomPeak) why.push(`바닥권(20일선 위 ${r1(breadth)}%) + VXN 꺾임`);
-  if(why.length) return { tier:2, why, streak, peak, bottom, bottomPeak, breadth };
+  /* 💡 나스닥 강한다중 — 강한 축이 2개 이상 겹친 날 (2026-09-03 사용자 지시 "다 통과한 건 전구가 맞지 않나").
+     3년 실측(tools/qqq-method-lab.py D1): 15건 67/73/73/100% vs 한 축만 70건 61/64/64/69%.
+     표본 15건은 '참고' 등급 — 화면에도 그렇게 적는다. */
+  const bulb = why.length >= 2;
+  if(why.length) return { tier:2, bulb, why, streak, peak, bottom, bottomPeak, breadth };
   if(streak === 2) why.push("2일 연속 하락");
   if(bottom) why.push(`바닥권 · 20일선 위 ${r1(breadth)}%`);
-  if(why.length) return { tier:1, why, streak, peak, bottom, bottomPeak, breadth };
-  return { tier:0, why:[], streak, peak, bottom, bottomPeak, breadth };
+  if(why.length) return { tier:1, bulb:false, why, streak, peak, bottom, bottomPeak, breadth };
+  return { tier:0, bulb:false, why:[], streak, peak, bottom, bottomPeak, breadth };
 }
 function qqqGrade(){
   const mx = (state.data && state.data.market_extra) || {};
@@ -2539,7 +2558,7 @@ function qqqGrade(){
 }
 /* 등급의 근거 표본 — 강한 쪽은 연속 하락 → VXN 꺾임 → 바닥권+꺾임 순으로 센 근거를 든다. */
 function qqqGradeFact(g){
-  if(g.tier === 2) return g.streak >= 3 ? QQQ_FACTS.down3 : g.peak ? QQQ_FACTS.vxn : QQQ_FACTS.bottomVxn;
+  if(g.tier === 2) return g.bulb ? QQQ_FACTS.multi : g.streak >= 3 ? QQQ_FACTS.down3 : g.peak ? QQQ_FACTS.vxn : QQQ_FACTS.bottomVxn;
   if(g.tier === 1) return g.streak === 2 ? QQQ_FACTS.down2 : QQQ_FACTS.bottom;
   return null;
 }
@@ -2590,7 +2609,7 @@ function qqqSignalHistory(s){
          현재 규칙으로 다시 매긴다 — 이 화면은 '과거 원시지표를 현재 산식으로 재평가'한다. */
       const breadth = has(num(r.breadth)) ? num(r.breadth) : (br[d] ?? null);
       const g = qqqTierRule(Number(r.streak)||0, num(r.vxn), num(r.vxn_prev), breadth);
-      return { d, tier:g.tier, streak:g.streak, vxn:num(r.vxn), vxnPrev:num(r.vxn_prev),
+      return { d, tier:g.tier, bulb:g.bulb, streak:g.streak, vxn:num(r.vxn), vxnPrev:num(r.vxn_prev),
         peak:g.peak, bottom:g.bottom, breadth, why:g.why, source:r.source||"snapshot" };
     });
   }
@@ -2620,7 +2639,7 @@ function qqqGauges(){
     ${gauge("VXN 변화", deltaPct, deltaText, {color:deltaColor,ticks:[50]})}
     ${gauge("20일선 위", br===null?0:clamp(100-br,0,100), br===null?"—":`${r1(br)}%`, {color:brColor,ticks:[70]})}
   </div>
-  <div class="minor">나스닥 전용 기준 · <b>2일 연속 하락</b> 또는 <b>바닥권(20일선 위 30% 미만)</b> = 매수 우위 · <b>3일 연속 하락</b>, <b>VXN 28 이상 후 하락 전환</b>, <b>바닥권 + VXN 하락 전환</b> = 강한 매수 우위<br>
+  <div class="minor">나스닥 전용 기준 · <b>2일 연속 하락</b> 또는 <b>바닥권(20일선 위 30% 미만)</b> = 매수 우위 · <b>3일 연속 하락</b>, <b>VXN 28 이상 후 하락 전환</b>, <b>바닥권 + VXN 하락 전환</b> = 강한 매수 우위 · 이 강한 축이 <b>2개 이상 겹치면 💡 강한다중</b>(3년 15번 · 3일 뒤 73%, 10일 뒤 100% · 표본이 적어 참고)<br>
   <b>왜 '내렸는데' 매수 우위?</b> 지수는 100종목 묶음이라 개별주처럼 추세를 타기보다 <b>짧게 빠지면 되돌아오는</b> 성질이 셌어요. 3년 실측에서 사흘 연속 내린 날(47번) 뒤 3일 안에 올라 있던 경우가 <b>10번 중 7번</b>, 아무 날이나 산 경우는 10번 중 6번이었어요. 개별 종목과는 반대로 읽어야 해요.</div>`;
 }
 
@@ -2630,7 +2649,7 @@ function qqqGauges(){
    판정 근거는 지수 전용 산식이다. */
 function qqqGradeBadge(){
   const g = qqqGrade();
-  const [cls, lab] = g.tier === 2 ? ["g5", "강한 매수 우위"]
+  const [cls, lab] = g.tier === 2 ? ["g5", g.bulb ? "💡 강한다중" : "강한 매수 우위"]
                    : g.tier === 1 ? ["g4", "매수 우위"]
                    : ["g3", "중립"];
   const f = qqqGradeFact(g);
@@ -2645,7 +2664,7 @@ function nasdaqEdgeBadges(){
   if(g.tier){
     const f = qqqGradeFact(g);
     out.push({ key:"qqq-grade", cls:"nedge-vxn", icon: g.tier === 2 ? "🟢" : "🔵",
-      label: g.tier === 2 ? "나스닥 강한 매수 우위" : "나스닥 매수 우위",
+      label: g.tier === 2 ? (g.bulb ? "💡 나스닥 강한다중" : "나스닥 강한 매수 우위") : "나스닥 매수 우위",
       tip:`${g.why.join(" · ")} · 실측 +3일 ${f.r[3]}%(${f.n}건, 기준선 ${QQQ_FACTS.base[3]}%)` });
   }
   const mx = (state.data && state.data.market_extra) || {};
@@ -3671,13 +3690,16 @@ function themeForecastHtml(){
   const ex = n ? f.checks.reduce((p,c)=>p+c.ex,0)/n : null;
   const M = THEME_FACTS.multi;
   return `<div class="tkrec" style="margin-top:12px">
-    <div class="tkrec-h">🔭 앞설 테마 TOP3 <span class="tkrec-sub">다중 — 실측 통과 점수 4종(추세·5일 되돌림·20일 되돌림·폭)의 상위 3에 겹친 순 · 국장 제외 · 표시 전용</span></div>
-    <table class="cmp tkrec-t"><tr><th></th><th>테마</th><th>겹친 신호</th><th>20일</th><th>5일</th><th>20일선 위</th></tr>
-    ${f.today.slice(0,3).map((t,i)=>`<tr><td><b>${medal[i]}</b></td>
-      <td><b data-themefilter="${esc(t.name)}" role="button" tabindex="0" style="cursor:pointer">${esc(t.name)}</b> <span class="tkrec-n">${t.n}종목</span></td>
-      <td><span class="tkrec-n">${t.flags.map(x=>`<span class="tag t-good" style="margin:0 2px 0 0">${esc(x)}</span>`).join("")}</span></td>
-      <td><span class="num ${chgCls(t.m20)}">${pct(t.m20)}</span></td><td><span class="num ${chgCls(t.r5)}">${pct(t.r5)}</span></td><td><span class="num">${Math.round(t.br)}%</span></td></tr>`).join("")}
-    </table>
+    <div class="tkrec-h">🔭 앞설 테마 TOP3 <span class="tkrec-sub">여러 잣대에 동시에 걸린 순 · 국장 제외</span></div>
+    <div class="tf-list">
+    ${f.today.slice(0,3).map((t,i)=>`<div class="tf-row">
+      <span class="tf-medal">${medal[i]}</span>
+      <div class="tf-body">
+        <div class="tf-name"><b data-themefilter="${esc(t.name)}" role="button" tabindex="0">${esc(t.name)}</b> <span class="tkrec-n">${t.n}종목</span></div>
+        <div class="tf-tags">${t.flags.map(x=>`<span class="tag t-good">${esc(x)}</span>`).join("")}</div>
+        <div class="tf-nums">20일 <b class="num ${chgCls(t.m20)}">${pct(t.m20)}</b> · 5일 <b class="num ${chgCls(t.r5)}">${pct(t.r5)}</b> · 20일선 위 <b class="num">${Math.round(t.br)}%</b></div>
+      </div></div>`).join("")}
+    </div>
     <p class="tkrec-note"><b>어떻게 고르나</b> — 잘 맞았던 잣대 4개(요즘 잘 오르는 테마 · 최근 5일 많이 빠진 테마 · 최근 한 달 많이 빠진 테마 · 20일선 위 종목이 많은 테마)로 각각 상위 3개를 뽑고, <b>여러 잣대에 동시에 걸린 테마</b>를 위로 올려요. 다중신호와 같은 방식이에요.</p>
     <p class="tkrec-note"><b>얼마나 맞았나</b> — ${M ? `지난 ${esc(THEME_FACTS.window)} 동안 이렇게 고른 3개는 <b>5일 뒤 10번 중 ${Math.round(M.top3[5]/10)}번</b>, 10일 뒤 10번 중 ${Math.round(M.top3[10]/10)}번 다른 테마 평균보다 더 올랐어요(앞선 폭 +${M.ex[5]}/+${M.ex[10]}%p, 기간 앞뒤 절반 모두 같은 방향).` : "실측 대기 중이에요."}
       전일 등락 순서(위 열지도)는 10번 중 5번이라 동전 던지기였고, 그래서 열지도 순서로는 안 골라요.
@@ -4369,9 +4391,10 @@ function qqqGradeRecordTable(compact){
   const B = QQQ_FACTS.base, HS = [1,3,5,10];
   const g = qqqGrade();
   const rows = [
-    { lab:"🟢 강한 매수 우위", sub:"3일 이상 연속 하락", f:QQQ_FACTS.down3, on:g.tier===2 && g.streak>=3 },
-    { lab:"🟢 강한 매수 우위", sub:"VXN 28+ 꺾임(변동성 피크아웃)", f:QQQ_FACTS.vxn, on:g.tier===2 && g.peak },
-    { lab:"🟢 강한 매수 우위", sub:"바닥권(20일선 위 30%↓) + VXN 꺾임", f:QQQ_FACTS.bottomVxn, on:g.tier===2 && g.bottomPeak },
+    { lab:"💡 강한다중", sub:"강한 축 2개 이상 겹침", f:QQQ_FACTS.multi, on:g.tier===2 && g.bulb },
+    { lab:"🟢 강한 매수 우위", sub:"3일 이상 연속 하락", f:QQQ_FACTS.down3, on:g.tier===2 && g.streak>=3 && !g.bulb },
+    { lab:"🟢 강한 매수 우위", sub:"VXN 28+ 꺾임(변동성 피크아웃)", f:QQQ_FACTS.vxn, on:g.tier===2 && g.peak && !g.bulb },
+    { lab:"🟢 강한 매수 우위", sub:"바닥권(20일선 위 30%↓) + VXN 꺾임", f:QQQ_FACTS.bottomVxn, on:g.tier===2 && g.bottomPeak && !g.bulb },
     { lab:"🔵 매수 우위",     sub:"2일 연속 하락",       f:QQQ_FACTS.down2, on:g.tier===1 && g.streak===2 },
     { lab:"🔵 매수 우위",     sub:"바닥권 · 20일선 위 30% 미만", f:QQQ_FACTS.bottom, on:g.tier===1 && g.bottom },
   ];
@@ -4507,8 +4530,8 @@ function openQqqTimeline(s){
     return `<div class="tlrow${i===rows.length-1?" now":""}">
       <span class="tldate">${esc(md(r.d))}</span>
       <span class="tlbar"><i style="width:${width}%" class="${r.tier===2?"pos":r.tier===1?"up":"neg"}"></i></span>
-      <span class="tlnum">${r.tier===2?"강":r.tier===1?"매":"·"}</span>
-      <span class="tlg ${cls[r.tier]}">${label[r.tier]}</span>
+      <span class="tlnum">${r.bulb?"💡":r.tier===2?"강":r.tier===1?"매":"·"}</span>
+      <span class="tlg ${cls[r.tier]}">${r.bulb?"💡 강한다중":label[r.tier]}</span>
     </div>
     <div class="tlsub">${esc(why)} · ${esc(vxnText)}${has(r.breadth)?` · 20일선 위 ${r1(r.breadth)}%`:""}${r.source==="backfill"?` · <span style="color:var(--faint)">소급 판정</span>`:""}</div>`;
   }).reverse().join("");
