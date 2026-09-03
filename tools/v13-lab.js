@@ -464,5 +464,42 @@ if (ONLY.has('M')) {
   const b = P0.full._baseline; console.log(`\n  (기준선 ${HZ.map(h => `${b[h].rate}%`).join('/')})`);
 }
 
-console.log(`\n※ 후보 A 13종 · B 13종 · C 10종 · 지표 12종 · E 6종 · F 13종 · G 7종 · H 3종 · L 11종 · M 5종 — 다중비교. 통과한 것도 다음 사이클 재확인 후에 쓴다.`);
+/* ═══ N. 적중률 하위 종목 맞춤 필터 (2026-09-03 사용자 "AIT·애플·인텔·포엣은 그 종목만 다른 필터") ═════
+   전례: 빅테크·전기차 밴드 상한 55(BAND_CAP_CATS) — 점수 문턱이 아니라 '자리'로 잘랐다.
+   여기서는 지목된 4종목에만 조건을 얹어 그 종목들의 강한매수(등급5) 승률이 어떻게 바뀌는지
+   종목별로 센다. 표본이 종목당 10~40건이라 §5-1 '참고~방향만'이다 — 넷을 합쳐서도 본다. */
+const BCAP_A = '  const buyGrade=Math.min(Math.max(pullGrade,revGrade), bandCapOK ? 5 : 4);';
+const N_TK = ['AIT', 'AAPL', 'INTC', 'POET'];
+if (ONLY.has('N')) {
+  console.log('\n══ N. 적중률 하위 4종목(AIT·AAPL·INTC·POET) 맞춤 필터 — 그 종목의 강한매수만 바뀐다');
+  const tkCond = expr => [[BCAP_A, `  const __nt = ${JSON.stringify(N_TK)}.includes(s.ticker);\n  const buyGrade=Math.min(Math.max(pullGrade,revGrade), (bandCapOK && (!__nt || (${expr}))) ? 5 : 4);`]];
+  const Nc = [
+    ['N0 현행',                              {}],
+    ['N1 볼밴≤55 (빅테크식 상한)',              { extra: tkCond('has(bb) && bb<=55') }],
+    ['N2 볼밴≤40',                          { extra: tkCond('has(bb) && bb<=40') }],
+    ['N3 RSI≤45',                           { extra: tkCond('has(rsi) && rsi<=45') }],
+    ['N4 20일선 위',                          { extra: tkCond('has(p) && has(ma20) && p>ma20') }],
+    ['N5 50일선 위',                          { extra: tkCond('has(p) && has(s.ma50) && p>s.ma50') }],
+    ['N6 거래량 1.2배 이상',                    { extra: tkCond('has(vr) && vr>=1.2') }],
+    ['N7 반등 축만 (추세 강매 금지)',             { extra: tkCond('revGrade===5') }],
+    ['N8 추세 축만 (반등 강매 금지)',             { extra: tkCond('pullGrade===5') }],
+    ['N9 강한매수 금지 (관심까지만)',              { extra: tkCond('false') }],
+    ['N10 볼밴≤55 & RSI≤50',                 { extra: tkCond('has(bb) && bb<=55 && has(rsi) && rsi<=50') }],
+  ];
+  const R = runSet(Nc); const P0 = R.get(Nc[0][0]);
+  const per = (v) => { const out = {}; for (const h of HZ) { const rows = rowsOf(v.full, 'sb', h); for (const tk of N_TK.concat(['ALL4'])) { const r = rows.filter(x => tk === 'ALL4' ? N_TK.includes(x.ticker) : x.ticker === tk); const w = r.filter(x => x.ret > 1).length, l = r.filter(x => x.ret < -1).length; out[tk] = out[tk] || {}; out[tk][h] = { n: r.length, rate: (w + l) ? Math.round(w / (w + l) * 100) : null }; } } return out; };
+  const base = per(P0);
+  for (const [nm] of Nc) {
+    const v = R.get(nm); const t = per(v);
+    console.log(`\n  ${nm}`);
+    for (const tk of N_TK.concat(['ALL4'])) {
+      const cells = HZ.map(h => { const c = t[tk][h], b = base[tk][h]; const d = (c.rate != null && b.rate != null && nm !== Nc[0][0]) ? ` ${c.rate - b.rate >= 0 ? '+' : ''}${c.rate - b.rate}p` : ''; return `${c.rate == null ? ' —' : String(c.rate).padStart(3) + '%'}(${String(c.n).padStart(3)})${d}`.padEnd(14); });
+      console.log(`    ${tk.padEnd(6)} ${cells.join(' ')}`);
+    }
+  }
+  const b = P0.full._baseline; console.log(`\n  (기준선 전 종목 ${HZ.map(h => `${b[h].rate}%`).join('/')}) · 칸 = 승률(표본) 현행 대비 · +1/+3/+5/+7일`);
+  console.log('  ※ 종목당 표본이 15건 미만이면 신뢰 불가(§5-1). ALL4(넷 합산) 30건 이상일 때만 방향으로 본다.');
+}
+
+console.log(`\n※ 후보 A 13종 · B 13종 · C 10종 · 지표 12종 · E 6종 · F 13종 · G 7종 · H 3종 · L 11종 · M 5종 · N 10종 — 다중비교. 통과한 것도 다음 사이클 재확인 후에 쓴다.`);
 console.log('  이 도구는 실험 전용이다. 화면 반영은 사용자 승인 후에만.');
