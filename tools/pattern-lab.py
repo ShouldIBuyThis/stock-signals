@@ -90,6 +90,49 @@ for tk in UNIV:
     for i in range(K + 5, len(C) - max(HS)):
         base_rows.append({h: (C[i + h] / C[i] - 1) * 100 for h in HS})
 
+    # ── 유동성 스윕 → 회복 (ICT/SMC식, 2026-09-03 사용자가 준 나박AI 셋업 참고) ──
+    #    SSL 스윕 회복: 저가가 직전 20봉 저점을 깨고(손절 물량 털기) 3봉 안에 종가가
+    #    그 저점 위로 복귀한 첫날 진입. 손절 = 스윕 저가, 목표 = 직전 20봉 고가(BSL).
+    #    BSL 스윕 이탈: 거울상(하락형). 피벗 확정과 무관하게 과거 봉만 쓰므로 리페인트 없음.
+    def sweep(up):
+        used = -100
+        lim = len(C) - max(HS)
+        for s_ in range(25, lim - 3):
+            if s_ - used < 5:
+                continue
+            if up:
+                ref = L[s_ - 20:s_].min()
+                if not (L[s_] < ref):
+                    continue
+            else:
+                ref = H[s_ - 20:s_].max()
+                if not (H[s_] > ref):
+                    continue
+            for q in range(s_, min(s_ + 4, lim)):
+                ok = C[q] > ref * 1.005 if up else C[q] < ref * 0.995
+                if not ok:
+                    continue
+                entry = C[q]
+                stop = L[s_:q + 1].min() if up else H[s_:q + 1].max()
+                tgt = H[q - 20:q].max() if up else L[q - 20:q].min()
+                if (up and tgt <= entry * 1.02) or (not up and tgt >= entry * 0.98):
+                    break
+                hit = None
+                for qq in range(q + 1, min(q + 1 + HORIZON, len(C))):
+                    if up:
+                        if L[qq] <= stop: hit = "손절"; break
+                        if H[qq] >= tgt:  hit = "목표"; break
+                    else:
+                        if H[qq] >= stop: hit = "손절"; break
+                        if L[qq] <= tgt:  hit = "목표"; break
+                rr = abs(tgt - entry) / max(abs(entry - stop), 1e-9)
+                rows.append({"tk": tk, "d": dates[q], "pat": "SSL 스윕 회복" if up else "BSL 스윕 이탈",
+                             "up": up, "hit": hit or "미결", "rr": rr,
+                             "r": {h: (C[q + h] / C[q] - 1) * 100 for h in HS}})
+                used = s_
+                break
+    sweep(True); sweep(False)
+
     def scan(start_idx, neck, head, up, name, conf):
         """넥라인 돌파일을 찾아 한 건 기록한다. up=True면 상승 반전(매수)."""
         lim = min(len(C) - max(HS), start_idx + MAXW)
@@ -237,9 +280,9 @@ print("     ※ 하락 반전(쌍봉·헤드앤숄더·상승 쐐기)은 **승�
 print("  " + "─" * 74)
 print(f"  {'(아무 날이나 = 기준선)':<20} [{grade(len(BASE))}] " + " ".join(cell(B[h]) for h in HS))
 ORDER = ["쌍바닥", "역헤드앤숄더", "삼중바닥", "하락 쐐기", "상승 삼각형", "하락 채널 돌파",
-         "직사각형↑", "삼각수렴↑", "깃발", "페넌트",
+         "직사각형↑", "삼각수렴↑", "깃발", "페넌트", "SSL 스윕 회복",
          "쌍봉", "헤드앤숄더", "삼중천장", "상승 쐐기", "하락 삼각형", "상승 채널 이탈",
-         "직사각형↓", "삼각수렴↓"]
+         "직사각형↓", "삼각수렴↓", "BSL 스윕 이탈"]
 for nm in ORDER:
     sub = DF[DF.pat == nm]
     if not len(sub):
