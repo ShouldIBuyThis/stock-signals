@@ -70,6 +70,29 @@ df["down1"] = df.chg < 0
 df["down2"] = df.down1 & df.down1.shift(1)
 df["down3"] = df.down2 & df.down1.shift(2)
 
+# ── 고가·저가 기반 되돌림 재료 (2026-09-03 사용자 지시: 스윕 되돌림 등을 나스닥 전용 산식에 시뮬) ──
+def col_of(tk, col):
+    try:
+        return px[tk][col].dropna()
+    except Exception:
+        return None
+_hi, _lo = col_of("QQQ", "High"), col_of("QQQ", "Low")
+df["hi"] = _hi.reindex(df.index) if _hi is not None else df.c
+df["lo"] = _lo.reindex(df.index) if _lo is not None else df.c
+_prev_lo20 = df.lo.shift(1).rolling(20).min()
+_prev_hi20 = df.hi.shift(1).rolling(20).max()
+_swept = df.lo < _prev_lo20                                     # 직전 20봉 저점을 저가로 깬 날
+# SSL 스윕 회복: 최근 3봉 안에 스윕이 있었고 오늘 종가가 그 저점 위로 복귀(+0.5%)한 첫날
+_sw_recent = _swept.rolling(3).max().astype(bool)
+_ref_lo = _prev_lo20.where(_swept).ffill(limit=3)
+df["sweepBack"] = _sw_recent & (df.c > _ref_lo * 1.005) & ~(_sw_recent.shift(1).fillna(False) & (df.c.shift(1) > _ref_lo.shift(1) * 1.005))
+df["lo5new"] = df.lo < df.lo.shift(1).rolling(5).min()          # 5일 신저가
+df["reclaimHi"] = (df.lo5new.shift(1).fillna(False)) & (df.c > df.hi.shift(1))   # 5일 신저가 다음날 전일 고가 회복
+df["gapDownBack"] = (df.lo.shift(0) < df.c.shift(1) * 0.99) & (df.c > df.c.shift(1))  # 1% 아래로 밀렸다가 종가는 전일 종가 회복
+df["down3End"] = df.down3.shift(1).fillna(False) & ~df.down1     # 3일 연속 하락이 어제 끝나고 오늘 반등한 첫날
+df["down3Next"] = df.down3.shift(1).fillna(False)                # 3일 연속 하락 다음날(방향 무관)
+df["down3Next2"] = df.down3.shift(2).fillna(False)
+
 vx = close_of("^VXN")
 df["vxn"] = vx.reindex(df.index).ffill() if vx is not None else np.nan
 df["vxnPrev"] = df.vxn.shift(1)
@@ -190,6 +213,15 @@ METHODS = [
     ("D2 3일 연속하락 & VXN 꺾임(문턱 없음)", V.down3 & (V.vxn < V.vxnPrev)),
     ("D3 3일 연속하락 & 바닥권(30↓)",   V.down3 & (V.br < 30)),
     ("D4 2일 연속하락 & 바닥권 & VXN 꺾임", V.down2 & (V.br < 30) & (V.vxn < V.vxnPrev)),
+    # ── 2026-09-03 사용자 지시 "연속하락 후 며칠 지나야 오르던데 그것도 감안 · 스윕 되돌림 등도 나스닥 전용 산식에 시뮬"
+    ("D6 3일 연속하락 끝난 다음날(반등 첫날) 진입", V.down3End),
+    ("D7 3일 연속하락 다음날 진입(방향 무관)",   V.down3Next),
+    ("D8 3일 연속하락 이틀 뒤 진입",            V.down3Next2),
+    ("S2 SSL 스윕 회복 (20봉 저점 깬 뒤 3봉 안 복귀)", V.sweepBack),
+    ("S3 5일 신저가 다음날 전일 고가 회복",       V.reclaimHi),
+    ("S4 장중 -1% 밀렸다가 전일 종가 회복",       V.gapDownBack),
+    ("S5 S2 ∪ S3 (되돌림 합집합)",              V.sweepBack | V.reclaimHi),
+    ("S6 현행 v3 강한 축 ∪ S2",                V.down3 | ((V.vxn >= 28) & (V.vxn < V.vxnPrev)) | ((V.br < 30) & (V.vxn < V.vxnPrev)) | V.sweepBack),
     ("D5 강한 축 1개만 (겹침 없음)",    (V.down3.astype(int) + ((V.vxn >= 28) & (V.vxn < V.vxnPrev)).astype(int)
                                     + ((V.br < 30) & (V.vxn < V.vxnPrev)).astype(int)) == 1),
 ]
@@ -218,6 +250,19 @@ for name, mask in METHODS:
                 and f3["rate"] is not None and b3["rate"] is not None
                 and f3["rate"] > BASE[3]["rate"] and b3["rate"] > BASE[3]["rate"]):
             passed.append((name, len(sub), s3["rate"] - BASE[3]["rate"], s3["avg"]))
+
+# ── 연속하락 뒤 '며칠째' 오르나 — 신호일 t 이후 k일째 하루 등락이 양수일 확률(누적 아님)
+print("\n── 3일 연속 하락 신호일(t) 뒤 k일째 '그날 하루'가 올랐던 비율 (누적 수익 아님)")
+for label, mask in (("3일 연속하락", W.down3), ("2일 연속하락", W.down2), ("바닥권+VXN꺾임", (W.br < 30) & (W.vxn < W.vxnPrev))):
+    sub = W[mask.fillna(False)]
+    line = []
+    for k in range(1, 8):
+        day = (df.c.shift(-k) / df.c.shift(-(k - 1)) - 1).reindex(sub.index).dropna()
+        line.append(f"+{k}일 {round(float((day > 0).mean() * 100))}%")
+    base_line = " · ".join(line)
+    print(f"  {label:<14} ({len(sub)}건)  {base_line}")
+day_all = [(df.c.shift(-k) / df.c.shift(-(k - 1)) - 1).reindex(W.index).dropna() for k in range(1, 8)]
+print(f"  {'(아무 날이나)':<14} ({len(W)}건)  " + " · ".join(f"+{k+1}일 {round(float((d > 0).mean() * 100))}%" for k, d in enumerate(day_all)))
 
 print(f"\n── 세 관문(+5%p · §2 양쪽 통과 · 표본 15+)을 모두 넘은 것")
 if not passed:
