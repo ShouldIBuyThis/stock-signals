@@ -412,7 +412,7 @@ const RSI_A  = 'const revRsiOK    = rsi<=50 || (rsi<=60 && revBandHigh);';
 const NH_A   = 'const nearHighM = has(s.pct_from_high) && s.pct_from_high >= -25;';
 const PCH_A  = 'const pullChase = run3Eff===null || run3Eff<=5;';
 const RCH_A  = 'const revChase    = run3Eff===null || run3Eff<=3 || (run3Eff<=6 && revTrendOK);';
-const PG_A   = 'const pullGrade = pullSetup && pullScore>=1.5 && sectorOK && nearHighM && pullChase && pullBandOK ? 5 :';
+const PG_A   = 'const pullGrade = pullSetup && pullScore>=1.3 && sectorOK && nearHighM && pullChase && pullBandOK ? 5 :';
 if (ONLY.has('L')) {
   console.log('\n══ L. 표본 늘리고 승률 유지 — 약세·주의 국면 섹터 게이트 완화 등 (현행 v13)');
   const vx = 'has(s.market_vxn) && s.market_vxn';

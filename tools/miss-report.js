@@ -103,7 +103,7 @@ const f=(v,d=1)=>v===null||v===undefined?'—':Number(v).toFixed(d);
 function blockers(r){
   const g=r.g||{}, out=[];
   if(!g.pullSetup) out.push('눌림아님');
-  else if(!(g.pullScore>=1.5)) out.push('추세점수');
+  else if(!(g.pullScore>=1.3)) out.push('추세점수');
   if(!g.sectorOK) out.push('약세장섹터');
   if(!g.nearHighM) out.push(`고점대비 ${f(r.px.pfh,0)}%`);
   if(!g.pullChase) out.push(`추격 ${f(g.run3Eff,0)}%`);
