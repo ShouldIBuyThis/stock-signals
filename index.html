@@ -3198,7 +3198,7 @@ function chatKw(k){
   if(k==="themeTop"){
     chatMe("앞으로 오를 테마 알려줘");
     let rows=[]; try{ const tf=themeForecast(); rows=(tf.today||tf.rows||tf)||[]; }catch(e){}
-    const M=THEME_FACTS.multi;
+    const M=THEME_FACTS.multi; const pct = v => has(v) ? `${v>=0?"+":""}${v.toFixed(1)}%` : "—";
     chatBot(rows.length
       ? `잘 맞았던 잣대 4개(요즘 잘 오르는·최근 5일 많이 빠진·한 달 많이 빠진·20일선 위 종목 많은 테마)에 <b>동시에 걸린 테마</b>를 위로 올려요.<br>` +
         rows.slice(0,3).map((t,i)=>`${["🥇","🥈","🥉"][i]} <b>${esc(t.name)}</b> <span class="tkrec-sub">${esc((t.flags||[]).join("·"))} · 한 달 ${pct(t.m20)} · 일주일 ${pct(t.r5)}${congressCountFor(t.name)?` · 🏛 ${congressCountFor(t.name)}종`:""}</span>`).join("<br>") +
