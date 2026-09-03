@@ -11,8 +11,8 @@
  *     산식은 못 봤고, 우리 원장에 있는 재료(종가·거래량비·RS20·ATR·VXN)로만 만든다)
  *
  * 어떻게 재나 (§0) — index.html의 세 줄만 문자열로 갈아끼운다:
- *   ① 강한다중 전환 조건   `const strict=previousOverallGrade(s)===3 && …`
- *   ② 등급4 조건           `(revScore>=2.0 && has(bb) && bb>=70 && run3Eff!==null && run3Eff<=10) ? 4 : 3;`
+ *   ① 강한다중 조건        `const strict=has(s.market_vxn) && s.market_vxn>=25 && …` (v13)
+ *   ② 등급4 조건           `(revScore>=2.0 && has(bb) && bb<=40) ? 4 : 3;` (v13)
  *   ③ 국면 감점 세 줄       `const vxnFear = …` · `cNeg-=1.0;` · `cNeg-=0.5;`
  * 파생 집합(연속 상승·자금 유입·ATR 방향·20일 신고가 …)은 여기서 (티커|날짜)로 만들어
  * 페이지 컨텍스트에 함수로 넘긴다. 산식 재구현은 없다.
@@ -94,9 +94,10 @@ for (const s of base.stocks || []) {
 const K = s => s.ticker + '|' + s.last_date;
 
 /* ── 앵커 ───────────────────────────────────────────────────────────────── */
-const STRICT_A = 'const strict=previousOverallGrade(s)===3 && strictMultiGate(s) && fallbackStrict && strictChase;';
+/* v13(2026-09-03) 적용 후의 실제 줄에 맞춘 앵커 — 줄이 바뀌면 '앵커 없음'으로 죽는다. */
+const STRICT_A = 'const strict=has(s.market_vxn) && s.market_vxn>=25 && strictMultiGate(s) && fallbackStrict && strictChase;';
 const STRICT_B = 'const strict=__STRICT(s, previousOverallGrade(s)) && strictMultiGate(s) && fallbackStrict && strictChase;';
-const REV4_A = '(revScore>=2.0 && has(bb) && bb>=70 && run3Eff!==null && run3Eff<=10) ? 4 : 3;';
+const REV4_A = '(revScore>=2.0 && has(bb) && bb<=40) ? 4 : 3;';
 const REV4_B = '(__REV4(s, revScore, bb, run3Eff)) ? 4 : 3;';
 const FEAR_A = 'const vxnFear = has(s.market_vxn) && s.market_vxn>=25;';
 const FEAR_B = 'const vxnFear = __FEAR(s);';
@@ -104,6 +105,8 @@ const WP_A = 'else if (lv==="weak"){ cNeg-=1.0;';
 const WP_B = 'else if (lv==="weak"){ cNeg-=__WP(s);';
 const CP_A = 'else if (lv==="caution"){ cNeg-=0.5;';
 const CP_B = 'else if (lv==="caution"){ cNeg-=__CP(s);';
+const REVS_A = 'const revStrong = revScore>=2.0 && has(rsi) && revRsiOK && sectorOK && revChase;';
+const REVS_B = 'const revStrong = __REVS(s, revScore) && has(rsi) && revRsiOK && sectorOK && revChase;';
 const BASEROW = 'baseOut[h].push({ret:(hs[i+h].price/row.price-1)*100, date:row.last_date});';
 const BASEROW2 = 'baseOut[h].push({ret:(hs[i+h].price/row.price-1)*100, date:row.last_date, ticker:row.ticker});';
 
@@ -111,10 +114,12 @@ function makePage(o) {
   const patch = [['result._diag=diag;', 'result._diag=diag; result._all=out;'], [BASEROW, BASEROW2]];
   if (o.strict) patch.push([STRICT_A, STRICT_B]);
   if (o.rev4) patch.push([REV4_A, REV4_B]);
+  if (o.revs) patch.push([REVS_A, REVS_B]);
   if (o.fear || o.wp || o.cp) { patch.push([FEAR_A, FEAR_B]); patch.push([WP_A, WP_B]); patch.push([CP_A, CP_B]); }
   const page = H.loadPage({ patch });
-  page.__STRICT = o.strict || ((s, prev) => prev === 3);
-  page.__REV4 = o.rev4 || ((s, rev, bb, run3) => rev >= 2.0 && bb != null && bb >= 70 && run3 !== null && run3 <= 10);
+  page.__STRICT = o.strict || (s => s.market_vxn != null && Number(s.market_vxn) >= 25);   // v13 현행
+  page.__REVS = o.revs || ((s, rev) => rev >= 2.0);
+  page.__REV4 = o.rev4 || ((s, rev, bb) => rev >= 2.0 && bb != null && bb <= 40);   // v13 현행
   const vx = s => (s.market_vxn == null ? null : Number(s.market_vxn));
   page.__FEAR = o.fear || (s => { const v = vx(s); return v != null && v >= 25; });
   page.__WP = o.wp || (() => 1.0);
@@ -124,6 +129,7 @@ function makePage(o) {
 }
 
 /* ── 집계 도구 ───────────────────────────────────────────────────────────── */
+const ONLY = new Set(((process.argv.find(a => a.startsWith('--only=')) || '--only=A,B,C,D,E,F').split('=')[1]).split(','));
 const HZ = [1, 3, 5, 7];
 const DAYS = [...new Set((base.stocks || []).flatMap(s => (s.hist || []).map(r => String(r[I.date]))))].sort();
 const MID = DAYS[Math.floor(DAYS.length / 2)];
@@ -147,6 +153,8 @@ const rowsOf = (v, layer, h) => {
   if (layer === 'rev4') return (v._all.rev[h] || []).filter(x => x.tier === 4);
   if (layer === 'pull4') return (v._all.pull[h] || []).filter(x => x.tier === 4);
   if (layer === 'sb') return v._phaseRows.strongBuy[h] || [];
+  if (layer === 'rev5') return v._phaseRows.rev[h] || [];
+  if (layer === 'pull5') return v._phaseRows.pull[h] || [];
   if (layer === 'base') return v._phaseRows.base[h] || [];
   return [];
 };
@@ -176,11 +184,13 @@ console.log(`■ v13 후보 시뮬레이션 · ${DAYS.length}거래일 · 반쪽
 console.log(`  파생 집합: 연속상승2일+ ${[...UP.values()].filter(v => v >= 2).length} · 거래량1.5배 양봉 ${VOLUP.size} · ATR하락 ${ATRDN.size} · 20일 신고가 ${HI20.size} · RS20>0 ${RSPOS.size}`);
 console.log('  칸: 승률(표본) 현행 대비%p · +1/+3/+5/+7일 · 승=+1% 초과, 패=-1% 미만');
 
+if (ONLY.has('A')) {
 /* ═══ A. 💡 강한다중 전환 조건 ═════════════════════════════════════════════ */
 console.log('\n══ A. 💡 강한다중 — 전환 조건(전일 중립→강한매수) 대체 후보');
 const volUp12 = s => { const vr = num(s.vol_ratio), c = num(s.change_1d); return vr != null && c != null && vr >= 1.2 && c > 0; };
 const A = [
-  ['M0 현행 (전일 중립 → 강한매수)',        {}],
+  ['M0 현행 v13 (VXN≥25)',                 {}],
+  ['M0b v12 (전일 중립 → 강한매수)',        { strict: (s, p) => p === 3 }],
   ['M1 전환 조건 제거',                     { strict: () => true }],
   ['M2 첫날(전일 강한매수 아님)',            { strict: (s, p) => p !== 5 }],
   ['M3 반대시험: 전일도 강한매수(연속)',       { strict: (s, p) => p === 5 }],
@@ -199,10 +209,14 @@ const A = [
   for (const [nm] of A) report(nm, R.get(nm), nm === A[0][0] ? null : P0, 'strict', '💡 강한다중', [['🔵 다중', 'multi'], ['🟢 강한매수', 'sb']]);
 }
 
+
+}
+if (ONLY.has('B')) {
 /* ═══ B. 🔄 반등 매수관심(등급4) 재정의 ═══════════════════════════════════ */
 console.log('\n══ B. 🔄 반등 매수관심(등급4) — 정의 후보 (현행: 반등≥2.0 & 볼밴≥70 & 3일누적≤10)');
 const B = [
-  ['R0 현행',                                {}],
+  ['R0 현행 v13 (반등≥2.0 & 볼밴≤40)',        {}],
+  ['R0b v12 (볼밴≥70 & 3일누적≤10)',         { rev4: (s, rev, bb, run3) => rev >= 2.0 && bb != null && bb >= 70 && run3 !== null && run3 <= 10 }],
   ['R1 반등≥2.0 & 볼밴≤40 (밴드 하단)',       { rev4: (s, rev, bb) => rev >= 2.0 && bb != null && bb <= 40 }],
   ['R2 반등≥2.0 & 볼밴 40~70',               { rev4: (s, rev, bb) => rev >= 2.0 && bb != null && bb > 40 && bb < 70 }],
   ['R3 반등≥2.0 & 2일+ 연속 상승',            { rev4: (s, rev) => rev >= 2.0 && (UP.get(K(s)) || 0) >= 2 }],
@@ -222,6 +236,9 @@ const B = [
   const b = P0.full._baseline; console.log(`\n  (기준선 ${HZ.map(h => `${b[h].rate}%`).join('/')} — 관심 계층은 이 위여야 의미가 있다)`);
 }
 
+
+}
+if (ONLY.has('C')) {
 /* ═══ C. 4단계 약세 감점 — VXN 참고 방식 ══════════════════════════════════ */
 console.log('\n══ C. 국면 감점(약세 −1.0 · 주의 −0.5) — VXN 참고 방식 후보');
 const vx = s => (s.market_vxn == null ? null : Number(s.market_vxn));
@@ -246,6 +263,9 @@ const C = [
   for (const [nm] of C) report(nm, R.get(nm), nm === C[0][0] ? null : P0, 'sb', '🟢 강한매수', [['💡 강한다중', 'strict'], ['🔵 다중', 'multi'], ['🔄 반등 관심', 'rev4']]);
 }
 
+
+}
+if (ONLY.has('D')) {
 /* ═══ D. 신규 지표 — 단독 신호 & 강한매수 필터 ═══════════════════════════ */
 console.log('\n══ D. 신규 지표 — 단독(그날 전 종목 중 조건 충족일) 과 강한매수 필터');
 console.log('   칸: 조건 충족 표본 승률(표본) 그 계층 전체 대비%p');
@@ -277,5 +297,70 @@ console.log('   칸: 조건 충족 표본 승률(표본) 그 계층 전체 대�
   }
 }
 
-console.log(`\n※ 후보 A ${A.length}종 · B ${B.length}종 · C ${C.length}종 · 지표 12종 — 다중비교. 통과한 것도 다음 사이클 재확인 후에 쓴다.`);
+
+}
+
+/* ═══ E. 약세 감점 조절 — 신호 가뭄 대응 (2026-09-03 사용자 지시) ═══════════════
+   09-02 실제: 미국 80종목 중 20일선 위 23개, 반등점수 2.0 이상 2개, 강한매수 1개.
+   약세 감점(−1.0)은 추세·반등 두 축에 같이 걸린다. 반등은 하락장에서 쓰라고 만든 축이므로
+   '반등 축만 감점 면제'를 따로 잰다. 감점을 줄이면 표본이 몇 % 늘고 승률이 어디로 가는지. */
+if (ONLY.has('E')) {
+  console.log('\n══ E. 약세 감점 조절 — 감점 절반/해제 · 반등 축만 면제');
+  const REV_A = '  const revScore  =Math.round((rPos+rNeg+cNeg+vxnBonus)*10)/10;   // 🔄 역추세 반등 — 최종 판정 축';
+  const REV_B = '  const revScore  =Math.round((rPos+rNeg+cNeg+vxnBonus+__REVB(s))*10)/10;';
+  const fear = s => s.market_vxn != null && Number(s.market_vxn) >= 25;
+  const back = (s, w, c) => fear(s) ? 0 : (s.market_level === 'weak' ? w : s.market_level === 'caution' ? c : 0);
+  const E = [
+    ['E0 현행 v13 (약세 −1.0 · 주의 −0.5, VXN≥25면 해제)', {}],
+    ['E1 약세 감점 절반(−0.5)',                 { wp: () => 0.5 }],
+    ['E2 약세 감점 0',                          { wp: () => 0 }],
+    ['E3 약세·주의 감점 0',                      { wp: () => 0, cp: () => 0 }],
+    ['E4 반등 축만 감점 면제 (추세 축 유지)',       { revb: s => back(s, 1.0, 0.5) }],
+    ['E5 반등 축 면제 + 추세 축 절반',             { wp: () => 0.5, revb: s => back(s, 0.5, 0.25) }],
+  ];
+  const mk = o => {
+    const patch = [['result._diag=diag;', 'result._diag=diag; result._all=out;'], [BASEROW, BASEROW2]];
+    if (o.wp || o.cp) { patch.push([FEAR_A, FEAR_B]); patch.push([WP_A, WP_B]); patch.push([CP_A, CP_B]); }
+    if (o.revb) patch.push([REV_A, REV_B]);
+    const page = H.loadPage({ patch });
+    page.__FEAR = s => fear(s); page.__WP = o.wp || (() => 1.0); page.__CP = o.cp || (() => 0.5); page.__REVB = o.revb || (() => 0);
+    page.runInPage('this.__run = j => { state.data = normalize(JSON.parse(j)); return strategyValidation(); };');
+    return page;
+  };
+  const R = new Map(); for (const [nm, o] of E) { const p = mk(o); R.set(nm, { full: p.__run(RAW), h1: p.__run(H1), h2: p.__run(H2) }); }
+  const P0 = R.get(E[0][0]);
+  for (const [nm] of E) {
+    const v = R.get(nm), isP0 = nm === E[0][0];
+    report(nm, v, isP0 ? null : P0, 'sb', '🟢 강한매수', [['💡 강한다중', 'strict'], ['🔵 다중', 'multi'], ['📈 추세 관심', 'pull4'], ['🔄 반등 관심', 'rev4']]);
+    const days = new Set(rowsOf(v.full, 'sb', 1).map(x => x.date)).size;
+    console.log(`    ${'· 강한매수 일수'.padEnd(14)}${days}일 / ${DAYS.length}일 · 하루 평균 ${(rowsOf(v.full, 'sb', 1).length / DAYS.length).toFixed(2)}건`);
+  }
+}
+
+/* ═══ F. 🔄 반등형 강한매수 문턱 (2026-09-03 사용자 "반등형 강한매수 문턱 높여야") ═════
+   현행 = 반등≥2.0 & RSI 게이트 & 섹터 & 추격. 189일에서 반등 강매 57/59/59/58 vs 추세 강매 54/58/64/63.
+   문턱을 올리면 표본이 준다 — 지워지는 표본이 실제로 지는 표본일 때만(§5-5) 정당하다. */
+if (ONLY.has('F')) {
+  console.log('\n══ F. 🔄 반등형 강한매수 문턱 후보 (현행 반등≥2.0)');
+  const F = [
+    ['F0 현행 반등≥2.0',                    {}],
+    ['F1 반등≥2.5',                         { revs: (s, rev) => rev >= 2.5 }],
+    ['F2 반등≥3.0',                         { revs: (s, rev) => rev >= 3.0 }],
+    ['F3 반등≥2.0 & 볼밴≤50',                { revs: (s, rev) => rev >= 2.0 && s.bb_pos != null && s.bb_pos <= 50 }],
+    ['F4 반등≥2.0 & 볼밴≤35',                { revs: (s, rev) => rev >= 2.0 && s.bb_pos != null && s.bb_pos <= 35 }],
+    ['F5 반등≥2.0 & 5일 자금유출≤−1 (매도 소진)', { revs: (s, rev) => rev >= 2.0 && (INFLOW.get(K(s)) ?? 0) <= -1 }],
+    ['F6 반등≥2.0 & ATR 상승',                { revs: (s, rev) => rev >= 2.0 && !ATRDN.has(K(s)) }],
+    ['F7 반등≥2.0 & 거래량 1.2배 양봉',         { revs: (s, rev) => rev >= 2.0 && s.vol_ratio != null && s.vol_ratio >= 1.2 && s.change_1d > 0 }],
+    ['F8 반등≥2.0 & RSI≤45',                 { revs: (s, rev) => rev >= 2.0 && s.rsi != null && s.rsi <= 45 }],
+    ['F9 반등≥2.0 & VXN≥25',                 { revs: (s, rev) => rev >= 2.0 && s.market_vxn != null && s.market_vxn >= 25 }],
+    ['F10 반등≥2.0 & 연속 상승 2일 미만',       { revs: (s, rev) => rev >= 2.0 && (UP.get(K(s)) || 0) < 2 }],
+    ['F11 반등≥2.5 & 매도 소진',               { revs: (s, rev) => rev >= 2.5 && (INFLOW.get(K(s)) ?? 0) <= -1 }],
+    ['F12 반등≥2.0 & 5일 자금유입≥1 (반대시험)', { revs: (s, rev) => rev >= 2.0 && (INFLOW.get(K(s)) ?? 0) >= 1 }],
+  ];
+  const R = runSet(F); const P0 = R.get(F[0][0]);
+  for (const [nm] of F) report(nm, R.get(nm), nm === F[0][0] ? null : P0, 'rev5', '🔄 반등 강매', [['🟢 강한매수', 'sb'], ['💡 강한다중', 'strict'], ['🔵 다중', 'multi'], ['📈 추세 강매', 'pull5']]);
+  const b = P0.full._baseline; console.log(`\n  (기준선 ${HZ.map(h => `${b[h].rate}%`).join('/')})`);
+}
+
+console.log(`\n※ 후보 A 13종 · B 13종 · C 10종 · 지표 12종 · E 6종 · F 13종 — 다중비교. 통과한 것도 다음 사이클 재확인 후에 쓴다.`);
 console.log('  이 도구는 실험 전용이다. 화면 반영은 사용자 승인 후에만.');
