@@ -3003,6 +3003,10 @@ function chatMoreChips(){
     ["chatKw('knock')","🔨 저항 여러 번 두드린 종목"],
     ["chatKw('knockRule')","🔨 두드림이 뭐야?"],
     ["chatKw('earnStreak')","📉 실적 전 연속 음봉"],
+    ["chatKw('themeTop')","📊 앞으로 오를 테마 TOP3"],
+    ["chatKw('congress')","🏛 의원들이 많이 산 종목"],
+    ["chatKw('nasdaq')","🟢 나스닥 전용 등급 오늘은?"],
+    ["chatKw('extToday')","🔀 페어 리버설·Root 타격 뜬 종목"],
     ["chatHome()","↩ 처음으로"],
   ];
 }
@@ -3190,6 +3194,45 @@ function chatKw(k){
       저희는 실적 영향권에서 등급을 <b>보류</b>하는 쪽이고, 이건 참고 정보예요.`);
     renderChat((xs.length?[["closeModal();openEarnStreakModal('"+xs[0].s.ticker+"')","📉 실측 표 보기"]]:[])
       .concat([["chatKw('earnings')","📅 실적 보류 종목"],["chatHome()","↩ 처음으로"]])); return;
+  }
+  if(k==="themeTop"){
+    chatMe("앞으로 오를 테마 알려줘");
+    let rows=[]; try{ const tf=themeForecast(); rows=(tf.today||tf.rows||tf)||[]; }catch(e){}
+    const M=THEME_FACTS.multi;
+    chatBot(rows.length
+      ? `잘 맞았던 잣대 4개(요즘 잘 오르는·최근 5일 많이 빠진·한 달 많이 빠진·20일선 위 종목 많은 테마)에 <b>동시에 걸린 테마</b>를 위로 올려요.<br>` +
+        rows.slice(0,3).map((t,i)=>`${["🥇","🥈","🥉"][i]} <b>${esc(t.name)}</b> <span class="tkrec-sub">${esc((t.flags||[]).join("·"))} · 한 달 ${pct(t.m20)} · 일주일 ${pct(t.r5)}${congressCountFor(t.name)?` · 🏛 ${congressCountFor(t.name)}종`:""}</span>`).join("<br>") +
+        `<br><span class="tkrec-sub">${THEME_FACTS.window} 실측: 이렇게 고른 3개가 5일 뒤 10번 중 ${Math.round(M.top3[5]/10)}번 다른 테마 평균보다 더 올랐어요. 스윙 관점에선 상위 테마 안에서 <b>매수관심·강한매수가 뜬 종목</b>을 고르는 용도예요. 점수·등급에는 안 들어가요.</span>`
+      : `테마를 셀 데이터가 아직 없어요.`);
+    renderChat([["advisorGo('theme')","📊 테마 화면으로"],["chatMore()","🔍 다른 질문"],["chatHome()","↩ 처음으로"]]); return;
+  }
+  if(k==="congress"){
+    chatMe("의원들이 많이 산 종목 알려줘");
+    const CH = state.data && state.data.congress_holdings;
+    if(!CH){ chatBot(`의회 거래 ETF 보유 내역이 아직 안 들어왔어요.`); renderChat(chatMoreChips()); return; }
+    const mine = new Map(allStocks().map(s=>[s.ticker,s]));
+    const line = etf => (((CH[etf]||{}).top)||[]).map(x=>{ const s=mine.get(x.ticker); return `${s?`<b>${esc(s.name||x.ticker)}</b>`:esc(x.ticker)} ${has(num(x.weight))?num(x.weight).toFixed(1)+"%":""}${s?"":"<span class=\"tkrec-sub\">(관심종목 아님)</span>"}`; }).join(", ");
+    chatBot(`<b>${esc(CH.date||"")} 기준</b> 의회 거래 ETF 상위 10종이에요. 의원 공시(거래 뒤 최대 45일)를 따라 담는 바구니라 <b>한두 달 전에 산 것</b>이에요.<br><br>` +
+      `🔵 <b>민주당 바구니(NANC)</b><br>${line("NANC")}<br><br>🔴 <b>공화당 바구니(GOP)</b><br>${line("GOP")}<br><br>` +
+      `<span class="tkrec-sub">굵은 글씨가 우리 관심종목이에요. 점수·등급·순위에는 안 들어가고, 편입·편출 이력이 쌓이면 예측력을 잴 예정이에요. <span class="hl clickable" data-explain="의회바구니">자세한 설명</span></span>`);
+    renderChat([["chatMore()","🔍 다른 질문"],["chatHome()","↩ 처음으로"]]); return;
+  }
+  if(k==="nasdaq"){
+    chatMe("나스닥 전용 등급 오늘은 어때?");
+    const g = qqqGrade(); const f = qqqGradeFact(g); const B = QQQ_FACTS.base;
+    chatBot(g.tier
+      ? `오늘 나스닥(QQQ) 전용 등급은 <b>${g.tier===2?(g.bulb?"💡 강한다중":"강한 매수 우위"):"매수 우위"}</b>예요 — ${esc(g.why.join(" · "))}.<br>이런 날 3일 뒤 올라 있던 경우가 <b>${f.r[3]}%</b>(${f.n}번 중, 아무 날이나 ${B[3]}%)였어요.`
+      : `오늘 나스닥 전용 등급은 <b>중립</b>이에요 — 이틀 이상 연속 하락, 공포지수(VXN) 28 넘고 꺾임, 바닥권 중 어느 조건도 아니에요.<br>지수는 100종목 묶음이라 <b>짧게 빠지면 되돌아오는</b> 성질이 세서, 개별 종목과 반대로 '연속 하락'을 매수 우위로 읽어요.`);
+    renderChat([["closeModal();openNasdaqEdgeModal('qqq-grade')","🌐 근거 표 보기"],["chatMore()","🔍 다른 질문"],["chatHome()","↩ 처음으로"]]); return;
+  }
+  if(k==="extToday"){
+    chatMe("페어 리버설이나 Root 타격 뜬 종목 있어?");
+    const L = allStocks().filter(s=>s.ext_pair===1||s.ext_root===1);
+    chatBot((L.length
+      ? `오늘 <b>${L.length}종목</b>이에요.<br>` + L.map(s=>`· <b>${esc(s.name||s.ticker)}</b> ${s.ext_pair===1?"🔀 페어 리버설 돌파":""} ${s.ext_root===1?"🎯 Root 타격 되돌림":""}`).join("<br>")
+      : `오늘은 없어요.`) +
+      `<br><br><span class="tkrec-sub">🔀 <b>페어 리버설</b>: 하락 추세선과 수평 넥라인을 같은 날 함께 위로 넘은 자리(3년 74번, 3일 뒤 10번 중 7번 상승). 🎯 <b>Root 타격</b>: 20일 저점을 훑고 되돌아온 뒤 큰 양봉이 나오고 그 구간으로 되돌림이 확인된 자리(103번, 10번 중 6~7번). 둘 다 참고 표시이고 점수·등급에는 안 들어가요.</span>`);
+    renderChat([["chatMore()","🔍 다른 질문"],["chatHome()","↩ 처음으로"]]); return;
   }
   if(k==="baseline"){
     chatMe("기준선이 뭐야?");
