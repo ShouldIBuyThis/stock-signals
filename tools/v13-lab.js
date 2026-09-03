@@ -384,5 +384,22 @@ if (ONLY.has('G')) {
   console.log('  ※ 적용 전 반드시 node tools/keepcases.js — AAOI 8/7 · IREN 8/11 · SNDK 8/10·8/11이 남는지 본다.');
 }
 
-console.log(`\n※ 후보 A 13종 · B 13종 · C 10종 · 지표 12종 · E 6종 · F 13종 · G 7종 — 다중비교. 통과한 것도 다음 사이클 재확인 후에 쓴다.`);
+/* ═══ H. G2의 하단 문턱 이웃값 (2026-09-03 사용자 "재보고 통과하면 적용") ═════
+   G2(≤35 ∨ ≥80)는 통계 통과지만 SNDK 8/11(볼밴 38.7)이 강매→관심으로 내려간다.
+   하단을 40으로 올린 꼴과 그 이웃(45)을 재서 고원인지 본다. */
+if (ONLY.has('H')) {
+  console.log('\n══ H. 🔄 반등 강매 — 볼밴 하단 40/45 + 상단 80 예외 (현행 반등≥2.0)');
+  const bbOf = s => (s.bb_pos == null ? null : s.bb_pos);
+  const Hc = [
+    ['H0 현행 반등≥2.0',                 {}],
+    ['H1 볼밴≤40 또는 ≥80',              { revs: (s, rev) => rev >= 2.0 && bbOf(s) != null && (bbOf(s) <= 40 || bbOf(s) >= 80) }],
+    ['H2 볼밴≤45 또는 ≥80 (이웃값)',       { revs: (s, rev) => rev >= 2.0 && bbOf(s) != null && (bbOf(s) <= 45 || bbOf(s) >= 80) }],
+    ['H3 볼밴≤35 또는 ≥80 (G2 재확인)',    { revs: (s, rev) => rev >= 2.0 && bbOf(s) != null && (bbOf(s) <= 35 || bbOf(s) >= 80) }],
+  ];
+  const R = runSet(Hc); const P0 = R.get(Hc[0][0]);
+  for (const [nm] of Hc) report(nm, R.get(nm), nm === Hc[0][0] ? null : P0, 'rev5', '🔄 반등 강매', [['🟢 강한매수', 'sb'], ['💡 강한다중', 'strict'], ['🔵 다중', 'multi'], ['📈 추세 강매', 'pull5']]);
+  const b = P0.full._baseline; console.log(`\n  (기준선 ${HZ.map(h => `${b[h].rate}%`).join('/')})`);
+}
+
+console.log(`\n※ 후보 A 13종 · B 13종 · C 10종 · 지표 12종 · E 6종 · F 13종 · G 7종 · H 3종 — 다중비교. 통과한 것도 다음 사이클 재확인 후에 쓴다.`);
 console.log('  이 도구는 실험 전용이다. 화면 반영은 사용자 승인 후에만.');
