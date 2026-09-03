@@ -186,7 +186,7 @@ for(const b of [0.3, 0.5, 0.8]){
 /* ══════════ B. 미너비니 ①②③ — ma120/ma200이 화면에 닿게 된 뒤 첫 측정 ══════════
    그동안 "데이터 대기"였던 게 아니라 histRow 화이트리스트에 막혀 값이 안 보였다.
    추세(눌림) 강한매수 게이트에 조건을 하나씩 더해 승률 변화를 본다. */
-const PULL_ANCHOR = 'const pullGrade = pullSetup && pullScore>=1.3 && sectorOK && nearHighM && pullChase && pullBandOK ? 5 :';
+const PULL_ANCHOR = 'const pullGrade = pullSetup && pullScore>=1.5 && sectorOK && nearHighM && pullChase && pullBandOK ? 5 :';
 function runPull(extra, data){
   const ctx = { console, Math, Number, Object, Array, Set, Map, String, JSON };
   vm.createContext(ctx);

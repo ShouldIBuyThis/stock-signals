@@ -35,7 +35,7 @@ function extractFunction(name){
 function extractLine(re){ const m=src.match(re); if(!m) die(re); return m[0]; }
 function extractConst(name){ const st=src.indexOf(`const ${name} =`); if(st<0) die(name); return src.slice(st, src.indexOf(';',st)+1); }
 
-const PULL_LINE = `const pullGrade = pullSetup && pullScore>=1.3 && sectorOK && nearHighM && pullChase ? 5 :
+const PULL_LINE = `const pullGrade = pullSetup && pullScore>=1.5 && sectorOK && nearHighM && pullChase ? 5 :
     (pullSetup && pullScore>=0.8 && pullInterestOK ? 4 : 3);`;
 const STRICT_ANCHOR = 'const strict=previousOverallGrade(s)===3 && strictMultiGate(s) && fallbackStrict && strictChase;';
 /* v9 지표압도 해제 후의 배포 소스. 컴포넌트 3줄로 쪼개져 있다. */
@@ -57,7 +57,7 @@ function build(cond){
     if(!ev.includes(PULL_LINE) || !ev.includes(REV_LINE)) die('게이트 라인 없음');
     if(cond){
       ev = ev.replace(PULL_LINE,
-        `const pullGrade = pullSetup && pullScore>=1.3 && sectorOK && nearHighM && pullChase && (${cond}) ? 5 :
+        `const pullGrade = pullSetup && pullScore>=1.5 && sectorOK && nearHighM && pullChase && (${cond}) ? 5 :
     (pullSetup && pullScore>=0.8 ? 4 : 3);`);
       ev = ev.replace(REV_LINE,
         `const revStrong = revScore>=2.0 && has(rsi) && rsi<=50 && sectorOK &&
@@ -66,7 +66,7 @@ function build(cond){
   } else if(MODE === 'pull'){
     if(!ev.includes(PULL_LINE)) die('추세 게이트 라인 없음');
     if(cond) ev = ev.replace(PULL_LINE,
-      `const pullGrade = pullSetup && pullScore>=1.3 && sectorOK && nearHighM && pullChase && (${cond}) ? 5 :
+      `const pullGrade = pullSetup && pullScore>=1.5 && sectorOK && nearHighM && pullChase && (${cond}) ? 5 :
     (pullSetup && pullScore>=0.8 ? 4 : 3);`);
   } else {
     if(!msr.includes(STRICT_ANCHOR)) die('💡 관문 라인 없음');

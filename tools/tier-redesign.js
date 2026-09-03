@@ -49,7 +49,7 @@ function extractLine(re){ const m=src.match(re); if(!m) die(String(re)); return 
 function extractConst(name){ const st=src.indexOf(`const ${name} =`); if(st<0) die(name); return src.slice(st, src.indexOf(';',st)+1); }
 
 /* ── 배포 소스 앵커 ── */
-const PULL_LINE = `const pullGrade = pullSetup && pullScore>=1.3 && sectorOK && nearHighM && pullChase && pullBandOK ? 5 :
+const PULL_LINE = `const pullGrade = pullSetup && pullScore>=1.5 && sectorOK && nearHighM && pullChase && pullBandOK ? 5 :
     (pullSetup && pullScore>=0.8 && pullInterestOK ? 4 : 3);`;
 /* v10에서 c 경로를 지웠다. 실험은 b·c를 다시 만들어 비교하므로 여기서
    두 갈래를 재구성한다 — 배포 소스에는 b만 남아 있다. */
@@ -68,7 +68,7 @@ function patchedEvaluate(opt){
   /* pullBandOK(볼린저<=80)는 배포값이다. pullStrong으로 덮어쓰려면 band:false를 준다. */
   const band     = opt.band === false ? '' : ' && pullBandOK';
   e = e.replace(PULL_LINE,
-    `const pullGrade = pullSetup && pullScore>=1.3 && ${sector} && nearHighM && pullChase${band}${strong} ? 5 :
+    `const pullGrade = pullSetup && pullScore>=1.5 && ${sector} && nearHighM && pullChase${band}${strong} ? 5 :
     (pullSetup && pullScore>=0.8 && ${interest} ? 4 : 3);`);
   return e;
 }

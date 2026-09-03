@@ -412,7 +412,7 @@ const RSI_A  = 'const revRsiOK    = rsi<=50 || (rsi<=60 && revBandHigh);';
 const NH_A   = 'const nearHighM = has(s.pct_from_high) && s.pct_from_high >= -25;';
 const PCH_A  = 'const pullChase = run3Eff===null || run3Eff<=5;';
 const RCH_A  = 'const revChase    = run3Eff===null || run3Eff<=3 || (run3Eff<=6 && revTrendOK);';
-const PG_A   = 'const pullGrade = pullSetup && pullScore>=1.3 && sectorOK && nearHighM && pullChase && pullBandOK ? 5 :';
+const PG_A   = 'const pullGrade = pullSetup && pullScore>=1.5 && sectorOK && nearHighM && pullChase && pullBandOK ? 5 :';
 if (ONLY.has('L')) {
   console.log('\n══ L. 표본 늘리고 승률 유지 — 약세·주의 국면 섹터 게이트 완화 등 (현행 v13)');
   const vx = 'has(s.market_vxn) && s.market_vxn';
@@ -427,7 +427,7 @@ if (ONLY.has('L')) {
     ['L7 반등 RSI 50→55',                             { extra: [[RSI_A, 'const revRsiOK    = rsi<=55 || (rsi<=60 && revBandHigh);']] }],
     ['L8 추세 52주고점 −25%→−35%',                      { extra: [[NH_A, 'const nearHighM = has(s.pct_from_high) && s.pct_from_high >= -35;']] }],
     ['L9 추격 완화 (추세 run3≤7 · 반등 run3≤5)',         { extra: [[PCH_A, 'const pullChase = run3Eff===null || run3Eff<=7;'], [RCH_A, 'const revChase    = run3Eff===null || run3Eff<=5 || (run3Eff<=8 && revTrendOK);']] }],
-    ['L10 추세 강매 점수 1.5→1.3',                      { extra: [[PG_A, 'const pullGrade = pullSetup && pullScore>=1.3 && sectorOK && nearHighM && pullChase && pullBandOK ? 5 :']] }],
+    ['L10 추세 강매 점수 1.5→1.3',                      { extra: [[PG_A, 'const pullGrade = pullSetup && pullScore>=1.5 && sectorOK && nearHighM && pullChase && pullBandOK ? 5 :']] }],
     ['L11 반등 강매 점수 2.0→1.5',                      { revs: (s, rev) => rev >= 1.5 }],
   ];
   const R = runSet(L); const P0 = R.get(L[0][0]);

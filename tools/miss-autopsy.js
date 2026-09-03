@@ -116,7 +116,7 @@ for(const tk of TICKERS){
     const g = r.g || {};
     const blocked = [];
     if(!g.pullSetup)  blocked.push('①눌림아님');
-    else if(!(g.pullScore>=1.3)) blocked.push(`②추세점수 ${f(g.pullScore)}<1.3`);
+    else if(!(g.pullScore>=1.5)) blocked.push(`②추세점수 ${f(g.pullScore)}<1.5`);
     if(!g.sectorOK)   blocked.push(`③약세장 비방어섹터`);
     if(!g.nearHighM)  blocked.push(`④고점대비 ${f(g.pfh ?? r.px.pfh)}%<-25`);
     if(!g.pullChase)  blocked.push(`⑤3일누적 ${f(g.run3Eff)}%>5`);
