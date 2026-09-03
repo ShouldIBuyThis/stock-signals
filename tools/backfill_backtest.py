@@ -113,6 +113,7 @@ def build(days: int) -> dict:
         time.sleep(0.15)     # 야후 쪽 부담을 줄인다
 
     M.attach_historical_market(rows, mkt)
+    M.attach_historical_rs20(rows, mkt)          # 시장 대비 상대강도(rs20) — 실험에서 rs20 후보를 재려면 필요
 
     # 항복 바닥(K2) 해제는 qqq_card.hist의 그날 RSI를 읽는다. 이게 없으면 화면 산식이
     # weak을 절대 못 풀어 백테스트만 더 보수적으로 나온다 — 운영과 같은 카드를 만들어 넣는다.

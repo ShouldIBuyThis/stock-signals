@@ -3076,12 +3076,13 @@ function chatKw(k){
     renderChat(chatMoreChips()); return;
   }
   if(k==="bulbToday"){
+    const bulbVxnNote = () => { const v=(state.data&&state.data.market_extra&&state.data.market_extra.vxn)||{}; if(!has(num(v.value))) return "오늘 VXN 값이 없어요"; return v.value>=25 ? `오늘 VXN은 ${r1(v.value)}이라 조건은 됐지만 다중신호 중 가격위치·거래량 조건까지 겹친 종목이 없었어요` : `오늘 VXN은 ${r1(v.value)}라 평온한 구간이에요`; };
     chatMe("오늘 강한다중 뭐 떴어?");
     const bulbs = currentMultiRanked().filter(x=>x._multiTier===1);
     chatBot(bulbs.length
-      ? `오늘 <b>💡 강한다중 ${bulbs.length}종목</b>이에요 — 전날 중립에서 오늘 강한매수로 전환된 초기 신호.<br>` +
+      ? `오늘 <b>💡 강한다중 ${bulbs.length}종목</b>이에요 — 공포지수(VXN) 25 이상인 날, 다중신호에 가격위치·거래량 조건까지 겹친 초기 신호.<br>` +
         bulbs.map(x=>`· <b>${esc(x.name||x.ticker)}</b> <span class="tkrec-sub">${esc(x.category||"")}</span>`).join("<br>")
-      : `오늘은 💡 강한다중이 없어요. 전날 중립에서 오늘 강한매수로 전환된 종목이 없다는 뜻이에요.`);
+      : `오늘은 💡 강한다중이 없어요. 💡는 공포지수(VXN)가 25 이상인 날에만 켜지는데, ${bulbVxnNote()}.`);
     renderChat(chatMoreChips()); return;
   }
   if(k==="market"){
@@ -3105,7 +3106,7 @@ function chatKw(k){
     chatBot(`짧게 정리하면 —<br>
       · <b>🟢 강한매수</b>: 추세(눌림목) 또는 반등 전략에서 조건이 충분히 겹친 날의 매수 신호<br>
       · <b>🔵 다중신호</b>: 강한매수 중에서도 추격을 줄이는 가격위치·거래량 조건까지 통과한 것<br>
-      · <b>💡 강한다중</b>: 그중 <b>전날 중립 → 오늘 강한매수</b>로 막 전환된 초기 신호 — 실측 승률이 가장 높아요<br>
+      · <b>💡 강한다중</b>: 그중 <b>공포지수(VXN) 25 이상인 날</b>에 가격위치·거래량 조건까지 엄격하게 겹친 신호 — 실측 승률이 가장 높아요<br>
       자세한 계산 방식은 아래 버튼으로 보세요.`);
     renderChat([["closeModal();openSignalScoringHelp()","📖 계산 방식 전체 보기"],["chatHome()","↩ 처음으로"]]); return;
   }
@@ -3509,6 +3510,7 @@ function marketBar(){
         <button class="market-bench-cart ${cartOn?"on":""}" data-qcart="QQQ" title="나스닥100 모의점검 장바구니">${cartOn?"🛒✓ 장바구니":"🛒 장바구니"}</button>
       </div>
       <div class="market-bench-reason">나스닥 전용 등급은 개별주 매수강도·추세·반등 점수를 쓰지 않습니다.${s.last_date?` · ${esc(closeDateLabel(s.last_date))}`:""}</div>
+      ${marketThemeLine()}
       <div class="market-bench-indicators" style="margin-top:9px">
         ${qqqGauges()}
       </div>
@@ -3818,6 +3820,15 @@ function themeMultiRank(rows){
 }
 /* 테마 안에 의회 거래 ETF(NANC·GOP) 상위 10종이 몇 개 들었나 — 표시 전용. 보유 이력이 1일뿐이라
    예측력은 아직 못 잰다(holdings/ 원장이 30일 넘게 쌓이면 theme-lab에 후보로 넣는다). */
+/* 시장 국면 카드 안의 '앞설 테마 TOP3' 한 줄 — 테마 화면과 같은 themeForecast()를 쓴다(§0). */
+function marketThemeLine(){
+  try{
+    const tf = themeForecast(); const rows = (tf.today||[]).slice(0,3); if(rows.length < 3) return "";
+    const M = THEME_FACTS.multi;
+    return `<div class="market-bench-reason" style="margin-top:6px">📊 <b>앞설 테마</b> ${rows.map((t,i)=>`${["🥇","🥈","🥉"][i]} <b data-themefilter="${esc(t.name)}" role="button" tabindex="0" style="cursor:pointer">${esc(t.name)}</b>`).join(" · ")}
+      <span class="tkrec-sub">— 잘 맞았던 잣대 4개에 동시에 걸린 순서. 5일 뒤 다른 테마보다 더 오른 경우 10번 중 ${Math.round(M.top3[5]/10)}번(${esc(THEME_FACTS.window)}). 이 테마 안에서 강한매수·매수관심이 뜬 종목을 고르는 용도예요.</span></div>`;
+  }catch(e){ return ""; }
+}
 function congressCountFor(themeName){
   const CH = state.data && state.data.congress_holdings; if(!CH) return 0;
   const held = new Set([].concat(...["NANC","GOP"].map(e=>((CH[e]||{}).top||[]).map(x=>x.ticker))));
@@ -6110,7 +6121,7 @@ function openSignalScoringHelp(){
       각 전략에서 필요한 조건이 충분히 겹치면 <b>강한매수</b>, 일부가 확인되면 <b>매수관심</b>으로 분류합니다. 서로 다른 전략 점수를 단순 합산해 등급을 만들지 않습니다.<br><br>
       <b>다중신호는 어떻게 계산될까요?</b><br>
       눌림형 또는 반등형이 <b>강한매수</b>인 종목만 모은 뒤, 과도한 추격을 줄이는 가격위치·거래량 조건을 확인합니다. 서로 크기가 다른 눌림점수와 반등점수를 직접 비교하지 않고 각 전략 안에서의 상대순위로 나열합니다.<br><br>
-      <b>💡 강한다중</b>은 그중 전날 중립에서 오늘 강한매수로 전환됐고, 볼린저·당일등락 또는 RSI·거래량 조건을 더 엄격하게 통과한 초기 신호입니다. 반등 하나만으로 강한매수가 된 종목은 볼린저 70 이하·반등점수 2.5 이상·최근 3일 누적 상승 10% 이하·RSI 49 이하일 때만 강한다중에 포함합니다.
+      <b>💡 강한다중</b>은 그중 공포지수(VXN)가 25 이상인 날에, 볼린저·당일등락 또는 RSI·거래량 조건을 더 엄격하게 통과한 초기 신호입니다. 반등 하나만으로 강한매수가 된 종목은 볼린저 70 이하·반등점수 2.5 이상·최근 3일 누적 상승 10% 이하·RSI 49 이하일 때만 강한다중에 포함합니다.
     </p>
     <div class="modal-actions"><button class="primary" onclick="closeModal()">닫기</button></div>`);
 }

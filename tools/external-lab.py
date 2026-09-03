@@ -41,7 +41,8 @@ def rr_outcome(C, H, L, i, entry, stop, target):
     j = min(i + HORIZON, len(C) - 1)
     return (C[j] - entry) / risk
 
-rows = {"pair": [], "pair_conv": [], "root75": [], "root85": [], "root_any": []}
+rows = {"pair": [], "pair_conv": [], "root75": [], "root85": [], "root_any": [],
+        "frac_up": [], "frac_hold": [], "donch20": [], "elder": [], "frac_up_w": [], "gapfill_rev": []}
 base = []
 for tk in UNIV:
     try: d = px[tk].dropna()
@@ -77,6 +78,40 @@ for tk in UNIV:
         rec = {"tk": tk, "i": i, "f": [fwd(i, h) for h in HZ], "R": r}
         rows["pair"].append(rec)
         if conv: rows["pair_conv"].append(rec)
+    # ── 프랙탈·기타 추세 기법 (2026-09-03 사용자 "프랙탈 등 다양한 기법") ──
+    #   frac_up   : 윌리엄스 상향 프랙탈(가운데 봉 고가가 좌우 2봉보다 높음, 확정 2봉 뒤) 돌파 — 종가가 마지막 확정 프랙탈 고가를 처음 넘은 날
+    #   frac_hold : 하향 프랙탈(저점) 위에서 되돌림 — 저가가 마지막 프랙탈 저점 ±1% 안까지 내려왔다가 종가는 그 위 & 20일선 위
+    #   donch20   : 돈치안 20일 고가 돌파(종가 기준, 첫날)
+    #   elder     : 엘더 삼중창 근사 — 주봉(5일 묶음) 추세 위(25일선 상승) + 일봉 RSI2(=단기 되돌림, RSI14 45 이하 대신 3일 하락) 뒤 첫 양봉
+    #   frac_up_w : frac_up + 주간 추세 위(25일선 위)
+    #   gapfill_rev: 갭 메움 되돌림 — 20일 내 상승갭(시가>전일고가)이 있고 저가가 갭 상단 ±1%까지 되돌린 뒤 종가 회복
+    ma25 = pd.Series(C).rolling(25).mean().values
+    rsi14 = None
+    for k in range(80, n - 11):
+        # 확정 프랙탈: 위치 j(j<=k-2)에서 H[j] > H[j-1],H[j-2],H[j+1],H[j+2]
+        fu = [j for j in range(k-60, k-1) if j >= 2 and H[j] > max(H[j-2], H[j-1], H[j+1], H[j+2])]
+        fd = [j for j in range(k-60, k-1) if j >= 2 and L[j] < min(L[j-2], L[j-1], L[j+1], L[j+2])]
+        rec = lambda: {"tk": tk, "i": k, "f": [fwd(k, h) for h in HZ], "R": None}
+        if fu:
+            lvl = H[fu[-1]]
+            if C[k] > lvl and C[k-1] <= lvl:
+                stop = L[fd[-1]] if fd else L[k]
+                r = rec(); r["R"] = rr_outcome(C, H, L, k, C[k], stop, C[k] + 2*(C[k]-stop)); rows["frac_up"].append(r)
+                if not np.isnan(ma25[k]) and C[k] > ma25[k] and ma25[k] > ma25[k-5]: rows["frac_up_w"].append(r)
+        if fd:
+            lo = L[fd[-1]]
+            if L[k] <= lo*1.01 and C[k] > lo and not np.isnan(ma20[k]) and C[k] > ma20[k] and C[k] > O[k]:
+                r = rec(); r["R"] = rr_outcome(C, H, L, k, C[k], lo*0.99, C[k] + 2*(C[k]-lo*0.99)); rows["frac_hold"].append(r)
+        hi20 = max(H[k-20:k])
+        if C[k] > hi20 and C[k-1] <= max(H[k-21:k-1]):
+            stop = min(L[k-10:k+1]); r = rec(); r["R"] = rr_outcome(C, H, L, k, C[k], stop, C[k] + 2*(C[k]-stop)); rows["donch20"].append(r)
+        if not np.isnan(ma25[k]) and ma25[k] > ma25[k-5] and C[k-3] > C[k-2] > C[k-1] and C[k] > C[k-1] and C[k] > O[k] and C[k] > ma25[k]:
+            stop = min(L[k-3:k+1]); r = rec(); r["R"] = rr_outcome(C, H, L, k, C[k], stop, C[k] + 2*(C[k]-stop)); rows["elder"].append(r)
+        gaps = [j for j in range(k-20, k) if O[j] > H[j-1]]
+        if gaps:
+            g = gaps[-1]; top = H[g-1]
+            if L[k] <= top*1.01 and C[k] > top and C[k] > O[k] and k > g:
+                r = rec(); r["R"] = rr_outcome(C, H, L, k, C[k], top*0.98, C[k] + 2*(C[k]-top*0.98)); rows["gapfill_rev"].append(r)
     # ── Root 타격 근사 ──
     for i in range(80, n - 11):
         prior_low = min(L[i-20:i])
@@ -108,12 +143,14 @@ bv = [[x for x in col if x is not None] for col in zip(*base)]
 print("  기준선(아무 날이나) 오를 확률 +1/+3/+5/+10: " + " ".join(f"{np.mean([x>0 for x in v])*100:3.0f}%" for v in bv))
 print(f"  {'후보':28} {'n':>5}  오를 확률 +1/+3/+5/+10   2R 기대값   목표 선착률")
 for k, lab in [("pair", "페어 리버설(동시 돌파)"), ("pair_conv", "  + 수렴(간격 절반 이하)"), ("root_any", "Root 타격(스윕·변위·되돌림)"),
-               ("root75", "  75점(레벨 중첩 없음)"), ("root85", "  85점(레벨 중첩)")]:
+               ("root75", "  75점(레벨 중첩 없음)"), ("root85", "  85점(레벨 중첩)"),
+               ("frac_up", "프랙탈 상향 돌파"), ("frac_up_w", "  + 주간 추세 위(25일선 상승)"), ("frac_hold", "프랙탈 저점 지지 되돌림"),
+               ("donch20", "돈치안 20일 고가 돌파"), ("elder", "엘더 삼중창 근사(추세+3일 눌림 뒤 양봉)"), ("gapfill_rev", "상승갭 메움 되돌림")]:
     recs = rows[k]; s, er, hit, nR = stats(recs)
     grade = "" if len(recs) >= 50 else " ⚠방향만" if len(recs) >= 30 else " ⚠참고" if len(recs) >= 15 else " ✗신뢰불가"
     print(f"  {lab:28} {len(recs):5d}  {s}   {er:+.2f}R      {hit:3.0f}%{grade}")
 half = None
-for k, lab in [("pair", "페어 리버설"), ("root_any", "Root 타격")]:
+for k, lab in [("pair", "페어 리버설"), ("root_any", "Root 타격"), ("frac_up", "프랙탈 돌파"), ("frac_up_w", "프랙탈+주간추세"), ("frac_hold", "프랙탈 지지"), ("donch20", "돈치안"), ("elder", "엘더"), ("gapfill_rev", "갭 메움")]:
     recs = sorted(rows[k], key=lambda r: r["i"]);
     if len(recs) < 10: continue
     m = len(recs) // 2

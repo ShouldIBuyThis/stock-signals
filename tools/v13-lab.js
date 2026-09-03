@@ -548,5 +548,23 @@ if (ONLY.has('Q')) {
   console.log('  ※ 판정: 남는 표본이 기준선 +5%p 이상 · 지워지는 표본이 기준선 이하 · 전·후반 통과 · n≥50.');
 }
 
-console.log(`\n※ 후보 A 13종 · B 13종 · C 10종 · 지표 12종 · E 6종 · F 13종 · G 7종 · H 3종 · L 11종 · M 5종 · N 10종 · P 4종 · Q 14종 — 다중비교. 통과한 것도 다음 사이클 재확인 후에 쓴다.`);
+/* ═══ R. 🔀🎯 외부 산식을 '매수관심(등급4)' 출처로 (2026-09-03 사용자 "적중률 좋은데 반영해야") ═════
+   가점(M)은 새 표본 0~4건이라 무효였다. 점수를 거치지 않고 신호 자체를 등급4로 올리면
+   어떤 표본이 들어오는지 본다. rev4 계층에 얹는다(반등 관심 = 볼밴≤40 또는 외부 산식). */
+if (ONLY.has('R')) {
+  console.log('\n══ R. 외부 산식 신호를 매수관심(등급4)으로 — rev4 계층');
+  const base = (s, rev, bb) => rev >= 2.0 && bb != null && bb <= 40;
+  const Rc = [
+    ['R0 현행 (볼밴≤40)',                       {}],
+    ['R1 + 페어 리버설 또는 Root 타격이면 관심',    { rev4: (s, rev, bb) => base(s, rev, bb) || s.ext_pair === 1 || s.ext_root === 1 }],
+    ['R2 + 페어 리버설만',                        { rev4: (s, rev, bb) => base(s, rev, bb) || s.ext_pair === 1 }],
+    ['R3 + Root 타격만',                          { rev4: (s, rev, bb) => base(s, rev, bb) || s.ext_root === 1 }],
+    ['R4 외부 산식 & 반등≥1.0 (점수 최소 요건)',      { rev4: (s, rev, bb) => base(s, rev, bb) || ((s.ext_pair === 1 || s.ext_root === 1) && rev >= 1.0) }],
+  ];
+  const R = runSet(Rc); const P0 = R.get(Rc[0][0]);
+  for (const [nm] of Rc) report(nm, R.get(nm), nm === Rc[0][0] ? null : P0, 'rev4', '🔄 반등 관심', [['🟢 강한매수', 'sb'], ['🔵 다중', 'multi'], ['📈 추세 관심', 'pull4']]);
+  const b = P0.full._baseline; console.log(`\n  (기준선 ${HZ.map(h => `${b[h].rate}%`).join('/')})`);
+}
+
+console.log(`\n※ 후보 A 13종 · B 13종 · C 10종 · 지표 12종 · E 6종 · F 13종 · G 7종 · H 3종 · L 11종 · M 5종 · N 10종 · P 4종 · Q 14종 · R 4종 — 다중비교. 통과한 것도 다음 사이클 재확인 후에 쓴다.`);
 console.log('  이 도구는 실험 전용이다. 화면 반영은 사용자 승인 후에만.');
