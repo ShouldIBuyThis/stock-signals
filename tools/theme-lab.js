@@ -108,7 +108,22 @@ const SCORES = [
   ['S9 합성 = 폭 + 자금유입 + 연속상승',  (t, all) => rankSum(t, ['br', 'inflow', 'up2'], all)],
   ['S10 반전: 5일 수익률 낮은 순',       (t) => t.m5 == null ? null : -t.m5],
   ['S11 반전: 20일 수익률 낮은 순',      (t) => t.m20 == null ? null : -t.m20],
+  /* 2026-09-03 사용자 지시 "다중신호처럼 해서 승률 가장 강한 TOP3" — 189일에서 통과한 네 점수
+     (S8 64% · S10 58% · S11 58% · S3 58%, +5일 TOP3 적중률)의 TOP3에 겹친 횟수를 먼저 보고,
+     같은 횟수면 겹친 점수들의 적중률 합이 큰 순. index.html themeMultiRank()와 같은 규칙. */
+  ['S12 다중 = 통과 점수 4종 TOP3 겹침 × 적중률', (t, all) => themeMulti(t, all)],
 ];
+const MULTI_SIGS = [['S8', 64, (t, all) => rankSum(t, ['m20', 'br'], all)], ['S10', 58, t => t.m5 == null ? null : -t.m5],
+                    ['S11', 58, t => t.m20 == null ? null : -t.m20], ['S3', 58, t => t.br]];
+function themeMulti(t, all) {
+  let cnt = 0, w = 0;
+  for (const [, hit, fn] of MULTI_SIGS) {
+    const sc = all.map(x => fn(x, all)), rk = rankOf(sc)[all.indexOf(t)];
+    if (rk != null && rk <= 3) { cnt++; w += hit; }
+  }
+  const s8 = rankOf(all.map(x => MULTI_SIGS[0][2](x, all)))[all.indexOf(t)] || 99;
+  return cnt * 1000 + w - s8 * 0.01;   // 겹침 수 → 적중률 합 → S8 순위로 동점 처리
+}
 
 function evalScore(fn, days) {
   const out = {}; HZ.forEach(h => { out[h] = { ex3: [], hit3: 0, hit1: 0, ic: [], n: 0 }; });

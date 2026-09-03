@@ -1,0 +1,41 @@
+name: 테마 랭킹 예측 측정 (실험 · 로그만)
+
+# 사용자 지시(2026-09-03): 테마 TOP3 예측 점수를 189거래일 백테스트 + 30일 원장에서 잰다.
+# backtest-ticker-record.yml은 실험이 많아 1시간 넘게 걸리므로 테마만 따로 3분 안에 돈다.
+# ⚠ 아무 파일도 커밋하지 않는다. 결과는 로그에만 남는다.
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: '거래일 수 (186 이하)'
+        required: false
+        default: '180'
+
+permissions:
+  contents: read
+
+jobs:
+  lab:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: 의존성 설치
+        run: pip install -q yfinance pandas numpy exchange_calendars
+      - name: 장기 원본 수집 (야후 1년)
+        run: python tools/backfill_backtest.py --days "${{ inputs.days || '180' }}" --out backtest/raw.json
+      - name: 테마 랭킹 예측 — 백테스트
+        run: node tools/theme-lab.js backtest/raw.json
+      - name: 테마 랭킹 예측 — 30일 원장
+        run: node tools/theme-lab.js signals.json
+      - name: 원본 삭제 · 변경 없음 확인
+        run: |
+          rm -f backtest/raw.json
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::실험 워크플로우가 파일을 바꿨다"; git status --porcelain; exit 1
+          fi
