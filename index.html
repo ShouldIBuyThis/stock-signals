@@ -1054,8 +1054,10 @@ const CART_MAX = 5;   // 모의구매 점검이 의미를 가지는 상한
    필요한 건 "언제부터 어느 산식이 돌았는가"의 기록이다. 코드 자체는 git이 보관한다.
    나중에 소급 채점할 때: git show <커밋>:index.html 로 그 시점 evaluate()를 꺼내 쓴다. */
 /* LOGIC_VERSION은 '점수 산식'의 버전이다. 순위·표시 정합성 패치로는 올리지 않는다. */
-const LOGIC_VERSION = "v12";
+const LOGIC_VERSION = "v13";
 const LOGIC_LOG = [
+  {v:"v13", from:"2026-09-03", t:"🔄 반등 매수관심 = 반등 2.0 이상 + 볼린저 40 이하 (밴드 하단) · 💡 강한다중 = 전환 조건 대신 VXN 25 이상",
+   d:"사용자 지시 '반등 매수관심 승률이 이상해, 강한다중 전환 조건 풀고 다른 걸로' → 189거래일에서 후보 13종씩 재고(tools/v13-lab.js) 승인 후 적용. ① 반등 매수관심: 현행(볼린저 70 이상·3일누적 10 이하) 271건 46/46/43/41%로 기준선(51/51/52/52) 아래, 30일 원장에서는 50/40/30/16%였다. 밴드 하단(볼린저 40 이하)로 뒤집으면 268건 53/62/60/61%, 전반 55/53/57/60·후반 52/69/62/61로 전 구간 기준선 위. 2026-08-16의 '밴드 상단이 낫다'는 30거래일 창의 값이었다. ② 강한다중: '전일 중립→강한매수' 전환 조건을 빼도 승률이 그대로(345건→569건, 56/60/65/64→55/60/66/65)라 정보가 없었다. VXN 25 이상으로 바꾸면 196건 58/68/73/76%, 평균 +1.27/+3.41/+4.29/+5.71%(현행 +0.71/+2.03/+3.01/+3.78), 전·후반 통과, 빠지는 216건 54/54/60/55%. 그래서 💡는 이제 공포 구간에서만 뜬다 — 평온한 장에서는 0건이 정상이다. 연속 상승을 조건으로 걸면 34~45%로 무너지는 것도 확인했다(눌림·반등 산식에서 연속 상승은 추격). 약세 감점의 VXN 변형 10종은 전부 ±1%p라 v12 유지. ⚠ 둘 다 VXN 25 이상 구간(급락 국면)에 표본이 몰려 있어 다음 급락 사이클에서 재확인 조건."},
   {v:"v12", from:"2026-09-02", t:"VXN 25 이상인 날 약세·주의 감점 해제 — 공포 구간에서는 국면 감점을 걸지 않는다",
    d:"사용자 승인으로 적용. 같은 189거래일 시험(tools/rebalance-lab.js C3)에서 '약세 −1.0 · 주의 −0.5' 감점을 VXN 25 이상인 날만 푼 결과: 강한매수 817→864건(55/57/61/60 → 55/58/61/61%), 감점에 막혀 있던 47건이 새로 들어와 67/79/71/77%·평균 +0.19/+2.54/+3.26/+4.12%, 초록 평균수익 +0.47/+1.56/+2.52/+3.07(현행 +0.49/+1.51/+2.47/+3.01), §2 전반 +0/+1/+0/+1 · 후반 +0/+1/+2/+1. 표본 47건은 '방향만' 등급이다. 주의 감점을 전부 없애는 안(C1)은 12건으로 표본 부족, 약세 감점 절반(C2)은 +1일 후반이 갈려 미적용. 약세장 강한매수를 '막는' 장치는 원래 없었고 감점만 있었다 — 그 감점을 공포 구간에서만 푼다. VXN 28 가점(아래)과 합친 성적은 별도 측정(E1)이 돌고 있다."},
   {v:"v12", from:"2026-09-02", t:"VXN 28 이상인 날 추세·반등 점수 +0.5 — 공포 구간 가점",
@@ -1883,8 +1885,14 @@ function evaluate(s){
      임계값은 완만하다. 볼린저 66~74가 63~66%, 3일누적 8~15%가 62~67%로
      한 칸 움직여도 급변하지 않는다.
      강한매수·다중·💡에는 영향이 없다(💡 85/93/88 그대로). */
+  /* v13 (2026-09-03, 사용자 승인) — 등급4를 밴드 하단으로 뒤집는다.
+     위 '밴드 상단' 결론은 30거래일 창의 값이었고, 189거래일(tools/v13-lab.js B)에서는 반대였다:
+       현행 볼밴≥70 & 3일누적≤10   271건 46/46/43/41%  (기준선 51/51/52/52 아래)
+       반등≥2.0 & 볼밴≤40          268건 53/62/60/61%  전반 55/53/57/60 · 후반 52/69/62/61
+     지워지는 271건이 지는 표본이고 들어오는 268건이 전 구간 기준선 위다(§5-5). 3일누적 조건은
+     밴드 하단에서는 의미가 없어(추격이 아닌 자리) 뺐다. 다음 급락 사이클 재확인. */
   const revGrade  = revStrong ? 5 :
-    (revScore>=2.0 && has(bb) && bb>=70 && run3Eff!==null && run3Eff<=10) ? 4 : 3;
+    (revScore>=2.0 && has(bb) && bb<=40) ? 4 : 3;
   /* ── 신호가 잘 안 듣는 섹터의 밴드 상한 (2026-08-18) ──────────────────
      빅테크·전기차는 188거래일 백테스트에서 강한매수 68건이 33/42/48%로
      나머지(56/57/62%)보다 20%p 이상 낮았고, §2 반쪽 양쪽에서 같은 방향이었다.
@@ -3528,7 +3536,12 @@ function multiSignalRank(list){
        전·후반 모두 대조군 이상(§2): 전반 67/50/80 vs 40/50/71, 후반 83/100/92 vs 82/91/93.
        ⚠ 전반 표본이 5~6건뿐이다(급락장에 💡가 거의 안 뜬다). 다음 급락에서 재확인할 것. */
     const strictChase = !has(s.run3_sum) || s.run3_sum/levX(s.ticker) <= 5;
-    const strict=previousOverallGrade(s)===3 && strictMultiGate(s) && fallbackStrict && strictChase;
+    /* v13 (2026-09-03, 사용자 승인) — '전일 중립 → 강한매수' 전환 조건을 VXN≥25(공포 구간)로 교체.
+       189거래일(tools/v13-lab.js A): 전환 조건을 빼도 💡 569건 55/60/66/65%로 345건 56/60/65/64%와
+       같았다 — 전환은 이긴 표본을 고르는 축이 아니었다. VXN≥25로 바꾸면 196건 58/68/73/76%
+       (+2/+8/+8/+12%p), 평균 +1.27/+3.41/+4.29/+5.71%, 전반 57/66/66/73 · 후반 60/70/81/80,
+       빠지는 216건은 54/54/60/55%. ⚠ VXN≥25 일자는 급락 국면에 몰려 있다 — 다음 급락 재확인. */
+    const strict=has(s.market_vxn) && s.market_vxn>=25 && strictMultiGate(s) && fallbackStrict && strictChase;
     return {s,pu,rv,vo,pullStrong,revStrong,bestPct,otherPct,
       tier:strict?1:(generalTierGate(s)?2:0)};
   }).filter(x=>x.tier>0);
@@ -3579,7 +3592,7 @@ function noHoldingState(){
    초과 +1.3/+2.1%p. ⚠ 전체 순위 상관(IC)은 ≈0 — 상위 3개만 정보가 있고 4위 아래 순서는 없다.
    현행 화면 순서(전일 등락)는 47/51%로 동전 던지기였다. 반전(5일 수익률 낮은 순)도
    58/61%로 통과해 '되돌림 후보' 한 줄만 같이 적는다. 국장은 거래일 축이 달라 뺀다. */
-const THEME_FACTS = { window:"2025-12 ~ 2026-08 · 160일 평가", top3:{5:64,10:64}, ex:{5:1.3,10:2.1}, rev:{5:58,10:61}, revEx:{5:1.2,10:2.3} };
+const THEME_FACTS = { window:"2025-12 ~ 2026-08 · 160일 평가", top3:{5:64,10:64}, ex:{5:1.3,10:2.1}, rev:{5:58,10:61}, revEx:{5:1.2,10:2.3}, multi:null };
 function themeRowsAt(rowsByTicker){
   /* rowsByTicker: ticker → {price, ma20, ret20, r5} 한 날짜의 행. 테마별 집계. */
   const m = new Map();
@@ -3600,15 +3613,31 @@ function themeRowsAt(rowsByTicker){
   out.forEach(t => { t.score = (r20.get(t.name) && rbr.get(t.name)) ? r20.get(t.name) + rbr.get(t.name) : null; });
   return out.filter(t => t.score !== null).sort((a,b) => a.score - b.score || b.m20 - a.m20);
 }
+/* 다중 규칙(2026-09-03 사용자 지시 "다중신호처럼 해서 승률 가장 강한 TOP3") — 189일에서 통과한
+   네 점수의 TOP3에 몇 번 겹치는지 → 같으면 겹친 점수들의 적중률 합 → S8 순위로 동점 처리.
+   tools/theme-lab.js S12와 같은 규칙이다. 두 곳이 어긋나면 화면과 실측이 갈린다. */
+const THEME_SIGS = [
+  ["추세", 64, r => r.score == null ? null : -r.score],        // S8 20일 수익률 + 폭 (순위합, 작을수록 좋음)
+  ["5일 되돌림", 58, r => has(r.r5) ? -r.r5 : null],           // S10
+  ["20일 되돌림", 58, r => has(r.m20) ? -r.m20 : null],        // S11
+  ["폭", 58, r => has(r.br) ? r.br : null],                     // S3
+];
+function themeMultiRank(rows){
+  const top3Of = fn => rows.map(r => [fn(r), r]).filter(x => x[0] !== null).sort((a,b) => b[0]-a[0]).slice(0,3).map(x => x[1].name);
+  const flags = THEME_SIGS.map(([lab, hit, fn]) => [lab, hit, new Set(top3Of(fn))]);
+  return rows.map(r => {
+    const hitBy = flags.filter(f => f[2].has(r.name));
+    return Object.assign({}, r, { cnt: hitBy.length, w: hitBy.reduce((p,f) => p+f[1], 0), flags: hitBy.map(f => f[0]) });
+  }).filter(r => r.cnt > 0).sort((a,b) => b.cnt - a.cnt || b.w - a.w || a.score - b.score);
+}
 function themeForecast(){
   const stocks = allStocks();
   const rowsAt = (get) => { const m = new Map(); stocks.forEach(s => { const r = get(s); if(r) m.set(s.ticker, r); }); return m; };
   const now = rowsAt(s => { const hs = histStocks(s) || []; const i = hs.length - 1;
     const r5 = (i >= 5 && has(num(hs[i].price)) && has(num(hs[i-5].price))) ? (num(hs[i].price)/num(hs[i-5].price)-1)*100 : null;
     return { s, price:num(s.price), ma20:num(s.ma20), ret20:num(s.ret20), r5 }; });
-  const today = themeRowsAt(now);
-  const revToday = today.filter(t => has(t.r5)).sort((a,b) => a.r5 - b.r5);
-  /* 30일 원장 검증 — 원장 안의 날짜마다 같은 점수로 TOP3를 고르고 5일 뒤 실제 테마 수익이
+  const today = themeMultiRank(themeRowsAt(now));
+  /* 30일 원장 검증 — 원장 안의 날짜마다 같은 규칙으로 TOP3를 고르고 5일 뒤 실제 테마 수익이
      전체 테마 중앙값을 넘었는지 센다. 화면이 매일 다시 세므로 하드코딩이 아니다. */
   const dates = [...new Set(stocks.filter(s=>!isKR(s.ticker)).flatMap(s => (histStocks(s)||[]).map(h => String(h.last_date))))].sort();
   const byDate = new Map(dates.map(d => [d, new Map()]));
@@ -3617,38 +3646,36 @@ function themeForecast(){
       byDate.get(String(h.last_date)).set(s.ticker, { s, price:p, ma20:num(h.ma20), ret20:num(h.ret20),
         r5:(has(p) && has(p5)) ? (p/p5-1)*100 : null,
         fwd:(q && has(p) && has(num(q.price))) ? (num(q.price)/p-1)*100 : null }); }); });
-  const trend = [], rev = [];
+  const checks = [];
   dates.forEach(d => {
     const rows = themeRowsAt(byDate.get(d)).filter(t => has(t.fwd));
     if(rows.length < 5) return;
     const fw = rows.map(t=>t.fwd).sort((a,b)=>a-b), med = fw.length%2 ? fw[fw.length>>1] : (fw[fw.length/2-1]+fw[fw.length/2])/2;
-    const top3 = rows.slice(0,3).reduce((p,t)=>p+t.fwd,0)/3;
-    trend.push({ d, hit: top3 > med, ex: top3 - med });
-    const rr = rows.filter(t => has(t.r5)).sort((a,b) => a.r5 - b.r5);
-    if(rr.length >= 5){ const r3 = rr.slice(0,3).reduce((p,t)=>p+t.fwd,0)/3; rev.push({ d, hit: r3 > med, ex: r3 - med }); }
+    const top = themeMultiRank(rows).slice(0,3); if(top.length < 3) return;
+    const t3 = top.reduce((p,t)=>p+t.fwd,0)/3;
+    checks.push({ d, hit: t3 > med, ex: t3 - med });
   });
-  return { today, revToday, trend, rev };
+  return { today, checks };
 }
 function themeForecastHtml(){
-  const f = themeForecast(); if(!f.today.length) return "";
+  const f = themeForecast(); if(f.today.length < 3) return "";
   const pct = v => has(v) ? `${v>=0?"+":""}${v.toFixed(1)}%` : "—";
   const medal = ["🥇","🥈","🥉"];
-  const led = (arr) => { const n = arr.length, h = arr.filter(c=>c.hit).length; if(!n) return "5일 뒤가 있는 날짜가 아직 없어요";
-    const ex = arr.reduce((p,c)=>p+c.ex,0)/n; return `<b>${h}/${n}일</b> 적중 (평균 초과 ${ex>=0?"+":""}${ex.toFixed(2)}%p)${n<15?` · <span style="color:var(--sell)">표본 ${n}일은 판단 불가</span>`:""}`; };
-  const rowsHtml = (arr, val) => arr.slice(0,3).map((t,i)=>`<tr><td><b>${medal[i]}</b></td>
-      <td><b data-themefilter="${esc(t.name)}" role="button" tabindex="0" style="cursor:pointer">${esc(t.name)}</b></td>
-      <td><span class="num ${chgCls(val(t))}">${pct(val(t))}</span></td><td><span class="num">${Math.round(t.br)}%</span></td><td><span class="tkrec-n">${t.n}종목</span></td></tr>`).join("");
+  const n = f.checks.length, hits = f.checks.filter(c=>c.hit).length;
+  const ex = n ? f.checks.reduce((p,c)=>p+c.ex,0)/n : null;
+  const M = THEME_FACTS.multi;
   return `<div class="tkrec" style="margin-top:12px">
-    <div class="tkrec-h">🔭 앞설 테마 TOP3 <span class="tkrec-sub">국장 제외 · 표시 전용</span></div>
-    <table class="cmp tkrec-t"><tr><th></th><th>추세형 — 20일 수익률 + 테마 폭</th><th>20일</th><th>20일선 위</th><th></th></tr>${rowsHtml(f.today, t=>t.m20)}</table>
-    <p class="tkrec-note">실측 <b>${esc(THEME_FACTS.window)}</b>: TOP3가 5일 뒤 전체 테마 중앙값을 이긴 날 <b>${THEME_FACTS.top3[5]}%</b>, 10일 뒤 <b>${THEME_FACTS.top3[10]}%</b>
-      (초과 +${THEME_FACTS.ex[5]}/+${THEME_FACTS.ex[10]}%p, 전·후반 통과). 📒 <b>30거래일 원장</b>: ${led(f.trend)}</p>
-    ${f.revToday.length >= 3 ? `<table class="cmp tkrec-t" style="margin-top:8px"><tr><th></th><th>되돌림형 — 5일 수익률 낮은 순</th><th>5일</th><th>20일선 위</th><th></th></tr>${rowsHtml(f.revToday, t=>t.r5)}</table>
-    <p class="tkrec-note">실측: 5일 동안 가장 못 오른 테마 3개가 5일 뒤 중앙값을 이긴 날 <b>${THEME_FACTS.rev[5]}%</b>, 10일 뒤 <b>${THEME_FACTS.rev[10]}%</b>
-      (초과 +${THEME_FACTS.revEx[5]}/+${THEME_FACTS.revEx[10]}%p, 순위 상관 +0.06/+0.09 — 12종 중 유일한 양수). 📒 <b>30거래일 원장</b>: ${led(f.rev)}</p>` : ""}
-    <p class="tkrec-note">전체 순서에는 정보가 없어요(순위 상관 ≈0) — <b>상위 3개까지만</b> 봅니다. 전일 등락으로 줄 세우는 위 열지도 순서는 실측 47/51%로 동전 던지기였어요.
-      두 표가 서로 다른 테마를 가리키면 시장이 순환 중이라는 뜻이고, 최근 원장에서는 되돌림형이 더 잘 맞고 있어요.</p>
-    <p class="tkrec-note" style="color:var(--faint)">과거 비슷한 자리의 통계일 뿐 예언이 아니에요 · 점수·등급·순위에는 쓰지 않습니다 · 투자 권유가 아닙니다</p>
+    <div class="tkrec-h">🔭 앞설 테마 TOP3 <span class="tkrec-sub">다중 — 실측 통과 점수 4종(추세·5일 되돌림·20일 되돌림·폭)의 상위 3에 겹친 순 · 국장 제외 · 표시 전용</span></div>
+    <table class="cmp tkrec-t"><tr><th></th><th>테마</th><th>겹친 신호</th><th>20일</th><th>5일</th><th>20일선 위</th></tr>
+    ${f.today.slice(0,3).map((t,i)=>`<tr><td><b>${medal[i]}</b></td>
+      <td><b data-themefilter="${esc(t.name)}" role="button" tabindex="0" style="cursor:pointer">${esc(t.name)}</b> <span class="tkrec-n">${t.n}종목</span></td>
+      <td><span class="tkrec-n">${t.flags.map(x=>`<span class="tag t-good" style="margin:0 2px 0 0">${esc(x)}</span>`).join("")}</span></td>
+      <td><span class="num ${chgCls(t.m20)}">${pct(t.m20)}</span></td><td><span class="num ${chgCls(t.r5)}">${pct(t.r5)}</span></td><td><span class="num">${Math.round(t.br)}%</span></td></tr>`).join("")}
+    </table>
+    <p class="tkrec-note">${M ? `실측 <b>${esc(THEME_FACTS.window)}</b>: 이 다중 TOP3가 5일 뒤 전체 테마 중앙값을 이긴 날 <b>${M.top3[5]}%</b>, 10일 뒤 <b>${M.top3[10]}%</b> (초과 +${M.ex[5]}/+${M.ex[10]}%p${M.half?` · ${esc(M.half)}`:""}).` : "실측 대기 — CI 측정값이 들어오면 여기에 적힌다."}
+      개별 점수의 TOP3 적중률은 추세형 ${THEME_FACTS.top3[5]}/${THEME_FACTS.top3[10]}%, 되돌림형 ${THEME_FACTS.rev[5]}/${THEME_FACTS.rev[10]}%, 전일 등락(위 열지도 순서)은 47/51%로 동전 던지기였어요.
+      📒 <b>30거래일 원장</b>: ${n ? `<b>${hits}/${n}일</b> 적중 (평균 초과 ${ex>=0?"+":""}${ex.toFixed(2)}%p)${n<15?` · <span style="color:var(--sell)">표본 ${n}일은 판단 불가</span>`:""}` : "5일 뒤가 있는 날짜가 아직 없어요"}</p>
+    <p class="tkrec-note" style="color:var(--faint)">추세와 되돌림이 같은 테마를 가리키면 겹침이 커져요 · 과거 비슷한 자리의 통계일 뿐 예언이 아니에요 · 점수·등급·순위에는 쓰지 않습니다 · 투자 권유가 아닙니다</p>
   </div>`;
 }
 function renderTheme(){
@@ -6005,7 +6032,7 @@ function marketPhaseOn(date){
    표본 15건 미만 칸은 흐리게 처리해 눈으로도 구분되게 한다 — 방법론 §5-1. */
 const PHASE_STRATS=[
   ["strongBuy","🟢 최종 강한매수","추세·반등 중 하나라도 강한매수"],
-  ["strict","💡 강한다중","여러 전략이 겹친 초기 신호"],
+  ["strict","💡 강한다중","공포 구간(VXN 25+)에서 여러 전략이 겹친 초기 신호"],
   ["multi","🔵 다중신호","강한다중 + 일반다중"],
   ["pull","📈 추세 강한매수","오르는 종목의 눌림목"],
   ["rev","🔄 반등 강한매수","떨어진 종목의 바닥 회복"]
