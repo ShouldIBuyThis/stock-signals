@@ -116,6 +116,7 @@ function makePage(o) {
   if (o.rev4) patch.push([REV4_A, REV4_B]);
   if (o.revs) patch.push([REVS_A, REVS_B]);
   if (o.fear || o.wp || o.cp) { patch.push([FEAR_A, FEAR_B]); patch.push([WP_A, WP_B]); patch.push([CP_A, CP_B]); }
+  if (o.extra) for (const pr of o.extra) patch.push(pr);
   const page = H.loadPage({ patch });
   page.__STRICT = o.strict || (s => s.market_vxn != null && Number(s.market_vxn) >= 25);   // v13 현행
   page.__REVS = o.revs || ((s, rev) => rev >= 2.0);
@@ -401,5 +402,44 @@ if (ONLY.has('H')) {
   const b = P0.full._baseline; console.log(`\n  (기준선 ${HZ.map(h => `${b[h].rate}%`).join('/')})`);
 }
 
-console.log(`\n※ 후보 A 13종 · B 13종 · C 10종 · 지표 12종 · E 6종 · F 13종 · G 7종 · H 3종 — 다중비교. 통과한 것도 다음 사이클 재확인 후에 쓴다.`);
+/* ═══ L. 표본 늘리고 승률 유지 (2026-09-03 사용자 "오늘 매수신호가 없는데 너무 박해진 건 아닌지") ═════
+   진단: 2026-09-03 미국 80종목 중 반등≥2.0·RSI·추격 통과 3종목이 전부 sectorOK(약세·주의 국면이면
+   방어섹터만 강한매수)에 막혔다. VXN 21이라 v12 감점 해제도 안 걸린다. 감점(E)이 아니라 이 하드
+   게이트가 가뭄의 원인이므로 게이트를 푸는 꼴을 여러 개 잰다. 새로 편입되는 표본의 승률이
+   현행 강한매수(57/59/62/61)보다 낮으면 '표본만 늘고 승률은 깎이는' 것이라 기각. */
+const SECT_A = 'const sectorOK = !marketGuarded || DEFENSIVE_CATS.includes(s.category);';
+const RSI_A  = 'const revRsiOK    = rsi<=50 || (rsi<=60 && revBandHigh);';
+const NH_A   = 'const nearHighM = has(s.pct_from_high) && s.pct_from_high >= -25;';
+const PCH_A  = 'const pullChase = run3Eff===null || run3Eff<=5;';
+const RCH_A  = 'const revChase    = run3Eff===null || run3Eff<=3 || (run3Eff<=6 && revTrendOK);';
+const PG_A   = 'const pullGrade = pullSetup && pullScore>=1.5 && sectorOK && nearHighM && pullChase && pullBandOK ? 5 :';
+if (ONLY.has('L')) {
+  console.log('\n══ L. 표본 늘리고 승률 유지 — 약세·주의 국면 섹터 게이트 완화 등 (현행 v13)');
+  const vx = 'has(s.market_vxn) && s.market_vxn';
+  const L = [
+    ['L0 현행 v13',                                  {}],
+    ['L1 섹터 게이트 해제 (약세·주의에도 강매 허용)',        { extra: [[SECT_A, 'const sectorOK = true;']] }],
+    ['L2 VXN≥22면 섹터 게이트 해제',                    { extra: [[SECT_A, `const sectorOK = !marketGuarded || DEFENSIVE_CATS.includes(s.category) || (${vx}>=22);`]] }],
+    ['L3 VXN≥20면 섹터 게이트 해제 (이웃값)',             { extra: [[SECT_A, `const sectorOK = !marketGuarded || DEFENSIVE_CATS.includes(s.category) || (${vx}>=20);`]] }],
+    ['L4 종목이 20일선 위면 게이트 해제',                  { extra: [[SECT_A, 'const sectorOK = !marketGuarded || DEFENSIVE_CATS.includes(s.category) || (has(p) && has(ma20) && p>ma20);']] }],
+    ['L5 주의(caution)만 해제 · 약세는 유지',              { extra: [[SECT_A, 'const sectorOK = s.market_level!=="weak" || DEFENSIVE_CATS.includes(s.category);']] }],
+    ['L6 반등 축만 게이트 해제 (추세 축 유지)',             { extra: [[REVS_A, 'const revStrong = revScore>=2.0 && has(rsi) && revRsiOK && revChase;']] }],
+    ['L7 반등 RSI 50→55',                             { extra: [[RSI_A, 'const revRsiOK    = rsi<=55 || (rsi<=60 && revBandHigh);']] }],
+    ['L8 추세 52주고점 −25%→−35%',                      { extra: [[NH_A, 'const nearHighM = has(s.pct_from_high) && s.pct_from_high >= -35;']] }],
+    ['L9 추격 완화 (추세 run3≤7 · 반등 run3≤5)',         { extra: [[PCH_A, 'const pullChase = run3Eff===null || run3Eff<=7;'], [RCH_A, 'const revChase    = run3Eff===null || run3Eff<=5 || (run3Eff<=8 && revTrendOK);']] }],
+    ['L10 추세 강매 점수 1.5→1.3',                      { extra: [[PG_A, 'const pullGrade = pullSetup && pullScore>=1.3 && sectorOK && nearHighM && pullChase && pullBandOK ? 5 :']] }],
+    ['L11 반등 강매 점수 2.0→1.5',                      { revs: (s, rev) => rev >= 1.5 }],
+  ];
+  const R = runSet(L); const P0 = R.get(L[0][0]);
+  for (const [nm] of L) {
+    const v = R.get(nm);
+    report(nm, v, nm === L[0][0] ? null : P0, 'sb', '🟢 강한매수', [['💡 강한다중', 'strict'], ['🔵 다중', 'multi'], ['📈 추세 강매', 'pull5'], ['🔄 반등 강매', 'rev5']]);
+    const days = new Set(rowsOf(v.full, 'sb', 1).map(x => x.date)).size;
+    console.log(`    ${'· 강한매수 일수'.padEnd(14)}${days}일 / ${DAYS.length}일 · 하루 평균 ${(rowsOf(v.full, 'sb', 1).length / DAYS.length).toFixed(2)}건`);
+  }
+  const b = P0.full._baseline; console.log(`\n  (기준선 ${HZ.map(h => `${b[h].rate}%`).join('/')})`);
+  console.log('  ※ 판정: 새로 편입 표본의 +3/+5일이 현행 강한매수(59/62) 이상이고 전·후반 둘 다 기준선 위일 때만 통과.');
+}
+
+console.log(`\n※ 후보 A 13종 · B 13종 · C 10종 · 지표 12종 · E 6종 · F 13종 · G 7종 · H 3종 · L 11종 — 다중비교. 통과한 것도 다음 사이클 재확인 후에 쓴다.`);
 console.log('  이 도구는 실험 전용이다. 화면 반영은 사용자 승인 후에만.');
