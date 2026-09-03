@@ -1167,8 +1167,12 @@ const NAME_MAP = {
   "0123G0.KS":"TIGER 미국AI전력SMR",
   "453650.KS":"KODEX 미국S&P500금융",
   "0183J0.KS":"TIGER 미국우주테크",
-  "0144M0.KS":"KODEX 미국드론UAM TOP10"
+  "0144M0.KS":"KODEX 미국드론UAM TOP10",
+  NANC:"민주당 의원 거래 ETF", GOP:"공화당 의원 거래 ETF", MAGA:"공화당 후원기업 ETF"
 };
+/* 의원 거래 공시(최대 45일 지연)를 따라 사는 ETF — 카드에 '지연 추종' 표시를 붙인다. */
+const POLITICAL_ETF = {
+  NANC:"민주당 의원들이 공시한 매매를 따라 삼", GOP:"공화당 의원들이 공시한 매매를 따라 삼", MAGA:"공화당 후원 기업을 담음(공시 지연 없음)" };
 const DEFENSE = "경기방어";
 const HEALTH = "헬스케어";
 const FINANCE = "금융";
@@ -1192,6 +1196,7 @@ const CAT_MAP = {
   XOM:"원자재·유가", USO:"원자재·유가", DBA:"원자재·농산물", MP:"원자재·희토류", UUUU:"원자재·희토류",
   BMNR:"암호화폐", CIFR:"암호화폐", WULF:"암호화폐", HUT:"암호화폐",
   WELL:"리츠",
+  NANC:"정치·의회 거래", GOP:"정치·의회 거래", MAGA:"정치·의회 거래",
   IONQ:"양자컴퓨팅", QBTS:"양자컴퓨팅", INFQ:"양자컴퓨팅", RGTI:"양자컴퓨팅",
   RKLB:"우주·UAM", SPCX:"우주·UAM", PL:"우주·UAM", JOBY:"우주·UAM", RDW:"우주·UAM", "0183J0.KS":"우주·UAM", "0144M0.KS":"우주·UAM",
   LMT:"방산·드론", AXON:"방산·드론",
@@ -4831,6 +4836,8 @@ function flowTagsHtml(s){
   const out = [];
   if(has(f.inflow) && f.inflow <= -1)
     out.push(`<span class="tag t-good" title="5일 자금흐름 ${f.inflow} — 최근 5일 동안 거래량이 실린 날이 주로 하락한 날이에요(팔 사람이 많이 판 자리). 이 자리의 강한매수는 3일 뒤 10번 중 7번, 5일 뒤 10번 중 8번 올라 있었어요(강한매수 평균은 10번 중 6번).">🫗 매도 소진 ${f.inflow}</span>`);
+  if(POLITICAL_ETF[s.ticker] && s.ticker !== "MAGA")
+    out.push(`<span class="tag t-cool" title="의원 주식거래는 거래 뒤 최대 45일 안에 공시돼요. 이 ETF는 그 공시를 보고 따라 사니까 '지금 의원들이 사는 것'이 아니라 '한 달쯤 전에 산 것'을 담고 있어요. 신호·승률은 ETF 가격으로 똑같이 재지만, 정치 뉴스에 바로 반응하진 않아요.">🏛 공시 따라 삼 · 최대 45일 지연</span>`);
   if(f.up >= 2)
     out.push(`<span class="tag t-warn" title="${f.up}일 연속 오른 자리예요. 연속 상승 중에 잡은 강한매수는 3일 뒤 10번 중 5~6번밖에 안 올라 평균(10번 중 6번)보다 못했어요 — 이미 오른 뒤라 쫓아가는 자리예요.">⚠ ${f.up}일 연속 상승 · 추격 주의</span>`);
   return out.join("");

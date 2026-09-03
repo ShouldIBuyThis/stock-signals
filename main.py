@@ -602,6 +602,9 @@ WATCHLIST = {
                       "0144M0.KS":"KODEX 미국드론UAM TOP10"},
     "방산·드론":     {"LMT":"록히드마틴", "AXON":"액손"},
     "주택":          {"ITB":"미국주택건설 ETF", "NAIL":"주택건설 3x"},
+    # 의원 주식거래 공시(STOCK Act, 최대 45일 지연)를 따라 사는 ETF — '지금 사는 것'이 아니라
+    # '한 달 전에 산 것'을 추종한다(2026-09-03 사용자 요청, 지연을 감안해 참고용으로 둔다).
+    "정치·의회 거래": {"NANC":"민주당 의원 거래 ETF", "GOP":"공화당 의원 거래 ETF", "MAGA":"공화당 후원기업 ETF"},
     "빅테크":        {"META":"메타", "AAPL":"애플", "GOOGL":"구글", "AMZN":"아마존"},
     "국장":          {
         "069500.KS":"코스피", "229200.KS":"코스닥",
@@ -657,6 +660,7 @@ LEVERAGED = {"SOXL", "GDXU", "NAIL", "UYG", "DUSL"}
 NO_EARNINGS_TICKERS = {
     "SOXL", "GDXU", "GLD", "USO", "ITB", "NAIL",
     "UYG", "FXO", "HQH", "DBA", "DUSL", "SCHD",
+    "NANC", "GOP", "MAGA",
     "069500.KS", "229200.KS", "0173Y0.KS", "0123G0.KS",
     "453650.KS", "0183J0.KS", "0144M0.KS",
 }

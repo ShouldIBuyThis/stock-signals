@@ -362,5 +362,27 @@ if (ONLY.has('F')) {
   const b = P0.full._baseline; console.log(`\n  (기준선 ${HZ.map(h => `${b[h].rate}%`).join('/')})`);
 }
 
-console.log(`\n※ 후보 A 13종 · B 13종 · C 10종 · 지표 12종 · E 6종 · F 13종 — 다중비교. 통과한 것도 다음 사이클 재확인 후에 쓴다.`);
+/* ═══ G. 🔄 반등 강매 볼밴 하단 + 상단 돌파 예외 (2026-09-03) ═════
+   F4(볼밴≤35)가 가장 셌지만 keepcases에서 AAOI 8/7(볼밴 93·RSI 57, 상단 돌파 경로)과
+   IREN 8/11(볼밴 64·RSI 49)을 잃어 적용하지 못했다. 하단만 남기되 이미 있는
+   '밴드 상단 돌파' 예외(revRsiOK의 rsi≤60 & bb≥80)를 살리는 꼴을 잰다. */
+if (ONLY.has('G')) {
+  console.log('\n══ G. 🔄 반등 강매 — 볼밴 하단 + 상단 돌파 예외 (현행 반등≥2.0)');
+  const bbOf = s => (s.bb_pos == null ? null : s.bb_pos);
+  const G = [
+    ['G0 현행 반등≥2.0',                        {}],
+    ['G1 볼밴≤35 (F4 재확인)',                   { revs: (s, rev) => rev >= 2.0 && bbOf(s) != null && bbOf(s) <= 35 }],
+    ['G2 볼밴≤35 또는 ≥80 (상단 돌파 예외)',        { revs: (s, rev) => rev >= 2.0 && bbOf(s) != null && (bbOf(s) <= 35 || bbOf(s) >= 80) }],
+    ['G3 볼밴≤35 또는 ≥60',                     { revs: (s, rev) => rev >= 2.0 && bbOf(s) != null && (bbOf(s) <= 35 || bbOf(s) >= 60) }],
+    ['G4 볼밴≤50 또는 ≥80',                     { revs: (s, rev) => rev >= 2.0 && bbOf(s) != null && (bbOf(s) <= 50 || bbOf(s) >= 80) }],
+    ['G5 볼밴 35~80 사이만 제외 (= G2, RSI 게이트 그대로)', { revs: (s, rev) => rev >= 2.0 && bbOf(s) != null && !(bbOf(s) > 35 && bbOf(s) < 80) }],
+    ['G6 볼밴≤35 또는 (≥80 & 당일 +2% 이하)',       { revs: (s, rev) => rev >= 2.0 && bbOf(s) != null && (bbOf(s) <= 35 || (bbOf(s) >= 80 && s.change_1d != null && s.change_1d <= 2)) }],
+  ];
+  const R = runSet(G); const P0 = R.get(G[0][0]);
+  for (const [nm] of G) report(nm, R.get(nm), nm === G[0][0] ? null : P0, 'rev5', '🔄 반등 강매', [['🟢 강한매수', 'sb'], ['💡 강한다중', 'strict'], ['🔵 다중', 'multi'], ['📈 추세 강매', 'pull5']]);
+  const b = P0.full._baseline; console.log(`\n  (기준선 ${HZ.map(h => `${b[h].rate}%`).join('/')})`);
+  console.log('  ※ 적용 전 반드시 node tools/keepcases.js — AAOI 8/7 · IREN 8/11 · SNDK 8/10·8/11이 남는지 본다.');
+}
+
+console.log(`\n※ 후보 A 13종 · B 13종 · C 10종 · 지표 12종 · E 6종 · F 13종 · G 7종 — 다중비교. 통과한 것도 다음 사이클 재확인 후에 쓴다.`);
 console.log('  이 도구는 실험 전용이다. 화면 반영은 사용자 승인 후에만.');
