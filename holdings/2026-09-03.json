@@ -1,0 +1,207 @@
+{
+ "NANC": {
+  "label": "민주당 의원 거래",
+  "top": [
+   {
+    "ticker": "NVDA",
+    "name": "NVIDIA Corp",
+    "weight": 8.09
+   },
+   {
+    "ticker": "GOOG",
+    "name": "Alphabet Inc Class C",
+    "weight": 6.42
+   },
+   {
+    "ticker": "MSFT",
+    "name": "Microsoft Corp",
+    "weight": 6.35
+   },
+   {
+    "ticker": "AMZN",
+    "name": "Amazon.com Inc",
+    "weight": 5.38
+   },
+   {
+    "ticker": "AMAT",
+    "name": "Applied Materials Inc",
+    "weight": 4.61
+   },
+   {
+    "ticker": "AAPL",
+    "name": "Apple Inc",
+    "weight": 4.34
+   },
+   {
+    "ticker": "CRWD",
+    "name": "CrowdStrike Holdings Inc Class A",
+    "weight": 3.5
+   },
+   {
+    "ticker": "PM",
+    "name": "Philip Morris International Inc",
+    "weight": 3.15
+   },
+   {
+    "ticker": "AXP",
+    "name": "American Express Co",
+    "weight": 2.76
+   },
+   {
+    "ticker": "LLY",
+    "name": "Eli Lilly and Co",
+    "weight": 2.59
+   }
+  ],
+  "sectors": {
+   "realestate": 0.0,
+   "consumer_cyclical": 8.6,
+   "basic_materials": 1.8,
+   "consumer_defensive": 7.4,
+   "technology": 44.2,
+   "communication_services": 12.8,
+   "financial_services": 8.4,
+   "utilities": 0.5,
+   "industrials": 6.1,
+   "energy": 0.0,
+   "healthcare": 10.1
+  }
+ },
+ "GOP": {
+  "label": "공화당 의원 거래",
+  "top": [
+   {
+    "ticker": "FIX",
+    "name": "Comfort Systems USA Inc",
+    "weight": 8.05
+   },
+   {
+    "ticker": "INTC",
+    "name": "Intel Corp",
+    "weight": 5.01
+   },
+   {
+    "ticker": "JPM",
+    "name": "JPMorgan Chase & Co",
+    "weight": 4.54
+   },
+   {
+    "ticker": "ANET",
+    "name": "Arista Networks Inc",
+    "weight": 3.32
+   },
+   {
+    "ticker": "NVDA",
+    "name": "NVIDIA Corp",
+    "weight": 3.12
+   },
+   {
+    "ticker": "IBIT",
+    "name": "iShares Bitcoin Trust ETF",
+    "weight": 2.95
+   },
+   {
+    "ticker": "AMD",
+    "name": "Advanced Micro Devices Inc",
+    "weight": 2.63
+   },
+   {
+    "ticker": "ALL",
+    "name": "Allstate Corp",
+    "weight": 2.22
+   },
+   {
+    "ticker": "UTHR",
+    "name": "United Therapeutics Corp",
+    "weight": 2.05
+   },
+   {
+    "ticker": "ASML",
+    "name": "ASML Holding NV ADR",
+    "weight": 1.81
+   }
+  ],
+  "sectors": {
+   "realestate": 1.5,
+   "consumer_cyclical": 5.4,
+   "basic_materials": 2.2,
+   "consumer_defensive": 4.3,
+   "technology": 28.2,
+   "communication_services": 3.2,
+   "financial_services": 15.1,
+   "utilities": 1.4,
+   "industrials": 22.5,
+   "energy": 10.1,
+   "healthcare": 6.0
+  }
+ },
+ "MAGA": {
+  "label": "공화당 후원기업",
+  "top": [
+   {
+    "ticker": "DVN",
+    "name": "Devon Energy Corp",
+    "weight": 1.16
+   },
+   {
+    "ticker": "ILMN",
+    "name": "Illumina Inc",
+    "weight": 0.98
+   },
+   {
+    "ticker": "DLTR",
+    "name": "Dollar Tree Inc",
+    "weight": 0.87
+   },
+   {
+    "ticker": "HEI",
+    "name": "Heico Corp",
+    "weight": 0.86
+   },
+   {
+    "ticker": "AXON",
+    "name": "Axon Enterprise Inc",
+    "weight": 0.85
+   },
+   {
+    "ticker": "MPC",
+    "name": "Marathon Petroleum Corp",
+    "weight": 0.83
+   },
+   {
+    "ticker": "IP",
+    "name": "International Paper Co",
+    "weight": 0.83
+   },
+   {
+    "ticker": "DAL",
+    "name": "Delta Air Lines Inc",
+    "weight": 0.82
+   },
+   {
+    "ticker": "VLO",
+    "name": "Valero Energy Corp",
+    "weight": 0.82
+   },
+   {
+    "ticker": "MNST",
+    "name": "Monster Beverage Corp",
+    "weight": 0.81
+   }
+  ],
+  "sectors": {
+   "realestate": 7.1,
+   "consumer_cyclical": 10.2,
+   "basic_materials": 6.9,
+   "consumer_defensive": 7.6,
+   "technology": 2.8,
+   "communication_services": 0.0,
+   "financial_services": 15.4,
+   "utilities": 10.1,
+   "industrials": 21.4,
+   "energy": 12.0,
+   "healthcare": 6.6
+  }
+ },
+ "date": "2026-09-03"
+}
