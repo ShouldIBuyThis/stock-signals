@@ -2854,7 +2854,13 @@ function tickerSearchHtml(id, onpick, placeholder){
       placeholder="${esc(placeholder||"종목 이름이나 티커를 입력하세요 (예: 엔비디아, NVDA)")}"
       oninput="tickerSearchInput('${id}')" onfocus="tickerSearchInput('${id}')"
       onkeydown="if(event.key==='Enter'){event.preventDefault();tickerSearchEnter('${id}');}">
-    <div id="${id}Res" class="tksearch-res"></div></span>`;
+    <div id="${id}Res" class="tksearch-res">${tickerSearchResHtml(id, "")}</div></span>`;
+}
+function tickerSearchResHtml(id, q){
+  const list=tickerSearchMatches(q);
+  const hint = (q||"").trim() ? (list.length?"":`<span class="tksearch-hint">'${esc(q)}'가 들어간 종목이 관심종목에 없어요</span>`)
+                              : `<span class="tksearch-hint">${(state.cart||[]).length?"담아둔 종목부터":"오늘 등급 높은 순"} · 이름이나 티커를 치면 바로 찾아요</span>`;
+  return hint + list.map(x=>`<button type="button" onclick="tickerSearchPick('${id}','${esc(x.ticker)}')">${esc(x.name||x.ticker)} <b>${esc(x.ticker)}</b></button>`).join("");
 }
 function tickerSearchMatches(q){
   const all = allStocks();
@@ -2873,10 +2879,7 @@ function tickerSearchMatches(q){
 }
 function tickerSearchInput(id){
   const inp=document.getElementById(id), res=document.getElementById(id+"Res"); if(!inp||!res) return;
-  const q=inp.value, list=tickerSearchMatches(q);
-  const hint = q.trim() ? (list.length?"":`<span class="tksearch-hint">'${esc(q)}'가 들어간 종목이 관심종목에 없어요</span>`)
-                        : `<span class="tksearch-hint">${(state.cart||[]).length?"담아둔 종목부터":"오늘 등급 높은 순"} · 이름이나 티커를 치면 바로 찾아요</span>`;
-  res.innerHTML = hint + list.map(x=>`<button type="button" onclick="tickerSearchPick('${id}','${esc(x.ticker)}')">${esc(x.name||x.ticker)} <b>${esc(x.ticker)}</b></button>`).join("");
+  res.innerHTML = tickerSearchResHtml(id, inp.value);
 }
 function tickerSearchEnter(id){
   const inp=document.getElementById(id); if(!inp) return;
@@ -3770,6 +3773,13 @@ function themeMultiRank(rows){
     return Object.assign({}, r, { cnt: hitBy.length, w: hitBy.reduce((p,f) => p+f[1], 0), flags: hitBy.map(f => f[0]) });
   }).filter(r => r.cnt > 0).sort((a,b) => b.cnt - a.cnt || b.w - a.w || a.score - b.score);
 }
+/* 테마 안에 의회 거래 ETF(NANC·GOP) 상위 10종이 몇 개 들었나 — 표시 전용. 보유 이력이 1일뿐이라
+   예측력은 아직 못 잰다(holdings/ 원장이 30일 넘게 쌓이면 theme-lab에 후보로 넣는다). */
+function congressCountFor(themeName){
+  const CH = state.data && state.data.congress_holdings; if(!CH) return 0;
+  const held = new Set([].concat(...["NANC","GOP"].map(e=>((CH[e]||{}).top||[]).map(x=>x.ticker))));
+  return allStocks().filter(s => (s.category||"") === themeName && held.has(s.ticker)).length;
+}
 function themeForecast(){
   const stocks = themeStocks();
   const themeKR = tk => THEME_ONLY_TICKERS.has(tk);   // 국장 상장 미국 ETF — 한국 날짜 D의 종가는 미국 D-1 종가를 반영한다
@@ -3815,17 +3825,19 @@ function themeForecastHtml(){
       <span class="tf-medal">${medal[i]}</span>
       <div class="tf-body">
         <div class="tf-name"><b data-themefilter="${esc(t.name)}" role="button" tabindex="0">${esc(t.name)}</b> <span class="tkrec-n">${t.n}종목</span></div>
-        <div class="tf-tags">${t.flags.map(x=>`<span class="tag t-good">${esc(x)}</span>`).join("")}</div>
+        <div class="tf-tags">${t.flags.map(x=>`<span class="tag t-good">${esc(x)}</span>`).join("")}${(()=>{ const c=congressCountFor(t.name); return c ? `<span class="tag t-cool clickable" data-explain="의회바구니" title="이 테마 종목 중 의회 거래 ETF 상위 10종에 든 수 — 참고 표시, 순위에는 안 들어가요">🏛 의회 바구니 ${c}종</span>` : ""; })()}</div>
         <div class="tf-nums">한 달(20거래일) <b class="num ${chgCls(t.m20)}">${pct(t.m20)}</b> · 일주일(5거래일) <b class="num ${chgCls(t.r5)}">${pct(t.r5)}</b> · 20일선 위 종목 <b class="num">${Math.round(t.br)}%</b></div>
       </div></div>`).join("")}
     </div>
     <p class="tkrec-note"><b>숫자 읽는 법</b> — '한 달'은 그 테마 종목들이 최근 20거래일(약 한 달) 동안 평균 몇 % 움직였는지, '일주일'은 최근 5거래일이에요. '20일선 위 종목'은 테마 안에서 한 달 평균가보다 위에 있는 종목의 비율이고요. 즉 <b>한 달은 큰 흐름, 일주일은 지금 자리</b>예요 — 한 달은 +인데 일주일이 −면 '오르던 테마가 잠깐 쉬는 중'이라 스윙 진입 자리로 보고, 둘 다 +면 이미 달리는 중이니 쫓아가지 말고 눌릴 때를 기다려요.</p>
     <p class="tkrec-note"><b>언제 사나 (스윙 관점)</b> — 이 예측은 <b>5거래일 뒤(일주일)와 10거래일 뒤(2주)</b>를 잰 거라 1~2주 들고 가는 스윙에 맞아요. 테마 이름을 눌러 종목을 보고, 그중 <b>오늘 카드 등급이 🟢 강한매수·매수관심인 종목</b>만 고르세요. 테마가 1위여도 카드가 중립이면 아직 자리가 아니에요. 목표는 5~10거래일 뒤, 테마가 TOP3에서 빠지면 그때가 정리 신호예요.</p>
+    <details class="acc" style="margin-top:8px"><summary style="cursor:pointer;font-size:12px;color:var(--muted)">📖 어떻게 고르고 얼마나 맞았나 (펼치기)</summary>
     <p class="tkrec-note"><b>어떻게 고르나</b> — 잘 맞았던 잣대 4개(요즘 잘 오르는 테마 · 최근 5일 많이 빠진 테마 · 최근 한 달 많이 빠진 테마 · 20일선 위 종목이 많은 테마)로 각각 상위 3개를 뽑고, <b>여러 잣대에 동시에 걸린 테마</b>를 위로 올려요. 다중신호와 같은 방식이에요.</p>
     <p class="tkrec-note"><b>얼마나 맞았나</b> — ${M ? `지난 ${esc(THEME_FACTS.window)} 동안 이렇게 고른 3개는 <b>5일 뒤 10번 중 ${Math.round(M.top3[5]/10)}번</b>, 10일 뒤 10번 중 ${Math.round(M.top3[10]/10)}번 다른 테마 평균보다 더 올랐어요(앞선 폭 +${M.ex[5]}/+${M.ex[10]}%p, 기간 앞뒤 절반 모두 같은 방향).` : "실측 대기 중이에요."}
       전일 등락 순서(위 열지도)는 10번 중 5번이라 동전 던지기였고, 그래서 열지도 순서로는 안 골라요.
       📒 <b>최근 30거래일</b>로 다시 세어 보면 ${n ? `<b>${n}일 중 ${hits}일</b> 더 올랐어요(앞선 폭 평균 ${ex>=0?"+":""}${ex.toFixed(2)}%p)${n<15?` · <span style="color:var(--sell)">30일은 짧아서 참고만</span>`:""}` : "아직 5일 뒤가 있는 날이 없어요"}.</p>
     <p class="tkrec-note" style="color:var(--faint)">상위 3개까지만 의미가 있어요(4위 아래 순서는 정보가 없었어요) · 과거 통계일 뿐 예언이 아니에요 · 점수·등급·순위에는 쓰지 않아요 · 투자 권유가 아닙니다</p>
+    </details>
   </div>`;
 }
 function renderTheme(){
