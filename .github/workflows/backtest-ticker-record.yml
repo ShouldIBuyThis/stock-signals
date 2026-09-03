@@ -98,6 +98,19 @@ jobs:
         continue-on-error: true
         run: node tools/rebalance-lab.js backtest/raw.json
 
+      - name: 실험 — v13 후보 (강한다중 전환조건 · 반등 매수관심 재정의 · 약세 감점 VXN · 신규 지표)
+        # 사용자 지시(2026-09-03). 네 축을 같은 판에서 잰다. 로그 출력 전용.
+        continue-on-error: true
+        run: node tools/v13-lab.js backtest/raw.json
+
+      - name: 실험 — 테마 랭킹 예측 (백테스트 189일 + 30일 원장)
+        # 사용자 지시(2026-09-03): "테마 랭킹 3위까지 + 예측, 30일 원장 흐름 검증 포함".
+        continue-on-error: true
+        run: |
+          node tools/theme-lab.js backtest/raw.json
+          echo "════════ 30일 원장(signals.json) ════════"
+          node tools/theme-lab.js signals.json
+
       - name: 원본은 커밋하지 않는다 (약 5MB)
         run: rm -f backtest/raw.json backtest/pattern-entries.json
 
