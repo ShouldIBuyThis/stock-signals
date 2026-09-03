@@ -870,6 +870,41 @@ MARKET_EXTRA_SYMBOLS = {
     "tnx": ["^TNX", "ZN=F", "IEF", "TLT"],
 }
 
+CONGRESS_ETFS = {"NANC": "민주당 의원 거래", "GOP": "공화당 의원 거래", "MAGA": "공화당 후원기업"}
+
+def fetch_congress_holdings(today):
+    """의회 거래 ETF 상위 보유 10종·비중(야후 funds_data). 운용사 CSV는 403/404라 이것이 유일한 무료 출처다.
+    holdings/YYYY-MM-DD.json 에 그날 것을 한 번만 저장한다(append-only 원장) — 편입·편출·비중 변화는
+    이 파일들의 차이로 나중에 잰다. 실패해도 사이트는 그대로 돈다."""
+    out = {}
+    for tk, label in CONGRESS_ETFS.items():
+        try:
+            fd = yf.Ticker(tk).funds_data
+            th = fd.top_holdings
+            top = []
+            for sym, r in th.iterrows():
+                w = r.get("Holding Percent", None)
+                top.append({"ticker": str(sym), "name": str(r.get("Name", ""))[:40],
+                            "weight": safe(float(w) * 100, 2) if w is not None else None})
+            sw = fd.sector_weightings or {}
+            out[tk] = {"label": label, "top": top,
+                       "sectors": {k: safe(float(v) * 100, 1) for k, v in sw.items()}}
+        except Exception as e:
+            print(f"  의회 ETF 보유 내역 실패 {tk}: {e}")
+    if not out:
+        return None
+    out["date"] = today
+    try:
+        os.makedirs("holdings", exist_ok=True)
+        path = os.path.join("holdings", f"{today}.json")
+        if not os.path.exists(path):
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(out, f, ensure_ascii=False, indent=1)
+            print(f"  의회 ETF 보유 내역 저장: {path}")
+    except Exception as e:
+        print(f"  holdings 저장 실패: {e}")
+    return out
+
 def fetch_market_extra():
     """오늘/직전 값과 이력 길이를 함께 돌려준다. 실패해도 사이트는 그대로 돈다."""
     out = {}
@@ -1849,6 +1884,7 @@ def main():
     market_extra = {}
     try:
         market_extra = fetch_market_extra()
+        congress_holdings = fetch_congress_holdings(date.today().isoformat())
     except Exception as e:
         print("보조 지표 수집 실패:", e)
     # fetch_market_extra()가 VXN 이력을 잠깐 붙여 주지만, 공개 payload에는
@@ -2014,6 +2050,7 @@ def main():
         "market_extra": {k: {kk: vv for kk, vv in (v or {}).items() if kk != "series"}
                          for k, v in (market_extra or {}).items()},
         "market_events": market_events,
+        "congress_holdings": congress_holdings,
         "calendar_status": calendar_status,
         "sectors": sectors,
         "stocks": results, "failed": failed,
