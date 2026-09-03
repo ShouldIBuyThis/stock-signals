@@ -602,6 +602,9 @@ WATCHLIST = {
                       "0144M0.KS":"KODEX 미국드론UAM TOP10"},
     "방산·드론":     {"LMT":"록히드마틴", "AXON":"액손"},
     "주택":          {"ITB":"미국주택건설 ETF", "NAIL":"주택건설 3x"},
+    # 의원 주식거래 공시(STOCK Act, 최대 45일 지연)를 따라 사는 ETF — '지금 사는 것'이 아니라
+    # '한 달 전에 산 것'을 추종한다(2026-09-03 사용자 요청, 지연을 감안해 참고용으로 둔다).
+    "정치·의회 거래": {"NANC":"민주당 의원 거래 ETF", "GOP":"공화당 의원 거래 ETF", "MAGA":"공화당 후원기업 ETF"},
     "빅테크":        {"META":"메타", "AAPL":"애플", "GOOGL":"구글", "AMZN":"아마존"},
     "국장":          {
         "069500.KS":"코스피", "229200.KS":"코스닥",
@@ -657,6 +660,7 @@ LEVERAGED = {"SOXL", "GDXU", "NAIL", "UYG", "DUSL"}
 NO_EARNINGS_TICKERS = {
     "SOXL", "GDXU", "GLD", "USO", "ITB", "NAIL",
     "UYG", "FXO", "HQH", "DBA", "DUSL", "SCHD",
+    "NANC", "GOP", "MAGA",
     "069500.KS", "229200.KS", "0173Y0.KS", "0123G0.KS",
     "453650.KS", "0183J0.KS", "0144M0.KS",
 }
@@ -934,12 +938,12 @@ def qqq_tier_rule(streak, vxn, vxn_prev, breadth):
     if bottom and vxn_down:
         why.append(f"바닥권(20일선 위 {breadth:.1f}%) + VXN 꺾임")
     if why:
-        return 2, why, peak
+        return 2, why, peak, len(why) >= 2      # 강한 축 2개 이상 겹침 = 💡 (index.html qqqTierRule과 동일)
     if streak == 2:
         why.append("2일 연속 하락")
     if bottom:
         why.append(f"바닥권 · 20일선 위 {breadth:.1f}%")
-    return (1 if why else 0), why, peak
+    return (1 if why else 0), why, peak, False
 
 
 def build_qqq_signal_hist(qqq_card, vxn_history, previous_payload, breadth_map=None):
@@ -990,12 +994,12 @@ def build_qqq_signal_hist(qqq_card, vxn_history, previous_payload, breadth_map=N
         prev_day = str(raw[len(out) - 1][date_i]) if out else ""
         vxn_prev = vxn_by_date.get(prev_day)
         breadth = (breadth_map or {}).get(day)
-        tier, why, peak = qqq_tier_rule(streak, vxn, vxn_prev, breadth)
+        tier, why, peak, bulb = qqq_tier_rule(streak, vxn, vxn_prev, breadth)
         out.append({
             "date": day, "price": price, "streak": streak,
             "vxn": vxn, "vxn_prev": vxn_prev, "vxn_peak": peak,
             "breadth": breadth,
-            "tier": tier, "why": why, "source": "backfill",
+            "tier": tier, "bulb": bulb, "why": why, "source": "backfill",
         })
 
     # 새로 추가되는 마지막 날짜만 실제 일일 스냅샷이다. 기존 행은 위에서
