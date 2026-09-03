@@ -4914,7 +4914,7 @@ function flowTagsHtml(s){
     const dn = w("NANC"), gp = w("GOP"), mg = w("MAGA");
     if(dn !== null || gp !== null || mg !== null){
       const parts = []; if(dn !== null) parts.push(`민주당 바구니 ${dn.toFixed(1)}%`); if(gp !== null) parts.push(`공화당 바구니 ${gp.toFixed(1)}%`); if(mg !== null) parts.push(`공화당 후원기업 ${mg.toFixed(1)}%`);
-      out.push(`<span class="tag t-cool" title="의회 거래 ETF 상위 10종 안에 이 종목이 있어요 (${esc(CH.date||"")} 기준 비중). 의원들의 매매 공시(거래 뒤 최대 45일)를 따라 담는 바구니라 '지금 사는 것'이 아니라 한두 달 전에 산 것이에요. 점수·등급에는 안 들어가요.">🏛 ${parts.join(" · ")}</span>`);
+      out.push(`<span class="tag t-cool clickable" data-explain="의회바구니" title="눌러서 설명 보기">🏛 ${parts.join(" · ")}</span>`);
     }
   }
   if(s.ext_pair === 1)
@@ -5952,6 +5952,21 @@ function explainStyle(kind){
   const close = `<div class="modal-actions"><button class="primary" onclick="document.getElementById('modal').classList.remove('on')">닫기</button></div>`;
   const P = t => `<p style="font-size:13px;color:var(--reason);line-height:1.8">${t}</p>`;
 
+  if (kind === "의회바구니"){
+    const CH = state.data && state.data.congress_holdings;
+    const top = etf => (((CH||{})[etf]||{}).top||[]).slice(0,5).map(x=>`${esc(x.ticker)} ${has(num(x.weight))?num(x.weight).toFixed(1)+"%":""}`).join(" · ");
+    openModal(`<h3>🏛 민주당 바구니 · 공화당 바구니</h3>` +
+      P(`미국 국회의원은 주식을 사고팔면 <b>최대 45일 안에 공시</b>해야 해요. 이 공시를 모아
+         <b>민주당 의원들이 산 종목</b>만 담은 ETF(NANC)와 <b>공화당 의원들이 산 종목</b>만 담은 ETF(GOP)가 있어요.
+         저희는 이 두 ETF의 <b>보유 상위 10종목과 비중</b>을 매일 받아서, 우리 관심종목이 그 안에 있으면 카드에 표시해요.<br><br>
+         <b>"민주당 바구니 4.3%"</b>는 "민주당 의원 거래 ETF가 이 종목을 전체의 4.3% 비중으로 들고 있다"는 뜻이에요.
+         비중이 크면 그 당 의원들이 최근 많이 산 종목이라는 뜻이고요.<br><br>
+         ⚠ <b>시차가 있어요.</b> 공시가 거래 뒤 최대 45일이라, 이 바구니는 '지금 사는 것'이 아니라
+         <b>한두 달 전에 산 것</b>이에요. 정치 뉴스에 바로 반응하지 않습니다.<br>
+         ⚠ <b>점수·등급·순위에는 전혀 안 들어가요.</b> 참고 표시일 뿐이고, 편입·편출 이력이 쌓이면 그때 예측력을 재볼 예정이에요.` +
+        (CH ? `<br><br><span class="tkrec-n">${esc(CH.date||"")} 기준 상위 5종 — 민주당: ${top("NANC")||"—"}<br>공화당: ${top("GOP")||"—"}<br>공화당 후원기업(MAGA, 동일가중): ${top("MAGA")||"—"}</span>` : "")) + close);
+    return;
+  }
   if (kind === "추세이탈"){
     openModal(`<h3>🚨 추세 이탈</h3>` +
       P(`20일선을 잃고 이동평균이 무너졌거나, MACD 데드크로스가 겹친 상태예요.<br><br>

@@ -118,6 +118,7 @@ function makePage(o) {
   if (o.fear || o.wp || o.cp) { patch.push([FEAR_A, FEAR_B]); patch.push([WP_A, WP_B]); patch.push([CP_A, CP_B]); }
   if (o.extra) for (const pr of o.extra) patch.push(pr);
   const page = H.loadPage({ patch });
+  page.__INF = s => (INFLOW.get(K(s)) ?? null);
   page.__STRICT = o.strict || (s => s.market_vxn != null && Number(s.market_vxn) >= 25);   // v13 현행
   page.__REVS = o.revs || ((s, rev) => rev >= 2.0);
   page.__REV4 = o.rev4 || ((s, rev, bb) => rev >= 2.0 && bb != null && bb <= 40);   // v13 현행
@@ -516,5 +517,36 @@ if (ONLY.has('P')) {
   const b = P0.full._baseline; console.log(`\n  (기준선 ${HZ.map(h => `${b[h].rate}%`).join('/')})`);
 }
 
-console.log(`\n※ 후보 A 13종 · B 13종 · C 10종 · 지표 12종 · E 6종 · F 13종 · G 7종 · H 3종 · L 11종 · M 5종 · N 10종 · P 4종 — 다중비교. 통과한 것도 다음 사이클 재확인 후에 쓴다.`);
+/* ═══ Q. 📈 추세 매수관심(등급4) 승률 올리기 — 다양한 데이터로 (2026-09-03 사용자 지시) ═════
+   현행 등급4 = pullSetup & 점수≥0.8 & 볼밴>70. 189일 485건 52/50/55/59로 기준선(51/52/53/52)과 거의 같다 —
+   '관심'이 정보가 없다는 뜻이다. 주봉·월봉·상대강도·자금흐름·갭·외부 산식·VXN 등을 하나씩 얹어
+   지워지는 표본이 지는 표본인지, 남는 표본이 기준선을 넘는지 본다. */
+const PIO_A = 'const pullInterestOK = has(bb) && bb>70;';
+if (ONLY.has('Q')) {
+  console.log('\n══ Q. 📈 추세 매수관심(등급4) 게이트 변형 — 현행 볼밴>70');
+  const q = expr => ({ extra: [[PIO_A, `const pullInterestOK = has(bb) && bb>70 && (${expr});`]] });
+  const Qc = [
+    ['Q0 현행',                                   {}],
+    ['Q1 + 주봉 20주선 위 (w_ma20_pos>0)',           q('has(s.w_ma20_pos) && s.w_ma20_pos>0')],
+    ['Q2 + 주봉 양봉 연속 (w_streak>=1)',             q('has(s.w_streak) && s.w_streak>=1')],
+    ['Q3 + 주봉 RSI 50 이상',                        q('has(s.w_rsi) && s.w_rsi>=50')],
+    ['Q4 + 월봉 6개월선 위 (m_ma6_pos>0)',           q('has(s.m_ma6_pos) && s.m_ma6_pos>0')],
+    ['Q5 + 시장 대비 강함 (rs20>0)',                 q('has(s.rs20) && s.rs20>0')],
+    ['Q6 + 5일 자금유입≥0',                          q('(__INF(s) ?? 0) >= 0')],
+    ['Q7 + 미메움 갭 있음 (gap20_fill<50)',           q('has(s.gap20_fill) && s.gap20_fill<50')],
+    ['Q8 + 거래량 1배 이상',                          q('has(vr) && vr>=1.0')],
+    ['Q9 + 점수 1.0 이상',                           q('pullScore>=1.0')],
+    ['Q10 + VXN 25 미만 (평온한 날만)',               q('has(s.market_vxn) && s.market_vxn<25')],
+    ['Q11 + 52주고점 −10% 이내',                     q('has(s.pct_from_high) && s.pct_from_high>=-10')],
+    ['Q12 + 외부 산식(페어·Root) 표시 있음',           q('s.ext_pair===1 || s.ext_root===1')],
+    ['Q13 + 주봉 20주선 위 & rs20>0',                 q('has(s.w_ma20_pos) && s.w_ma20_pos>0 && has(s.rs20) && s.rs20>0')],
+    ['Q14 볼밴>70 대신 >60 (완화·반대시험)',          { extra: [[PIO_A, 'const pullInterestOK = has(bb) && bb>60;']] }],
+  ];
+  const R = runSet(Qc); const P0 = R.get(Qc[0][0]);
+  for (const [nm] of Qc) report(nm, R.get(nm), nm === Qc[0][0] ? null : P0, 'pull4', '📈 추세 관심', [['🟢 강한매수', 'sb'], ['🔵 다중', 'multi'], ['💡 강한다중', 'strict']]);
+  const b = P0.full._baseline; console.log(`\n  (기준선 ${HZ.map(h => `${b[h].rate}%`).join('/')})`);
+  console.log('  ※ 판정: 남는 표본이 기준선 +5%p 이상 · 지워지는 표본이 기준선 이하 · 전·후반 통과 · n≥50.');
+}
+
+console.log(`\n※ 후보 A 13종 · B 13종 · C 10종 · 지표 12종 · E 6종 · F 13종 · G 7종 · H 3종 · L 11종 · M 5종 · N 10종 · P 4종 · Q 14종 — 다중비교. 통과한 것도 다음 사이클 재확인 후에 쓴다.`);
 console.log('  이 도구는 실험 전용이다. 화면 반영은 사용자 승인 후에만.');
