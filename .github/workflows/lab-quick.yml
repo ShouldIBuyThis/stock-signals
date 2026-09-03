@@ -1,0 +1,42 @@
+name: 실험 한 개만 빨리 (실험 · 로그만)
+
+# 사용자 지시(2026-09-03). backtest-ticker-record.yml은 실험 전부를 돌려 1시간 넘게 걸린다.
+# 여기서는 백테스트 원본만 받고(2분) 지정한 도구 하나만 돌린다. 아무 파일도 커밋하지 않는다.
+on:
+  workflow_dispatch:
+    inputs:
+      cmd:
+        description: '실행할 명령 (raw.json은 backtest/raw.json)'
+        required: false
+        default: 'node tools/v13-lab.js backtest/raw.json --only=E'
+      days:
+        description: '거래일 수 (186 이하)'
+        required: false
+        default: '180'
+
+permissions:
+  contents: read
+
+jobs:
+  lab:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: 의존성 설치
+        run: pip install -q yfinance pandas numpy exchange_calendars
+      - name: 장기 원본 수집 (야후 1년)
+        run: python tools/backfill_backtest.py --days "${{ inputs.days || '180' }}" --out backtest/raw.json
+      - name: 실험 실행
+        run: ${{ inputs.cmd || 'node tools/v13-lab.js backtest/raw.json --only=E' }}
+      - name: 원본 삭제 · 변경 없음 확인
+        run: |
+          rm -f backtest/raw.json backtest/pattern-entries.json
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::실험 워크플로우가 파일을 바꿨다"; git status --porcelain; exit 1
+          fi
