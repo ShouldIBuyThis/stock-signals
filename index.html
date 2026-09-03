@@ -3572,6 +3572,85 @@ function noHoldingState(){
     <span style="font-size:12.5px;color:var(--faint)">종목 티커를 검색해서 별 표시(☆)를 눌러보세요!</span>
   </div>`;
 }
+/* ── 테마 랭킹 예측 (2026-09-03 · 표시 전용) ─────────────────────────────
+   사용자 지시 "테마 랭킹 3위까지 + 어떤 테마가 오를 것 같은지, 30일 원장 검증 포함".
+   점수 12종을 181거래일에서 비교했다(tools/theme-lab.js). 채택 = S8 '20일 수익률 + 테마 폭'
+   순위합: TOP3 평균이 5일 뒤 전체 테마 중앙값을 넘은 날 64%(전반 66·후반 62), +10일 64%,
+   초과 +1.3/+2.1%p. ⚠ 전체 순위 상관(IC)은 ≈0 — 상위 3개만 정보가 있고 4위 아래 순서는 없다.
+   현행 화면 순서(전일 등락)는 47/51%로 동전 던지기였다. 반전(5일 수익률 낮은 순)도
+   58/61%로 통과해 '되돌림 후보' 한 줄만 같이 적는다. 국장은 거래일 축이 달라 뺀다. */
+const THEME_FACTS = { window:"2025-12 ~ 2026-08 · 160일 평가", top3:{5:64,10:64}, ex:{5:1.3,10:2.1}, rev:{5:58,10:61}, revEx:{5:1.2,10:2.3} };
+function themeRowsAt(rowsByTicker){
+  /* rowsByTicker: ticker → {price, ma20, ret20, r5} 한 날짜의 행. 테마별 집계. */
+  const m = new Map();
+  rowsByTicker.forEach((r, tk) => {
+    const s = r.s; if(!s || s._benchmark || isKR(tk)) return;
+    const c = s.category || "기타"; if(!m.has(c)) m.set(c, {name:c, m20:[], br:[], r5:[], fwd:[]});
+    const o = m.get(c), x = levX(tk);
+    if(has(r.ret20)) o.m20.push(r.ret20 / x);
+    if(has(r.price) && has(r.ma20)) o.br.push(r.price > r.ma20 ? 1 : 0);
+    if(has(r.r5)) o.r5.push(r.r5 / x);
+    if(has(r.fwd)) o.fwd.push(r.fwd / x);
+  });
+  const mean = a => a.length ? a.reduce((p,c)=>p+c,0)/a.length : null;
+  const out = [...m.values()].filter(o => o.m20.length >= 3).map(o => ({ name:o.name, n:o.m20.length,
+    m20:mean(o.m20), br:mean(o.br)*100, r5:mean(o.r5), fwd:mean(o.fwd) }));
+  const rank = key => { const srt = out.filter(t=>has(t[key])).sort((a,b)=>b[key]-a[key]); const r = new Map(); srt.forEach((t,i)=>r.set(t.name,i+1)); return r; };
+  const r20 = rank("m20"), rbr = rank("br");
+  out.forEach(t => { t.score = (r20.get(t.name) && rbr.get(t.name)) ? r20.get(t.name) + rbr.get(t.name) : null; });
+  return out.filter(t => t.score !== null).sort((a,b) => a.score - b.score || b.m20 - a.m20);
+}
+function themeForecast(){
+  const stocks = allStocks();
+  const rowsAt = (get) => { const m = new Map(); stocks.forEach(s => { const r = get(s); if(r) m.set(s.ticker, r); }); return m; };
+  const now = rowsAt(s => { const hs = histStocks(s) || []; const i = hs.length - 1;
+    const r5 = (i >= 5 && has(num(hs[i].price)) && has(num(hs[i-5].price))) ? (num(hs[i].price)/num(hs[i-5].price)-1)*100 : null;
+    return { s, price:num(s.price), ma20:num(s.ma20), ret20:num(s.ret20), r5 }; });
+  const today = themeRowsAt(now);
+  const revToday = today.filter(t => has(t.r5)).sort((a,b) => a.r5 - b.r5);
+  /* 30일 원장 검증 — 원장 안의 날짜마다 같은 점수로 TOP3를 고르고 5일 뒤 실제 테마 수익이
+     전체 테마 중앙값을 넘었는지 센다. 화면이 매일 다시 세므로 하드코딩이 아니다. */
+  const dates = [...new Set(stocks.filter(s=>!isKR(s.ticker)).flatMap(s => (histStocks(s)||[]).map(h => String(h.last_date))))].sort();
+  const byDate = new Map(dates.map(d => [d, new Map()]));
+  stocks.forEach(s => { if(isKR(s.ticker)) return; const hs = histStocks(s) || [];
+    hs.forEach((h, i) => { const q = hs[i+5], p = num(h.price), p5 = i >= 5 ? num(hs[i-5].price) : null;
+      byDate.get(String(h.last_date)).set(s.ticker, { s, price:p, ma20:num(h.ma20), ret20:num(h.ret20),
+        r5:(has(p) && has(p5)) ? (p/p5-1)*100 : null,
+        fwd:(q && has(p) && has(num(q.price))) ? (num(q.price)/p-1)*100 : null }); }); });
+  const trend = [], rev = [];
+  dates.forEach(d => {
+    const rows = themeRowsAt(byDate.get(d)).filter(t => has(t.fwd));
+    if(rows.length < 5) return;
+    const fw = rows.map(t=>t.fwd).sort((a,b)=>a-b), med = fw.length%2 ? fw[fw.length>>1] : (fw[fw.length/2-1]+fw[fw.length/2])/2;
+    const top3 = rows.slice(0,3).reduce((p,t)=>p+t.fwd,0)/3;
+    trend.push({ d, hit: top3 > med, ex: top3 - med });
+    const rr = rows.filter(t => has(t.r5)).sort((a,b) => a.r5 - b.r5);
+    if(rr.length >= 5){ const r3 = rr.slice(0,3).reduce((p,t)=>p+t.fwd,0)/3; rev.push({ d, hit: r3 > med, ex: r3 - med }); }
+  });
+  return { today, revToday, trend, rev };
+}
+function themeForecastHtml(){
+  const f = themeForecast(); if(!f.today.length) return "";
+  const pct = v => has(v) ? `${v>=0?"+":""}${v.toFixed(1)}%` : "—";
+  const medal = ["🥇","🥈","🥉"];
+  const led = (arr) => { const n = arr.length, h = arr.filter(c=>c.hit).length; if(!n) return "5일 뒤가 있는 날짜가 아직 없어요";
+    const ex = arr.reduce((p,c)=>p+c.ex,0)/n; return `<b>${h}/${n}일</b> 적중 (평균 초과 ${ex>=0?"+":""}${ex.toFixed(2)}%p)${n<15?` · <span style="color:var(--sell)">표본 ${n}일은 판단 불가</span>`:""}`; };
+  const rowsHtml = (arr, val) => arr.slice(0,3).map((t,i)=>`<tr><td><b>${medal[i]}</b></td>
+      <td><b data-themefilter="${esc(t.name)}" role="button" tabindex="0" style="cursor:pointer">${esc(t.name)}</b></td>
+      <td><span class="num ${chgCls(val(t))}">${pct(val(t))}</span></td><td><span class="num">${Math.round(t.br)}%</span></td><td><span class="tkrec-n">${t.n}종목</span></td></tr>`).join("");
+  return `<div class="tkrec" style="margin-top:12px">
+    <div class="tkrec-h">🔭 앞설 테마 TOP3 <span class="tkrec-sub">국장 제외 · 표시 전용</span></div>
+    <table class="cmp tkrec-t"><tr><th></th><th>추세형 — 20일 수익률 + 테마 폭</th><th>20일</th><th>20일선 위</th><th></th></tr>${rowsHtml(f.today, t=>t.m20)}</table>
+    <p class="tkrec-note">실측 <b>${esc(THEME_FACTS.window)}</b>: TOP3가 5일 뒤 전체 테마 중앙값을 이긴 날 <b>${THEME_FACTS.top3[5]}%</b>, 10일 뒤 <b>${THEME_FACTS.top3[10]}%</b>
+      (초과 +${THEME_FACTS.ex[5]}/+${THEME_FACTS.ex[10]}%p, 전·후반 통과). 📒 <b>30거래일 원장</b>: ${led(f.trend)}</p>
+    ${f.revToday.length >= 3 ? `<table class="cmp tkrec-t" style="margin-top:8px"><tr><th></th><th>되돌림형 — 5일 수익률 낮은 순</th><th>5일</th><th>20일선 위</th><th></th></tr>${rowsHtml(f.revToday, t=>t.r5)}</table>
+    <p class="tkrec-note">실측: 5일 동안 가장 못 오른 테마 3개가 5일 뒤 중앙값을 이긴 날 <b>${THEME_FACTS.rev[5]}%</b>, 10일 뒤 <b>${THEME_FACTS.rev[10]}%</b>
+      (초과 +${THEME_FACTS.revEx[5]}/+${THEME_FACTS.revEx[10]}%p, 순위 상관 +0.06/+0.09 — 12종 중 유일한 양수). 📒 <b>30거래일 원장</b>: ${led(f.rev)}</p>` : ""}
+    <p class="tkrec-note">전체 순서에는 정보가 없어요(순위 상관 ≈0) — <b>상위 3개까지만</b> 봅니다. 전일 등락으로 줄 세우는 위 열지도 순서는 실측 47/51%로 동전 던지기였어요.
+      두 표가 서로 다른 테마를 가리키면 시장이 순환 중이라는 뜻이고, 최근 원장에서는 되돌림형이 더 잘 맞고 있어요.</p>
+    <p class="tkrec-note" style="color:var(--faint)">과거 비슷한 자리의 통계일 뿐 예언이 아니에요 · 점수·등급·순위에는 쓰지 않습니다 · 투자 권유가 아닙니다</p>
+  </div>`;
+}
 function renderTheme(){
   const list = visible();
   if (!list.length){
@@ -3637,6 +3716,7 @@ function renderTheme(){
       🔥 <b>강한 테마</b> ${hot.length?hot.map(x=>`${esc(x.name)} <span class="up num">+${x.avg.toFixed(1)}%</span>`).join(" · "):"없음"}<br>
       🧊 <b>약한 테마</b> ${cold.length?cold.map(x=>`${esc(x.name)} <span class="down num">${x.avg.toFixed(1)}%</span>`).join(" · "):"없음"}
     </div>
+    ${themeForecastHtml()}
   </div>
   ${marketBar()}`;
 }
@@ -4597,7 +4677,7 @@ function stockCard(s, i, rankless=false){
       <span class="badge ${stockGradeCls(s)}">${stockGradeLabel(s)}</span>${s.earnings_hold?"":trendChip(s)}
     </div>
     <div class="s-reason">${esc(s.earnings_hold ? (s.earnings_hold_reason||"실적 이벤트 영향권 — 기술등급 보류") : s.sig.line)}</div>
-    <div class="tags">${tags}</div>
+    <div class="tags">${tags}${flowTagsHtml(s)}</div>
     ${rankLine}
     ${timelineCta}${detail}${expandBtn}
   </div>`;
@@ -4615,6 +4695,40 @@ function emptyState(){
    자격 확장으로도 쓰지 않는다 — 두드림 2회+ 20건 중 19건이 이미 💡 안에 있어
    확장해도 1건만 늘고 승률이 안 움직인다. 남는 쓸모는 '💡 중에서도 더 확실한 것'을
    눈으로 구분해 주는 표시뿐이라, 딱 그것만 한다. */
+/* ── 흐름 지표 (표시 전용 · 점수·등급·순위에 안 들어감) — 2026-09-03 ──────
+   사용자 지시 "며칠째 연속 상승이라던가 큰손의 자금 유입 같은 지표를 스스로 만들어줘".
+   원장 재료(등락·거래량비)로 두 개를 만들어 189거래일에서 쟀다(tools/v13-lab.js D).
+     · 5일 자금유입 점수 = Σ(등락 부호 × max(거래량비−1, 0)) — 거래량이 실린 날만 방향을 센다
+       ⇒ 점수 ≤ −1 (5일간 팔자 거래량이 우세 = 매도 소진 자리)인 강한매수 115건이
+          62/70/79/79%로 강한매수 전체(56/59/62/61)보다 +6/+11/+17/+18%p, 💡는 52건 60/77/82/84%.
+          '큰손 유입'이 아니라 반대로 **팔 사람이 다 판 자리**가 우리 산식과 맞는다.
+       ⇒ 유입 ≥ 1은 강한매수 필터로 +11/+2/−1/−2%p — +1일만 좋고 그 뒤는 정보가 없다.
+     · 연속 상승 일수 — 2일 이상이면 강한매수 199건 51/55/52/51(−5/−4/−10/−10),
+       💡 58건 34/41/45/41(−22%p). 눌림·반등 산식에서 연속 상승은 추격 신호다 ⇒ 경고로 단다. */
+function flowSignal(s){
+  const hs = histStocks(s) || [];
+  if(hs.length < 3) return null;
+  let i = hs.findIndex(r => String(r.last_date) === String(s.last_date));
+  if(i < 0) i = hs.length - 1;
+  let inflow = 0, n = 0;
+  for(let j = Math.max(0, i - 4); j <= i; j++){
+    const chg = num(hs[j].change_1d), vr = num(hs[j].vol_ratio);
+    if(!has(chg) || !has(vr)) continue;
+    inflow += Math.sign(chg) * Math.max(vr - 1, 0); n++;
+  }
+  let up = 0;
+  for(let j = i; j > 0; j--){ const c = num(hs[j].price), p = num(hs[j-1].price); if(!has(c) || !has(p) || !(c > p)) break; up++; }
+  return { inflow: n ? Math.round(inflow * 100) / 100 : null, up };
+}
+function flowTagsHtml(s){
+  const f = flowSignal(s); if(!f || s.earnings_hold) return "";
+  const out = [];
+  if(has(f.inflow) && f.inflow <= -1)
+    out.push(`<span class="tag t-good" title="5일 자금유입 점수 ${f.inflow} — 거래량이 실린 날이 주로 하락일(매도 소진). 실측 189거래일: 이 자리의 강한매수 115건 +1/+3/+5/+7일 62/70/79/79% (강한매수 전체 56/59/62/61)">🫗 매도 소진 ${f.inflow}</span>`);
+  if(f.up >= 2)
+    out.push(`<span class="tag t-warn" title="${f.up}일 연속 상승. 실측 189거래일: 연속 상승 중인 강한매수 199건 51/55/52/51%(−5~−10%p), 💡 58건 34/41/45/41% — 눌림·반등 산식에는 추격 자리">⚠ ${f.up}일 연속 상승 · 추격 주의</span>`);
+  return out.join("");
+}
 function resTouchCount(s){
   const res = num(s && s.res_short);
   if(!has(res) || !res) return 0;
