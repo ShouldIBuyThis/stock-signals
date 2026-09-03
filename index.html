@@ -1167,12 +1167,8 @@ const NAME_MAP = {
   "0123G0.KS":"TIGER 미국AI전력SMR",
   "453650.KS":"KODEX 미국S&P500금융",
   "0183J0.KS":"TIGER 미국우주테크",
-  "0144M0.KS":"KODEX 미국드론UAM TOP10",
   NANC:"민주당 의원 거래 ETF", GOP:"공화당 의원 거래 ETF", MAGA:"공화당 후원기업 ETF"
 };
-/* 의원 거래 공시(최대 45일 지연)를 따라 사는 ETF — 카드에 '지연 추종' 표시를 붙인다. */
-const POLITICAL_ETF = {
-  NANC:"민주당 의원들이 공시한 매매를 따라 삼", GOP:"공화당 의원들이 공시한 매매를 따라 삼", MAGA:"공화당 후원 기업을 담음(공시 지연 없음)" };
 const DEFENSE = "경기방어";
 const HEALTH = "헬스케어";
 const FINANCE = "금융";
@@ -1198,7 +1194,7 @@ const CAT_MAP = {
   WELL:"리츠",
   NANC:"정치·의회 거래", GOP:"정치·의회 거래", MAGA:"정치·의회 거래",
   IONQ:"양자컴퓨팅", QBTS:"양자컴퓨팅", INFQ:"양자컴퓨팅", RGTI:"양자컴퓨팅",
-  RKLB:"우주·UAM", SPCX:"우주·UAM", PL:"우주·UAM", JOBY:"우주·UAM", RDW:"우주·UAM", "0183J0.KS":"우주·UAM", "0144M0.KS":"우주·UAM",
+  RKLB:"우주·UAM", SPCX:"우주·UAM", PL:"우주·UAM", JOBY:"우주·UAM", RDW:"우주·UAM", "0183J0.KS":"우주·UAM",
   LMT:"방산·드론", AXON:"방산·드론",
   ITB:"주택", NAIL:"주택",
   META:"빅테크", AAPL:"빅테크", GOOGL:"빅테크", AMZN:"빅테크",
@@ -2155,8 +2151,18 @@ function prevStock(s){
     last_date: p.last_date || ""
   };
 }
-function allStocks(){
-  return ((state.data && state.data.stocks) || []).map(decorate).map(s => {
+/* 국장 상장 미국 ETF(KODEX·TIGER 미국…) — 2026-09-03 사용자 지시로 종목 카드·순위·검색·검증에서 뺀다.
+   데이터는 계속 받아서 '앞설 테마' 예측 입력으로만 쓴다(themeStocks). 미국드론UAM(0144M0)은
+   승률이 낮아 입력에도 안 쓰고 관심종목에서 아예 뺐다(RETIRED_TICKERS). */
+const THEME_ONLY_TICKERS = new Set(["0173Y0.KS", "0123G0.KS", "453650.KS", "0183J0.KS",
+  /* 의원 거래 ETF — 개별 승률을 오염시키지 않도록 종목으로는 안 세고, 의회 바구니 상대강도(congressSignal) 입력으로만 쓴다 */
+  "NANC", "GOP", "MAGA"]);
+const CONGRESS_TICKERS = new Set(["NANC", "GOP", "MAGA"]);
+function themeStocks(){ return allStocks({ themeInputs:true }); }
+function allStocks(opt){
+  /* 도구 하네스가 함수만 따로 꺼내 쓸 때 상수가 없을 수 있다 — 그때는 거르지 않는다(구형 도구 호환). */
+  const themeOnly = (typeof THEME_ONLY_TICKERS !== "undefined") ? THEME_ONLY_TICKERS : new Set();
+  const rows = ((state.data && state.data.stocks) || []).map(decorate).map(s => {
     if (s._hist && s._hist.length >= 2){
       const F = histFields();
       const y = s._hist[s._hist.length-2];
@@ -2178,6 +2184,7 @@ function allStocks(){
     const pv = prevStock(s);
     return Object.assign(s, {sig, prevSig: pv ? evaluate(pv) : null, _prev: pv});
   });
+  return (opt && opt.themeInputs) ? rows : rows.filter(s => !themeOnly.has(s.ticker));
 }
 /* 신호 순위의 기준 유니버스.
    시장 탭(전체/US/KR)·테마·보유·숨김은 전부 "보여줄 종목만 거르는" 표시 전용 필터다.
@@ -2670,6 +2677,24 @@ function qqqGradeBadge(){
     : `나스닥 전용 등급 · 발동 조건(2일 이상 연속 하락 · VXN 꺾임 · 바닥권) 없음`;
   return `<span class="badge ${cls}" title="${esc(tip)}">${lab}</span>`;
 }
+/* 의원 거래 ETF(NANC 민주·GOP 공화)의 QQQ 대비 20일 초과수익(rs20)이 5거래일 사이에 ≤0 → >0 으로
+   돌아선 날. 4년(855거래일, tools/politics-lab.py) 실측: GOP 반전 120건 다음날 65%·+3일 73%·+10일 76%
+   (기준선 57/60/65, 전반 66·후반 67), NANC 반전 131건 58/64/69(+5일 +9%p). 둘 다 QQQ보다 앞선 날
+   271건 64/67/67(+1~+5일 +6~7%p). 산식에는 안 넣고 QQQ 카드 참고 표시만(2026-09-03 사용자 지시).
+   주의: 이 ETF는 공시(최대 45일 지연)를 따라 담으므로 '의원들이 지금 사는 것'이 아니라
+   '한두 달 전 산 바구니가 지수보다 잘 가기 시작했다'는 뜻이다. */
+function congressSignal(){
+  const pick = tk => {
+    const s = themeStocks().find(x => x.ticker === tk); if(!s) return null;
+    const hs = histStocks(s) || [];
+    const rs = has(num(s.rs20)) ? num(s.rs20) : (has(num(s.ret20)) && has(num(s.market_ret20)) ? num(s.ret20) - num(s.market_ret20) : null);
+    const i = hs.length - 1, p = i >= 5 ? hs[i-5] : null;
+    const rsPrev = p ? (has(num(p.rs20)) ? num(p.rs20) : (has(num(p.ret20)) && has(num(p.market_ret20)) ? num(p.ret20) - num(p.market_ret20) : null)) : null;
+    return { rs, rsPrev, rev: has(rs) && has(rsPrev) && rs > 0 && rsPrev <= 0, days: hs.length };
+  };
+  const gop = pick("GOP"), nanc = pick("NANC");
+  return { gop, nanc, both: !!(gop && nanc && has(gop.rs) && has(nanc.rs) && gop.rs > 0 && nanc.rs > 0) };
+}
 function nasdaqEdgeBadges(){
   const out = [];
   const g = qqqGrade();
@@ -2696,6 +2721,16 @@ function nasdaqEdgeBadges(){
     out.push({ key:"breadth-low", cls:"nedge-br", icon:"🌊", label:"바닥권",
       tip:`20일선 위 ${b.pct}% (${b.above}/${b.n}종목) · 이런 날 다음날 QQQ가 오른 경우 78% (9번뿐이라 참고)` });
   }
+  const cg = congressSignal();
+  if(cg.gop && cg.gop.rev)
+    out.push({ key:"congress-gop", cls:"nedge-vxn", icon:"🏛", label:"공화당 바구니 반전",
+      tip:`공화당 의원 거래 ETF(GOP)가 QQQ보다 앞서기 시작한 날(20일 초과수익 ${r1(cg.gop.rsPrev)}%p → ${r1(cg.gop.rs)}%p) · 4년 실측 120번: 다음날 QQQ 65%, 3일 뒤 73%, 10일 뒤 76% (아무 날이나 57/60/65%) · 공시 지연 ETF라 '의원들이 한두 달 전 산 바구니'가 잘 가기 시작했다는 뜻` });
+  else if(cg.nanc && cg.nanc.rev)
+    out.push({ key:"congress-nanc", cls:"nedge-vxn2", icon:"🏛", label:"민주당 바구니 반전",
+      tip:`민주당 의원 거래 ETF(NANC)가 QQQ보다 앞서기 시작한 날(20일 초과수익 ${r1(cg.nanc.rsPrev)}%p → ${r1(cg.nanc.rs)}%p) · 4년 실측 131번: 5일 뒤 QQQ 69% (아무 날이나 61%) · 공시 지연 ETF` });
+  else if(cg.both)
+    out.push({ key:"congress-both", cls:"nedge-br", icon:"🏛", label:"의회 바구니 둘 다 앞섬",
+      tip:`민주당·공화당 의원 거래 ETF가 둘 다 QQQ보다 20일 앞서는 중 · 4년 실측 271번: 다음날 64%, 3일 뒤 67%, 5일 뒤 67% (아무 날이나 57/60/61%) · 2주 뒤부터는 차이 없음` });
   return out;
 }
 /* 오늘 20일선 위에 있는 종목 비율. 외부 데이터 없이 우리 관심종목으로 센다. */
@@ -2734,6 +2769,18 @@ const NEDGE_FACTS = [
     rule:"20일선 위 종목이 30% 미만인 날",
     d1:78, e1:24, d3:89, e3:29, n:9,
     note:"우리 관심종목 가운데 20일선 위에 있는 종목 비율을 직접 세요. 9번뿐이라 참고만 하세요." },
+  { key:"congress-gop", icon:"🏛", label:"공화당 바구니 반전",
+    rule:"공화당 의원 거래 ETF(GOP)의 QQQ 대비 20일 초과수익이 5거래일 사이에 마이너스에서 플러스로 돌아선 날",
+    d1:65, e1:8, d3:73, e3:13, n:120,
+    note:"4년(855거래일) 실측. 10일 뒤도 76%(아무 날이나 65%)였고 기간을 앞뒤로 갈라도 66%·67%로 같았어요. 이 ETF는 의원 공시(최대 45일 지연)를 따라 담으니 '의원들이 지금 사는 것'이 아니라 '한두 달 전 산 바구니가 지수보다 잘 가기 시작했다'는 뜻이에요. 이 줄의 기준선은 다음날 57% · 3일 뒤 60%예요." },
+  { key:"congress-nanc", icon:"🏛", label:"민주당 바구니 반전",
+    rule:"민주당 의원 거래 ETF(NANC)의 QQQ 대비 20일 초과수익이 마이너스에서 플러스로 돌아선 날",
+    d1:58, e1:1, d3:64, e3:4, n:131,
+    note:"공화당 쪽보다 약해요 — 5일 뒤 69%(+9%p)만 뚜렷하고 다음날은 차이가 없어요. 앞뒤 절반 65%·74%." },
+  { key:"congress-both", icon:"🏛", label:"의회 바구니 둘 다 앞섬",
+    rule:"NANC·GOP 둘 다 QQQ보다 20일 수익이 앞서는 날",
+    d1:64, e1:7, d3:67, e3:7, n:271,
+    note:"1~5일까지만 +6~7%p이고 2주 뒤부터는 차이가 없어요. 반대로 둘 다 뒤지는 날(382번)은 다음날 53%로 평균보다 4%p 낮았어요. 어느 당이 앞서느냐(민주 vs 공화)는 QQQ 예측에 정보가 없었고, 섹터 회전도 뚜렷한 게 없었어요." },
 ];
 /* ══════════ 투자 비서 (1단계 · LLM 없음) ══════════
    답을 지어내지 않는다. 화면이 이미 쓰는 값(cartLevels·evaluate·tickerHitRanks·
@@ -3676,7 +3723,7 @@ function themeRowsAt(rowsByTicker){
   /* rowsByTicker: ticker → {price, ma20, ret20, r5} 한 날짜의 행. 테마별 집계. */
   const m = new Map();
   rowsByTicker.forEach((r, tk) => {
-    const s = r.s; if(!s || s._benchmark || isKR(tk)) return;
+    const s = r.s; if(!s || s._benchmark || CONGRESS_TICKERS.has(tk) || (isKR(tk) && !THEME_ONLY_TICKERS.has(tk))) return;
     const c = s.category || "기타"; if(!m.has(c)) m.set(c, {name:c, m20:[], br:[], r5:[], fwd:[]});
     const o = m.get(c), x = levX(tk);
     if(has(r.ret20)) o.m20.push(r.ret20 / x);
@@ -3710,7 +3757,8 @@ function themeMultiRank(rows){
   }).filter(r => r.cnt > 0).sort((a,b) => b.cnt - a.cnt || b.w - a.w || a.score - b.score);
 }
 function themeForecast(){
-  const stocks = allStocks();
+  const stocks = themeStocks();
+  const themeKR = tk => THEME_ONLY_TICKERS.has(tk);   // 국장 상장 미국 ETF — 한국 날짜 D의 종가는 미국 D-1 종가를 반영한다
   const rowsAt = (get) => { const m = new Map(); stocks.forEach(s => { const r = get(s); if(r) m.set(s.ticker, r); }); return m; };
   const now = rowsAt(s => { const hs = histStocks(s) || []; const i = hs.length - 1;
     const r5 = (i >= 5 && has(num(hs[i].price)) && has(num(hs[i-5].price))) ? (num(hs[i].price)/num(hs[i-5].price)-1)*100 : null;
@@ -3720,9 +3768,12 @@ function themeForecast(){
      전체 테마 중앙값을 넘었는지 센다. 화면이 매일 다시 세므로 하드코딩이 아니다. */
   const dates = [...new Set(stocks.filter(s=>!isKR(s.ticker)).flatMap(s => (histStocks(s)||[]).map(h => String(h.last_date))))].sort();
   const byDate = new Map(dates.map(d => [d, new Map()]));
-  stocks.forEach(s => { if(isKR(s.ticker)) return; const hs = histStocks(s) || [];
+  const usDateBefore = d => { let r = null; for(const x of dates){ if(x < d) r = x; else break; } return r; };
+  stocks.forEach(s => { if(isKR(s.ticker) && !themeKR(s.ticker)) return; const hs = histStocks(s) || [];
     hs.forEach((h, i) => { const q = hs[i+5], p = num(h.price), p5 = i >= 5 ? num(hs[i-5].price) : null;
-      byDate.get(String(h.last_date)).set(s.ticker, { s, price:p, ma20:num(h.ma20), ret20:num(h.ret20),
+      const key = themeKR(s.ticker) ? usDateBefore(String(h.last_date)) : String(h.last_date);
+      if(!key || !byDate.has(key)) return;
+      byDate.get(key).set(s.ticker, { s, price:p, ma20:num(h.ma20), ret20:num(h.ret20),
         r5:(has(p) && has(p5)) ? (p/p5-1)*100 : null,
         fwd:(q && has(p) && has(num(q.price))) ? (num(q.price)/p-1)*100 : null }); }); });
   const checks = [];
@@ -3744,16 +3795,18 @@ function themeForecastHtml(){
   const ex = n ? f.checks.reduce((p,c)=>p+c.ex,0)/n : null;
   const M = THEME_FACTS.multi;
   return `<div class="tkrec" style="margin-top:12px">
-    <div class="tkrec-h">🔭 앞설 테마 TOP3 <span class="tkrec-sub">여러 잣대에 동시에 걸린 순 · 국장 제외</span></div>
+    <div class="tkrec-h">🔭 앞설 테마 TOP3 <span class="tkrec-sub">앞으로 1~2주 · 여러 잣대에 동시에 걸린 순</span></div>
     <div class="tf-list">
     ${f.today.slice(0,3).map((t,i)=>`<div class="tf-row">
       <span class="tf-medal">${medal[i]}</span>
       <div class="tf-body">
         <div class="tf-name"><b data-themefilter="${esc(t.name)}" role="button" tabindex="0">${esc(t.name)}</b> <span class="tkrec-n">${t.n}종목</span></div>
         <div class="tf-tags">${t.flags.map(x=>`<span class="tag t-good">${esc(x)}</span>`).join("")}</div>
-        <div class="tf-nums">20일 <b class="num ${chgCls(t.m20)}">${pct(t.m20)}</b> · 5일 <b class="num ${chgCls(t.r5)}">${pct(t.r5)}</b> · 20일선 위 <b class="num">${Math.round(t.br)}%</b></div>
+        <div class="tf-nums">한 달(20거래일) <b class="num ${chgCls(t.m20)}">${pct(t.m20)}</b> · 일주일(5거래일) <b class="num ${chgCls(t.r5)}">${pct(t.r5)}</b> · 20일선 위 종목 <b class="num">${Math.round(t.br)}%</b></div>
       </div></div>`).join("")}
     </div>
+    <p class="tkrec-note"><b>숫자 읽는 법</b> — '한 달'은 그 테마 종목들이 최근 20거래일(약 한 달) 동안 평균 몇 % 움직였는지, '일주일'은 최근 5거래일이에요. '20일선 위 종목'은 테마 안에서 한 달 평균가보다 위에 있는 종목의 비율이고요. 즉 <b>한 달은 큰 흐름, 일주일은 지금 자리</b>예요 — 한 달은 +인데 일주일이 −면 '오르던 테마가 잠깐 쉬는 중'이라 스윙 진입 자리로 보고, 둘 다 +면 이미 달리는 중이니 쫓아가지 말고 눌릴 때를 기다려요.</p>
+    <p class="tkrec-note"><b>언제 사나 (스윙 관점)</b> — 이 예측은 <b>5거래일 뒤(일주일)와 10거래일 뒤(2주)</b>를 잰 거라 1~2주 들고 가는 스윙에 맞아요. 테마 이름을 눌러 종목을 보고, 그중 <b>오늘 카드 등급이 🟢 강한매수·매수관심인 종목</b>만 고르세요. 테마가 1위여도 카드가 중립이면 아직 자리가 아니에요. 목표는 5~10거래일 뒤, 테마가 TOP3에서 빠지면 그때가 정리 신호예요.</p>
     <p class="tkrec-note"><b>어떻게 고르나</b> — 잘 맞았던 잣대 4개(요즘 잘 오르는 테마 · 최근 5일 많이 빠진 테마 · 최근 한 달 많이 빠진 테마 · 20일선 위 종목이 많은 테마)로 각각 상위 3개를 뽑고, <b>여러 잣대에 동시에 걸린 테마</b>를 위로 올려요. 다중신호와 같은 방식이에요.</p>
     <p class="tkrec-note"><b>얼마나 맞았나</b> — ${M ? `지난 ${esc(THEME_FACTS.window)} 동안 이렇게 고른 3개는 <b>5일 뒤 10번 중 ${Math.round(M.top3[5]/10)}번</b>, 10일 뒤 10번 중 ${Math.round(M.top3[10]/10)}번 다른 테마 평균보다 더 올랐어요(앞선 폭 +${M.ex[5]}/+${M.ex[10]}%p, 기간 앞뒤 절반 모두 같은 방향).` : "실측 대기 중이에요."}
       전일 등락 순서(위 열지도)는 10번 중 5번이라 동전 던지기였고, 그래서 열지도 순서로는 안 골라요.
@@ -4836,8 +4889,6 @@ function flowTagsHtml(s){
   const out = [];
   if(has(f.inflow) && f.inflow <= -1)
     out.push(`<span class="tag t-good" title="5일 자금흐름 ${f.inflow} — 최근 5일 동안 거래량이 실린 날이 주로 하락한 날이에요(팔 사람이 많이 판 자리). 이 자리의 강한매수는 3일 뒤 10번 중 7번, 5일 뒤 10번 중 8번 올라 있었어요(강한매수 평균은 10번 중 6번).">🫗 매도 소진 ${f.inflow}</span>`);
-  if(POLITICAL_ETF[s.ticker] && s.ticker !== "MAGA")
-    out.push(`<span class="tag t-cool" title="의원 주식거래는 거래 뒤 최대 45일 안에 공시돼요. 이 ETF는 그 공시를 보고 따라 사니까 '지금 의원들이 사는 것'이 아니라 '한 달쯤 전에 산 것'을 담고 있어요. 신호·승률은 ETF 가격으로 똑같이 재지만, 정치 뉴스에 바로 반응하진 않아요.">🏛 공시 따라 삼 · 최대 45일 지연</span>`);
   if(f.up >= 2)
     out.push(`<span class="tag t-warn" title="${f.up}일 연속 오른 자리예요. 연속 상승 중에 잡은 강한매수는 3일 뒤 10번 중 5~6번밖에 안 올라 평균(10번 중 6번)보다 못했어요 — 이미 오른 뒤라 쫓아가는 자리예요.">⚠ ${f.up}일 연속 상승 · 추격 주의</span>`);
   return out.join("");

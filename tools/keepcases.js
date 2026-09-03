@@ -65,6 +65,7 @@ ${extractLine(/^const r1 = .*$/m)}
 ${extractLine(/^const num = .*$/m)}
 ${extractLine(/^const isKR = .*$/m)}
 ${['DEFENSE','HEALTH','FINANCE','INDUSTRIAL','MEM','GPU'].map(extractConst).join('\n')}
+${extractConst('THEME_ONLY_TICKERS')}
 ${extractConst('NAME_MAP')}
 ${extractConst('CAT_MAP')}
 ${extractConst('DEFENSIVE_CATS')}

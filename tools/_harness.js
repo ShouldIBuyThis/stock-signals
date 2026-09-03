@@ -59,7 +59,7 @@ function extractLine(re){
 
 /* evaluate()가 돌기 위해 필요한 최소 세트. 도구마다 다르게 쓰다 빠뜨려서
    "함수 없음"으로 죽는 일이 잦았으므로 여기 한 곳에 모아 둔다. */
-const BASE_CONSTS = ['DEFENSE','HEALTH','FINANCE','INDUSTRIAL','MEM','GPU',
+const BASE_CONSTS = ['THEME_ONLY_TICKERS','DEFENSE','HEALTH','FINANCE','INDUSTRIAL','MEM','GPU',
   'NAME_MAP','CAT_MAP','DEFENSIVE_CATS','LEVERAGED','RANK_NONE','HIST_FIELDS_DEFAULT'];
 const BASE_FUNCS = ['evaluate','qqqRsiOn','washoutLevel','normalize','decorate',
   'histWindowDays','histFields','histRow','withPrev','histStocks','prevStock','allStocks'];

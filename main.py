@@ -598,8 +598,7 @@ WATCHLIST = {
     "양자컴퓨팅":    {"IONQ":"아이온큐", "QBTS":"디웨이브", "INFQ":"인플렉션", "RGTI":"리게티컴퓨팅"},
     "우주·UAM":      {"RKLB":"로켓랩", "SPCX":"스페이스X", "PL":"플래닛랩스",
                       "JOBY":"조비에비에이션", "RDW":"레드와이어",
-                      "0183J0.KS":"TIGER 미국우주테크",
-                      "0144M0.KS":"KODEX 미국드론UAM TOP10"},
+                      "0183J0.KS":"TIGER 미국우주테크"},
     "방산·드론":     {"LMT":"록히드마틴", "AXON":"액손"},
     "주택":          {"ITB":"미국주택건설 ETF", "NAIL":"주택건설 3x"},
     # 의원 주식거래 공시(STOCK Act, 최대 45일 지연)를 따라 사는 ETF — '지금 사는 것'이 아니라
@@ -619,7 +618,8 @@ WATCHLIST = {
 # HXSCL(SK하이닉스 OTC ADR)은 야후가 시세를 안 줘서 실패했고, 국장 원주 000660.KS는
 # 거래일이 미국장과 어긋나 사용자가 뺐다. 둘 다 재시도 금지 — SK하이닉스는
 # 나스닥 직상장 티커 SKHY로 간다(아래 PENDING_TICKERS).
-RETIRED_TICKERS = {"MRNA", "PFE", 
+RETIRED_TICKERS = {"MRNA", "PFE", "0144M0.KS",  # 미국드론UAM — 승률 낮아 2026-09-03 사용자 지시로 제외(테마 입력에도 안 씀)
+    
     "MCD", "CURE", "RXL", "000660.KS", "HXSCL", "ANET",
     "VST", "SMR", "OKLO", "RCAT", "LHX", "HIMS", "PONY",
     "CRCL", "RDDT", "LUNR", "COIN", "MSTR", "ETHU",
@@ -662,7 +662,7 @@ NO_EARNINGS_TICKERS = {
     "UYG", "FXO", "HQH", "DBA", "DUSL", "SCHD",
     "NANC", "GOP", "MAGA",
     "069500.KS", "229200.KS", "0173Y0.KS", "0123G0.KS",
-    "453650.KS", "0183J0.KS", "0144M0.KS",
+    "453650.KS", "0183J0.KS",
 }
 
 # ── 시장 필터 기준 지수 (QQQ만) ────────────────────────────
