@@ -501,5 +501,20 @@ if (ONLY.has('N')) {
   console.log('  ※ 종목당 표본이 15건 미만이면 신뢰 불가(§5-1). ALL4(넷 합산) 30건 이상일 때만 방향으로 본다.');
 }
 
-console.log(`\n※ 후보 A 13종 · B 13종 · C 10종 · 지표 12종 · E 6종 · F 13종 · G 7종 · H 3종 · L 11종 · M 5종 · N 10종 — 다중비교. 통과한 것도 다음 사이클 재확인 후에 쓴다.`);
+/* ═══ P. L10(추세 강매 점수 1.5→1.3)의 이웃값 — §3 고원 검사 ═════ */
+if (ONLY.has('P')) {
+  console.log('\n══ P. 📈 추세 강매 점수 문턱 이웃값 (현행 1.5)');
+  const pg = v => ({ extra: [[PG_A, `const pullGrade = pullSetup && pullScore>=${v} && sectorOK && nearHighM && pullChase && pullBandOK ? 5 :`]] });
+  const Pc = [['P0 현행 1.5', {}], ['P1 1.4', pg(1.4)], ['P2 1.3 (L10 재확인)', pg(1.3)], ['P3 1.2', pg(1.2)], ['P4 1.0', pg(1.0)]];
+  const R = runSet(Pc); const P0 = R.get(Pc[0][0]);
+  for (const [nm] of Pc) {
+    const v = R.get(nm);
+    report(nm, v, nm === Pc[0][0] ? null : P0, 'sb', '🟢 강한매수', [['💡 강한다중', 'strict'], ['🔵 다중', 'multi'], ['📈 추세 강매', 'pull5'], ['🔄 반등 강매', 'rev5']]);
+    const days = new Set(rowsOf(v.full, 'sb', 1).map(x => x.date)).size;
+    console.log(`    ${'· 강한매수 일수'.padEnd(14)}${days}일 / ${DAYS.length}일 · 하루 평균 ${(rowsOf(v.full, 'sb', 1).length / DAYS.length).toFixed(2)}건`);
+  }
+  const b = P0.full._baseline; console.log(`\n  (기준선 ${HZ.map(h => `${b[h].rate}%`).join('/')})`);
+}
+
+console.log(`\n※ 후보 A 13종 · B 13종 · C 10종 · 지표 12종 · E 6종 · F 13종 · G 7종 · H 3종 · L 11종 · M 5종 · N 10종 · P 4종 — 다중비교. 통과한 것도 다음 사이클 재확인 후에 쓴다.`);
 console.log('  이 도구는 실험 전용이다. 화면 반영은 사용자 승인 후에만.');
