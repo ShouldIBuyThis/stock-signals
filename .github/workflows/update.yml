@@ -193,7 +193,7 @@ jobs:
           git config user.email "github-actions@users.noreply.github.com"
 
           commit_generated() {
-            git add signals.json history/ reports/
+            git add signals.json history/ reports/ holdings/
             git commit -m "auto: signals 갱신 ($RUN_SCOPE)" || echo "변경 없음"
           }
 
