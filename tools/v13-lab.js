@@ -441,5 +441,28 @@ if (ONLY.has('L')) {
   console.log('  ※ 판정: 새로 편입 표본의 +3/+5일이 현행 강한매수(59/62) 이상이고 전·후반 둘 다 기준선 위일 때만 통과.');
 }
 
-console.log(`\n※ 후보 A 13종 · B 13종 · C 10종 · 지표 12종 · E 6종 · F 13종 · G 7종 · H 3종 · L 11종 — 다중비교. 통과한 것도 다음 사이클 재확인 후에 쓴다.`);
+/* ═══ M. 외부 산식 근사 가점 (2026-09-03 사용자 "유의미하면 승률에도 반영 — 가점으로?") ═════
+   external-lab 단독 승률은 통과했지만, 우리 산식에 가점으로 얹으면 '새로 들어오는 표본'이
+   현행 강한매수(57/59/62/61)보다 나은지는 별개다. raw.json hist에 ext_pair·ext_root(main.py snap)가
+   있어야 한다 — 없으면 전부 0건으로 나온다. */
+const VXNB_A = '  let vxnBonus=0;';
+if (ONLY.has('M')) {
+  console.log('\n══ M. 🔀 페어 리버설 · 🎯 Root 타격 가점 후보 (현행 v13 = 가점 없음)');
+  const ext = expr => [[VXNB_A, `  let vxnBonus=(${expr});`]];
+  const Mc = [
+    ['M0 현행 (가점 없음)',                       {}],
+    ['M1 페어 리버설 +0.5',                       { extra: ext('s.ext_pair===1?0.5:0') }],
+    ['M2 Root 타격 +0.5',                        { extra: ext('s.ext_root===1?0.5:0') }],
+    ['M3 둘 중 하나 +0.5',                        { extra: ext('(s.ext_pair===1||s.ext_root===1)?0.5:0') }],
+    ['M4 둘 중 하나 +1.0',                        { extra: ext('(s.ext_pair===1||s.ext_root===1)?1.0:0') }],
+    ['M5 둘 중 하나 +0.3 (이웃값)',                { extra: ext('(s.ext_pair===1||s.ext_root===1)?0.3:0') }],
+  ];
+  const R = runSet(Mc); const P0 = R.get(Mc[0][0]);
+  const n = RAW ? (JSON.parse(RAW).stocks || []).reduce((a, x) => a + (x.hist || []).filter(h => h[(JSON.parse(RAW).hist_fields || []).indexOf('ext_pair')] === 1).length, 0) : 0;
+  console.log(`  (raw.json에 ext_pair=1인 hist 행 ${n}개 — 0이면 main.py 갱신 전 원본이다)`);
+  for (const [nm] of Mc) report(nm, R.get(nm), nm === Mc[0][0] ? null : P0, 'sb', '🟢 강한매수', [['💡 강한다중', 'strict'], ['🔵 다중', 'multi'], ['📈 추세 강매', 'pull5'], ['🔄 반등 강매', 'rev5']]);
+  const b = P0.full._baseline; console.log(`\n  (기준선 ${HZ.map(h => `${b[h].rate}%`).join('/')})`);
+}
+
+console.log(`\n※ 후보 A 13종 · B 13종 · C 10종 · 지표 12종 · E 6종 · F 13종 · G 7종 · H 3종 · L 11종 · M 5종 — 다중비교. 통과한 것도 다음 사이클 재확인 후에 쓴다.`);
 console.log('  이 도구는 실험 전용이다. 화면 반영은 사용자 승인 후에만.');

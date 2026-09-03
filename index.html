@@ -1286,6 +1286,7 @@ function normalize(raw){
       market_level: (it.market_level === "weak" && qqqWashout) ? "neutral" : (it.market_level || null),
       market_ret20: num(it.market_ret20), atr_pct: num(it.atr_pct),
       market_vxn: num(it.market_vxn),   /* 그날의 VXN — v12 가점 입력. 빠지면 오늘 카드만 가점이 죽는다 */
+      ext_pair: num(it.ext_pair), ext_root: num(it.ext_root),   /* 외부 산식 근사 표시(페어 리버설·Root 타격) — 표시 전용 */
       /* 진입 위치(Positioning) 파생값 — 빠뜨리면 오늘 카드에서만 관련 로직이 통째로 죽는다 */
       ma20_slope: num(it.ma20_slope), run5_max: num(it.run5_max), run3_sum: num(it.run3_sum),
       range3: num(it.range3), range10: num(it.range10), vol3_ratio: num(it.vol3_ratio),
@@ -2025,7 +2026,7 @@ const HIST_FIELDS_DEFAULT = ["date","price","change_1d","ma5","ma10","ma20","ma5
   "market_level","market_weak","market_ret20","market_events",
   "low_52w","pct_from_low","ma120","ma200","ma200_slope",
   "gap_pct","gap20_pct","gap20_ago","gap20_vol","gap20_fill",
-  "w_rsi","w_ma20_pos","w_streak","m_ma6_pos","m_streak","market_vxn"];
+  "w_rsi","w_ma20_pos","w_streak","m_ma6_pos","m_streak","market_vxn","ext_pair","ext_root"];
 /* 화면 문구에 쓰는 '최근 N거래일'. 데이터의 실제 이력 길이를 따른다.
    main.py의 HIST_DAYS를 바꾸면 문구가 자동으로 따라간다. */
 function histWindowDays(){
@@ -2099,6 +2100,7 @@ function histRow(s, row, i, total){
     w_rsi: num(o.w_rsi), w_ma20_pos: num(o.w_ma20_pos), w_streak: num(o.w_streak),
     m_ma6_pos: num(o.m_ma6_pos), m_streak: num(o.m_streak),
     market_vxn: num(o.market_vxn),   /* 그날의 VXN — 화이트리스트에 꼭 있어야 보인다 */
+    ext_pair: num(o.ext_pair), ext_root: num(o.ext_root),
     market_ret20: marketRet20,
     range3: num(o.range3), range10: num(o.range10), vol3_ratio: num(o.vol3_ratio),
     /* QQQ 자체 히스토리는 시장필터를 자기 자신에게 다시 감점하지 않는다.
@@ -4891,6 +4893,13 @@ function flowTagsHtml(s){
   const out = [];
   if(has(f.inflow) && f.inflow <= -1)
     out.push(`<span class="tag t-good" title="5일 자금흐름 ${f.inflow} — 최근 5일 동안 거래량이 실린 날이 주로 하락한 날이에요(팔 사람이 많이 판 자리). 이 자리의 강한매수는 3일 뒤 10번 중 7번, 5일 뒤 10번 중 8번 올라 있었어요(강한매수 평균은 10번 중 6번).">🫗 매도 소진 ${f.inflow}</span>`);
+  /* 외부 산식 근사 표시(docs/외부-산식-후보.md) — 점수·등급에는 안 들어간다. 3년 일봉 근사 실측:
+     페어 리버설 74건 57/68/68/68%(아무 날이나 52/54/55/57) · 2R 기대값 +0.53R,
+     Root 타격 103건 60/64/62/70% · +0.56R. 원문의 분봉·추세선 수렴은 못 재므로 '근사'라고 적는다. */
+  if(s.ext_pair === 1)
+    out.push(`<span class="tag t-cool" title="페어 리버설(일봉 근사) — 하락 추세선과 수평 넥라인을 같은 날(또는 하루 차)에 함께 위로 넘었어요. 3년 실측 74번: 3일 뒤 올라 있던 경우 10번 중 7번(아무 날이나 5~6번), 손절폭 2배 목표를 먼저 닿은 경우 59%. 점수·등급에는 안 들어가요.">🔀 페어 리버설 돌파</span>`);
+  if(s.ext_root === 1)
+    out.push(`<span class="tag t-cool" title="Root 타격(일봉 근사) — 20일 저점을 훑고 되돌아온 뒤(스윕) 큰 양봉(변위)이 나오고, 그 양봉 구간으로 되돌림이 확인된 날이에요. 3년 실측 103번: 3일 뒤 올라 있던 경우 10번 중 6~7번, 손절폭 2배 목표 선착 57%. 점수·등급에는 안 들어가요.">🎯 Root 타격 되돌림</span>`);
   if(f.up >= 2)
     out.push(`<span class="tag t-warn" title="${f.up}일 연속 오른 자리예요. 연속 상승 중에 잡은 강한매수는 3일 뒤 10번 중 5~6번밖에 안 올라 평균(10번 중 6번)보다 못했어요 — 이미 오른 뒤라 쫓아가는 자리예요.">⚠ ${f.up}일 연속 상승 · 추격 주의</span>`);
   return out.join("");
