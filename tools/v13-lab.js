@@ -105,7 +105,7 @@ const WP_A = 'else if (lv==="weak"){ cNeg-=1.0;';
 const WP_B = 'else if (lv==="weak"){ cNeg-=__WP(s);';
 const CP_A = 'else if (lv==="caution"){ cNeg-=0.5;';
 const CP_B = 'else if (lv==="caution"){ cNeg-=__CP(s);';
-const REVS_A = 'const revStrong = revScore>=2.0 && has(rsi) && revRsiOK && sectorOK && tickerOK && revChase;';
+const REVS_A = 'const revStrong = revScore>=2.0 && has(rsi) && revRsiOK && sectorOK && tickerOK && sectorTuneOK && revChase;';
 const RS_A   = REVS_A;
 const MG_A   = 'const marketGuarded = s.market_level==="weak" || s.market_level==="caution";';
 const REVS_B = 'const revStrong = __REVS(s, revScore) && has(rsi) && revRsiOK && sectorOK && revChase;';
@@ -415,7 +415,7 @@ const RSI_A  = 'const revRsiOK    = rsi<=50 || (rsi<=60 && revBandHigh);';
 const NH_A   = 'const nearHighM = has(s.pct_from_high) && s.pct_from_high >= -25;';
 const PCH_A  = 'const pullChase = run3Eff===null || run3Eff<=5;';
 const RCH_A  = 'const revChase    = run3Eff===null || run3Eff<=3 || (run3Eff<=6 && revTrendOK);';
-const PG_A   = 'const pullGrade = pullSetup && pullScore>=2.0 && sectorOK && tickerOK && nearHighM && pullChase && pullBandOK ? 5 :';
+const PG_A   = 'const pullGrade = pullSetup && pullScore>=2.0 && sectorOK && tickerOK && sectorTuneOK && nearHighM && pullChase && pullBandOK ? 5 :';
 if (ONLY.has('L')) {
   console.log('\n══ L. 표본 늘리고 승률 유지 — 약세·주의 국면 섹터 게이트 완화 등 (현행 v13)');
   const vx = 'has(s.market_vxn) && s.market_vxn';
@@ -507,7 +507,7 @@ if (ONLY.has('N')) {
 /* ═══ P. 추세 강매 점수 문턱의 이웃값 — §3 고원 검사 (v15에서 2.0 채택) ═════ */
 if (ONLY.has('P')) {
   console.log('\n══ P. 📈 추세 강매 점수 문턱 이웃값 (현행 2.0 — v15)');
-  const pg = v => ({ extra: [[PG_A, `const pullGrade = pullSetup && pullScore>=${v} && sectorOK && tickerOK && nearHighM && pullChase && pullBandOK ? 5 :`]] });
+  const pg = v => ({ extra: [[PG_A, `const pullGrade = pullSetup && pullScore>=${v} && sectorOK && tickerOK && sectorTuneOK && nearHighM && pullChase && pullBandOK ? 5 :`]] });
   /* 2026-09-04: 내리는 쪽(1.0~1.4)은 v14에서 철회했다. 올리는 쪽을 재서 2.0을 채택(v15).
      P0가 현행(2.0)이므로 아래 이웃값은 v15 기준의 위·아래다. */
   const Pc = [['P0 현행 2.0', {}], ['P1 1.5 (v13 옛 문턱)', pg(1.5)], ['P2 1.8', pg(1.8)], ['P3 2.2', pg(2.2)], ['P4 2.5', pg(2.5)], ['P5 3.0', pg(3.0)]];
@@ -615,7 +615,7 @@ function groupLine(label, v, layer, pick, keys, baseG) {
    지는 표본인가'(§5-5)와 남는 표본의 개선폭을 본다. */
 if (ONLY.has('S')) {
   console.log('\n══ S. 📈 추세 강한매수 게이트 변형 (현행 = 눌림셋업 & 점수≥2.0 & 섹터 & 52주고점-25% & 추격 & 볼밴≤80 — v15)');
-  const pg = expr => ({ extra: [[PG_A, `const pullGrade = pullSetup && pullScore>=2.0 && sectorOK && tickerOK && nearHighM && pullChase && pullBandOK && (${expr}) ? 5 :`]] });
+  const pg = expr => ({ extra: [[PG_A, `const pullGrade = pullSetup && pullScore>=2.0 && sectorOK && tickerOK && sectorTuneOK && nearHighM && pullChase && pullBandOK && (${expr}) ? 5 :`]] });
   const Sc = [
     ['S0 현행',                          {}],
     ['S1 볼밴≤65',                       pg('has(bb) && bb<=65')],
@@ -771,9 +771,9 @@ if (ONLY.has('W')) {
    ③ 신호 수를 얼마나 잃는지 같이 찍는다. 신호가 반토막 나면 통과여도 사용자 결정 사항이다. */
 if (ONLY.has('Y')) {
   console.log('\n══ Y. 🔄 반등 강한매수 게이트 변형 (현행 = 반등점수≥2.0 & RSI조건 & 섹터 & 종목보정 & 추격아님)');
-  const rt = v => ({ extra: [[RS_A, `const revStrong = revScore>=${v} && has(rsi) && revRsiOK && sectorOK && tickerOK && revChase;`]] });
-  const ry = expr => ({ extra: [[RS_A, `const revStrong = revScore>=2.0 && has(rsi) && revRsiOK && sectorOK && tickerOK && revChase && (${expr});`]] });
-  const both = (v, expr) => ({ extra: [[RS_A, `const revStrong = revScore>=${v} && has(rsi) && revRsiOK && sectorOK && tickerOK && revChase && (${expr});`]] });
+  const rt = v => ({ extra: [[RS_A, `const revStrong = revScore>=${v} && has(rsi) && revRsiOK && sectorOK && tickerOK && sectorTuneOK && revChase;`]] });
+  const ry = expr => ({ extra: [[RS_A, `const revStrong = revScore>=2.0 && has(rsi) && revRsiOK && sectorOK && tickerOK && sectorTuneOK && revChase && (${expr});`]] });
+  const both = (v, expr) => ({ extra: [[RS_A, `const revStrong = revScore>=${v} && has(rsi) && revRsiOK && sectorOK && tickerOK && sectorTuneOK && revChase && (${expr});`]] });
   const Yc = [
     ['Y0 현행',                            {}],
     ['Y1 반등점수 ≥2.5',                    rt(2.5)],
@@ -806,5 +806,42 @@ if (ONLY.has('Y')) {
   console.log('    신호 수가 반토막 이하로 줄면 통계가 통과해도 사용자 결정 사항으로 넘긴다.');
 }
 
-console.log(`\n※ 후보 A 13종 · B 13종 · C 10종 · 지표 12종 · E 6종 · F 13종 · G 7종 · H 3종 · L 11종 · M 5종 · N 10종 · P 4종 · Q 14종 · R 4종 · S 15종 · T 12종 · U 12종 · V 7종 · W 1종 · Y 17종 — 다중비교. 통과한 것도 다음 사이클 재확인 후에 쓴다.`);
+
+/* ═══ X. 📈 추세 강매 문턱 완충대 — 2.0을 일률로 걸지 말고 조건부로 (2026-09-04) ═════
+   사용자 지시: "되돌리는 대신 다른 방식으로 업그레이드, v15와 그 전 사이의 완충지대를 찾자."
+   v15에서 문턱을 1.5 → 2.0으로 올려 189일 승률은 65 → 68%가 됐지만 표본이 394 → 264건으로
+   줄었고, 2026-09-03에는 마스터카드(추세 1.60)가 잘려 방어섹터 유일 후보가 사라졌다.
+   ⚠ 특정 종목이 문턱에 닿게 점수를 손보는 건 하지 않는다(그건 산식이 아니라 그 종목에 맞춘 조작).
+   대신 '어떤 자리에서는 1.5도 충분한가'를 잰다. 통과 조건은 1.5~2.0 구간에서 새로 들어오는
+   표본이 현행 추세 강매(68%) 이상이고 전·후반이 같은 방향일 것. */
+if (ONLY.has('X')) {
+  console.log('\n══ X. 📈 추세 강매 문턱 완충대 (현행 = 일률 2.0)');
+  const xg = expr => ({ extra: [[PG_A, `const pullGrade = pullSetup && (pullScore>=2.0 || (pullScore>=1.5 && (${expr}))) && sectorOK && tickerOK && sectorTuneOK && nearHighM && pullChase && pullBandOK ? 5 :`]] });
+  const Xc = [
+    ['X0 현행 일률 2.0',                     {}],
+    ['X1 방어섹터면 1.5 허용',                xg('DEFENSIVE_CATS.includes(s.category)')],
+    ['X2 반등 축도 관심 이상이면 1.5',         xg('revScore>=2.0')],
+    ['X3 볼밴 ≤55면 1.5',                    xg('has(bb) && bb<=55')],
+    ['X4 rs20>0(시장보다 강함)이면 1.5',      xg('has(s.rs20) && s.rs20>0')],
+    ['X5 52주고점 −10% 이내면 1.5',           xg('has(s.pct_from_high) && s.pct_from_high>=-10')],
+    ['X6 국면 strong·neutral이면 1.5',        xg('s.market_level==="strong" || s.market_level==="neutral"')],
+    ['X7 VXN ≥25(공포)면 1.5',                xg('has(s.market_vxn) && s.market_vxn>=25')],
+    ['X8 200일선 위면 1.5',                   xg('has(p) && has(s.ma200) && p>s.ma200')],
+    ['X9 20일선 기울기 상승이면 1.5',          xg('has(s.ma20_slope) && s.ma20_slope>0')],
+    ['X10 거래량 1.2배 이하(조용한 눌림)이면 1.5', xg('has(vr) && vr<=1.2')],
+    ['X11 방어섹터 & 볼밴≤55면 1.5',          xg('DEFENSIVE_CATS.includes(s.category) && has(bb) && bb<=55')],
+  ];
+  const R = runSet(Xc); const P0 = R.get(Xc[0][0]);
+  for (const [nm] of Xc) {
+    const v = R.get(nm);
+    report(nm, v, nm === Xc[0][0] ? null : P0, 'pull5', '📈 추세 강매',
+      [['🟢 강한매수 전체', 'sb'], ['💡 강한다중', 'strict'], ['🔵 다중', 'multi']]);
+    const n = rowsOf(v.full, 'pull5', 5).length, n0 = rowsOf(P0.full, 'pull5', 5).length;
+    console.log(`    ${'· 추세 강매 수'.padEnd(14)}${n}건 (현행 ${n0}건 대비 +${n - n0}) · 하루 평균 ${(rowsOf(v.full, 'pull5', 1).length / DAYS.length).toFixed(2)}건`);
+  }
+  const b = P0.full._baseline; console.log(`\n  (기준선 ${HZ.map(h => `${b[h].rate}%`).join('/')})`);
+  console.log('  ※ 판정: 1.5~2.0 구간에서 새로 들어오는 표본이 현행 추세 강매 이상 · §2 전후반 · 💡 안 무너짐 · 30일 원장 사전 확인.');
+}
+
+console.log(`\n※ 후보 A 13종 · B 13종 · C 10종 · 지표 12종 · E 6종 · F 13종 · G 7종 · H 3종 · L 11종 · M 5종 · N 10종 · P 4종 · Q 14종 · R 4종 · S 15종 · T 12종 · U 12종 · V 7종 · W 1종 · X 12종 · Y 17종 — 다중비교. 통과한 것도 다음 사이클 재확인 후에 쓴다.`);
 console.log('  이 도구는 실험 전용이다. 화면 반영은 사용자 승인 후에만.');
