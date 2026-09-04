@@ -413,7 +413,7 @@ const RSI_A  = 'const revRsiOK    = rsi<=50 || (rsi<=60 && revBandHigh);';
 const NH_A   = 'const nearHighM = has(s.pct_from_high) && s.pct_from_high >= -25;';
 const PCH_A  = 'const pullChase = run3Eff===null || run3Eff<=5;';
 const RCH_A  = 'const revChase    = run3Eff===null || run3Eff<=3 || (run3Eff<=6 && revTrendOK);';
-const PG_A   = 'const pullGrade = pullSetup && pullScore>=1.5 && sectorOK && nearHighM && pullChase && pullBandOK ? 5 :';
+const PG_A   = 'const pullGrade = pullSetup && pullScore>=2.0 && sectorOK && nearHighM && pullChase && pullBandOK ? 5 :';
 if (ONLY.has('L')) {
   console.log('\n══ L. 표본 늘리고 승률 유지 — 약세·주의 국면 섹터 게이트 완화 등 (현행 v13)');
   const vx = 'has(s.market_vxn) && s.market_vxn';
@@ -428,7 +428,7 @@ if (ONLY.has('L')) {
     ['L7 반등 RSI 50→55',                             { extra: [[RSI_A, 'const revRsiOK    = rsi<=55 || (rsi<=60 && revBandHigh);']] }],
     ['L8 추세 52주고점 −25%→−35%',                      { extra: [[NH_A, 'const nearHighM = has(s.pct_from_high) && s.pct_from_high >= -35;']] }],
     ['L9 추격 완화 (추세 run3≤7 · 반등 run3≤5)',         { extra: [[PCH_A, 'const pullChase = run3Eff===null || run3Eff<=7;'], [RCH_A, 'const revChase    = run3Eff===null || run3Eff<=5 || (run3Eff<=8 && revTrendOK);']] }],
-    ['L10 추세 강매 점수 1.5→1.3',                      { extra: [[PG_A, 'const pullGrade = pullSetup && pullScore>=1.5 && sectorOK && nearHighM && pullChase && pullBandOK ? 5 :']] }],
+    ['L10 추세 강매 점수 2.0→1.3 (v14에서 철회한 방향)',   { extra: [[PG_A, 'const pullGrade = pullSetup && pullScore>=1.3 && sectorOK && nearHighM && pullChase && pullBandOK ? 5 :']] }],
     ['L11 반등 강매 점수 2.0→1.5',                      { revs: (s, rev) => rev >= 1.5 }],
   ];
   const R = runSet(L); const P0 = R.get(L[0][0]);
@@ -502,12 +502,13 @@ if (ONLY.has('N')) {
   console.log('  ※ 종목당 표본이 15건 미만이면 신뢰 불가(§5-1). ALL4(넷 합산) 30건 이상일 때만 방향으로 본다.');
 }
 
-/* ═══ P. L10(추세 강매 점수 1.5→1.3)의 이웃값 — §3 고원 검사 ═════ */
+/* ═══ P. 추세 강매 점수 문턱의 이웃값 — §3 고원 검사 (v15에서 2.0 채택) ═════ */
 if (ONLY.has('P')) {
-  console.log('\n══ P. 📈 추세 강매 점수 문턱 이웃값 (현행 1.5)');
+  console.log('\n══ P. 📈 추세 강매 점수 문턱 이웃값 (현행 2.0 — v15)');
   const pg = v => ({ extra: [[PG_A, `const pullGrade = pullSetup && pullScore>=${v} && sectorOK && nearHighM && pullChase && pullBandOK ? 5 :`]] });
-  /* 2026-09-04: 내리는 쪽(1.0~1.4)은 이미 철회했다. 이번엔 '추세 승률 올리기'라 올리는 쪽을 잰다(S10 = 2.0). */
-  const Pc = [['P0 현행 1.5', {}], ['P1 1.7', pg(1.7)], ['P2 1.8', pg(1.8)], ['P3 2.0 (S10 재확인)', pg(2.0)], ['P4 2.2', pg(2.2)], ['P5 2.5', pg(2.5)]];
+  /* 2026-09-04: 내리는 쪽(1.0~1.4)은 v14에서 철회했다. 올리는 쪽을 재서 2.0을 채택(v15).
+     P0가 현행(2.0)이므로 아래 이웃값은 v15 기준의 위·아래다. */
+  const Pc = [['P0 현행 2.0', {}], ['P1 1.5 (v13 옛 문턱)', pg(1.5)], ['P2 1.8', pg(1.8)], ['P3 2.2', pg(2.2)], ['P4 2.5', pg(2.5)], ['P5 3.0', pg(3.0)]];
   const R = runSet(Pc); const P0 = R.get(Pc[0][0]);
   for (const [nm] of Pc) {
     const v = R.get(nm);
@@ -596,8 +597,8 @@ function groupLine(label, v, layer, pick, keys, baseG) {
    현행 189일 395건 54/58/65/64(기준선 51/52/53/52). 게이트를 하나씩 얹어 '지워지는 표본이
    지는 표본인가'(§5-5)와 남는 표본의 개선폭을 본다. */
 if (ONLY.has('S')) {
-  console.log('\n══ S. 📈 추세 강한매수 게이트 변형 (현행 = 눌림셋업 & 점수≥1.5 & 섹터 & 52주고점-25% & 추격 & 볼밴≤80)');
-  const pg = expr => ({ extra: [[PG_A, `const pullGrade = pullSetup && pullScore>=1.5 && sectorOK && nearHighM && pullChase && pullBandOK && (${expr}) ? 5 :`]] });
+  console.log('\n══ S. 📈 추세 강한매수 게이트 변형 (현행 = 눌림셋업 & 점수≥2.0 & 섹터 & 52주고점-25% & 추격 & 볼밴≤80 — v15)');
+  const pg = expr => ({ extra: [[PG_A, `const pullGrade = pullSetup && pullScore>=2.0 && sectorOK && nearHighM && pullChase && pullBandOK && (${expr}) ? 5 :`]] });
   const Sc = [
     ['S0 현행',                          {}],
     ['S1 볼밴≤65',                       pg('has(bb) && bb<=65')],
@@ -609,7 +610,7 @@ if (ONLY.has('S')) {
     ['S7 20일선 기울기 상승',              pg('has(s.ma20_slope) && s.ma20_slope>0')],
     ['S8 52주고점 −10% 이내',              pg('has(s.pct_from_high) && s.pct_from_high>=-10')],
     ['S9 매도 소진(5일 자금유입≤0)',        pg('(__INF(s) ?? 0) <= 0')],
-    ['S10 점수 2.0 이상',                  pg('pullScore>=2.0')],
+    ['S10 점수 2.5 이상 (v15 채택분의 한 칸 위)', pg('pullScore>=2.5')],
     ['S11 쉬어가기(resting) 제외',          { extra: [[PS_A, 'const pullSetup = dipSoft || dipHard || dumpRecovered;']] }],
     ['S12 200일선 위',                     pg('has(p) && has(s.ma200) && p>s.ma200')],
     ['S13 rs20>0 & 볼밴≤65',               pg('(!has(s.rs20) || s.rs20>0) && has(bb) && bb<=65')],
