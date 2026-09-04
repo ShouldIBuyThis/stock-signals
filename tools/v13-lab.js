@@ -106,6 +106,7 @@ const WP_B = 'else if (lv==="weak"){ cNeg-=__WP(s);';
 const CP_A = 'else if (lv==="caution"){ cNeg-=0.5;';
 const CP_B = 'else if (lv==="caution"){ cNeg-=__CP(s);';
 const REVS_A = 'const revStrong = revScore>=2.0 && has(rsi) && revRsiOK && sectorOK && revChase;';
+const MG_A   = 'const marketGuarded = s.market_level==="weak" || s.market_level==="caution";';
 const REVS_B = 'const revStrong = __REVS(s, revScore) && has(rsi) && revRsiOK && sectorOK && revChase;';
 const BASEROW = 'baseOut[h].push({ret:(hs[i+h].price/row.price-1)*100, date:row.last_date});';
 const BASEROW2 = 'baseOut[h].push({ret:(hs[i+h].price/row.price-1)*100, date:row.last_date, ticker:row.ticker});';
@@ -701,5 +702,61 @@ if (ONLY.has('U')) {
   const b = P0.full._baseline; console.log(`\n  (기준선 전 종목 ${HZ.map(h => `${b[h].rate}%`).join('/')}) · 칸 = 강한매수 승률(표본) 현행 대비`);
 }
 
-console.log(`\n※ 후보 A 13종 · B 13종 · C 10종 · 지표 12종 · E 6종 · F 13종 · G 7종 · H 3종 · L 11종 · M 5종 · N 10종 · P 4종 · Q 14종 · R 4종 · S 15종 · T 12종 · U 12종 — 다중비교. 통과한 것도 다음 사이클 재확인 후에 쓴다.`);
+
+/* ═══ V. 🚧 국면 섹터 게이트 완충대 — 0.006% 차이로 신호가 사라지는 절벽 (2026-09-04) ═════
+   2026-09-04 실측: QQQ 717.67 vs 20일선 717.71(−0.0056%)로 국면이 caution이 되어
+   82종 중 73종이 강한매수에서 원천 차단됐다(반등점수 2.0 이상 9종목 전원 탈락, 강한매수 0건).
+   §3(고원 vs 절벽) 기준으로 판정이 칼날 위에 서 있다. 게이트를 '푸는' 게 아니라
+   '완충대를 다는' 쪽으로 후보를 만든다. 관심 계층(4등급)도 같이 찍어 §5-7 역전을 본다. */
+if (ONLY.has('V')) {
+  console.log('\n══ V. 🚧 국면 섹터 게이트 완충대 (현행 = weak·caution이면 방어섹터만 강한매수)');
+  const mg = expr => ({ extra: [[MG_A, `const marketGuarded = ${expr};`]] });
+  const Vc = [
+    ['V0 현행 (weak·caution 둘 다 게이트)', {}],
+    ['V1 weak만 게이트 (caution 해제)',      mg('s.market_level==="weak"')],
+    ['V2 caution은 20일수익 0% 이상이면 해제', mg('s.market_level==="weak" || (s.market_level==="caution" && !(has(s.market_ret20) && s.market_ret20>=0))')],
+    ['V3 caution은 20일수익 −2% 이상이면 해제', mg('s.market_level==="weak" || (s.market_level==="caution" && !(has(s.market_ret20) && s.market_ret20>=-2))')],
+    ['V4 weak도 20일수익 −5% 밑일 때만 게이트', mg('(s.market_level==="weak" && has(s.market_ret20) && s.market_ret20<-5)')],
+    ['V5 게이트 전면 해제 (대조군)',           mg('false')],
+    /* 게이트를 풀면 질이 떨어지는지 — 푸는 대신 볼밴 하단만 허용하는 절충안 */
+    ['V6 caution 해제 + 볼밴≤55만',          { extra: [[MG_A, 'const marketGuarded = s.market_level==="weak";'],
+      ['const sectorOK = !marketGuarded || DEFENSIVE_CATS.includes(s.category);',
+       'const sectorOK = (!marketGuarded || DEFENSIVE_CATS.includes(s.category)) && (s.market_level!=="caution" || (has(bb) && bb<=55));']] }],
+  ];
+  const R = runSet(Vc); const P0 = R.get(Vc[0][0]);
+  const LAYERS = [['💡 강한다중','strict'],['🔵 다중','multi'],['📈 추세 강매','pull5'],['🔄 반등 강매','rev5'],
+                  ['📈 추세 관심','pull4'],['🔄 반등 관심','rev4']];
+  for (const [nm] of Vc) {
+    const v = R.get(nm);
+    report(nm, v, nm === Vc[0][0] ? null : P0, 'sb', '🟢 강한매수', LAYERS);
+    const days = new Set(rowsOf(v.full, 'sb', 1).map(x => x.date)).size;
+    console.log(`    ${'· 강한매수 일수'.padEnd(14)}${days}일 / ${DAYS.length}일 · 하루 평균 ${(rowsOf(v.full, 'sb', 1).length / DAYS.length).toFixed(2)}건`);
+  }
+  const b = P0.full._baseline; console.log(`\n  (기준선 ${HZ.map(h => `${b[h].rate}%`).join('/')})`);
+  console.log('  ※ 판정: 새로 편입되는 표본이 현행 강한매수 이상 · 💡/🔵 안 무너짐 · §2 전·후반 통과 · 30일 원장 사전 확인.');
+}
+
+/* ═══ W. 🔄 관심 계층(4등급)이 강한매수(5등급)보다 나은가 — §5-7 계층 역전 검사 ═════
+   2026-09-04 사용자 지적: 화면 30일 원장에서 반등 매수관심 +5일 89%(41건) vs
+   반등 강한매수 56%(85건). 등급이 뒤집혀 있다. 30일은 한 국면이므로 189일에서 확인한다. */
+if (ONLY.has('W')) {
+  console.log('\n══ W. 🔄 계층 역전 검사 — 관심(4등급) vs 강한매수(5등급)');
+  const R = runSet([['W0 현행', {}]]); const v = R.get('W0 현행');
+  const rows = [['🟢 강한매수','sb'],['💡 강한다중','strict'],['🔵 다중','multi'],
+                ['📈 추세 강매','pull5'],['📈 추세 관심','pull4'],
+                ['🔄 반등 강매','rev5'],['🔄 반등 관심','rev4'],['기준선','base']];
+  console.log('    ' + '층'.padEnd(14) + HZ.map(h => `+${h}일`.padStart(14)).join(''));
+  for (const [lbl, layer] of rows) {
+    const cells = HZ.map(h => { const x = st(v.full, layer, h); return cell(x, null); });
+    console.log(`    ${lbl.padEnd(14)}${cells.join('')}`);
+    const cis = HZ.map(h => { const arr = rowsOf(v.full, layer, h); const x = wilson(arr); return (x ? `[${x[0]}~${x[1]}]` : '   —   ').padStart(14); });
+    console.log(`    ${'  ↳ 95% 구간'.padEnd(14)}${cis.join('')}`);
+    const a = HZ.map(h => { const x = st(v.h1, layer, h), y = st(v.h2, layer, h);
+      return `${x.rate==null?'—':x.rate}/${y.rate==null?'—':y.rate}`.padStart(14); });
+    console.log(`    ${'  ↳ 전반/후반'.padEnd(14)}${a.join('')}`);
+  }
+  console.log('\n  ※ 관심이 강매보다 높고 그게 전·후반 둘 다이며 신뢰구간이 안 겹치면 계층을 손봐야 한다(§5-7).');
+}
+
+console.log(`\n※ 후보 A 13종 · B 13종 · C 10종 · 지표 12종 · E 6종 · F 13종 · G 7종 · H 3종 · L 11종 · M 5종 · N 10종 · P 4종 · Q 14종 · R 4종 · S 15종 · T 12종 · U 12종 · V 7종 · W 1종 — 다중비교. 통과한 것도 다음 사이클 재확인 후에 쓴다.`);
 console.log('  이 도구는 실험 전용이다. 화면 반영은 사용자 승인 후에만.');
