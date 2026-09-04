@@ -2730,14 +2730,14 @@ function nasdaqEdgeBadges(){
     const peaked = has(num(v.prev)) && v.value < v.prev;
     out.push(peaked
       ? { key:"vxn-peak", cls:"nedge-vxn", icon:"💡⚡", label:"변동성 피크아웃",
-          tip:`VXN ${r1(v.value)} (전일 ${r1(v.prev)}에서 꺾임) · 이런 날 다음날 QQQ가 오른 경우 88%, 3일 뒤 75% (8번뿐이라 참고)` }
+          tip:`VXN ${r1(v.value)} (전일 ${r1(v.prev)}에서 꺾임) · 이런 날 다음날 QQQ가 오른 경우 68%, 3일 뒤 73% (3년 22번 · 아무 날이나 58/61%)` }
       : { key:"vxn-high", cls:"nedge-vxn2", icon:"⚡", label:"고변동 구간",
           tip:`VXN ${r1(v.value)} · 이런 날 다음날 QQQ가 오른 경우 64%, 3일 뒤 71% (28번) · 아무 날이나보다 10%p쯤 높아요` });
   }
   const b = breadthNow();
   if(b && b.n >= 20 && b.pct < 30){
     out.push({ key:"breadth-low", cls:"nedge-br", icon:"🌊", label:"바닥권",
-      tip:`20일선 위 ${b.pct}% (${b.above}/${b.n}종목) · 이런 날 다음날 QQQ가 오른 경우 78% (9번뿐이라 참고)` });
+      tip:`20일선 위 ${b.pct}% (${b.above}/${b.n}종목) · 이런 날 다음날 QQQ가 오른 경우 56%, 10일 뒤 73% (3년 73번 · 아무 날이나 58/64%)` });
   }
   const cg = congressSignal();
   if(cg.gop && cg.gop.rev)
@@ -2771,22 +2771,22 @@ function nasdaqEdgeHtml(){
    백테스트로 측정한 고정값이다 — 화면이 매번 다시 세는 값이 아니므로
    '언제 무엇으로 쟀는지'를 같이 적는다. 백테스트를 다시 돌리면 여기도 고쳐야 한다. */
 const NEDGE_FACTS = [
-  { key:"qqq-grade", icon:"🟢", label:"나스닥 전용 등급 v2",
+  { key:"qqq-grade", icon:"🟢", label:"나스닥 전용 등급 v2", win:"3년",
     rule:"사흘 이상 연속 하락 · 공포지수(VXN) 28 넘고 꺾임 · 바닥권+VXN 꺾임 = 강한 매수 우위 / 이틀 연속 하락 · 바닥권 = 매수 우위",
     d1:70, e1:12, d3:70, e3:9, n:47,
     note:"3년(694거래일) 동안 재어 봤어요. '20일선 위냐 아래냐' 같은 추세 잣대는 지수엔 거의 안 통했고, 살아남은 건 '짧게 연속으로 빠진 뒤 되돌림' 하나였어요. 이틀 연속 빠진 날(122번)도, 사흘 연속 빠진 날(47번)도 3일 뒤 올라 있던 경우가 10번 중 7번이었고, VXN이 28을 넘었다가 꺾인 날(22번)도 10번 중 7번이었어요. 아무 날이나 산 경우는 10번 중 6번. 바닥권 하나만으로는 앞 절반 기간에서 평균에 못 미쳐 '매수 우위'까지만 줬어요." },
-  { key:"vxn-peak", icon:"💡⚡", label:"변동성 피크아웃",
+  { key:"vxn-peak", icon:"💡⚡", label:"변동성 피크아웃", win:"3년",
     rule:"VXN ≥ 28 이면서 전일보다 꺾인 날",
-    d1:88, e1:34, d3:75, e3:15, n:8,
-    note:"8번밖에 안 나온 자리라 참고만 하세요. 기간을 앞뒤로 갈라 봐도 양쪽 다 평균보다 잘 올랐어요." },
-  { key:"vxn-high", icon:"⚡", label:"고변동 구간",
+    d1:68, e1:10, d3:73, e3:12, n:22,
+    note:"22번 나온 자리예요. 기록표의 'VXN 28+ 꺾임' 줄과 같은 값이에요(3년 694거래일)." },
+  { key:"vxn-high", icon:"⚡", label:"고변동 구간", win:"188일",
     rule:"VXN ≥ 28 (꺾임은 안 봄)",
     d1:64, e1:10, d3:71, e3:11, n:28,
-    note:"VXN 25에서는 차이가 없었고, 28을 넘어야 효과가 나타났어요." },
-  { key:"breadth-low", icon:"🌊", label:"바닥권",
+    note:"⚠ 이 줄만 <b>짧은 창(188거래일)</b>에서 잰 값이라 다른 줄과 직접 비교하면 안 돼요. VXN 25에서는 차이가 없었고 28을 넘어야 효과가 나타났어요. 3년 재측정 대기 중." },
+  { key:"breadth-low", icon:"🌊", label:"바닥권", win:"3년",
     rule:"20일선 위 종목이 30% 미만인 날",
-    d1:78, e1:24, d3:89, e3:29, n:9,
-    note:"우리 관심종목 가운데 20일선 위에 있는 종목 비율을 직접 세요. 9번뿐이라 참고만 하세요." },
+    d1:56, e1:-2, d3:60, e3:-1, n:73,
+    note:"기록표의 '바닥권' 줄과 <b>같은 값</b>이에요(3년 694거래일 · 73번). 다음날·3일 뒤는 아무 날이나와 거의 같고, <b>10일 뒤에 73%(+9%p)</b>로 벌어져요 — 그래서 '강한'이 아니라 '매수 우위'까지만 줍니다. 예전에 이 자리에 9번짜리 짧은 창 값(78%·89%)이 있었는데, 같은 이름이 다른 숫자를 보여 줘서 3년 값으로 통일했어요." },
   { key:"congress-gop", icon:"🏛", label:"공화당 바구니 반전",
     rule:"공화당 의원 거래 ETF(GOP)의 QQQ 대비 20일 초과수익이 5거래일 사이에 마이너스에서 플러스로 돌아선 날",
     d1:65, e1:8, d3:73, e3:13, n:120,
@@ -3421,19 +3421,20 @@ function openNasdaqEdgeModal(key){
   const rows = NEDGE_FACTS.map(f=>`
     <tr class="${on.has(f.key)?"nedge-on":""}${f.key===key?" nedge-cur":""}">
       <td><b>${f.icon} ${esc(f.label)}</b><span class="tkrec-n">${esc(f.rule)}</span></td>
-      <td><span class="tkrec-rate" style="color:var(--buy)">${f.d1}%</span>
-          <span class="vedge vedge-up">+${f.e1}%p</span></td>
-      <td><span class="tkrec-rate" style="color:var(--buy)">${f.d3}%</span>
-          <span class="vedge vedge-up">+${f.e3}%p</span></td>
-      <td><span class="tkrec-n">${f.n}건</span>${on.has(f.key)?`<span class="tkrec-n" style="color:var(--buy);font-weight:800">오늘 해당</span>`:""}</td>
+      <td><span class="tkrec-rate" style="color:${f.e1>=0?"var(--buy)":"var(--ink)"}">${f.d1}%</span>
+          <span class="vedge ${f.e1>=0?"vedge-up":"vedge-dn"}">${f.e1>=0?"+":""}${f.e1}%p</span></td>
+      <td><span class="tkrec-rate" style="color:${f.e3>=0?"var(--buy)":"var(--ink)"}">${f.d3}%</span>
+          <span class="vedge ${f.e3>=0?"vedge-up":"vedge-dn"}">${f.e3>=0?"+":""}${f.e3}%p</span></td>
+      <td><span class="tkrec-n">${f.n}번</span><span class="tkrec-n">${esc(f.win||"")}</span>${on.has(f.key)?`<span class="tkrec-n" style="color:var(--buy);font-weight:800">오늘 해당</span>`:""}</td>
     </tr>
     <tr class="nedge-note"><td colspan="4"><span class="tkrec-n">${esc(f.note)}</span></td></tr>`).join("");
   openModal(`<h3>🌐 나스닥 전용 표시 — 무엇을 보고 붙였나</h3>
     <p style="font-size:12.5px;color:var(--reason);line-height:1.8">
       QQQ 카드에만 붙는 표시예요. <b>점수·등급·순위·시장 국면 판정에는 전혀 들어가지 않습니다.</b><br>
       아래는 그 자리에서 <b>다음날 QQQ가 실제로 올랐는지</b>를 잰 결과예요.
-      아무 날이나 샀을 때는 다음날 <b>54%</b> · 3일 뒤 <b>60%</b>였어요.</p>
-    <table class="cmp nedge-t"><tr><th>표시</th><th>다음날</th><th>+3일</th><th>표본</th></tr>${rows}</table>
+      아무 날이나 샀을 때는 다음날 <b>58%</b> · 3일 뒤 <b>61%</b>였어요(3년 694거래일).
+      '창' 칸은 언제 잰 값인지예요 — <b>창이 다르면 서로 비교하면 안 돼요.</b></p>
+    <table class="cmp nedge-t"><tr><th>표시</th><th>다음날</th><th>+3일</th><th>횟수 · 창</th></tr>${rows}</table>
     <p style="font-size:12px;color:var(--reason);line-height:1.9;margin-top:8px">
       ${(()=>{ /* 지금 값 + 꺾임 방향 + 한 줄 해석 */
         const vNow=mx.vxn&&has(num(mx.vxn.value))?num(mx.vxn.value):null;
@@ -3451,7 +3452,7 @@ function openNasdaqEdgeModal(key){
         return `지금 값 · VXN <span class="hl">${vNow!=null?r1(vNow):"—"}</span> (전일 ${vPrev!=null?r1(vPrev):"—"})${dir}${bd}<br>${read}`;
       })()}</p>
     <p style="font-size:11.5px;color:var(--sell);line-height:1.8">
-      ⚠ 변동성·바닥권 줄은 <b>8~28번</b>밖에 안 나온 자리라 참고만 하세요 — 우연과 구분하려면 보통 50번은 필요해요.
+      ⚠ '변동성 피크아웃'(22번)·'고변동 구간'(28번)은 횟수가 적어 참고만 하세요 — 우연과 구분하려면 보통 50번은 필요해요.
       그래서 <b>점수에는 넣지 않고 표시만</b> 해요.<br>
       숫자는 과거를 미리 재 둔 값이라 매일 바뀌지 않아요.</p>
     <div class="modal-actions perf-sticky"><button class="primary" onclick="closeModal()">닫기</button></div>`);

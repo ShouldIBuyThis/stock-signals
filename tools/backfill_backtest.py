@@ -166,13 +166,17 @@ def build(days: int) -> dict:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
+    ap.add_argument("--years", type=int, default=1,
+                    help="야후 조회 기간(년). 3이면 약 750봉 — 종목별·섹터별 표본이 필요할 때만 쓴다(느리다).")
     ap.add_argument("--days", type=int, default=180,
                     help="hist 행 수. 야후 1년(약 252봉)에서 워밍업 66봉을 빼면 180이 상한")
     ap.add_argument("--out", default="backtest/raw.json")
     args = ap.parse_args()
 
-    if args.days > 186:
-        sys.exit(f"--days {args.days} 는 너무 크다 — market_state가 66+{args.days}봉을 요구하는데 "
+    M.PERIOD = f"{args.years}y"
+    _cap = int(252 * args.years) - 66
+    if args.days > _cap:
+        sys.exit(f"--days {args.days} 는 --years {args.years}(약 {252*args.years}봉)에 비해 너무 크다 — 66+{args.days}봉이 필요한데 "
                  f"야후 1년은 약 252봉뿐이다. 186 이하로 줄일 것.")
 
     payload = build(args.days)

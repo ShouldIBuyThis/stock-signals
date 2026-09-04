@@ -735,7 +735,7 @@ def market_state(ticker):
     try:
         # 일목 선행스팬2는 52봉 고가/저가를 26봉 앞으로 밀어 쓰므로 최소 78봉이 필요하다.
         # 6개월(약 126봉)로는 30일치 이력을 만들 여유가 빠듯해 1년으로 늘린다.
-        df = yf.Ticker(ticker).history(period="1y", interval="1d", auto_adjust=False)
+        df = yf.Ticker(ticker).history(period=PERIOD, interval="1d", auto_adjust=False)   # 기본 1y · 실험 도구가 늘릴 수 있게 상수 사용
         df = drop_unclosed(df, ticker)
         df = drop_invalid_price_rows(df, ticker)
         if df is None or len(df) < 61:

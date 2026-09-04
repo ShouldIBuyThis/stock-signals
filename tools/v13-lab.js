@@ -566,5 +566,123 @@ if (ONLY.has('R')) {
   const b = P0.full._baseline; console.log(`\n  (기준선 ${HZ.map(h => `${b[h].rate}%`).join('/')})`);
 }
 
-console.log(`\n※ 후보 A 13종 · B 13종 · C 10종 · 지표 12종 · E 6종 · F 13종 · G 7종 · H 3종 · L 11종 · M 5종 · N 10종 · P 4종 · Q 14종 · R 4종 — 다중비교. 통과한 것도 다음 사이클 재확인 후에 쓴다.`);
+const PS_A = 'const pullSetup = dipSoft || dipHard || resting || dumpRecovered;';
+const CAT = new Map((base.stocks || []).map(x => [x.ticker, x.category || '']));
+/* 계층별 표본을 티커 그룹으로 갈라 본다(섹터·개별주 보정용). */
+function byGroup(v, layer, pick) {
+  const out = {};
+  for (const h of HZ) for (const r of rowsOf(v.full, layer, h)) {
+    const g = pick(r.ticker); if (!g) continue;
+    (out[g] = out[g] || {})[h] = (out[g][h] || []); out[g][h].push(r);
+  }
+  return out;
+}
+const rateOf = rows => { const w = rows.filter(x => x.ret > 1).length, l = rows.filter(x => x.ret < -1).length; return { rate: (w + l) ? Math.round(w / (w + l) * 100) : null, n: rows.length }; };
+function groupLine(label, v, layer, pick, keys, baseG) {
+  const g = byGroup(v, layer, pick);
+  for (const k of keys) {
+    const cells = HZ.map(h => {
+      const c = rateOf((g[k] || {})[h] || []); const b = baseG ? rateOf((baseG[k] || {})[h] || []) : null;
+      const d = (b && c.rate != null && b.rate != null) ? ` ${c.rate - b.rate >= 0 ? '+' : ''}${c.rate - b.rate}p` : '';
+      return `${c.rate == null ? '  —' : String(c.rate).padStart(3) + '%'}(${String(c.n).padStart(3)})${d}`.padEnd(14);
+    });
+    console.log(`    ${k.padEnd(14)} ${cells.join(' ')}`);
+  }
+  return g;
+}
+
+/* ═══ S. 📈 추세 강한매수(pull5) 승률 올리기 — 다양한 방식 (2026-09-04 사용자 지시) ═════
+   현행 189일 395건 54/58/65/64(기준선 51/52/53/52). 게이트를 하나씩 얹어 '지워지는 표본이
+   지는 표본인가'(§5-5)와 남는 표본의 개선폭을 본다. */
+if (ONLY.has('S')) {
+  console.log('\n══ S. 📈 추세 강한매수 게이트 변형 (현행 = 눌림셋업 & 점수≥1.5 & 섹터 & 52주고점-25% & 추격 & 볼밴≤80)');
+  const pg = expr => ({ extra: [[PG_A, `const pullGrade = pullSetup && pullScore>=1.5 && sectorOK && nearHighM && pullChase && pullBandOK && (${expr}) ? 5 :`]] });
+  const Sc = [
+    ['S0 현행',                          {}],
+    ['S1 볼밴≤65',                       pg('has(bb) && bb<=65')],
+    ['S2 볼밴≤55',                       pg('has(bb) && bb<=55')],
+    ['S3 RSI≤65',                        pg('has(rsi) && rsi<=65')],
+    ['S4 시장 대비 강함 rs20>0',           pg('!has(s.rs20) || s.rs20>0')],
+    ['S5 주봉 20주선 위',                  pg('has(s.w_ma20_pos) && s.w_ma20_pos>0')],
+    ['S6 조용한 눌림(거래량 1.2배 이하)',    pg('has(vr) && vr<=1.2')],
+    ['S7 20일선 기울기 상승',              pg('has(s.ma20_slope) && s.ma20_slope>0')],
+    ['S8 52주고점 −10% 이내',              pg('has(s.pct_from_high) && s.pct_from_high>=-10')],
+    ['S9 매도 소진(5일 자금유입≤0)',        pg('(__INF(s) ?? 0) <= 0')],
+    ['S10 점수 2.0 이상',                  pg('pullScore>=2.0')],
+    ['S11 쉬어가기(resting) 제외',          { extra: [[PS_A, 'const pullSetup = dipSoft || dipHard || dumpRecovered;']] }],
+    ['S12 200일선 위',                     pg('has(p) && has(s.ma200) && p>s.ma200')],
+    ['S13 rs20>0 & 볼밴≤65',               pg('(!has(s.rs20) || s.rs20>0) && has(bb) && bb<=65')],
+    ['S14 주봉 위 & 20일선 기울기 상승',     pg('has(s.w_ma20_pos) && s.w_ma20_pos>0 && has(s.ma20_slope) && s.ma20_slope>0')],
+  ];
+  const R = runSet(Sc); const P0 = R.get(Sc[0][0]);
+  for (const [nm] of Sc) report(nm, R.get(nm), nm === Sc[0][0] ? null : P0, 'pull5', '📈 추세 강매', [['🟢 강한매수', 'sb'], ['💡 강한다중', 'strict'], ['🔵 다중', 'multi'], ['📈 추세 관심', 'pull4']]);
+  const b = P0.full._baseline; console.log(`\n  (기준선 ${HZ.map(h => `${b[h].rate}%`).join('/')})`);
+  console.log('  ※ 판정: 남는 표본 +5%p 이상 · 지워지는 표본이 기준선 이하 · 전·후반 통과 · n≥50 · 30일 원장 사전 확인.');
+}
+
+/* ═══ T. 🚀 우주·UAM 섹터 전용 보정 (2026-09-04 사용자 "우주섹터 승률 낮은데 특수성 고려") ═════
+   빅테크·전기차 밴드 상한(BAND_CAP_CATS) 전례처럼 '점수'가 아니라 '자리'로 자른다.
+   우주주는 뉴스·발사 일정에 튀는 고변동군이라 눌림/반등 산식이 잘 안 듣는다는 가설. */
+const T_CAT = '우주·UAM';
+if (ONLY.has('T')) {
+  console.log(`\n══ T. 🚀 ${T_CAT} 섹터 전용 보정 — 그 섹터의 강한매수만 바뀐다`);
+  const sp = expr => ({ extra: [[BCAP_A, `  const __sp = (s.category === ${JSON.stringify(T_CAT)});\n  const buyGrade=Math.min(Math.max(pullGrade,revGrade), (bandCapOK && (!__sp || (${expr}))) ? 5 : 4);`]] });
+  const Tc = [
+    ['T0 현행',                         {}],
+    ['T1 강한매수 금지(관심까지)',         sp('false')],
+    ['T2 볼밴≤55',                      sp('has(bb) && bb<=55')],
+    ['T3 볼밴≤40',                      sp('has(bb) && bb<=40')],
+    ['T4 RSI≤50',                       sp('has(rsi) && rsi<=50')],
+    ['T5 반등 축만',                     sp('revGrade===5')],
+    ['T6 추세 축만',                     sp('pullGrade===5')],
+    ['T7 20일선 위',                     sp('has(p) && has(ma20) && p>ma20')],
+    ['T8 거래량 1.5배 & 양봉',            sp('has(vr) && vr>=1.5 && has(s.change_1d) && s.change_1d>0')],
+    ['T9 저변동(ATR% ≤ 6)',              sp('has(s.atr_pct) && s.atr_pct<=6')],
+    ['T10 rs20>0',                      sp('has(s.rs20) && s.rs20>0')],
+    ['T11 볼밴≤55 & rs20>0',             sp('has(bb) && bb<=55 && has(s.rs20) && s.rs20>0')],
+  ];
+  const R = runSet(Tc); const P0 = R.get(Tc[0][0]);
+  const pick = tk => CAT.get(tk) === T_CAT ? T_CAT : '그 외';
+  const base0 = byGroup(P0, 'sb', pick);
+  for (const [nm] of Tc) {
+    console.log(`\n  ${nm}`);
+    groupLine(nm, R.get(nm), 'sb', pick, [T_CAT, '그 외'], base0);
+  }
+  const b = P0.full._baseline; console.log(`\n  (기준선 전 종목 ${HZ.map(h => `${b[h].rate}%`).join('/')}) · 칸 = 강한매수 승률(표본) 현행 대비 · +1/+3/+5/+7일`);
+  console.log('  ※ 우주 섹터 표본이 30건 미만이면 방향만, 15건 미만이면 판단하지 않는다.');
+}
+
+/* ═══ U. 🎯 개별주 맞춤 보정 — POET·INTC·AAPL (2026-09-04 사용자 지시) ═════
+   N(4종목)에서 표본 부족이었다. 이번엔 --years 3 원본으로 돌려 표본을 3~4배로 늘려 다시 본다. */
+const U_TK = ['POET', 'INTC', 'AAPL'];
+if (ONLY.has('U')) {
+  console.log(`\n══ U. 🎯 개별주 맞춤 보정 (${U_TK.join('·')}) — 그 종목의 강한매수만 바뀐다`);
+  const ut = expr => ({ extra: [[BCAP_A, `  const __ut = ${JSON.stringify(U_TK)}.includes(s.ticker);\n  const buyGrade=Math.min(Math.max(pullGrade,revGrade), (bandCapOK && (!__ut || (${expr}))) ? 5 : 4);`]] });
+  const Uc = [
+    ['U0 현행',                         {}],
+    ['U1 볼밴≤55',                      ut('has(bb) && bb<=55')],
+    ['U2 볼밴≤40',                      ut('has(bb) && bb<=40')],
+    ['U3 RSI≤45',                       ut('has(rsi) && rsi<=45')],
+    ['U4 20일선 위',                     ut('has(p) && has(ma20) && p>ma20')],
+    ['U5 거래량 1.2배 & 양봉',            ut('has(vr) && vr>=1.2 && has(s.change_1d) && s.change_1d>0')],
+    ['U6 반등 축만',                     ut('revGrade===5')],
+    ['U7 추세 축만',                     ut('pullGrade===5')],
+    ['U8 rs20>0',                       ut('has(s.rs20) && s.rs20>0')],
+    ['U9 강한매수 금지',                  ut('false')],
+    ['U10 볼밴≤55 & rs20>0',             ut('has(bb) && bb<=55 && has(s.rs20) && s.rs20>0')],
+    ['U11 매도 소진(자금유입≤0)',          ut('(__INF(s) ?? 0) <= 0')],
+  ];
+  const R = runSet(Uc); const P0 = R.get(Uc[0][0]);
+  const pick = tk => U_TK.includes(tk) ? tk : null;
+  const pickAll = tk => U_TK.includes(tk) ? '3종합산' : null;
+  const b0 = byGroup(P0, 'sb', pick), b0a = byGroup(P0, 'sb', pickAll);
+  for (const [nm] of Uc) {
+    console.log(`\n  ${nm}`);
+    groupLine(nm, R.get(nm), 'sb', pick, U_TK, b0);
+    groupLine(nm, R.get(nm), 'sb', pickAll, ['3종합산'], b0a);
+  }
+  const b = P0.full._baseline; console.log(`\n  (기준선 전 종목 ${HZ.map(h => `${b[h].rate}%`).join('/')}) · 칸 = 강한매수 승률(표본) 현행 대비`);
+}
+
+console.log(`\n※ 후보 A 13종 · B 13종 · C 10종 · 지표 12종 · E 6종 · F 13종 · G 7종 · H 3종 · L 11종 · M 5종 · N 10종 · P 4종 · Q 14종 · R 4종 · S 15종 · T 12종 · U 12종 — 다중비교. 통과한 것도 다음 사이클 재확인 후에 쓴다.`);
 console.log('  이 도구는 실험 전용이다. 화면 반영은 사용자 승인 후에만.');

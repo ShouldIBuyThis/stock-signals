@@ -13,6 +13,10 @@ on:
         description: '거래일 수 (186 이하)'
         required: false
         default: '180'
+      years:
+        description: '야후 조회 기간(년) — 3이면 약 690거래일까지 (느림)'
+        required: false
+        default: '1'
 
 permissions:
   contents: read
@@ -31,7 +35,7 @@ jobs:
       - name: 의존성 설치
         run: pip install -q yfinance pandas numpy exchange_calendars
       - name: 장기 원본 수집 (야후 1년)
-        run: python tools/backfill_backtest.py --days "${{ inputs.days || '180' }}" --out backtest/raw.json
+        run: python tools/backfill_backtest.py --years "${{ inputs.years || '1' }}" --days "${{ inputs.days || '180' }}" --out backtest/raw.json
       - name: 실험 실행
         run: ${{ inputs.cmd || 'node tools/v13-lab.js backtest/raw.json --only=E' }}
       - name: 원본 삭제 · 변경 없음 확인
