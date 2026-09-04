@@ -105,7 +105,8 @@ const WP_A = 'else if (lv==="weak"){ cNeg-=1.0;';
 const WP_B = 'else if (lv==="weak"){ cNeg-=__WP(s);';
 const CP_A = 'else if (lv==="caution"){ cNeg-=0.5;';
 const CP_B = 'else if (lv==="caution"){ cNeg-=__CP(s);';
-const REVS_A = 'const revStrong = revScore>=2.0 && has(rsi) && revRsiOK && sectorOK && tickerOK && sectorTuneOK && revChase;';
+const REVS_A = `const revStrong = revScore>=2.0 && has(rsi) && revRsiOK && sectorOK && tickerOK && sectorTuneOK
+    && revChase && has(bb) && bb<=50;`;
 const RS_A   = REVS_A;
 const MG_A   = 'const marketGuarded = s.market_level==="weak" || s.market_level==="caution";';
 const REVS_B = 'const revStrong = __REVS(s, revScore) && has(rsi) && revRsiOK && sectorOK && revChase;';
@@ -415,7 +416,8 @@ const RSI_A  = 'const revRsiOK    = rsi<=50 || (rsi<=60 && revBandHigh);';
 const NH_A   = 'const nearHighM = has(s.pct_from_high) && s.pct_from_high >= -25;';
 const PCH_A  = 'const pullChase = run3Eff===null || run3Eff<=5;';
 const RCH_A  = 'const revChase    = run3Eff===null || run3Eff<=3 || (run3Eff<=6 && revTrendOK);';
-const PG_A   = 'const pullGrade = pullSetup && pullScore>=2.0 && sectorOK && tickerOK && sectorTuneOK && nearHighM && pullChase && pullBandOK ? 5 :';
+const PG_A   = `const pullGrade = pullSetup && (pullScore>=2.0 || (pullScore>=1.5 && has(bb) && bb<=55))
+    && sectorOK && tickerOK && sectorTuneOK && nearHighM && pullChase && pullBandOK ? 5 :`;
 if (ONLY.has('L')) {
   console.log('\n══ L. 표본 늘리고 승률 유지 — 약세·주의 국면 섹터 게이트 완화 등 (현행 v13)');
   const vx = 'has(s.market_vxn) && s.market_vxn';
@@ -843,5 +845,52 @@ if (ONLY.has('X')) {
   console.log('  ※ 판정: 1.5~2.0 구간에서 새로 들어오는 표본이 현행 추세 강매 이상 · §2 전후반 · 💡 안 무너짐 · 30일 원장 사전 확인.');
 }
 
-console.log(`\n※ 후보 A 13종 · B 13종 · C 10종 · 지표 12종 · E 6종 · F 13종 · G 7종 · H 3종 · L 11종 · M 5종 · N 10종 · P 4종 · Q 14종 · R 4종 · S 15종 · T 12종 · U 12종 · V 7종 · W 1종 · X 12종 · Y 17종 — 다중비교. 통과한 것도 다음 사이클 재확인 후에 쓴다.`);
+
+/* ═══ Z. 🔄 반등 강매 볼밴 상한의 예외 축 — 놓친 보존 사례를 정당하게 되살릴 수 있나 (2026-09-04)
+   v20(볼밴≤50) 적용 뒤 keepcases에서 AAOI 2026-08-07(볼밴 93)·IREN 2026-08-11(볼밴 64)을 잃었다.
+   사용자 가설: "그 둘은 고변동이라 그런 것 같다 — 고변동 축을 예외로 두면?"
+   30일 원장 사전 점검은 정반대를 가리켰다. v20이 지운 자리(반등 2.0+ & 볼밴>50)를 ATR로 쪼개면
+     ATR 0~4% 17건 82% · 4~6% 21건 43% · 6~8% 62건 27% · 8~12% 44건 25% · 12%+ 6건 33%
+   즉 고변동일수록 그 자리가 더 나쁘다. AAOI(평균 ATR 13.1%)·IREN(9.4%)은 고변동이 맞지만
+   같은 자리 106건 중 4분의 3이 졌다 — 그 둘은 '고변동이라 이긴' 게 아니라 '고변동인데 이긴' 쪽이다.
+   그래도 사용자 가설을 빼고 재지 않는다. 저변동 예외·거래량 압도 예외와 **나란히** 189일에서 잰다.
+   채택 조건(§5-6 조건부 해제): 예외로 새로 들어오는 표본이 현행 반등 강매(67%) 이상 · 전·후반 · n≥15. */
+if (ONLY.has('Z')) {
+  console.log('\n══ Z. 🔄 반등 강매 볼밴 상한(≤50)의 예외 축');
+  const zx = expr => ({ extra: [[RS_A, `const revStrong = revScore>=2.0 && has(rsi) && revRsiOK && sectorOK && tickerOK && sectorTuneOK
+    && revChase && (( has(bb) && bb<=50 ) || (${expr}));`]] });
+  const Zc = [
+    ['Z0 현행 (볼밴≤50, 예외 없음)',        {}],
+    /* ① 저변동 예외 — 30일 점검에서 가장 좋았던 쪽 */
+    ['Z1 ATR<4% 면제',                    zx('has(s.atr_pct) && s.atr_pct<4')],
+    ['Z2 ATR<5% 면제',                    zx('has(s.atr_pct) && s.atr_pct<5')],
+    ['Z3 ATR<6% 면제',                    zx('has(s.atr_pct) && s.atr_pct<6')],
+    /* ② 사용자 가설 — 고변동 예외. 정직하게 같이 잰다 */
+    ['Z4 ATR≥8% 면제 (사용자 가설)',        zx('has(s.atr_pct) && s.atr_pct>=8')],
+    ['Z5 ATR≥10% 면제 (사용자 가설)',       zx('has(s.atr_pct) && s.atr_pct>=10')],
+    /* ③ 거래량 압도 예외 — AAOI·IREN의 공통점이 볼밴이 아니라 거래량일 수 있다(§5-6) */
+    ['Z6 거래량 1.5배 면제',               zx('has(vr) && vr>=1.5')],
+    ['Z7 거래량 2.0배 면제',               zx('has(vr) && vr>=2.0')],
+    ['Z8 거래량 2.5배 면제',               zx('has(vr) && vr>=2.5')],
+    ['Z9 거래량 2.0배 & 20일선 위 면제',    zx('has(vr) && vr>=2.0 && has(p) && has(ma20) && p>ma20')],
+    /* ④ 밴드 상단 돌파 예외 — 2026-08 H 실험의 재확인 */
+    ['Z10 볼밴≥80(상단 돌파) 면제',        zx('has(bb) && bb>=80')],
+    ['Z11 볼밴≥80 & 거래량 2.0배 면제',     zx('has(bb) && bb>=80 && has(vr) && vr>=2.0')],
+    /* ⑤ 조합 */
+    ['Z12 ATR<5% 또는 거래량 2.0배 면제',   zx('(has(s.atr_pct) && s.atr_pct<5) || (has(vr) && vr>=2.0)')],
+  ];
+  const R = runSet(Zc); const P0 = R.get(Zc[0][0]);
+  for (const [nm] of Zc) {
+    const v = R.get(nm);
+    report(nm, v, nm === Zc[0][0] ? null : P0, 'rev5', '🔄 반등 강매',
+      [['🟢 강한매수 전체', 'sb'], ['🔵 다중', 'multi'], ['💡 강한다중', 'strict']]);
+    const n = rowsOf(v.full, 'rev5', 5).length, n0 = rowsOf(P0.full, 'rev5', 5).length;
+    console.log(`    ${'· 반등 강매 수'.padEnd(14)}${n}건 (현행 ${n0}건 대비 +${n - n0}) · 하루 평균 ${(rowsOf(v.full, 'rev5', 1).length / DAYS.length).toFixed(2)}건`);
+  }
+  const b = P0.full._baseline; console.log(`\n  (기준선 ${HZ.map(h => `${b[h].rate}%`).join('/')})`);
+  console.log('  ※ 판정(§5-6 조건부 해제): 예외로 새로 편입되는 표본이 현행 반등 강매 이상 · §2 전후반 · n≥15 · 30일 원장 사전 확인.');
+  console.log('    통과해도 keepcases(AAOI 8/07 볼밴 93 · IREN 8/11 볼밴 64)를 되찾는지는 따로 확인한다.');
+}
+
+console.log(`\n※ 후보 A 13종 · B 13종 · C 10종 · 지표 12종 · E 6종 · F 13종 · G 7종 · H 3종 · L 11종 · M 5종 · N 10종 · P 4종 · Q 14종 · R 4종 · S 15종 · T 12종 · U 12종 · V 7종 · W 1종 · X 12종 · Y 17종 · Z 13종 — 다중비교. 통과한 것도 다음 사이클 재확인 후에 쓴다.`);
 console.log('  이 도구는 실험 전용이다. 화면 반영은 사용자 승인 후에만.');
