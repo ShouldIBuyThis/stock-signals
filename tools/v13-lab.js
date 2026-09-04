@@ -506,7 +506,8 @@ if (ONLY.has('N')) {
 if (ONLY.has('P')) {
   console.log('\n══ P. 📈 추세 강매 점수 문턱 이웃값 (현행 1.5)');
   const pg = v => ({ extra: [[PG_A, `const pullGrade = pullSetup && pullScore>=${v} && sectorOK && nearHighM && pullChase && pullBandOK ? 5 :`]] });
-  const Pc = [['P0 현행 1.5', {}], ['P1 1.4', pg(1.4)], ['P2 1.3 (L10 재확인)', pg(1.3)], ['P3 1.2', pg(1.2)], ['P4 1.0', pg(1.0)]];
+  /* 2026-09-04: 내리는 쪽(1.0~1.4)은 이미 철회했다. 이번엔 '추세 승률 올리기'라 올리는 쪽을 잰다(S10 = 2.0). */
+  const Pc = [['P0 현행 1.5', {}], ['P1 1.7', pg(1.7)], ['P2 1.8', pg(1.8)], ['P3 2.0 (S10 재확인)', pg(2.0)], ['P4 2.2', pg(2.2)], ['P5 2.5', pg(2.5)]];
   const R = runSet(Pc); const P0 = R.get(Pc[0][0]);
   for (const [nm] of Pc) {
     const v = R.get(nm);
