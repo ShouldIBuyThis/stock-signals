@@ -112,6 +112,30 @@ const SCORES = [
      (S8 64% · S10 58% · S11 58% · S3 58%, +5일 TOP3 적중률)의 TOP3에 겹친 횟수를 먼저 보고,
      같은 횟수면 겹친 점수들의 적중률 합이 큰 순. index.html themeMultiRank()와 같은 규칙. */
   ['S12 다중 = 통과 점수 4종 TOP3 겹침 × 적중률', (t, all) => themeMulti(t, all)],
+  /* 2026-09-04 사용자 목표 "10번 중 7번 이상". 두 방향으로 시도한다.
+     ① 점수 자체를 더 잘 고르기(S13~S16) ② 확신 있는 날만 발표하기(G1~G4 — gate). */
+  ['S13 합성 = 20일수익 + 폭 + RS20',        (t, all) => rankSum(t, ['m20', 'br', 'rs'], all)],
+  ['S14 합성 = 20일수익 + 폭 + 자금유입',      (t, all) => rankSum(t, ['m20', 'br', 'inflow'], all)],
+  ['S15 하이브리드 = 20일수익 + 5일반전 + 폭',  (t, all) => rankSum(t, ['m20', 'm5neg', 'br'], all)],
+  ['S16 합성 = 폭 + RS20',                   (t, all) => rankSum(t, ['br', 'rs'], all)],
+];
+/* 선택적 발표 — 조건이 맞는 날만 TOP3를 내고, 나머지 날은 '오늘은 안 고름'으로 둔다.
+   [이름, 점수함수, 게이트(그날 테마들 → 발표할지)] · 발표일 비율(coverage)도 같이 찍는다. */
+const GATED = [
+  ['G1 다중(S12) — 겹침 2개 이상인 날만',   (t, all) => themeMulti(t, all),
+    all => { const sc = all.map(t => themeMulti(t, all)); return Math.max(...sc.map(x => Math.floor((x || 0) / 1000))) >= 2; }],
+  ['G2 다중(S12) — 겹침 3개 이상인 날만',   (t, all) => themeMulti(t, all),
+    all => { const sc = all.map(t => themeMulti(t, all)); return Math.max(...sc.map(x => Math.floor((x || 0) / 1000))) >= 3; }],
+  ['G3 S8 — 1위 테마 폭 50% 이상인 날만',   (t, all) => rankSum(t, ['m20', 'br'], all),
+    all => { const sc = all.map(t => rankSum(t, ['m20', 'br'], all)), rk = rankOf(sc);
+             const top = all[rk.findIndex(r => r === 1)]; return top && top.br != null && top.br >= 50; }],
+  ['G4 S8 — 테마 간 격차가 큰 날만(1위 20일수익 − 중앙값 ≥ 3%p)', (t, all) => rankSum(t, ['m20', 'br'], all),
+    all => { const sc = all.map(t => rankSum(t, ['m20', 'br'], all)), rk = rankOf(sc);
+             const top = all[rk.findIndex(r => r === 1)]; const med = median(all.map(t => t.m20));
+             return top && top.m20 != null && med != null && (top.m20 - med) >= 3; }],
+  ['G5 다중 2개+ & 1위 폭 50%+',           (t, all) => themeMulti(t, all),
+    all => { const sc = all.map(t => themeMulti(t, all)); if (Math.max(...sc.map(x => Math.floor((x || 0) / 1000))) < 2) return false;
+             const rk = rankOf(sc); const top = all[rk.findIndex(r => r === 1)]; return top && top.br != null && top.br >= 50; }],
 ];
 const MULTI_SIGS = [['S8', 64, (t, all) => rankSum(t, ['m20', 'br'], all)], ['S10', 58, t => t.m5 == null ? null : -t.m5],
                     ['S11', 58, t => t.m20 == null ? null : -t.m20], ['S3', 58, t => t.br]];
@@ -125,10 +149,13 @@ function themeMulti(t, all) {
   return cnt * 1000 + w - s8 * 0.01;   // 겹침 수 → 적중률 합 → S8 순위로 동점 처리
 }
 
-function evalScore(fn, days) {
-  const out = {}; HZ.forEach(h => { out[h] = { ex3: [], hit3: 0, hit1: 0, ic: [], n: 0 }; });
+function evalScore(fn, days, gate) {
+  const out = {}; HZ.forEach(h => { out[h] = { ex3: [], hit3: 0, hit1: 0, ic: [], n: 0, skip: 0 }; });
   for (const day of days) {
-    const all = day.themes, sc = all.map(t => fn(t, all)), rk = rankOf(sc);
+    const all = day.themes;
+    all.forEach(t => { if (t.m5neg === undefined) t.m5neg = (t.m5 == null ? null : -t.m5); });
+    if (gate && !gate(all)) { HZ.forEach(h => out[h].skip++); continue; }
+    const sc = all.map(t => fn(t, all)), rk = rankOf(sc);
     const order = all.map((t, i) => [rk[i], t]).filter(x => x[0] != null).sort((a, b) => a[0] - b[0]).map(x => x[1]);
     if (order.length < 5) continue;
     HZ.forEach(h => {
@@ -141,7 +168,8 @@ function evalScore(fn, days) {
   }
   return out;
 }
-const fmt = o => o.n ? `초과 ${(mean(o.ex3) >= 0 ? '+' : '')}${mean(o.ex3).toFixed(2)}%p · TOP3 ${Math.round(o.hit3 / o.n * 100)}% · 1위 ${Math.round(o.hit1 / o.n * 100)}% · IC ${(mean(o.ic) ?? 0).toFixed(2)} (${o.n}일)` : '표본 없음';
+const cov = o => (o.skip ? ` · 발표 ${Math.round(o.n / (o.n + o.skip) * 100)}%(${o.n}/${o.n + o.skip}일)` : '');
+const fmt = o => o.n ? `초과 ${(mean(o.ex3) >= 0 ? '+' : '')}${mean(o.ex3).toFixed(2)}%p · TOP3 ${Math.round(o.hit3 / o.n * 100)}% · 1위 ${Math.round(o.hit1 / o.n * 100)}% · IC ${(mean(o.ic) ?? 0).toFixed(2)} (${o.n}일)${cov(o)}` : '표본 없음';
 const H1 = DAILY.filter(x => x.d < MID), H2 = DAILY.filter(x => x.d >= MID);
 for (const [nm, fn] of SCORES) {
   const a = evalScore(fn, DAILY), b1 = evalScore(fn, H1), b2 = evalScore(fn, H2);
@@ -152,6 +180,20 @@ for (const [nm, fn] of SCORES) {
     console.log(`          후반 ${fmt(b2[h])}`);
   });
 }
+/* 선택적 발표 후보 — '확신 있는 날만' 골라 10번 중 7번을 노린다. 발표일 비율이 너무 낮으면(30% 미만)
+   실전에서 쓸모가 없으므로 같이 본다. */
+console.log('\n══ 선택적 발표 후보 (조건이 맞는 날만 TOP3를 낸다)');
+for (const [nm, fn, gate] of GATED) {
+  const a = evalScore(fn, DAILY, gate), b1 = evalScore(fn, H1, gate), b2 = evalScore(fn, H2, gate);
+  console.log(`\n  ${nm}`);
+  HZ.forEach(h => {
+    console.log(`    +${h}일  ${fmt(a[h])}`);
+    console.log(`          전반 ${fmt(b1[h])}`);
+    console.log(`          후반 ${fmt(b2[h])}`);
+  });
+}
+console.log('\n  ※ 목표: TOP3 적중률 70%+ · 발표일 비율 30%+ · 전·후반 둘 다 65%+ (셋 다 되어야 채택).');
+
 /* 오늘(마지막 날)의 순위 미리보기 — 화면에 붙일 모양 */
 const last = DAILY[DAILY.length - 1];
 if (last) {
@@ -160,5 +202,5 @@ if (last) {
   all.map((t, i) => [rk[i], t]).filter(x => x[0] != null).sort((a, b) => a[0] - b[0]).slice(0, 5)
     .forEach(([r, t]) => console.log(`  ${r}위 ${t.name.padEnd(12)} 5일 ${t.m5 >= 0 ? '+' : ''}${t.m5.toFixed(1)}% · 20일선 위 ${Math.round(t.br)}% · 자금유입 ${t.inflow.toFixed(2)} · ${t.n}종목`));
 }
-console.log(`\n※ 점수 ${SCORES.length}종(다중비교). 채택은 +5·+10일 모두 TOP3 적중률 55%+ 이고 §2 전·후반 같은 방향이며 IC>0 인 것만.`);
+console.log(`\n※ 점수 ${SCORES.length}종 + 선택적 발표 ${GATED.length}종(다중비교). 채택은 +5·+10일 모두 TOP3 적중률 55%+ 이고 §2 전·후반 같은 방향이며 IC>0 인 것만.`);
 console.log('  이 도구는 실험 전용이다. 화면 반영은 사용자 승인 후에만.');
