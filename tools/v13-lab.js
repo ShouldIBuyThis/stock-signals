@@ -579,16 +579,31 @@ function byGroup(v, layer, pick) {
   }
   return out;
 }
-const rateOf = rows => { const w = rows.filter(x => x.ret > 1).length, l = rows.filter(x => x.ret < -1).length; return { rate: (w + l) ? Math.round(w / (w + l) * 100) : null, n: rows.length }; };
+const rateOf = rows => { const w = rows.filter(x => x.ret > 1).length, l = rows.filter(x => x.ret < -1).length; return { rate: (w + l) ? Math.round(w / (w + l) * 100) : null, n: rows.length, wl: w + l }; };
+/* 윌슨 95% 신뢰구간 — 표본이 작을 때 '70%'가 실제로 얼마나 넓은 구간인지 같이 보여준다(§5-10).
+   예: 10건 7승 3패 → 70% [39~90]. 이 폭을 감추면 우연을 실력으로 읽게 된다. */
+function wilson(rows) {
+  const w = rows.filter(x => x.ret > 1).length, l = rows.filter(x => x.ret < -1).length, n = w + l;
+  if (!n) return null;
+  const z = 1.96, p = w / n, d = 1 + z * z / n;
+  const c = (p + z * z / (2 * n)) / d, h = z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / d;
+  return [Math.round(Math.max(0, c - h) * 100), Math.round(Math.min(1, c + h) * 100)];
+}
 function groupLine(label, v, layer, pick, keys, baseG) {
   const g = byGroup(v, layer, pick);
   for (const k of keys) {
-    const cells = HZ.map(h => {
-      const c = rateOf((g[k] || {})[h] || []); const b = baseG ? rateOf((baseG[k] || {})[h] || []) : null;
+    const raw = HZ.map(h => (g[k] || {})[h] || []);
+    const cells = HZ.map((h, i) => {
+      const c = rateOf(raw[i]); const b = baseG ? rateOf((baseG[k] || {})[h] || []) : null;
       const d = (b && c.rate != null && b.rate != null) ? ` ${c.rate - b.rate >= 0 ? '+' : ''}${c.rate - b.rate}p` : '';
       return `${c.rate == null ? '  —' : String(c.rate).padStart(3) + '%'}(${String(c.n).padStart(3)})${d}`.padEnd(14);
     });
     console.log(`    ${k.padEnd(14)} ${cells.join(' ')}`);
+    /* 표본이 50건 미만이면(§5-1 '사용 가능' 미만) 신뢰구간을 한 줄 더 찍는다. */
+    if (raw.some(r => rateOf(r).wl && rateOf(r).wl < 50)) {
+      const ci = raw.map(r => { const x = wilson(r); return (x ? `[${x[0]}~${x[1]}]` : '   —   ').padEnd(14); });
+      console.log(`    ${'  ↳ 95% 구간'.padEnd(14)} ${ci.join(' ')}`);
+    }
   }
   return g;
 }
