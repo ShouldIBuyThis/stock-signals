@@ -202,5 +202,17 @@ if (last) {
   all.map((t, i) => [rk[i], t]).filter(x => x[0] != null).sort((a, b) => a[0] - b[0]).slice(0, 5)
     .forEach(([r, t]) => console.log(`  ${r}위 ${t.name.padEnd(12)} 5일 ${t.m5 >= 0 ? '+' : ''}${t.m5.toFixed(1)}% · 20일선 위 ${Math.round(t.br)}% · 자금유입 ${t.inflow.toFixed(2)} · ${t.n}종목`));
 }
+/* 한 줄 요약표 — 로그를 tail로 읽을 때 이 부분만 봐도 판정이 되게 (2026-09-04). */
+console.log('\n══ 한 줄 요약 (TOP3 적중률 · 전반/후반 · IC · 발표일)');
+const line = (nm, fn, gate) => {
+  const a = evalScore(fn, DAILY, gate), b1 = evalScore(fn, H1, gate), b2 = evalScore(fn, H2, gate);
+  const cell = h => { const o = a[h]; if (!o.n) return `+${h}일 —`.padEnd(30);
+    const g1 = b1[h].n ? Math.round(b1[h].hit3 / b1[h].n * 100) : null, g2 = b2[h].n ? Math.round(b2[h].hit3 / b2[h].n * 100) : null;
+    return `+${h}일 ${String(Math.round(o.hit3 / o.n * 100)).padStart(3)}% (${g1 ?? '—'}/${g2 ?? '—'}) IC${(mean(o.ic) ?? 0).toFixed(2)}${o.skip ? ` 발표${Math.round(o.n / (o.n + o.skip) * 100)}%` : ''}`.padEnd(30); };
+  console.log(`  ${nm.padEnd(38)} ${HZ.map(cell).join(' ')}`);
+};
+for (const [nm, fn] of SCORES) line(nm, fn, null);
+for (const [nm, fn, gate] of GATED) line(nm, fn, gate);
+
 console.log(`\n※ 점수 ${SCORES.length}종 + 선택적 발표 ${GATED.length}종(다중비교). 채택은 +5·+10일 모두 TOP3 적중률 55%+ 이고 §2 전·후반 같은 방향이며 IC>0 인 것만.`);
 console.log('  이 도구는 실험 전용이다. 화면 반영은 사용자 승인 후에만.');
