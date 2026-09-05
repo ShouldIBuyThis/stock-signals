@@ -777,8 +777,10 @@ html[data-theme="dark"] .linkbtn{color:#8fb4ff}
 .basis{margin-left:auto;font-size:10.5px;color:var(--faint);font-weight:600;white-space:nowrap;padding-left:8px}
 .basis-event{border:1px solid #b9e7cb;background:#e7f6ee;padding:2px 7px;margin-left:7px;color:#0f8a4d;font:inherit;font-size:9.5px;font-weight:850;line-height:1.35;border-radius:999px;cursor:pointer;white-space:nowrap;box-shadow:0 1px 2px rgba(15,157,88,.08)}
 .basis-event.on{border-color:#83d5a3;background:#d9f4e5;color:#08783f}
+.basis-event.soon{border-color:#f0cf8a;background:#fdf4e0;color:#9a6b12}
 html[data-theme="dark"] .basis-event{border-color:#285c3d;background:#16301f;color:#63d69a}
 html[data-theme="dark"] .basis-event.on{border-color:#3b7a55;background:#1b3b28;color:#7be0aa}
+html[data-theme="dark"] .basis-event.soon{border-color:#6b5626;background:#332a14;color:#e0bd6b}
 .basis-event:hover{transform:translateY(-1px);box-shadow:0 2px 5px rgba(15,157,88,.15)}
 @media (max-width:640px){ /* 모바일에선 기준일을 아랫줄로 내려 제목이 안 깨지게 */
   .section-h{flex-wrap:wrap}
@@ -2584,6 +2586,29 @@ function marketEventsForRow(s){
   const frozen=marketEventItems(s&&s.market_events);
   return Array.isArray(s&&s.market_events) ? frozen : marketEventsOnDate(s&&s.last_date);
 }
+/* 데이터 날짜 이후에 예정된 이벤트. 2026-09-05 사용자 지적:
+   "고용지표가 9/4 장전에 떠야 하는데 종가 이후에 떴다 — 하루 전에 눌러도 뜨게 해야 한다."
+   원인: 데이터는 미국 종가 뒤에 만들어지므로 'D일 이벤트'는 D일 장이 끝나야 화면에 붙었다.
+   장 열기 전에 나오는 발표(고용지표 8:30 ET 등)는 그때는 이미 지난 일이다.
+   그래서 오늘 것뿐 아니라 **앞으로 7일 안에 예정된 것**을 같이 보여 준다. */
+function marketEventsUpcoming(afterDate, days){
+  if(!afterDate) return [];
+  const xs=(state.data&&Array.isArray(state.data.market_events))?state.data.market_events:[];
+  const lim=new Date(afterDate+"T00:00:00Z"); lim.setUTCDate(lim.getUTCDate()+(days||7));
+  const limS=lim.toISOString().slice(0,10);
+  const seen=new Set();
+  return marketEventItems(xs.filter(x=>{
+    const d=String((x||{}).date||""); if(!(d>String(afterDate) && d<=limS)) return false;
+    const k=(x.type||x.name)+"|"+d; if(seen.has(k)) return false; seen.add(k); return true;
+  })).sort((a,b)=>String(a.date)<String(b.date)?-1:1);
+}
+/* 데이터 날짜의 '다음 거래일'에 이벤트가 있나 — 버튼을 켜는 기준. 주말은 건너뛴다. */
+function nextSessionEvents(afterDate){
+  const ups=marketEventsUpcoming(afterDate, 4);
+  if(!ups.length) return [];
+  const first=String(ups[0].date);
+  return ups.filter(x=>String(x.date)===first);
+}
 function marketEventTypes(events){
   return [...new Set(marketEventItems(events).map(x=>String(x.type||x.name||"시장 이벤트").trim()).filter(Boolean))];
 }
@@ -2841,16 +2866,12 @@ function nasdaqEdgeBadges(){
     out.push({ key:"breadth-low", cls:"nedge-br", icon:"🌊", label:"바닥권",
       tip:`20일선 위 ${b.pct}% (${b.above}/${b.n}종목) · 이런 날 다음날 QQQ가 오른 경우 56%, 10일 뒤 73% (3년 73번 · 아무 날이나 58/64%)` });
   }
-  const cg = congressSignal();
-  if(cg.gop && cg.gop.rev)
-    out.push({ key:"congress-gop", cls:"nedge-vxn", icon:"🏛", label:"공화당 바구니 반전",
-      tip:`공화당 의원 거래 ETF(GOP)가 QQQ보다 앞서기 시작한 날(20일 초과수익 ${r1(cg.gop.rsPrev)}%p → ${r1(cg.gop.rs)}%p) · 4년 실측 120번: 다음날 QQQ 65%, 3일 뒤 73%, 10일 뒤 76% (아무 날이나 57/60/65%) · 공시 지연 ETF라 '의원들이 한두 달 전 산 바구니'가 잘 가기 시작했다는 뜻` });
-  else if(cg.nanc && cg.nanc.rev)
-    out.push({ key:"congress-nanc", cls:"nedge-vxn2", icon:"🏛", label:"민주당 바구니 반전",
-      tip:`민주당 의원 거래 ETF(NANC)가 QQQ보다 앞서기 시작한 날(20일 초과수익 ${r1(cg.nanc.rsPrev)}%p → ${r1(cg.nanc.rs)}%p) · 4년 실측 131번: 5일 뒤 QQQ 69% (아무 날이나 61%) · 공시 지연 ETF` });
-  else if(cg.both)
-    out.push({ key:"congress-both", cls:"nedge-br", icon:"🏛", label:"의회 바구니 둘 다 앞섬",
-      tip:`민주당·공화당 의원 거래 ETF가 둘 다 QQQ보다 20일 앞서는 중 · 4년 실측 271번: 다음날 64%, 3일 뒤 67%, 5일 뒤 67% (아무 날이나 57/60/61%) · 2주 뒤부터는 차이 없음` });
+  /* 🏛 의회 바구니 뱃지 3종(공화당 반전·민주당 반전·둘 다 앞섬)은 2026-09-05 사용자 지시로 뺐다.
+     "민주당바구니 공화당바구니 뱃지 빼는 게 나을 것 같다 그냥." 4년 실측 자체는 통과했었지만
+     (GOP 반전 120번 65/73%·NANC 반전 131번 5일 69%·둘 다 271번 64/67/67%) 화면이 복잡해지고
+     공시 45일 지연이라 사용자가 바로 쓰기 어려운 정보였다. 측정 근거는 방법론 문서에 남아 있고
+     holdings/ 원장 수집(main.py)과 congress_holdings 데이터는 그대로 둔다 — 나중에 다시 쓸 수 있다.
+     congressSignal()도 남겨 둔다(챗 '의원들이 많이 산 종목'에서 쓴다). */
   return out;
 }
 /* 오늘 20일선 위에 있는 종목 비율. 외부 데이터 없이 우리 관심종목으로 센다. */
@@ -2889,18 +2910,6 @@ const NEDGE_FACTS = [
     rule:"20일선 위 종목이 30% 미만인 날",
     d1:56, e1:-2, d3:60, e3:-1, n:73,
     note:"기록표의 '바닥권' 줄과 <b>같은 값</b>이에요(3년 694거래일 · 73번). 다음날·3일 뒤는 아무 날이나와 거의 같고, <b>10일 뒤에 73%(+9%p)</b>로 벌어져요 — 그래서 '강한'이 아니라 '매수 우위'까지만 줍니다. 예전에 이 자리에 9번짜리 짧은 창 값(78%·89%)이 있었는데, 같은 이름이 다른 숫자를 보여 줘서 3년 값으로 통일했어요." },
-  { key:"congress-gop", icon:"🏛", label:"공화당 바구니 반전",
-    rule:"공화당 의원 거래 ETF(GOP)의 QQQ 대비 20일 초과수익이 5거래일 사이에 마이너스에서 플러스로 돌아선 날",
-    d1:65, e1:8, d3:73, e3:13, n:120,
-    note:"4년(855거래일) 실측. 10일 뒤도 76%(아무 날이나 65%)였고 기간을 앞뒤로 갈라도 66%·67%로 같았어요. 이 ETF는 의원 공시(최대 45일 지연)를 따라 담으니 '의원들이 지금 사는 것'이 아니라 '한두 달 전 산 바구니가 지수보다 잘 가기 시작했다'는 뜻이에요. 이 줄의 기준선은 다음날 57% · 3일 뒤 60%예요." },
-  { key:"congress-nanc", icon:"🏛", label:"민주당 바구니 반전",
-    rule:"민주당 의원 거래 ETF(NANC)의 QQQ 대비 20일 초과수익이 마이너스에서 플러스로 돌아선 날",
-    d1:58, e1:1, d3:64, e3:4, n:131,
-    note:"공화당 쪽보다 약해요 — 5일 뒤 69%(+9%p)만 뚜렷하고 다음날은 차이가 없어요. 앞뒤 절반 65%·74%." },
-  { key:"congress-both", icon:"🏛", label:"의회 바구니 둘 다 앞섬",
-    rule:"NANC·GOP 둘 다 QQQ보다 20일 수익이 앞서는 날",
-    d1:64, e1:7, d3:67, e3:7, n:271,
-    note:"1~5일까지만 +6~7%p이고 2주 뒤부터는 차이가 없어요. 반대로 둘 다 뒤지는 날(382번)은 다음날 53%로 평균보다 4%p 낮았어요. 어느 당이 앞서느냐(민주 vs 공화)는 QQQ 예측에 정보가 없었고, 섹터 회전도 뚜렷한 게 없었어요." },
 ];
 /* ══════════ 투자 비서 (1단계 · LLM 없음) ══════════
    답을 지어내지 않는다. 화면이 이미 쓰는 값(cartLevels·evaluate·tickerHitRanks·
@@ -3310,7 +3319,7 @@ function chatKw(k){
     const M=THEME_FACTS.multi; const pct = v => has(v) ? `${v>=0?"+":""}${v.toFixed(1)}%` : "—";
     chatBot(rows.length
       ? `잘 맞았던 잣대 4개(요즘 잘 오르는·최근 5일 많이 빠진·한 달 많이 빠진·20일선 위 종목 많은 테마)에 <b>동시에 걸린 테마</b>를 위로 올려요.<br>` +
-        rows.slice(0,3).map((t,i)=>`${["🥇","🥈","🥉"][i]} <b>${esc(t.name)}</b> <span class="tkrec-sub">${esc((t.flags||[]).join("·"))} · 한 달 ${pct(t.m20)} · 일주일 ${pct(t.r5)}${congressCountFor(t.name)?` · 🏛 ${congressCountFor(t.name)}종`:""}</span>`).join("<br>") +
+        rows.slice(0,3).map((t,i)=>`${["🥇","🥈","🥉"][i]} <b>${esc(t.name)}</b> <span class="tkrec-sub">${esc((t.flags||[]).join("·"))} · 한 달 ${pct(t.m20)} · 일주일 ${pct(t.r5)}</span>`).join("<br>") +
         `<br><span class="tkrec-sub">${THEME_FACTS.window} 실측: 이렇게 고른 3개가 5일 뒤 ${M.days[5]}일 중 ${M.hit[5]}일(${M.top3[5]}%) 다른 테마 평균보다 더 올랐어요. 스윙 관점에선 상위 테마 안에서 <b>매수관심·강한매수가 뜬 종목</b>을 고르는 용도예요. 점수·등급에는 안 들어가요.</span>`
       : `테마를 셀 데이터가 아직 없어요.`);
     renderChat([["advisorGo('theme')","📊 테마 화면으로"],["chatMore()","🔍 다른 질문"],["chatHome()","↩ 처음으로"]]); return;
@@ -3991,7 +4000,7 @@ function themeForecastHtml(){
       <span class="tf-medal">${medal[i]}</span>
       <div class="tf-body">
         <div class="tf-name"><b data-themefilter="${esc(t.name)}" role="button" tabindex="0">${esc(t.name)}</b> <span class="tkrec-n">${t.n}종목</span></div>
-        <div class="tf-tags">${t.flags.map(x=>`<span class="tag t-good">${esc(x)}</span>`).join("")}${(()=>{ const c=congressCountFor(t.name); return c ? `<span class="tag t-cool clickable" data-explain="의회바구니" title="이 테마 종목 중 의회 거래 ETF 상위 10종에 든 수 — 참고 표시, 순위에는 안 들어가요">🏛 의회 바구니 ${c}종</span>` : ""; })()}</div>
+        <div class="tf-tags">${t.flags.map(x=>`<span class="tag t-good">${esc(x)}</span>`).join("")}</div>
         <div class="tf-nums">한 달(20거래일) <b class="num ${chgCls(t.m20)}">${pct(t.m20)}</b> · 일주일(5거래일) <b class="num ${chgCls(t.r5)}">${pct(t.r5)}</b> · 20일선 위 종목 <b class="num">${Math.round(t.br)}%</b></div>
       </div></div>`).join("")}
     </div>
@@ -4197,7 +4206,12 @@ function basisNote(){
   if(!txt) return "";
   const events=us ? marketEventsOnDate(us) : [];
   const warn=marketEventTypes(events).length>0;
-  const eventBtn=us ? `<button type="button" class="basis-event ${warn?"on":""}" data-market-event="${esc(us)}">${warn?"⚠ ":""}오늘의 이벤트</button>` : "";
+  /* 오늘 이벤트가 없어도 다음 거래일에 있으면 버튼을 켜서 미리 알린다(2026-09-05). */
+  const soon=us ? nextSessionEvents(us) : [];
+  const soonTypes=marketEventTypes(soon);
+  const label=warn ? "⚠ 오늘의 이벤트"
+    : (soonTypes.length ? `🗓 ${esc(soonTypes[0])} 예정` : "오늘의 이벤트");
+  const eventBtn=us ? `<button type="button" class="basis-event ${warn?"on":(soonTypes.length?"soon":"")}" data-market-event="${esc(us)}">${label}</button>` : "";
   return `<span class="basis">${esc(txt)}${eventBtn}</span>`;
 }
 
@@ -4208,10 +4222,21 @@ function openMarketEventModal(date){
   const md=p.length===3?`${+p[1]}/${+p[2]}`:String(date||"");
   const cal=(state.data&&state.data.calendar_status)||{};
   const close=`<div class="modal-actions"><button class="primary" onclick="closeModal()">닫기</button></div>`;
+  /* 앞으로 7일 안에 예정된 이벤트 — 장전 발표(고용지표 8:30 ET 등)는 당일 종가 데이터로는 이미 늦으므로
+     하루 전에 이 버튼을 눌러도 보이게 한다(2026-09-05 사용자 지적). */
+  const soon=marketEventsUpcoming(date, 7);
+  const soonHtml=soon.length
+    ? `<div class="strip" style="margin-top:10px"><b>🗓 앞으로 예정</b><br>${soon.slice(0,6).map(ev=>{
+        const d=String(ev.date||""); const pp=d.split("-"); const dd=pp.length===3?`${+pp[1]}/${+pp[2]}`:d;
+        const diff=Math.round((new Date(d+"T00:00:00Z")-new Date(String(date)+"T00:00:00Z"))/86400000);
+        return `<b>${esc(dd)}</b>${diff===1?" <span style=\"color:var(--sell)\">(다음 거래일)</span>":` (${diff}일 뒤)`} — ${esc(ev.type||ev.name||"시장 이벤트")}`;
+      }).join("<br>")}<br><span style="font-size:11px;color:var(--muted)">고용지표·CPI 같은 발표는 <b>미국 장이 열리기 전</b>(한국시간 밤 9시 30분쯤)에 나옵니다. 이 화면의 데이터는 그날 장이 끝난 뒤 만들어지니, <b>전날 미리 확인</b>하세요.</span></div>`
+    : "";
   if(!types.length){
     const failed=cal.economic_events_ok===false;
     openModal(`<h3>시장 이벤트</h3>
-      <p style="font-size:13px;color:var(--reason);line-height:1.8"><b>미국 ${esc(md)} 종가 기준</b><br><br>${failed?"오늘의 주요 경제 이벤트 캘린더를 정상 확인하지 못했어요. 기술적 신호만 보고 판단하지 말고 외부 일정을 한 번 더 확인해 주세요.":"현재 수집된 오늘의 주요 시장 이벤트 경고가 없어요."}<br><br>
+      <p style="font-size:13px;color:var(--reason);line-height:1.8"><b>미국 ${esc(md)} 종가 기준</b><br><br>${failed?"오늘의 주요 경제 이벤트 캘린더를 정상 확인하지 못했어요. 기술적 신호만 보고 판단하지 말고 외부 일정을 한 번 더 확인해 주세요.":"이 날짜에 잡힌 주요 시장 이벤트는 없어요."}</p>${soonHtml}
+      <p style="font-size:13px;color:var(--reason);line-height:1.8"><br>
       <b>여기서 잡는 것</b> — FOMC · 금리(연준 발언·의사록 포함) · CPI · PCE · 고용지표.
       미국 경제 캘린더에 <b>예정으로 올라온 발표</b>만 봅니다.
       여기에 <b>네마녀의 날</b>(3·6·9·12월 셋째 금요일 — 지수·개별주 선물·옵션 동시 만기)은 달력으로 직접 계산해 붙입니다.<br>
@@ -4226,7 +4251,7 @@ function openMarketEventModal(date){
   }).join("");
   openModal(`<h3>시장 이벤트</h3>
     <p style="font-size:13px;color:var(--reason);line-height:1.8"><b>미국 ${esc(md)} 종가 기준</b> · ${esc(types.join(" · "))}<br><br>FOMC·CPI·PCE·주요 고용지표·네마녀의 날 같은 시장 이벤트일에는 변동성이 커져 <b>기술적 신호가 평소보다 빗나갈 수 있어요.</b><br>점수·등급·랭킹은 바꾸지 않고 경고만 표시합니다.</p>
-    ${rows}${close}`);
+    ${rows}${soonHtml}${close}`);
 }
 const badgeKey = t => String(t).replace(/\(오늘[^)]*\)/,"").replace(/[\d.]+배/,"").replace(/—.*$/,"").trim();
 const BADGE_STRONG_BUY = "🔥 강한매수";
@@ -5080,21 +5105,12 @@ function flowTagsHtml(s){
   const f = flowSignal(s); if(!f || s.earnings_hold) return "";
   const out = [];
   if(has(f.inflow) && f.inflow <= -1)
-    out.push(`<span class="tag t-good" title="5일 자금흐름 ${f.inflow} — 최근 5일 동안 거래량이 실린 날이 주로 하락한 날이에요(팔 사람이 많이 판 자리). 이 자리의 강한매수는 3일 뒤 10번 중 7번, 5일 뒤 10번 중 8번 올라 있었어요(강한매수 평균은 10번 중 6번).">🫗 매도 소진 ${f.inflow}</span>`);
+    out.push(`<span class="tag t-good clickable" data-explain="매도소진" title="눌러서 설명 보기">🫗 매도 소진 ${f.inflow}</span>`);
   /* 외부 산식 근사 표시(docs/외부-산식-후보.md) — 점수·등급에는 안 들어간다. 3년 일봉 근사 실측:
      페어 리버설 74건 57/68/68/68%(아무 날이나 52/54/55/57) · 2R 기대값 +0.53R,
      Root 타격 103건 60/64/62/70% · +0.56R. 원문의 분봉·추세선 수렴은 못 재므로 '근사'라고 적는다. */
-  /* 의회 거래 ETF 상위 보유 — 이 종목이 민주당/공화당 바구니 상위 10종에 들어 있으면 비중을 보여 준다.
-     의원 거래 공시(최대 45일 지연)를 따라 담는 바구니라 '지금 사는 것'이 아니라 '한두 달 전 산 것'이다. 점수·등급 미반영. */
-  const CH = state.data && state.data.congress_holdings;
-  if(CH){
-    const w = etf => { const t = ((CH[etf]||{}).top||[]).find(x => x.ticker === s.ticker); return t && has(num(t.weight)) ? num(t.weight) : null; };
-    const dn = w("NANC"), gp = w("GOP"), mg = w("MAGA");
-    if(dn !== null || gp !== null || mg !== null){
-      const parts = []; if(dn !== null) parts.push(`민주당 바구니 ${dn.toFixed(1)}%`); if(gp !== null) parts.push(`공화당 바구니 ${gp.toFixed(1)}%`); if(mg !== null) parts.push(`공화당 후원기업 ${mg.toFixed(1)}%`);
-      out.push(`<span class="tag t-cool clickable" data-explain="의회바구니" title="눌러서 설명 보기">🏛 ${parts.join(" · ")}</span>`);
-    }
-  }
+  /* 🏛 의회 바구니 비중 뱃지는 2026-09-05 사용자 지시로 뺐다(위 나스닥 전용 뱃지와 같은 이유).
+     congress_holdings 데이터는 계속 받고 원장에 쌓는다 — 표시만 멈춘 것이다. */
   if(s.ext_pair === 1)
     out.push(`<span class="tag t-cool" title="페어 리버설(일봉 근사) — 하락 추세선과 수평 넥라인을 같은 날(또는 하루 차)에 함께 위로 넘었어요. 3년 실측 74번: 3일 뒤 올라 있던 경우 10번 중 7번(아무 날이나 5~6번), 손절폭 2배 목표를 먼저 닿은 경우 59%. 점수·등급에는 안 들어가요.">🔀 페어 리버설 돌파</span>`);
   if(s.ext_root === 1)
@@ -6161,6 +6177,24 @@ function explainStyle(kind){
   const close = `<div class="modal-actions"><button class="primary" onclick="document.getElementById('modal').classList.remove('on')">닫기</button></div>`;
   const P = t => `<p style="font-size:13px;color:var(--reason);line-height:1.8">${t}</p>`;
 
+  if (kind === "매도소진"){
+    openModal(`<h3>🫗 매도 소진</h3>` +
+      P(`<b>한 줄 요약 — "팔 사람은 거의 다 판 자리"라는 뜻이에요. 옆의 숫자는 그 정도를 나타내는 점수고, <b>마이너스가 클수록 강한 신호</b>예요.</b><br><br>
+         <b>숫자는 어떻게 나오나요?</b><br>
+         최근 <b>5거래일</b>을 하루씩 봅니다. 그날 <b>거래량이 평소보다 많았고 주가가 내렸으면 마이너스</b>,
+         <b>많았는데 올랐으면 플러스</b>를 줍니다. 거래량이 평소 수준이면 0이에요. 그 다섯 개를 더한 값이에요.<br><br>
+         <b>−9라면?</b> 5일 내내 <b>거래량이 크게 실린 채로 주로 내렸다</b>는 뜻이에요.
+         숫자가 큰 이유는 하루하루가 '평소의 몇 배였나'로 쌓이기 때문이고요 —
+         예를 들어 평소의 3배 거래량으로 내린 날은 그날 하루만 −2점입니다.<br>
+         이 뱃지는 <b>−1 이하일 때만</b> 붙어요. −1은 약한 신호, −5나 −9는 강한 신호로 보시면 됩니다.<br><br>
+         <b>왜 이게 좋은 신호인가요?</b><br>
+         팔 사람이 많이 팔고 나면 위에서 누르는 힘이 줄어들어요. 그래서 <b>같은 매수 신호라도 이 자리에서 나온 게 더 잘 갔습니다</b>.<br>
+         실측(189거래일): 이 자리의 🟢 강한매수는 <b>3일 뒤 10번 중 7번</b>, <b>5일 뒤 10번 중 8번</b> 올라 있었어요.
+         강한매수 전체 평균은 10번 중 6번이에요.<br><br>
+         ⚠ <b>혼자 보는 신호가 아니에요.</b> 점수·등급·순위에는 들어가지 않고, 카드 등급이 🟢 강한매수·🔶 매수관심일 때
+         "이 자리는 좀 더 믿을 만하다"는 <b>보조 표시</b>로만 쓰세요. 등급이 중립인데 이 뱃지만 붙었다고 사는 자리는 아닙니다.`) + close);
+    return;
+  }
   if (kind === "의회바구니"){
     const CH = state.data && state.data.congress_holdings;
     const top = etf => (((CH||{})[etf]||{}).top||[]).slice(0,5).map(x=>`${esc(x.ticker)} ${has(num(x.weight))?num(x.weight).toFixed(1)+"%":""}`).join(" · ");
