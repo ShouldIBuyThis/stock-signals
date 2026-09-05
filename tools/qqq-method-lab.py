@@ -222,6 +222,25 @@ METHODS = [
     ("S4 장중 -1% 밀렸다가 전일 종가 회복",       V.gapDownBack),
     ("S5 S2 ∪ S3 (되돌림 합집합)",              V.sweepBack | V.reclaimHi),
     ("S6 현행 v3 강한 축 ∪ S2",                V.down3 | ((V.vxn >= 28) & (V.vxn < V.vxnPrev)) | ((V.br < 30) & (V.vxn < V.vxnPrev)) | V.sweepBack),
+    # ── 2026-09-05 사용자 지시 "바닥권 승률이 기준선 이하인데, 바닥권 + 반전신호 같이 올 때로 시뮬"
+    #    바닥권(20일선 위 30% 미만) 단독은 3년 73번 56/60%로 기준선(58/61%) 이하다.
+    #    '많이 빠졌다'만으로는 정보가 없고 '빠진 뒤 돌아섰다'가 붙어야 하는지 잰다.
+    ("N1 바닥권 & 당일 양봉",            (V.br < 30) & (V.chg > 0)),
+    ("N2 바닥권 & 어제 음봉→오늘 양봉",   (V.br < 30) & (V.chg > 0) & V.down1.shift(1).fillna(False)),
+    ("N3 바닥권 & VXN 5일 고점 뒤 꺾임",  (V.br < 30) & (V.vxnPrev >= V.vxn.shift(1).rolling(5).max()) & (V.vxn < V.vxnPrev)),
+    ("N4 바닥권 & 20일선 위 비율 반등",   (V.br < 30) & (V.br > V.br.shift(1))),
+    ("N5 바닥권 & 비율 2일 연속 반등",    (V.br < 30) & (V.br > V.br.shift(1)) & (V.br.shift(1) > V.br.shift(2))),
+    ("N6 바닥권 & 스윕 회복",            (V.br < 30) & V.sweepBack),
+    ("N7 바닥권 & 5일 신저가 뒤 고가 회복", (V.br < 30) & V.reclaimHi),
+    ("N8 바닥권 & 장중 −1% 밀렸다 회복",  (V.br < 30) & V.gapDownBack),
+    ("N9 바닥권 & 3일 연속하락 끝난 첫날", (V.br < 30) & V.down3End),
+    ("N10 바닥권 & RSI 35↓에서 상승 전환", (V.br < 30) & (V.rsi.shift(1) <= 35) & (V.rsi > V.rsi.shift(1))),
+    ("N11 바닥권 & 20일선 회복(어제 아래)", (V.br < 30) & (V.c > V.ma20) & (V.c.shift(1) <= V.ma20.shift(1))),
+    ("N12 바닥권 & QQQ가 SPY보다 강함",   (V.br < 30) & (V.chg > V.spyChg)),
+    ("N13 바닥권 & VXN 꺾임 & 양봉",      (V.br < 30) & (V.vxn < V.vxnPrev) & (V.chg > 0)),
+    ("N14 바닥권 탈출 첫날 & 양봉",       (V.br >= 30) & (V.br.shift(1) < 30) & (V.chg > 0)),
+    ("N15 바닥권 & 볼린저 20 이하",       (V.br < 30) & (V.bb <= 20)),
+    ("N16 바닥권 & 반전신호 아무거나",     (V.br < 30) & (V.sweepBack | V.reclaimHi | V.gapDownBack | V.down3End)),
     ("D5 강한 축 1개만 (겹침 없음)",    (V.down3.astype(int) + ((V.vxn >= 28) & (V.vxn < V.vxnPrev)).astype(int)
                                     + ((V.br < 30) & (V.vxn < V.vxnPrev)).astype(int)) == 1),
 ]
