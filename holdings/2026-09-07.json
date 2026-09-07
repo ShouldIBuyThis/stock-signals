@@ -1,0 +1,207 @@
+{
+ "NANC": {
+  "label": "민주당 의원 거래",
+  "top": [
+   {
+    "ticker": "NVDA",
+    "name": "NVIDIA Corp",
+    "weight": 8.52
+   },
+   {
+    "ticker": "MSFT",
+    "name": "Microsoft Corp",
+    "weight": 6.69
+   },
+   {
+    "ticker": "GOOG",
+    "name": "Alphabet Inc Class C",
+    "weight": 5.82
+   },
+   {
+    "ticker": "AMZN",
+    "name": "Amazon.com Inc",
+    "weight": 4.98
+   },
+   {
+    "ticker": "AAPL",
+    "name": "Apple Inc",
+    "weight": 4.29
+   },
+   {
+    "ticker": "CRWD",
+    "name": "CrowdStrike Holdings Inc Class A",
+    "weight": 4.05
+   },
+   {
+    "ticker": "AMAT",
+    "name": "Applied Materials Inc",
+    "weight": 3.98
+   },
+   {
+    "ticker": "PM",
+    "name": "Philip Morris International Inc",
+    "weight": 2.97
+   },
+   {
+    "ticker": "CRM",
+    "name": "Salesforce Inc",
+    "weight": 2.8
+   },
+   {
+    "ticker": "AXP",
+    "name": "American Express Co",
+    "weight": 2.62
+   }
+  ],
+  "sectors": {
+   "realestate": 0.0,
+   "consumer_cyclical": 7.6,
+   "basic_materials": 1.8,
+   "consumer_defensive": 6.6,
+   "technology": 46.1,
+   "communication_services": 12.4,
+   "financial_services": 8.0,
+   "utilities": 0.5,
+   "industrials": 7.1,
+   "energy": 0.0,
+   "healthcare": 9.9
+  }
+ },
+ "GOP": {
+  "label": "공화당 의원 거래",
+  "top": [
+   {
+    "ticker": "FIX",
+    "name": "Comfort Systems USA Inc",
+    "weight": 7.05
+   },
+   {
+    "ticker": "INTC",
+    "name": "Intel Corp",
+    "weight": 4.87
+   },
+   {
+    "ticker": "JPM",
+    "name": "JPMorgan Chase & Co",
+    "weight": 4.51
+   },
+   {
+    "ticker": "IBIT",
+    "name": "iShares Bitcoin Trust ETF",
+    "weight": 3.62
+   },
+   {
+    "ticker": "ANET",
+    "name": "Arista Networks Inc",
+    "weight": 3.53
+   },
+   {
+    "ticker": "NVDA",
+    "name": "NVIDIA Corp",
+    "weight": 3.37
+   },
+   {
+    "ticker": "AMD",
+    "name": "Advanced Micro Devices Inc",
+    "weight": 2.55
+   },
+   {
+    "ticker": "ALL",
+    "name": "Allstate Corp",
+    "weight": 2.12
+   },
+   {
+    "ticker": "UTHR",
+    "name": "United Therapeutics Corp",
+    "weight": 1.98
+   },
+   {
+    "ticker": "T",
+    "name": "AT&T Inc",
+    "weight": 1.94
+   }
+  ],
+  "sectors": {
+   "realestate": 1.4,
+   "consumer_cyclical": 5.3,
+   "basic_materials": 2.3,
+   "consumer_defensive": 4.1,
+   "technology": 28.8,
+   "communication_services": 3.5,
+   "financial_services": 15.7,
+   "utilities": 1.3,
+   "industrials": 21.1,
+   "energy": 10.5,
+   "healthcare": 5.9
+  }
+ },
+ "MAGA": {
+  "label": "공화당 후원기업",
+  "top": [
+   {
+    "ticker": "SPCX",
+    "name": "Space Exploration Technologies Corp Clas",
+    "weight": 0.88
+   },
+   {
+    "ticker": "INSM",
+    "name": "Insmed Inc",
+    "weight": 0.82
+   },
+   {
+    "ticker": "HOOD",
+    "name": "Robinhood Markets Inc Class A",
+    "weight": 0.8
+   },
+   {
+    "ticker": "TSLA",
+    "name": "Tesla Inc",
+    "weight": 0.78
+   },
+   {
+    "ticker": "MPC",
+    "name": "Marathon Petroleum Corp",
+    "weight": 0.78
+   },
+   {
+    "ticker": "PSX",
+    "name": "Phillips 66",
+    "weight": 0.77
+   },
+   {
+    "ticker": "VLO",
+    "name": "Valero Energy Corp",
+    "weight": 0.76
+   },
+   {
+    "ticker": "TSCO",
+    "name": "Tractor Supply Co",
+    "weight": 0.75
+   },
+   {
+    "ticker": "CPRT",
+    "name": "Copart Inc",
+    "weight": 0.75
+   },
+   {
+    "ticker": "BX",
+    "name": "Blackstone Inc",
+    "weight": 0.74
+   }
+  ],
+  "sectors": {
+   "realestate": 6.5,
+   "consumer_cyclical": 10.7,
+   "basic_materials": 7.3,
+   "consumer_defensive": 7.2,
+   "technology": 2.7,
+   "communication_services": 0.0,
+   "financial_services": 14.8,
+   "utilities": 10.2,
+   "industrials": 23.0,
+   "energy": 12.0,
+   "healthcare": 5.7
+  }
+ },
+ "date": "2026-09-07"
+}
