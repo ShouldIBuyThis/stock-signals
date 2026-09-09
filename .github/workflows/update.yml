@@ -1,4 +1,5 @@
 name: 관심종목 자동 갱신
+run-name: ${{ github.event_name == 'schedule' && github.event.schedule == '45 16 * * 1-5' && 'KR 정기 16:45' || github.event_name == 'schedule' && github.event.schedule == '0 17 * * 1-5' && 'KR 실패·취소 점검 17:00' || '관심종목 자동 갱신' }}
 
 on:
   # 화면·계산기·워크플로 자체를 수정하면 다음 정기 실행을 기다리지 않고 배포한다.
@@ -18,20 +19,11 @@ on:
     - cron: '20 17 * * 1-5'
       timezone: 'America/New_York'
 
-    # 한국장 1차: 15:45 KST
-    - cron: '45 15 * * 1-5'
+    # 한국장 정기 갱신: 16:45 KST
+    - cron: '45 16 * * 1-5'
       timezone: 'Asia/Seoul'
-    # 한국장 백업: 16:20 KST — 1차 schedule/업로드 실패 대비
-    - cron: '20 16 * * 1-5'
-      timezone: 'Asia/Seoul'
-    # 한국장 백업2·3 — GitHub이 schedule을 통째로 누락시키는 날이 실제로 있었다
-    # (2026-08-11·12·13 사흘 연속 KR 실행 0건, 같은 날 US는 정상 실행).
-    # 지연도 80~225분으로 커서, '정각·15·30·45분' 혼잡 시간을 피한 어중간한
-    # 분(:53, :37)에 두 번 더 시도한다. 같은 거래일을 다시 받아도 frozen 원장은
-    # 그대로이고 변경이 없으면 커밋도 없다 — 여러 번 시도해도 안전하다.
-    - cron: '53 16 * * 1-5'
-      timezone: 'Asia/Seoul'
-    - cron: '37 18 * * 1-5'
+    # 17:00에는 정상 갱신하지 않고 당일 실패·취소된 정기 작업만 재실행한다.
+    - cron: '0 17 * * 1-5'
       timezone: 'Asia/Seoul'
   workflow_dispatch:
     inputs:
@@ -60,8 +52,51 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  update:
+  retry_kr:
+    if: github.event_name == 'schedule' && github.event.schedule == '0 17 * * 1-5'
     runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: 당일 KR 정기 작업의 실패·취소만 재실행
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const now = new Date();
+            const day = new Date(now.getTime() + 9 * 3600000).toISOString().slice(0, 10);
+            const start = new Date(`${day}T00:00:00+09:00`).toISOString();
+            const runs = await github.paginate(github.rest.actions.listWorkflowRuns, {
+              ...context.repo, workflow_id: 'update.yml', branch: 'main',
+              event: 'schedule', created: `>=${start}`, per_page: 100
+            });
+            const target = runs.filter(r =>
+              r.display_title === 'KR 정기 16:45' &&
+              r.id !== context.runId && new Date(r.created_at) <= now
+            ).sort((a, b) => b.id - a.id)[0];
+            if (!target) {
+              core.warning('당일 KR 정기 실행 없음: 스케줄 지연/누락 확인 필요. 새 갱신은 시작하지 않습니다.');
+              return;
+            }
+            if (target.status !== 'completed' ||
+                !['failure', 'cancelled'].includes(target.conclusion) ||
+                target.run_attempt > 1) {
+              core.info(`재실행 생략: ${target.status}/${target.conclusion}, attempt=${target.run_attempt}`);
+              return;
+            }
+            const args = {...context.repo, run_id: target.id};
+            if (target.conclusion === 'failure') {
+              await github.rest.actions.reRunWorkflowFailedJobs(args);
+            } else {
+              await github.rest.actions.reRunWorkflow(args);
+            }
+            core.info(`KR ${target.id}: ${target.conclusion} 작업 재실행 요청 완료`);
+
+  update:
+    if: github.event_name != 'schedule' || github.event.schedule != '0 17 * * 1-5'
+    runs-on: ubuntu-latest
+    outputs:
+      pages_artifact: ${{ steps.artifact_name.outputs.value }}
 
     steps:
       - uses: actions/checkout@v4
@@ -109,7 +144,7 @@ jobs:
               echo "value=us" >> "$GITHUB_OUTPUT"
               echo "자동 실행 → US ($SCHEDULE_EXPR)"
               ;;
-            "45 15 * * 1-5"|"20 16 * * 1-5"|"53 16 * * 1-5"|"37 18 * * 1-5")
+            "45 16 * * 1-5")
               echo "value=kr" >> "$GITHUB_OUTPUT"
               echo "자동 실행 → KR ($SCHEDULE_EXPR)"
               ;;
@@ -146,7 +181,7 @@ jobs:
         run: python main.py
 
       - name: 지표 계산 실패 시 10분 뒤 1회 재시도
-        if: steps.calc.outcome == 'failure'
+        if: steps.calc.outcome == 'failure' && steps.scope.outputs.value != 'kr'
         env:
           RUN_SCOPE: ${{ steps.scope.outputs.value }}
           FORCE_RESNAP: ${{ steps.resnap.outputs.value }}
@@ -154,6 +189,10 @@ jobs:
           echo "1차 갱신 실패 — 10분 뒤 같은 범위로 1회 재시도합니다."
           sleep 600
           python main.py
+
+      - name: KR 계산 실패를 작업 실패로 확정
+        if: steps.calc.outcome == 'failure' && steps.scope.outputs.value == 'kr'
+        run: exit 1
 
       - name: 산출물 기본 검증
         shell: bash
@@ -234,9 +273,14 @@ jobs:
       - name: Pages 설정
         uses: actions/configure-pages@v5
 
+      - name: 실행별 Pages 아티팩트 이름
+        id: artifact_name
+        run: echo "value=github-pages-${{ github.run_id }}-${{ github.run_attempt }}" >> "$GITHUB_OUTPUT"
+
       - name: 사이트 파일 업로드
         uses: actions/upload-pages-artifact@v3
         with:
+          name: ${{ steps.artifact_name.outputs.value }}
           path: '.'
 
   # 데이터 생성/업로드와 Pages 배포를 분리한다.
@@ -254,3 +298,5 @@ jobs:
       - name: Pages 배포
         id: deploy
         uses: actions/deploy-pages@v4
+        with:
+          artifact_name: ${{ needs.update.outputs.pages_artifact }}
