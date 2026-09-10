@@ -3907,6 +3907,7 @@ function themeRowsAt(rowsByTicker){
   const m = new Map();
   rowsByTicker.forEach((r, tk) => {
     const s = r.s; if(!s || s._benchmark || CONGRESS_TICKERS.has(tk) || (isKR(tk) && !THEME_ONLY_TICKERS.has(tk))) return;
+    if(!has(r.price) || r.price<=0 || !has(r.ma20) || !has(r.ret20) || !has(r.r5)) return;
     const c = s.category || "기타"; if(!m.has(c)) m.set(c, {name:c, m20:[], br:[], r5:[], fwd:[]});
     const o = m.get(c), x = levX(tk);
     if(has(r.ret20)) o.m20.push(r.ret20 / x);
@@ -3916,7 +3917,7 @@ function themeRowsAt(rowsByTicker){
   });
   const mean = a => a.length ? a.reduce((p,c)=>p+c,0)/a.length : null;
   const out = [...m.values()].filter(o => o.m20.length >= 3).map(o => ({ name:o.name, n:o.m20.length,
-    m20:mean(o.m20), br:mean(o.br)*100, r5:mean(o.r5), fwd:mean(o.fwd) }));
+    m20:mean(o.m20), br:mean(o.br)*100, r5:mean(o.r5), fwd:mean(o.fwd), complete:o.fwd.length===o.m20.length }));
   const rank = key => { const srt = out.filter(t=>has(t[key])).sort((a,b)=>b[key]-a[key]); const r = new Map(); srt.forEach((t,i)=>r.set(t.name,i+1)); return r; };
   const r20 = rank("m20"), rbr = rank("br");
   out.forEach(t => { t.score = (r20.get(t.name) && rbr.get(t.name)) ? r20.get(t.name) + rbr.get(t.name) : null; });
@@ -3955,36 +3956,48 @@ function congressCountFor(themeName){
   const held = new Set([].concat(...["NANC","GOP"].map(e=>((CH[e]||{}).top||[]).map(x=>x.ticker))));
   return allStocks().filter(s => (s.category||"") === themeName && held.has(s.ticker)).length;
 }
-function themeForecast(){
-  const stocks = themeStocks();
-  const themeKR = tk => THEME_ONLY_TICKERS.has(tk);   // 국장 상장 미국 ETF — 한국 날짜 D의 종가는 미국 D-1 종가를 반영한다
-  const rowsAt = (get) => { const m = new Map(); stocks.forEach(s => { const r = get(s); if(r) m.set(s.ticker, r); }); return m; };
-  const now = rowsAt(s => { const hs = histStocks(s) || []; const i = hs.length - 1;
-    const r5 = (i >= 5 && has(num(hs[i].price)) && has(num(hs[i-5].price))) ? (num(hs[i].price)/num(hs[i-5].price)-1)*100 : null;
-    return { s, price:num(s.price), ma20:num(s.ma20), ret20:num(s.ret20), r5 }; });
-  const today = themeMultiRank(themeRowsAt(now));
-  /* 30일 원장 검증 — 원장 안의 날짜마다 같은 규칙으로 TOP3를 고르고 5일 뒤 실제 테마 수익이
-     전체 테마 중앙값을 넘었는지 센다. 화면이 매일 다시 세므로 하드코딩이 아니다. */
-  const dates = [...new Set(stocks.filter(s=>!isKR(s.ticker)).flatMap(s => (histStocks(s)||[]).map(h => String(h.last_date))))].sort();
-  const byDate = new Map(dates.map(d => [d, new Map()]));
-  const usDateBefore = d => { let r = null; for(const x of dates){ if(x < d) r = x; else break; } return r; };
-  stocks.forEach(s => { if(isKR(s.ticker) && !themeKR(s.ticker)) return; const hs = histStocks(s) || [];
-    hs.forEach((h, i) => { const q = hs[i+5], p = num(h.price), p5 = i >= 5 ? num(hs[i-5].price) : null;
-      const key = themeKR(s.ticker) ? usDateBefore(String(h.last_date)) : String(h.last_date);
-      if(!key || !byDate.has(key)) return;
-      byDate.get(key).set(s.ticker, { s, price:p, ma20:num(h.ma20), ret20:num(h.ret20),
-        r5:(has(p) && has(p5)) ? (p/p5-1)*100 : null,
-        fwd:(q && has(p) && has(num(q.price))) ? (num(q.price)/p-1)*100 : null }); }); });
-  const checks = [];
-  dates.forEach(d => {
-    const rows = themeRowsAt(byDate.get(d)).filter(t => has(t.fwd));
-    if(rows.length < 5) return;
-    const fw = rows.map(t=>t.fwd).sort((a,b)=>a-b), med = fw.length%2 ? fw[fw.length>>1] : (fw[fw.length/2-1]+fw[fw.length/2])/2;
-    const top = themeMultiRank(rows).slice(0,3); if(top.length < 3) return;
-    const t3 = top.reduce((p,t)=>p+t.fwd,0)/3;
-    checks.push({ d, hit: t3 > med, ex: t3 - med });
+/* 미국 종가 날짜를 공통 시계로 쓴다. 한국 ETF는 그 시각까지 알려진 종가만 사용한다.
+   미래 수익의 유무는 구성종목·순위 선정에 쓰지 않는다. 화면/장기 실험 공용. */
+function themeDailyRows(stocks, horizon){
+  const eligible = stocks.filter(s=>!s._benchmark && !CONGRESS_TICKERS.has(s.ticker) &&
+    (!isKR(s.ticker) || THEME_ONLY_TICKERS.has(s.ticker)));
+  const histories = eligible.map(s=>({s,hs:(histStocks(s)||[]).slice().sort((a,b)=>String(a.last_date).localeCompare(String(b.last_date)))}));
+  const dates = [...new Set(histories.filter(x=>!isKR(x.s.ticker)).flatMap(x=>x.hs.map(h=>String(h.last_date))))].sort();
+  const at = (x,d) => {
+    if(!d) return null;
+    if(!isKR(x.s.ticker)) return x.hs.find(h=>String(h.last_date)===d)||null;
+    let row=null;
+    for(const h of x.hs){ if(String(h.last_date)>d) break; row=h; }
+    return row;
+  };
+  return dates.map((d,i)=>{
+    const map=new Map();
+    histories.forEach(x=>{
+      const h=at(x,d), prev=at(x,dates[i-5]), future=at(x,dates[i+horizon]);
+      if(!h) return;
+      const p=num(h.price), p5=prev?num(prev.price):null, q=future?num(future.price):null;
+      map.set(x.s.ticker,{s:x.s,price:p,ma20:num(h.ma20),ret20:num(h.ret20),
+        r5:has(p)&&has(p5)&&p5>0?(p/p5-1)*100:null,
+        fwd:has(p)&&p>0&&has(q)?(q/p-1)*100:null});
+    });
+    return {d,rows:themeRowsAt(map)};
   });
-  return { today, checks };
+}
+function themeCheck(day, rank){
+  const rows=day.rows;
+  if(rows.length<5) return null;
+  const top=rank(rows).slice(0,3);
+  if(top.length<3 || rows.some(r=>!r.complete || !has(r.fwd))) return null;
+  const fw=rows.map(r=>r.fwd).sort((a,b)=>a-b), m=fw.length>>1;
+  const med=fw.length%2?fw[m]:(fw[m-1]+fw[m])/2;
+  const ret=top.reduce((p,t)=>p+t.fwd,0)/3;
+  return {d:day.d,hit:ret>med,ex:ret-med,ret,median:med,top:top.map(t=>t.name)};
+}
+function themeForecast(){
+  const daily=themeDailyRows(themeStocks(),5);
+  const today=daily.length?themeMultiRank(daily[daily.length-1].rows):[];
+  const checks=daily.map(day=>themeCheck(day,themeMultiRank)).filter(Boolean);
+  return {today,checks};
 }
 function themeForecastHtml(){
   const f = themeForecast(); if(f.today.length < 3) return "";
@@ -4266,7 +4279,22 @@ function isBuySignalTransition(s){
 function badgeMatches(s, key){
   if(key===BADGE_STRONG_BUY) return !!(s.sig && s.sig.grade===5);
   if(key===BADGE_BUY_TURN)   return isBuySignalTransition(s);
-  return !!(s.sig && s.sig.tags && s.sig.tags.some(t=>badgeKey(t.t)===key));
+  return stockBadgeKeys(s).includes(key);
+}
+/* 모아보기만 통합한다. 원래 태그와 점수 상세는 보존하며 종목당 한 번만 센다. */
+function stockBadgeKeys(s){
+  const groups = {
+    "📉 약세":"📉 하락 추세", "⚠ 장기 추세 약세":"📉 하락 추세", "📉 역배열 하락":"📉 하락 추세",
+    "📈 정배열 상승":"📈 상승 추세", "📈 단기 상승":"📈 상승 추세",
+    "📉 정배열 눌림목":"📉 눌림목", "📉 강한 눌림목":"📉 눌림목",
+    "🔥 과열 분할익절":"🔥 과열 주의", "⚠ 연속 급등 과열":"🔥 과열 주의",
+    "⚠ 대량 거래 경계":"⚠ 대량 음봉 주의", "⚠ 대량 음봉":"⚠ 대량 음봉 주의",
+    "⚠ 경계":"⚠ 저항 임박 주의"
+  };
+  const keys = ((s.sig && s.sig.tags)||[]).map(t=>badgeKey(t.t))
+    .filter(k=>!["⚠ 시장 주의","⚠ 시장 약세","⚡ 약세 감점 해제","⚡ 주의 감점 해제"].includes(k))
+    .map(k=>groups[k]||k);
+  return [...new Set(keys.concat(flowBadges(s).map(b=>b.key)))];
 }
 function badgeIndex(){
   const pool = visible();
@@ -4275,7 +4303,7 @@ function badgeIndex(){
     [BADGE_BUY_TURN,   pool.filter(isBuySignalTransition)]
   ].filter(([,arr])=>arr.length);
   const m = new Map();
-  pool.forEach(s => new Set(s.sig.tags.map(t=>badgeKey(t.t))).forEach(k=>{
+  pool.forEach(s => stockBadgeKeys(s).forEach(k=>{
     if(!m.has(k)) m.set(k, []); m.get(k).push(s);
   }));
   return special.concat([...m.entries()].sort((a,b)=>b[1].length-a[1].length));
@@ -5101,23 +5129,26 @@ function flowSignal(s){
   for(let j = i; j > 0; j--){ const c = num(hs[j].price), p = num(hs[j-1].price); if(!has(c) || !has(p) || !(c > p)) break; up++; }
   return { inflow: n ? Math.round(inflow * 100) / 100 : null, up };
 }
-function flowTagsHtml(s){
-  const f = flowSignal(s); if(!f || s.earnings_hold) return "";
+function flowBadges(s){
+  const f = flowSignal(s); if(!f || s.earnings_hold) return [];
   const out = [];
   if(has(f.inflow) && f.inflow <= -1)
-    out.push(`<span class="tag t-good clickable" data-explain="매도소진" title="눌러서 설명 보기">🫗 매도 소진 ${f.inflow}</span>`);
+    out.push({key:"🫗 매도 소진",text:`🫗 매도 소진 ${f.inflow}`,cls:"t-good",explain:"매도소진"});
   /* 외부 산식 근사 표시(docs/외부-산식-후보.md) — 점수·등급에는 안 들어간다. 3년 일봉 근사 실측:
      페어 리버설 74건 57/68/68/68%(아무 날이나 52/54/55/57) · 2R 기대값 +0.53R,
      Root 타격 103건 60/64/62/70% · +0.56R. 원문의 분봉·추세선 수렴은 못 재므로 '근사'라고 적는다. */
   /* 🏛 의회 바구니 비중 뱃지는 2026-09-05 사용자 지시로 뺐다(위 나스닥 전용 뱃지와 같은 이유).
      congress_holdings 데이터는 계속 받고 원장에 쌓는다 — 표시만 멈춘 것이다. */
   if(s.ext_pair === 1)
-    out.push(`<span class="tag t-cool clickable" data-explain="페어리버설" title="눌러서 설명 보기">🔀 페어 리버설 돌파</span>`);
+    out.push({key:"🔀 페어 리버설 돌파",text:"🔀 페어 리버설 돌파",cls:"t-cool",explain:"페어리버설"});
   if(s.ext_root === 1)
-    out.push(`<span class="tag t-cool clickable" data-explain="루트타격" title="눌러서 설명 보기">🎯 Root 타격 되돌림</span>`);
+    out.push({key:"🎯 Root 타격 되돌림",text:"🎯 Root 타격 되돌림",cls:"t-cool",explain:"루트타격"});
   if(f.up >= 2)
-    out.push(`<span class="tag t-warn clickable" data-explain="연속상승" title="눌러서 설명 보기">⚠ ${f.up}일 연속 상승 · 추격 주의</span>`);
-  return out.join("");
+    out.push({key:"⚠ 연속 상승 · 추격 주의",text:`⚠ ${f.up}일 연속 상승 · 추격 주의`,cls:"t-warn",explain:"연속상승"});
+  return out;
+}
+function flowTagsHtml(s){
+  return flowBadges(s).map(b=>`<span class="tag ${b.cls} clickable" data-explain="${b.explain}" title="눌러서 설명 보기">${esc(b.text)}</span>`).join("");
 }
 function resTouchCount(s){
   const res = num(s && s.res_short);
