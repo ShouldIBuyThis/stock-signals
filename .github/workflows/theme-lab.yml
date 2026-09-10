@@ -2,8 +2,15 @@ name: 테마 랭킹 예측 측정 (실험 · 로그만)
 
 # 사용자 지시(2026-09-03): 테마 TOP3 예측 점수를 189거래일 백테스트 + 30일 원장에서 잰다.
 # backtest-ticker-record.yml은 실험이 많아 1시간 넘게 걸리므로 테마만 따로 3분 안에 돈다.
-# ⚠ 아무 파일도 커밋하지 않는다. 결과는 로그에만 남는다.
+# 운영 파일은 커밋하지 않는다. 결과 로그/원본은 14일 artifact로 보관한다.
 on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'tools/theme-lab.js'
+      - 'tools/caution-penalty-lab.js'
+      - 'tools/check-theme-badges.js'
+      - '.github/workflows/theme-lab.yml'
   workflow_dispatch:
     inputs:
       days:
@@ -17,6 +24,7 @@ permissions:
 jobs:
   lab:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -27,12 +35,26 @@ jobs:
           node-version: '20'
       - name: 의존성 설치
         run: pip install -q yfinance pandas numpy exchange_calendars
+      - name: 표시 일치 · 미래 정보 회귀 검사
+        run: node tools/check-theme-badges.js
       - name: 장기 원본 수집 (야후 1년)
         run: python tools/backfill_backtest.py --days "${{ inputs.days || '180' }}" --out backtest/raw.json
       - name: 테마 랭킹 예측 — 백테스트
-        run: node tools/theme-lab.js backtest/raw.json
+        run: node tools/theme-lab.js backtest/raw.json | tee "$RUNNER_TEMP/theme-long.jsonl"
       - name: 테마 랭킹 예측 — 30일 원장
-        run: node tools/theme-lab.js signals.json
+        run: node tools/theme-lab.js signals.json | tee "$RUNNER_TEMP/theme-recent.jsonl"
+      - name: 주의 감점 후보 — 백테스트 및 원장
+        run: |
+          node tools/caution-penalty-lab.js backtest/raw.json | tee "$RUNNER_TEMP/caution-long.jsonl"
+          node tools/caution-penalty-lab.js signals.json | tee "$RUNNER_TEMP/caution-recent.jsonl"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: theme-caution-validation
+          path: |
+            ${{ runner.temp }}/theme-*.jsonl
+            ${{ runner.temp }}/caution-*.jsonl
+            backtest/raw.json
+          retention-days: 14
       - name: 원본 삭제 · 변경 없음 확인
         run: |
           rm -f backtest/raw.json
