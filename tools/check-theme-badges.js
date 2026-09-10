@@ -12,7 +12,8 @@ for(const s of allStocks()){
   assert.equal(flowBadges(Object.assign({},s,{earnings_hold:true})).length,0);
 }
 assert.ok(!badgeIndex().some(([k])=>k==='⚠ 시장 주의'));
-assert.ok(badgeIndex().some(([k])=>k==='🎯 Root 타격 되돌림'));
+const rootFixture=Object.assign({},allStocks().find(s=>(s._hist||[]).length>=3),{ext_root:1,earnings_hold:false});
+assert.ok(stockBadgeKeys(rootFixture).includes('🎯 Root 타격 되돌림'));
 const stocks=themeStocks(),days=themeDailyRows(stocks,5),i=10;
 const before=JSON.stringify(days[i].rows.map(({fwd,complete,...r})=>r));
 const fields=histFields(),di=fields.indexOf('date'),pi=fields.indexOf('price');

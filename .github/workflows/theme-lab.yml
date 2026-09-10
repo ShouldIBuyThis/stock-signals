@@ -9,6 +9,7 @@ on:
       - 'index.html'
       - 'tools/theme-lab.js'
       - 'tools/caution-penalty-lab.js'
+      - 'tools/check-theme-badges.js'
       - '.github/workflows/theme-lab.yml'
   workflow_dispatch:
     inputs:
@@ -34,6 +35,8 @@ jobs:
           node-version: '20'
       - name: 의존성 설치
         run: pip install -q yfinance pandas numpy exchange_calendars
+      - name: 표시 일치 · 미래 정보 회귀 검사
+        run: node tools/check-theme-badges.js
       - name: 장기 원본 수집 (야후 1년)
         run: python tools/backfill_backtest.py --days "${{ inputs.days || '180' }}" --out backtest/raw.json
       - name: 테마 랭킹 예측 — 백테스트
