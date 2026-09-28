@@ -1,0 +1,38 @@
+name: 추세 저항 ATR 2년 검증 (읽기 전용)
+on:
+  push:
+    branches: ['codex/resistance-tiers-20260928']
+    paths: ['tools/resistance-tier-lab.js', '.github/workflows/resistance-tier-lab.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  lab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: pip install -q yfinance pandas numpy exchange_calendars
+      - name: 3년 수집 및 준비구간 확보
+        run: python tools/backfill_backtest.py --years 3 --days 540 --out backtest/resistance-raw.json
+      - name: 최근 2년 추세 등급 비교
+        run: node tools/resistance-tier-lab.js backtest/resistance-raw.json | tee "$RUNNER_TEMP/resistance-long.jsonl"
+      - name: 실제 최근 원장 비교
+        run: node tools/resistance-tier-lab.js signals.json | tee "$RUNNER_TEMP/resistance-recent.jsonl"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: resistance-tier-validation
+          path: |
+            backtest/resistance-raw.json
+            ${{ runner.temp }}/resistance-*.jsonl
+          retention-days: 30
+      - name: 운영 파일 불변 확인
+        run: |
+          rm -f backtest/resistance-raw.json
+          test -z "$(git status --porcelain)"
