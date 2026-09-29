@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 
 from main import (HIST_BACKFILL_FIELDS, HIST_FIELDS, MARKET_TICKER, PENDING_TICKERS, RETIRED_TICKERS,
-                  SNAPSHOT_FIELDS, WATCHLIST, is_kr_ticker)
+                  SNAPSHOT_FIELDS, WATCHLIST, is_kr_ticker, frozen_day_rows)
 
 
 def fail(message: str) -> None:
@@ -118,7 +118,7 @@ def validate_current(payload: dict, scope: str) -> None:
         if not path.exists():
             fail(f"{region.upper()} 일자별 frozen snapshot 누락: {path}")
         snap = load(path)
-        snap_by_ticker = {s.get("ticker"): s for s in (snap.get("stocks") or []) if s.get("ticker")}
+        snap_by_ticker = frozen_day_rows(region, day)
         snap_tickers = set(snap_by_ticker)
         expected_region = {s["ticker"] for s in selected}
         # 신규 티커가 이미 고정된 거래일에 합류하면 그 날 snapshot에는 아직 없다
@@ -133,6 +133,9 @@ def validate_current(payload: dict, scope: str) -> None:
         for stock in selected:
             frozen = snap_by_ticker.get(stock["ticker"])
             if frozen is None:
+                old_row = next((r for r in snap.get('stocks', []) if r.get('ticker') == stock['ticker']), None)
+                if old_row is not None and str(stock.get('last_date')) == day:
+                    fail(f"{path} {stock['ticker']} 당일 보충 원장 누락")
                 continue  # 고정일 이후 합류한 신규 티커
             if str(frozen.get("last_date") or "") != str(stock.get("last_date") or ""):
                 fail(f"{path} {stock['ticker']} 날짜 불일치")

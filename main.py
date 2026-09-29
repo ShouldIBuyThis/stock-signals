@@ -1486,6 +1486,26 @@ def sync_prev_from_hist(results):
         r["prev_ma20"]      = hv("ma20")
 
 
+def frozen_day_rows(region, day):
+    """혼합 날짜의 옛 snapshot은 보존하되 요청 날짜와 일치하는 행만 읽는다."""
+    from pathlib import Path
+    folder = Path('history') / region
+    rows = {}
+    base = folder / f'{day}.json'
+    if base.exists():
+        payload = json.loads(base.read_text(encoding='utf-8'))
+        rows = {r['ticker']: r for r in payload.get('stocks', [])
+                if r.get('ticker') and r.get('last_date') == day}
+    for path in sorted((folder / day).glob('*.json')):
+        row = json.loads(path.read_text(encoding='utf-8'))
+        if row.get('last_date') != day or not row.get('ticker'):
+            raise ValueError(f'보충 원장 날짜/티커 오류: {path}')
+        if row['ticker'] in rows and rows[row['ticker']] != row:
+            raise ValueError(f'보충 원장 충돌: {path}')
+        rows[row['ticker']] = row
+    return rows
+
+
 def save_history(results, mkt, now_kst):
     """미국/한국 일자별 원장을 분리해 append-only로 저장한다.
 
@@ -1512,6 +1532,16 @@ def save_history(results, mkt, now_kst):
             "stocks":slim,
         }
         if existed and not FORCE_RESNAP:
+            # 이전 조회에서 일부 종목만 최신이었던 날: 기존 파일은 고치지 않고
+            # 빠진 ticker+date만 별도 최초 기록으로 추가한다.
+            frozen = frozen_day_rows(region, day)
+            for row in slim:
+                if row.get('last_date') != day or row['ticker'] in frozen:
+                    continue
+                extra_dir = f'{folder}/{day}'
+                os.makedirs(extra_dir, exist_ok=True)
+                with open(f"{extra_dir}/{row['ticker']}.json", 'x', encoding='utf-8') as f:
+                    json.dump(row, f, ensure_ascii=False)
             # 자동/일반 수동 재실행은 최초 확정 스냅샷을 보존한다.
             print(f"이력 고정 유지: {path} — 기존 파일 보존")
             continue
@@ -1560,15 +1590,7 @@ def freeze_signal_hist(results, prev_rows, mkt=None, market_events=None, market_
         region = "kr" if is_kr_ticker(ticker) else "us"
         key = (region, day)
         if key not in snap_cache:
-            path = f"history/{region}/{day}.json"
-            rows = {}
-            try:
-                with open(path, encoding="utf-8") as f:
-                    p = json.load(f)
-                rows = {x.get("ticker"): x for x in (p.get("stocks") or []) if x.get("ticker")}
-            except Exception:
-                rows = {}
-            snap_cache[key] = rows
+            snap_cache[key] = frozen_day_rows(region, day)
         return snap_cache[key].get(ticker)
 
     backfilled = {k: 0 for k in HIST_BACKFILL_FIELDS}
