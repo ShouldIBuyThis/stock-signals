@@ -791,7 +791,8 @@ def market_state(ticker):
         ic_now = ichi_at(-1)
         # 일목은 아직 판정에 쓰지 않는다. level은 그대로 20·60일선 기준이고,
         # ichimoku는 나중에 비교 검증하기 위해 값만 남긴다.
-        return {"ticker": ticker, "level": level, "below_ma20": bool(px < ma20),
+        return {"ticker": ticker, "last_date": c.index[-1].strftime("%Y-%m-%d"),
+                "level": level, "below_ma20": bool(px < ma20),
                 "detail": detail, "price": safe(px), "ma20": safe(ma20), "ma60": safe(ma60),
                 "ret20": safe(ret20),
                 "prev": ({"level": prev_level, "below_ma20": prev_below} if prev_level else None),
@@ -1905,6 +1906,8 @@ def main():
         actual_us = str((qqq_card or {}).get("last_date") or "")
         if actual_us < expected_us:
             raise RuntimeError(f"미국 종가 지연: QQQ {actual_us or '없음'}, 필요 {expected_us}")
+        if str(mkt.get('last_date') or '') != actual_us:
+            raise RuntimeError(f"미국 시장 국면/QQQ 날짜 불일치: {mkt.get('last_date')} / {actual_us}")
 
     # ── 야후 잘린 이력 대응 ────────────────────────────────────────────────
     # 야후는 가끔 전 종목에 대해 며칠 전까지의 이력만 준다(2026-08-18 05:41 UTC 사례:
@@ -1949,6 +1952,8 @@ def main():
         print(f"SPY 보조카드: {spy_card.get('last_date')} 종가 · 랭킹 제외")
     except Exception as e:
         print("SPY 보조카드 생성 실패:", e)
+    if RUN_SCOPE in ('us', 'all') and str((spy_card or {}).get('last_date') or '') < expected_us:
+        raise RuntimeError(f"미국 종가 지연: SPY {(spy_card or {}).get('last_date')}, 필요 {expected_us}")
     if stale_feed:
         spy_card = (prev_payload or {}).get("spy_card") or spy_card
 
