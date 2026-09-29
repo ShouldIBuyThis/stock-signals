@@ -735,7 +735,7 @@ def market_state(ticker):
     try:
         # 일목 선행스팬2는 52봉 고가/저가를 26봉 앞으로 밀어 쓰므로 최소 78봉이 필요하다.
         # 6개월(약 126봉)로는 30일치 이력을 만들 여유가 빠듯해 1년으로 늘린다.
-        df = yf.Ticker(ticker).history(period=PERIOD, interval="1d", auto_adjust=False)   # 기본 1y · 실험 도구가 늘릴 수 있게 상수 사용
+        df = _fetch_daily(ticker)  # 시장 국면과 종목카드에 같은 최신 거래일 조회 규칙 적용
         df = drop_unclosed(df, ticker)
         df = drop_invalid_price_rows(df, ticker)
         if df is None or len(df) < 61:
@@ -836,6 +836,18 @@ def drop_invalid_price_rows(df, ticker):
         print(f"데이터 품질 보호: {ticker} 비정상 OHLC {removed}행 제외")
     return df.loc[mask].copy()
 
+def latest_closed_us_session(now=None):
+    """휴장·조기폐장·서머타임을 반영한 마지막 확정 미국 거래일."""
+    now = pd.Timestamp(now if now is not None else datetime.now(_NY))
+    if now.tzinfo is None:
+        raise ValueError("now must be timezone-aware")
+    day = now.tz_convert(_NY).date()
+    session = _US_CAL.date_to_session(pd.Timestamp(day), direction="previous")
+    if now.tz_convert("UTC") < _US_CAL.session_close(session):
+        session = _US_CAL.previous_session(session)
+    return _session_str(session)
+
+
 def _fetch_daily(ticker, days_back=520):
     """일봉을 받는다. period= 가 잘려 오면 명시적 날짜 범위로 한 번 더 시도한다.
 
@@ -845,16 +857,21 @@ def _fetch_daily(ticker, days_back=520):
     """
     t = yf.Ticker(ticker)
     df = t.history(period=PERIOD, interval="1d", auto_adjust=False)
-    if df is not None and len(df) >= 120:
+    expected = None if is_kr_ticker(ticker) else latest_closed_us_session()
+    def last_day(frame):
+        return frame.index[-1].strftime("%Y-%m-%d") if frame is not None and len(frame) else ""
+    stale = expected is not None and last_day(df) < expected
+    if df is not None and len(df) >= 120 and not stale:
         return df
     try:
         end = datetime.now(_NY).date() + timedelta(days=1)
         alt = t.history(start=str(end - timedelta(days=days_back)), end=str(end),
                         interval="1d", auto_adjust=False)
-        if alt is not None and len(alt) > (0 if df is None else len(df)):
+        if alt is not None and len(alt) and (last_day(alt) > last_day(df) or
+                (last_day(alt) == last_day(df) and len(alt) > (0 if df is None else len(df)))):
             print(f"데이터 보정: {ticker} period={PERIOD} {0 if df is None else len(df)}봉 "
                   f"→ 날짜범위 조회 {len(alt)}봉")
-            return alt
+            df = alt
     except Exception as e:
         print(f"데이터 보정 실패: {ticker} — {e}")
     return df
@@ -1860,6 +1877,13 @@ def main():
     except Exception as e:
         print("QQQ 기준카드 생성 실패:", e)
 
+    # 오래된 응답을 정상 갱신으로 배포하지 않는다. 실패 시 워크플로우가 재시도한다.
+    if RUN_SCOPE in ("us", "all"):
+        expected_us = latest_closed_us_session()
+        actual_us = str((qqq_card or {}).get("last_date") or "")
+        if actual_us < expected_us:
+            raise RuntimeError(f"미국 종가 지연: QQQ {actual_us or '없음'}, 필요 {expected_us}")
+
     # ── 야후 잘린 이력 대응 ────────────────────────────────────────────────
     # 야후는 가끔 전 종목에 대해 며칠 전까지의 이력만 준다(2026-08-18 05:41 UTC 사례:
     # 8/17이 아니라 8/14, 국장은 18봉). 그대로 받으면 카드 종가 날짜가 과거로 되돌아가
@@ -1987,6 +2011,12 @@ def main():
 
     # 실적 보류 판정은 가격 수집이 끝난 뒤 한 번만 적용한다.
     attach_earnings_holds(results, earnings_map, now_kst)
+    if RUN_SCOPE in ("us", "all"):
+        outdated = [r["ticker"] for r in results if not is_kr_ticker(r["ticker"])
+                    and str(r.get("last_date") or "") < expected_us]
+        if outdated:
+            raise RuntimeError(f"미국 종가 미갱신 ({expected_us} 필요): {', '.join(outdated)}")
+
     # 신뢰도 검증의 실적 제외일도 과거 기록처럼 append-only로 고정한다.
     freeze_validation_earnings_dates(results, prev_rows)
     print(f"수집 {len(results)}종목 (직전 값 유지 {carried}건) · 실패 {len(failed)}건 · 실적보류 {sum(1 for r in results if r.get('earnings_hold'))}건")
