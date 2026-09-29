@@ -115,6 +115,11 @@ jobs:
       - name: 라이브러리 설치
         run: pip install "yfinance==1.5.2" pandas numpy exchange_calendars
 
+      - name: 종가 날짜·혼합 원장 회귀 검사
+        run: |
+          python tools/test_us_freshness.py
+          python tools/test_mixed_snapshot.py
+
       - name: 갱신 범위 결정
         id: scope
         shell: bash
