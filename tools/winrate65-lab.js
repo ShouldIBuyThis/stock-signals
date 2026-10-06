@@ -117,6 +117,52 @@ console.log(`\n■ 바탕 집합 — 1년 · +1 | +3 | +5 · 전반/후반 +5 ·
 for (const [k, a] of Object.entries(BASES))
   console.log(`  ${k.padEnd(12)} ${f1(st(a, 1))} | ${f1(st(a, 3))} | ${f1(st(a, 5))} | 전반 ${f1(st(a.filter(x => x.d < mid), 5))} 후반 ${f1(st(a.filter(x => x.d >= mid), 5))} | ${(a.length / nDays).toFixed(2)}건/일`);
 
+/* ── --rules: 후보 고정 검증 모드 ─────────────────────────────────────
+   1년 탐색으로 고른 후보를 **바꾸지 않고** 그 이전 1년(탐색에 안 쓴 구간)에서 다시 잰다.
+   CI에서 years=3 days=504로 받으면 앞 1년이 미사용 구간이 된다. 후보 목록은 2026-10-06
+   1년 탐색 결과를 보고 미리 적어 둔 것이다 — 이전 구간 결과를 보고 고치지 않는다. */
+if (process.argv.includes('--rules')) {
+  const has = v => v !== null && v !== undefined && !Number.isNaN(v);
+  const cur = recsByVar['현행'], a30 = recsByVar['A30'];
+  const G5 = x => x.g === 5, G4 = x => x.g >= 4, RV5 = x => x.rg === 5;
+  const notStrong = x => x.lvl !== 'strong';
+  const R = [
+    ['R0  현행 강한매수', cur, G5],
+    ['R1  강매 ∧ 국면≠strong', cur, x => G5(x) && notStrong(x)],
+    ['R2  강매 ∧ 국면 neutral', cur, x => G5(x) && x.lvl === 'neutral'],
+    ['R3  강매 ∧ RSI≤35', cur, x => G5(x) && has(x.rsi) && x.rsi <= 35],
+    ['R4  강매+A30 ∧ RSI≤35', a30, x => G5(x) && has(x.rsi) && x.rsi <= 35],
+    ['R5  강매 ∧ QQQ 3일+ 연속하락', cur, x => G5(x) && has(x.qs) && x.qs >= 3],
+    ['R6  강매 ∧ QQQ 2일+ 연속하락 ∧ QQQ20≤3%', cur, x => G5(x) && has(x.qs) && x.qs >= 2 && has(x.mret) && x.mret <= 3],
+    ['R7  관심이상 ∧ 스토K≤20', cur, x => G4(x) && has(x.sk) && x.sk <= 20],
+    ['R8  강매 ∧ 볼밴≤40 ∧ QQQ20≤0%', cur, x => G5(x) && has(x.bb) && x.bb <= 40 && has(x.mret) && x.mret <= 0],
+    ['R9  강매+A30 ∧ rs20<5 ∧ 3일누적≤0%', a30, x => G5(x) && has(x.rs20) && x.rs20 < 5 && has(x.run3) && x.run3 <= 0],
+    ['R10 강매 ∧ 고점대비<-20% ∧ 국면≠strong', cur, x => G5(x) && has(x.pfh) && x.pfh < -20 && notStrong(x)],
+    ['R11 강매+A30 ∧ 3일누적≤0% ∧ VXN≥22', a30, x => G5(x) && has(x.run3) && x.run3 <= 0 && has(x.vxn) && x.vxn >= 22],
+    ['R12 강매 ∧ 3일누적≤0%', cur, x => G5(x) && has(x.run3) && x.run3 <= 0],
+    ['R13 반등강매 ∧ QQQ 2일+ 연속하락', cur, x => RV5(x) && has(x.qs) && x.qs >= 2],
+    ['R14 강매 ∧ (국면≠strong ∨ RSI≤35)', cur, x => G5(x) && (notStrong(x) || (has(x.rsi) && x.rsi <= 35))],
+    ['R15 강매+A30 ∧ 국면≠strong', a30, x => G5(x) && notStrong(x)],
+  ];
+  const last = new Date(dates[nDays - 1]); const y1 = new Date(last); y1.setFullYear(y1.getFullYear() - 1);
+  const Y = y1.toISOString().slice(0, 10);
+  const older = x => x.d < Y, recent = x => x.d >= Y;
+  const dset = rows => new Set(rows.map(x => x.d));
+  const sameDay = rows => { const ds = dset(rows); return ALL.filter(x => ds.has(x.d)); };
+  const cell = (rows, h) => f1(st(rows, h));
+  console.log(`\n■ 후보 고정 검증 — 이전 1년(<${Y}, 탐색 미사용) vs 최근 1년(≥${Y}) · 각 칸 +1 | +3 | +5 · [같은 날 기준선 +5] · 신호일 %`);
+  const bo = ALL.filter(older), br = ALL.filter(recent), dO = new Set(bo.map(x => x.d)).size, dR = new Set(br.map(x => x.d)).size;
+  console.log(`  기준선     이전 ${cell(bo, 1)} | ${cell(bo, 3)} | ${cell(bo, 5)} (${dO}일)   최근 ${cell(br, 1)} | ${cell(br, 3)} | ${cell(br, 5)} (${dR}일)`);
+  for (const [nm, pool, fn] of R) {
+    const a = pool.filter(fn), o = a.filter(older), r = a.filter(recent);
+    console.log(`  ${nm}`);
+    console.log(`     이전 ${cell(o, 1)} | ${cell(o, 3)} | ${cell(o, 5)} [같은날 ${Math.round(st(sameDay(o), 5).rate ?? 0)}%] ${Math.round(100 * dset(o).size / dO)}%일`);
+    console.log(`     최근 ${cell(r, 1)} | ${cell(r, 3)} | ${cell(r, 5)} [같은날 ${Math.round(st(sameDay(r), 5).rate ?? 0)}%] ${Math.round(100 * dset(r).size / dR)}%일`);
+  }
+  console.log(`\n(${((Date.now() - t0) / 1000).toFixed(0)}초)`);
+  process.exit(0);
+}
+
 /* ── 조건 사전 (이름, 판정, 이웃 그룹·순서) ── */
 const C = [];
 const add = (fam, val, name, fn) => C.push({ fam, val, name, fn });
