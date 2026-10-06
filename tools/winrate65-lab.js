@@ -177,8 +177,8 @@ add('brk', 0, '돌파 아님', x => x.f && !x.f.breakout);
 const catNames = [...new Set(ALL.map(x => x.c))];
 
 /* ── 탐색 ── */
-const TGT = 65, NEIGH = 62;
-const pass = (a, nMin) => { const s3 = st(a, 3), s5 = st(a, 5); return s3.n >= nMin && s5.n >= nMin && s3.rate >= TGT && s5.rate >= TGT ? { s3, s5 } : null; };
+const TGT = +(process.env.TGT || 65), NEIGH = TGT - 3;
+const pass = (a, nMin) => { nMin = Math.min(nMin, +(process.env.NMIN || nMin)); const s3 = st(a, 3), s5 = st(a, 5); return s3.n >= nMin && s5.n >= nMin && s3.rate >= TGT && s5.rate >= TGT ? { s3, s5 } : null; };
 const out = [];
 let tried = 0, trainPass = 0;
 for (const [bname, bset] of Object.entries(BASES)) {
@@ -227,13 +227,41 @@ const scored = confirmed.map(o => {
 }).sort((x, y) => (y.halfOK + y.nb + y.avgOK) - (x.halfOK + x.nb + x.avgOK) || st(y.all, 5).n - st(x.all, 5).n);
 
 const name = o => `${o.base} ∧ ${o.conds.length ? o.conds.map(c => c.name).join(' ∧ ') : '(조건 없음)'}`;
-console.log(`\n■ 확인 통과 조합 — 1년 전체 +1 | +3 | +5 · 탐색 +5 · 확인 +5 · 전반/후반 +5 · §2 §3 평균 · 하루 신호 · 종목/날짜 (상위 ${TOP})`);
-for (const o of scored.slice(0, TOP)) {
-  console.log(`  ${name(o)}`);
-  console.log(`     ${f1(st(o.all, 1))} | ${f1(st(o.all, 3))} | ${f1(st(o.all, 5))} · 탐색 ${f1(o.tr.s5)} · 확인 ${f1(o.te.s5)} · 반쪽 ${f1(o.halves[0])}/${f1(o.halves[1])} · ${o.halfOK ? '§2✓' : '§2✗'} ${o.nb ? '§3✓' : '§3✗'} ${o.avgOK ? '평균✓' : '평균✗'} · ${o.perDay.toFixed(2)}건/일 · ${o.tk}종목/${o.dt}일`);
-}
-const full = scored.filter(o => o.halfOK && o.nb && o.avgOK);
-console.log(`\n■ 전 관문 통과(§2·§3·평균수익): ${full.length}개`);
+/* §1 기준선 두 개를 같이 잰다.
+   ① 같은 날 기준선: 신호가 뜬 날짜들에 전 종목을 샀다면 — 국면만으로 얻는 승률
+   ② 같은 조건 기준선: 등급과 무관하게 조건만 만족한 전 종목 — 산식(등급)이 더해 주는 몫 */
+const byDate = new Map(); ALL.forEach(x => { if (!byDate.has(x.d)) byDate.set(x.d, []); byDate.get(x.d).push(x); });
+const recIdx = new Map(); for (const [k, rs] of Object.entries(recsByVar)) recIdx.set(k, rs);
+const baseUniverse = b => b === '강매+A30' ? recsByVar['A30'] : ALL;
+const enrich = o => {
+  const ds = new Set(o.all.map(x => x.d));
+  const sameDay = [].concat(...[...ds].map(d => byDate.get(d) || []));
+  const condOnly = baseUniverse(o.base).filter(x => o.sIdx.every(k => o.condList[k].fn(x)));
+  const s3 = st(o.all, 3), s5 = st(o.all, 5), d3 = st(sameDay, 3), d5 = st(sameDay, 5), c3 = st(condOnly, 3), c5 = st(condOnly, 5);
+  return { ...o, s3, s5, d3, d5, c3, c5, exDay: Math.min(s3.rate - d3.rate, s5.rate - d5.rate), exCond: Math.min(s3.rate - c3.rate, s5.rate - c5.rate), cover: ds.size / nDays,
+    keys: new Set(o.all.map(x => x.t + '|' + x.d)) };
+};
+const jac = (a, b) => { let i = 0; for (const k of a) if (b.has(k)) i++; return i / (a.size + b.size - i); };
+const show = (title, list, top) => {
+  console.log(`\n■ ${title}`);
+  console.log(`  각 줄: 1년 +1 | +3 | +5 · 탐색/확인 +5 · 전반/후반 +5 · [같은날 기준선 +3/+5 → 초과] · [조건만 +3/+5 → 초과] · 신호 있는 날 % · 건/일`);
+  const picked = [];
+  for (const o of list) { if (picked.length >= top) break; if (picked.some(p => jac(p.keys, o.keys) > 0.6)) continue; picked.push(o); }
+  for (const o of picked) {
+    console.log(`  ${name(o)}  ${o.halfOK ? '§2✓' : '§2✗'} ${o.nb ? '§3✓' : '§3✗'} ${o.avgOK ? '평균✓' : '평균✗'}`);
+    console.log(`     ${f1(st(o.all, 1))} | ${f1(o.s3)} | ${f1(o.s5)} · ${f1(o.tr.s5)}/${f1(o.te.s5)} · ${f1(o.halves[0])}/${f1(o.halves[1])}`);
+    console.log(`     같은날 ${Math.round(o.d3.rate)}/${Math.round(o.d5.rate)}% → ${o.exDay >= 0 ? '+' : ''}${Math.round(o.exDay)}%p · 조건만 ${Math.round(o.c3.rate)}/${Math.round(o.c5.rate)}%(${o.c5.n}) → ${o.exCond >= 0 ? '+' : ''}${Math.round(o.exCond)}%p · 신호일 ${Math.round(o.cover * 100)}% · ${o.perDay.toFixed(2)}건/일 · ${o.tk}종목`);
+  }
+  return picked;
+};
+const E = scored.filter(o => o.halfOK && o.nb && o.avgOK).map(enrich);
+const good = E.filter(o => o.exDay >= 5 && o.exCond >= 3);
+console.log(`\n■ 전 관문 통과(§2·§3·평균수익): ${E.length}개 · 그중 §1(같은 날 기준선 +5%p↑ · 조건만 기준선 +3%p↑): ${good.length}개`);
+const order = (a, b) => a.conds.length - b.conds.length || b.s5.n - a.s5.n;
+show('§1까지 통과 — 조건 수 적은 순 · 표본 많은 순 · 겹침 60% 넘는 조합은 생략', good.slice().sort(order), TOP);
+show('현행 강한매수(A30 없이)만 바탕 — 산식 변경이 가장 작은 쪽', good.filter(o => o.base === '강매(현행)').sort(order), 12);
+show('신호가 있는 날 50% 이상 — 평소에도 신호가 나오는 쪽', good.filter(o => o.cover >= 0.5).sort(order), 12);
+show('참고: §1 미달(국면만으로 설명되는 조합) — 표본 많은 순', E.filter(o => !(o.exDay >= 5 && o.exCond >= 3)).sort((a, b) => b.s5.n - a.s5.n), 8);
 /* 확인 구간에서 탈락한 것 중 탐색 성적이 가장 좋았던 것 — 과적합 사례로 같이 보여준다 */
 const failed = out.filter(o => !o.te).sort((a, b) => b.tr.s5.rate - a.tr.s5.rate).slice(0, 8);
 console.log(`\n■ 참고: 탐색에서 가장 좋았지만 확인 구간에서 무너진 조합 (과적합 사례)`);
