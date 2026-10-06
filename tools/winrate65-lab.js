@@ -158,6 +158,13 @@ if (process.argv.includes('--rules')) {
     console.log(`  ${nm}`);
     console.log(`     이전 ${cell(o, 1)} | ${cell(o, 3)} | ${cell(o, 5)} [같은날 ${Math.round(st(sameDay(o), 5).rate ?? 0)}%] ${Math.round(100 * dset(o).size / dO)}%일`);
     console.log(`     최근 ${cell(r, 1)} | ${cell(r, 3)} | ${cell(r, 5)} [같은날 ${Math.round(st(sameDay(r), 5).rate ?? 0)}%] ${Math.round(100 * dset(r).size / dR)}%일`);
+    /* §5-5: 같은 풀의 강한매수 중 이 규칙이 지우는 표본 — 실제로 지는 표본이어야 한다 */
+    if (nm.startsWith('R0')) continue;
+    const keep = new Set(a.map(x => x.t + '|' + x.d));
+    const rm = pool.filter(x => G5(x) && !keep.has(x.t + '|' + x.d));
+    if (!rm.length) continue;
+    const ro = rm.filter(older), rr = rm.filter(recent);
+    console.log(`     └ 지우는 강매  이전 ${cell(ro, 1)} | ${cell(ro, 3)} | ${cell(ro, 5)} [같은날 ${Math.round(st(sameDay(ro), 5).rate ?? 0)}%]   최근 ${cell(rr, 1)} | ${cell(rr, 3)} | ${cell(rr, 5)} [같은날 ${Math.round(st(sameDay(rr), 5).rate ?? 0)}%]`);
   }
   console.log(`\n(${((Date.now() - t0) / 1000).toFixed(0)}초)`);
   process.exit(0);
