@@ -61,7 +61,7 @@ function extractLine(re){
    "함수 없음"으로 죽는 일이 잦았으므로 여기 한 곳에 모아 둔다. */
 const BASE_CONSTS = ['THEME_ONLY_TICKERS','DEFENSE','HEALTH','FINANCE','INDUSTRIAL','MEM','GPU',
   'NAME_MAP','CAT_MAP','DEFENSIVE_CATS','LEVERAGED','RANK_NONE','HIST_FIELDS_DEFAULT'];
-const BASE_FUNCS = ['evaluate','qqqRsiOn','washoutLevel','normalize','decorate',
+const BASE_FUNCS = ['evaluate','marketBreadthOn','qqqStreakOn','qqqRsiOn','washoutLevel','normalize','decorate',
   'histWindowDays','histFields','histRow','withPrev','histStocks','prevStock','allStocks'];
 
 /**

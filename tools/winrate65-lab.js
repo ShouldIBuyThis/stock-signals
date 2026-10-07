@@ -60,11 +60,15 @@ const RAW = JSON.stringify(base);
 const GUARD = 'const marketGuarded = s.market_level==="weak" ||';
 const GUARD2 = '(s.market_level==="caution" && !(has(s.market_ret20) && s.market_ret20 >= -2));';
 const FEAR = 'const vxnFear = has(s.market_vxn) && s.market_vxn>=25;';
-const VARIANTS = {
-  '현행': [],
-  'A30': [[GUARD, 'const marketGuarded = !(has(s.x_breadth) && s.x_breadth<30) && (s.market_level==="weak" ||'], [GUARD2, GUARD2.slice(0, -1) + ');'],
-          [FEAR, 'const vxnFear = (has(s.market_vxn) && s.market_vxn>=25) || (has(s.x_breadth) && s.x_breadth<30);']],
-};
+/* v21(2026-10-07)부터 바닥권 해제(A30)와 강세장 강등이 화면 산식에 들어갔다.
+   '현행'은 v21, 'A30'은 같은 것(빈 패치), 'v20'은 두 변경을 되돌린 비교용이다.
+   v20 되돌림이 앵커를 못 찾으면(산식이 다시 바뀐 것) 그 변형만 건너뛴다. */
+const V20 = [
+  ['const marketGuarded = !bottomBreadth && (s.market_level==="weak" ||', 'const marketGuarded = (s.market_level==="weak" ||'],
+  ['const fearRelief = vxnFear || bottomBreadth;', 'const fearRelief = vxnFear;'],
+  ['const regimeCapOK = s.market_level !== "strong";', 'const regimeCapOK = true;'],
+];
+const VARIANTS = { '현행': [], 'A30': [], 'v20': V20 };
 /* evaluate 반환에 내부 관문 값을 덧붙인다(판정은 그대로). */
 const RET = 'return { score, buyScore, trendScore, breakScore, pullScore, revScore, breakGrade, pullGrade, revGrade,';
 const RET_X = 'return { _f:{ sectorOK, marketGuarded, pullSetup, dipSoft, dipHard, resting, bull, a20, a60, rising, breakout, vxnFear, nearHighM, pullChase, pullBandOK, revRsiOK, revChase, bandCapOK }, score, buyScore, trendScore, breakScore, pullScore, revScore, breakGrade, pullGrade, revGrade,';
@@ -73,7 +77,7 @@ const orig = H.extractFunction('evaluate');
 
 function collect(changes) {
   let src = orig;
-  for (const [a, b] of changes.concat([[RET, RET_X]])) { if (!src.includes(a)) H.die('앵커 없음: ' + a.slice(0, 60)); src = src.replace(a, b); }
+  for (const [a, b] of changes.concat([[RET, RET_X]])) { if (!src.includes(a)) { console.log('  [건너뜀] 앵커 없음: ' + a.slice(0, 60)); return null; } src = src.replace(a, b); }
   const page = H.loadPage({ patch: [[orig, src],
     ['market_vxn: num(o.market_vxn),', 'market_vxn: num(o.market_vxn), ' + XF.map(k => `${k}: num(o.${k}),`).join(' ')],
     [BASEPUSH, 'baseOut[h].push({ret:(hs[i+h].price/row.price-1)*100, date:row.last_date, row});']] });
@@ -81,13 +85,17 @@ function collect(changes) {
     const recs = new Map();
     [1,3,5].forEach(h => (r._phaseRows.base[h]||[]).forEach(x => { const w = x.row, k = w.ticker+'|'+x.date;
       if (!recs.has(k)) recs.set(k, { t:w.ticker, d:x.date, c:w.category, s:w.sig, w, r:{} }); recs.get(k).r[h] = x.ret; }));
+    const tiers = []; [1,3,5].forEach(h => (r._phaseRows.multi[h]||[]).forEach(x => tiers.push({ d:x.date, t:x.ticker, h, ret:x.ret, k:x.tier })));
+    this.__tiers = tiers;
     return [...recs.values()].map(o => { const w=o.w, s=o.s; return { t:o.t, d:o.d, c:o.c, r:o.r,
-      g:s.grade, pg:s.pullGrade, rg:s.revGrade, ps:s.pullScore, rsc:s.revScore, f:s._f,
+      g:s.grade, nq:!!s.nqRebound, pg:s.pullGrade, rg:s.revGrade, ps:s.pullScore, rsc:s.revScore, f:s._f,
       rsi:w.rsi, bb:w.bb_pos, rs20:w.rs20, ret20:w.ret20, pfh:w.pct_from_high, vr:w.vol_ratio, atr:w.atr_pct,
       chg:w.change_1d, run3:w.run3_sum, sk:w.stoch_k, macd:w.macd, p:w.price, ma20:w.ma20, ma50:w.ma50, ma200:w.ma200, ma200s:w.ma200_slope,
       wrsi:w.w_rsi, wpos:w.w_ma20_pos, mpos:w.m_ma6_pos, slope:w.ma20_slope, gap:w.gap_pct, pfl:w.pct_from_low,
       lvl:w.market_level, mret:w.market_ret20, vxn:w.market_vxn, br:w.x_breadth, mrs:w.x_medrs, qs:w.x_qstreak }; }); };`);
-  return page.__run(RAW);
+  const out = page.__run(RAW);
+  out.tiers = page.runInPage('this.__tiers');
+  return out;
 }
 
 /* ── 통계 ── */
@@ -96,7 +104,7 @@ const st = (a, h) => { let w = 0, l = 0, s = 0, n = 0; for (const x of a) { cons
 const f1 = s => s.n ? `${s.rate == null ? ' —' : Math.round(s.rate).toString().padStart(3)}%(${String(s.n).padStart(4)})${(s.avg >= 0 ? '+' : '') + s.avg.toFixed(2)}` : '   —(   0)     ';
 
 const recsByVar = {};
-for (const [k, ch] of Object.entries(VARIANTS)) recsByVar[k] = collect(ch);
+for (const [k, ch] of Object.entries(VARIANTS)) { const r = collect(ch); if (r) recsByVar[k] = r; }
 const ALL = recsByVar['현행'];
 const dates = [...new Set(ALL.map(x => x.d))].sort();
 const cut = dates[Math.floor(dates.length * 2 / 3)], mid = dates[Math.floor(dates.length / 2)];
@@ -113,6 +121,7 @@ const BASES = {
   '강매+A30': recsByVar['A30'].filter(x => x.g === 5),
   '관심이상(4+)': recsByVar['현행'].filter(x => x.g >= 4),
 };
+if (recsByVar['v20']) BASES['강매(v20)'] = recsByVar['v20'].filter(x => x.g === 5);
 console.log(`\n■ 바탕 집합 — 1년 · +1 | +3 | +5 · 전반/후반 +5 · 하루 평균 신호`);
 for (const [k, a] of Object.entries(BASES))
   console.log(`  ${k.padEnd(12)} ${f1(st(a, 1))} | ${f1(st(a, 3))} | ${f1(st(a, 5))} | 전반 ${f1(st(a.filter(x => x.d < mid), 5))} 후반 ${f1(st(a.filter(x => x.d >= mid), 5))} | ${(a.length / nDays).toFixed(2)}건/일`);
@@ -126,8 +135,11 @@ if (process.argv.includes('--rules')) {
   const cur = recsByVar['현행'], a30 = recsByVar['A30'];
   const G5 = x => x.g === 5, G4 = x => x.g >= 4, RV5 = x => x.rg === 5;
   const notStrong = x => x.lvl !== 'strong';
+  const v20 = recsByVar['v20'] || cur;
   const R = [
     ['R0  현행 강한매수', cur, G5],
+    ['V20 v20 강한매수(되돌림 비교)', v20, G5],
+    ['NQ  🌊 뱃지(nqRebound)', cur, x => x.nq],
     ['R1  강매 ∧ 국면≠strong', cur, x => G5(x) && notStrong(x)],
     ['R2  강매 ∧ 국면 neutral', cur, x => G5(x) && x.lvl === 'neutral'],
     ['R3  강매 ∧ RSI≤35', cur, x => G5(x) && has(x.rsi) && x.rsi <= 35],
@@ -159,12 +171,19 @@ if (process.argv.includes('--rules')) {
     console.log(`     이전 ${cell(o, 1)} | ${cell(o, 3)} | ${cell(o, 5)} [같은날 ${Math.round(st(sameDay(o), 5).rate ?? 0)}%] ${Math.round(100 * dset(o).size / dO)}%일`);
     console.log(`     최근 ${cell(r, 1)} | ${cell(r, 3)} | ${cell(r, 5)} [같은날 ${Math.round(st(sameDay(r), 5).rate ?? 0)}%] ${Math.round(100 * dset(r).size / dR)}%일`);
     /* §5-5: 같은 풀의 강한매수 중 이 규칙이 지우는 표본 — 실제로 지는 표본이어야 한다 */
-    if (nm.startsWith('R0')) continue;
+    if (nm.startsWith('R0') || nm.startsWith('V20') || nm.startsWith('NQ')) continue;
     const keep = new Set(a.map(x => x.t + '|' + x.d));
     const rm = pool.filter(x => G5(x) && !keep.has(x.t + '|' + x.d));
     if (!rm.length) continue;
     const ro = rm.filter(older), rr = rm.filter(recent);
     console.log(`     └ 지우는 강매  이전 ${cell(ro, 1)} | ${cell(ro, 3)} | ${cell(ro, 5)} [같은날 ${Math.round(st(sameDay(ro), 5).rate ?? 0)}%]   최근 ${cell(rr, 1)} | ${cell(rr, 3)} | ${cell(rr, 5)} [같은날 ${Math.round(st(sameDay(rr), 5).rate ?? 0)}%]`);
+  }
+  /* 다중·💡 계층 — v21이 강세장 강매를 관심으로 낮추면 다중 후보도 바뀐다 */
+  const tierStat = (tiers, pred, per) => { const a = tiers.filter(x => pred(x) && per(x)); const by = h => { const z = a.filter(x => x.h === h); const w = z.filter(x => x.ret > 1).length, l = z.filter(x => x.ret < -1).length; return `${w + l ? Math.round(100 * w / (w + l)) : '—'}%(${z.length})`; }; return [1, 3, 5].map(by).join(' | '); };
+  for (const [nm, recs] of [['v21', cur], ['v20', v20]]) {
+    const tiers = recs.tiers || [];
+    console.log(`  ${nm} 🔵 다중  이전 ${tierStat(tiers, () => true, older)}   최근 ${tierStat(tiers, () => true, recent)}`);
+    console.log(`  ${nm} 💡 강한다중 이전 ${tierStat(tiers, x => x.k === 1, older)}   최근 ${tierStat(tiers, x => x.k === 1, recent)}`);
   }
   console.log(`\n(${((Date.now() - t0) / 1000).toFixed(0)}초)`);
   process.exit(0);

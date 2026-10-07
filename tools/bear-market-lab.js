@@ -109,7 +109,7 @@ const { data, U } = inject(assembleLedger());
 const RAW = JSON.stringify(data);
 function run(changes){
   let src = orig;
-  for (const [a, b] of changes){ if (!src.includes(a)) H.die('앵커 없음: ' + a.slice(0, 60)); src = src.replace(a, b); }
+  for (const [a, b] of changes){ if (!src.includes(a)) return null; src = src.replace(a, b); }   // v21 이후 이미 반영됐거나 바뀐 후보
   const page = H.loadPage({ patch: [[orig, src],
     ['market_vxn: num(o.market_vxn),', 'market_vxn: num(o.market_vxn), ' + X_FIELDS.map(k => `${k}: num(o.${k}),`).join(' ')],
     ['baseOut[h].push({ret:(hs[i+h].price/row.price-1)*100, date:row.last_date});',
@@ -153,7 +153,7 @@ console.log(`\n■ ④ 후보 비교 — 강한매수(초록) · 반쪽 경계 $
 console.log(`  ${'후보'.padEnd(14)} ${'+3 전체'.padStart(16)} ${'+5 전체'.padStart(16)} | ${'+3 전반'.padStart(16)} ${'+3 후반'.padStart(16)} | ${'+5 전반'.padStart(16)} ${'+5 후반'.padStart(16)} | ${'추가 +3'.padStart(16)} ${'추가 +5'.padStart(16)} | ${'제거 +3'.padStart(16)} ${'제거 +5'.padStart(16)}`);
 const results = {};
 for (const [name, ch] of Object.entries(V)){
-  const r = name === '현행' ? base : run(ch); results[name] = r; const sb = r.rows.strongBuy;
+  const r = name === '현행' ? base : run(ch); if (!r) { console.log(`  ${name.padEnd(14)} (앵커 없음 — v21에 이미 반영됐거나 산식이 바뀜, 건너뜀)`); continue; } results[name] = r; const sb = r.rows.strongBuy;
   const half = (h, p) => fmt(stat(sb[h].filter(p)));
   const diff = h => { const bk = new Set(rows.strongBuy[h].map(key)), vk = new Set(sb[h].map(key));
     return [fmt(stat(sb[h].filter(x => !bk.has(key(x))))), fmt(stat(rows.strongBuy[h].filter(x => !vk.has(key(x)))))]; };

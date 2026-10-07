@@ -1076,8 +1076,10 @@ const CART_MAX = 5;   // 모의구매 점검이 의미를 가지는 상한
    필요한 건 "언제부터 어느 산식이 돌았는가"의 기록이다. 코드 자체는 git이 보관한다.
    나중에 소급 채점할 때: git show <커밋>:index.html 로 그 시점 evaluate()를 꺼내 쓴다. */
 /* LOGIC_VERSION은 '점수 산식'의 버전이다. 순위·표시 정합성 패치로는 올리지 않는다. */
-const LOGIC_VERSION = "v20";
+const LOGIC_VERSION = "v21";
 const LOGIC_LOG = [
+  {v:"v21", from:"2026-10-07", t:"⚖ 강세장 강한매수 → 매수관심 · 바닥권(관심종목 70%가 20일선 아래)에서는 약세 제한 해제 · 🌊 나스닥 연속하락 반등 뱃지",
+   d:"사용자 지시 '최근 약세장으로 승률이 너무 떨어졌다, 원인분석 후 나스닥 전용 산식과 비교해서 고쳐라' → '최근 1년 65% 넘기는 경우의 수 탐색' → 2번안 승인. 원인: 2026-09 하락장에서 QQQ 국면은 9/21부터 strong인데 관심종목은 QQQ에 뒤처져(중위 rs20 −2.7~−4.6) 그때 뜬 강한매수가 졌고, 관심종목이 진짜 바닥이던 날(20일선 위 25~34%, 그날 기준선 +3일 67~93%)은 QQQ 기준 weak라 강한매수가 0건이었다 — VXN 최고 23.3이라 기존 VXN≥25 해제가 한 번도 안 떴다. 나스닥 전용 등급(연속 하락·바닥권)은 같은 기간을 제대로 읽었다. 그래서 ① 바닥권 해제: 관심종목 20일선 위 비율 30% 미만이면 VXN 해제와 같은 자리에서 약세·주의 감점과 섹터 관문을 푼다(30은 나스닥 전용 등급 문턱 그대로). ② 강세 국면 강등: QQQ strong이면 강한매수를 매수관심(4)으로 낮춘다. ③ 🌊 뱃지: 반등 강한매수 + QQQ 2일 이상 연속 하락(등급 불변, 표시만). 검증(tools/winrate65-lab.js, CI lab-quick): 최근 1년 39,825조합을 앞 2/3 탐색·뒤 1/3 확인으로 거르고, 후보 16개를 고정해 탐색에 안 쓴 이전 1년에서 다시 쟀다. 강한매수 +1/+3/+5: 현행 이전 57/62/62 · 최근 57/57/63% → v21 이전 56/68/71 · 최근 67/68/68%. 🌊는 이전 68/81/74(140건) · 최근 79/80/74(113건). ⚠ 대가: 강한매수가 뜨는 날이 81% → 36~48%로 준다. 강등되는 표본은 이전 1년 +5일 54%(같은 날 기준선 57% 아래)지만 최근 1년은 58%(같은 날 46%보다 위)라 '지는 표본'이라기보다 '65% 미달 표본'이다. +1일 65%는 이 규칙으로 안 된다. 백테스트라 생존 편향이 있고, 보존 사례 13건은 전부 30일 창 밖이라 회귀 검사를 못 했다. 바닥권 해제의 원장 근거는 4개 날짜뿐('참고')."},
   {v:"v20", from:"2026-09-04", t:"🔄 반등 강한매수 = 반등 2.0 이상 + 볼린저 50 이하 (밴드 아래쪽에서만)",
    d:"사용자 지적 두 개가 같은 곳을 가리켰다 — '강한매수 +5일 59%는 심각하다, 70%는 넘어야지'와 '반등 강매와 반등 관심이 차이 안 나는 건 해결됐나'. 189일로 재니 범인이 하나였다: 추세 강매 252건 68%[62~74] vs 반등 강매 522건 60%[56~65] vs 반등 관심 247건 59%[53~65]. 강한매수의 70%가 반등이라 전체가 63%로 끌려가고, 반등은 4등급과 5등급의 신뢰구간이 완전히 겹쳐 등급이 정보를 주지 않았다. Y 17종에서 사용자가 처음 볼밴≤35(Y3)를 택했다가, 표본을 보고 ≤50(Y4)으로 정정했다 — 그 판단이 맞았다. ≤35는 189일 반등 강매 227건 70%·강한매수 69%·신호 42%·30일 원장 75건 81%, ≤50은 302건 67%·강한매수 68%·신호 56%·30일 원장 86건 81%. 189일 승률 차이는 1%p인데 신호는 14%p 더 남고 30일 원장에서는 승률이 같으면서 표본만 는다. 지워지는 234건은 58/56/56/54%로 기준선 수준이라 이기는 표본을 지우지 않고, 전반 63/후반 73으로 §2 통과. 🔵 64% → 66%, 💡 74% 유지. ⚠ 보존 사례 AAOI 2026-08-07(볼밴 93)과 IREN 2026-08-11(볼밴 64)을 잃는다 — 둘 다 밴드 상단에서 반등한 자리라 볼밴 상한을 어디에 걸어도 안 잡히고, 상단 예외(≥80)는 2026-08 H 실험에서 후반 +5/+7일 56/51%로 §2 탈락한 안이다. SNDK 2026-08-11(볼밴 39)은 ≤50에서 살아난다. 더 센 후보도 있었다: RSI≤40은 75%(177건)로 최고지만 신호가 33%까지 줄고, VXN≥25는 71%(265건)에 지워지는 표본이 52%로 §5-5가 가장 깨끗했지만 공포 구간 전용이라 평온한 장에서 반등 강매가 0건이 된다. 기각한 것들(rs20>0 55% · 20일선 위 56% · 52주고점 56% · 국면 61% · 점수 2.5 조합 57%)은 전부 지워지는 표본이 63~67%로 이기는 표본을 지우고 있었다. ⚠ 대가: 반등 강한매수가 536 → 302건(56%)으로 준다. 사용자가 그 감소와 보존 사례 2건 손실을 알고 결정했다."},
   {v:"v19", from:"2026-09-04", t:"📈 추세 강한매수 문턱 완충대 — 점수 1.5~2.0이어도 볼린저 55 이하면 강한매수",
@@ -1640,9 +1642,18 @@ function evaluate(s){
      기준선(51/52/53/52)을 크게 넘었고 §2 양쪽 통과. 공포가 이미 가격에 실린 날의 약세는
      '더 떨어질 자리'가 아니라 '되돌림 자리'라는 뜻이다. 표본 등급은 '방향만'(47건). */
   const vxnFear = has(s.market_vxn) && s.market_vxn>=25;
-  if (lv==="weak" && vxnFear){ tags.push({c:"t-good",t:"⚡ 약세 감점 해제"}); reasons.push({w:0.8,t:`시장 약세지만 VXN ${r1(s.market_vxn)} — 공포 구간이라 감점 안 함`}); }
+  /* v21 (2026-10-07, 사용자 승인) — 바닥권 해제: 미국 관심종목의 20일선 위 비율이 30% 미만이면
+     VXN 해제와 같은 자리에서 약세·주의 감점을 걸지 않는다(아래 marketGuarded에서 섹터 관문도 푼다).
+     왜: 2026-09 하락장은 VXN 최고 23.3이라 VXN≥25 해제가 한 번도 안 떴는데, 폭 25~34%로 진짜 바닥이던
+     9/1·9/2·9/14~16에 그날 기준선이 +3일 67~93%였고 강한매수는 0건이었다(docs/2026-10-06-bear-market-winrate.md).
+     30은 나스닥 전용 등급 '바닥권' 문턱(QQQ_FACTS.bottom) 그대로 — 새 상수가 아니다.
+     원장 37일: 새로 편입 18건 +3일 79%·+5일 69%, 지워지는 표본 0. 문턱 30→35→40 단조(79→65→52%). ⚠ 4개 날짜뿐('참고'). */
+  const bottomBreadth = has(s.market_breadth) && s.market_breadth < 30;
+  const fearRelief = vxnFear || bottomBreadth;
+  const reliefWhy = vxnFear ? `VXN ${r1(s.market_vxn)} — 공포 구간이라` : `관심종목 ${s.market_breadth}%만 20일선 위 — 바닥권이라`;
+  if (lv==="weak" && fearRelief){ tags.push({c:"t-good",t:"⚡ 약세 감점 해제"}); reasons.push({w:0.8,t:`시장 약세지만 ${reliefWhy} 감점 안 함`}); }
   else if (lv==="weak"){ cNeg-=1.0; tags.push({c:"t-warn",t:"⚠ 시장 약세"}); reasons.push({w:0.9,t:"시장(QQQ) 20·60일선 아래 — 감점"}); }
-  else if (lv==="caution" && vxnFear){ tags.push({c:"t-good",t:"⚡ 주의 감점 해제"}); reasons.push({w:0.6,t:`시장 주의지만 VXN ${r1(s.market_vxn)} — 공포 구간이라 감점 안 함`}); }
+  else if (lv==="caution" && fearRelief){ tags.push({c:"t-good",t:"⚡ 주의 감점 해제"}); reasons.push({w:0.6,t:`시장 주의지만 ${reliefWhy} 감점 안 함`}); }
   else if (lv==="caution"){ cNeg-=0.5; tags.push({c:"t-warn",t:"⚠ 시장 주의"}); reasons.push({w:0.7,t:"시장(QQQ) 20일선 아래 — 감점"}); }
   else if (lv==="strong"){ bPos+=0.3; pPos+=0.3; }
   else if (s.market_weak){ cNeg-=0.5; tags.push({c:"t-warn",t:"⚠ 시장 약세"}); reasons.push({w:0.7,t:"시장(QQQ) 20일선 아래 — 감점"}); }
@@ -1742,8 +1753,8 @@ function evaluate(s){
      💡가 −8~−14%p 무너져 기각, 볼밴≤55 절충안(V6)은 지워지는 17건이 100/92/100/93%라 기각.
      30일 원장 사전 확인: 142 → 150건, 빠진 표본 0건, 승률 67/68/61 → 67/67/61 유지.
      대가: 💡 강한다중이 −2~−4%p(77→74 · 81→77), 표본은 158 → 189건으로 는다. */
-  const marketGuarded = s.market_level==="weak" ||
-    (s.market_level==="caution" && !(has(s.market_ret20) && s.market_ret20 >= -2));
+  const marketGuarded = !bottomBreadth && (s.market_level==="weak" ||
+    (s.market_level==="caution" && !(has(s.market_ret20) && s.market_ret20 >= -2)));   /* v21 바닥권이면 관문 해제 */
   const sectorOK = !marketGuarded || DEFENSIVE_CATS.includes(s.category);
   /* v17 (2026-09-04): 종목별 보정 — 그 종목의 189일 실측에서 '확실히 지는 자리'만 강한매수에서 뺀다.
      사용자 지시("포엣·인텔·애플 각 종목별로 개별 산식, 표본 5개만 넘어도 되니까 표기하면 되지").
@@ -2053,7 +2064,30 @@ function evaluate(s){
      지표가 강한 눌림 구간에서는 그대로 강한매수가 나간다. */
   const BAND_CAP_CATS = ["빅테크", "전기차·자율주행"];
   const bandCapOK = !BAND_CAP_CATS.includes(s.category) || !has(bb) || bb <= 55;
-  const buyGrade=Math.min(Math.max(pullGrade,revGrade), bandCapOK ? 5 : 4);
+  /* v21 (2026-10-07, 사용자 승인) — QQQ 강세(strong) 국면의 강한매수는 매수관심(4)으로 낮춘다.
+     왜: 지수가 강할 때 뜬 강한매수가 승률을 끌어내렸다. tools/winrate65-lab.js — 최근 1년 39,825조합 탐색 후
+     후보 16개를 고정해 탐색에 안 쓴 이전 1년(2024-10~2025-09)에서 재검증했다.
+       현행(v20)   이전 1년 +1/+3/+5 57/62/62% · 최근 1년 57/57/63%  (강한매수 뜨는 날 81%)
+       v21(R15)    이전 1년 56/68/71% (533건)  · 최근 1년 67/68/68% (540건)  (36~48%)
+     지우는(강등되는) 표본: 이전 +5일 54%로 같은 날 기준선 57% 아래, 최근 58%로 같은 날 기준선 46%보다는 높다 —
+     '지는 표본'이라기보다 '65%에 못 미치는 표본'이고 그 대가로 신호 빈도가 준다(사용자가 알고 결정).
+     이웃 규칙(국면 neutral만 · 고점대비 −20% 아래+비강세)도 같은 방향. 관심(4)으로 남기므로 화면에서 사라지지는 않는다.
+     ⚠ +1일 65%는 이 규칙으로 안 된다(이전 1년 56%). 백테스트라 생존 편향이 있다. */
+  const regimeCapOK = s.market_level !== "strong";
+  const buyGrade=Math.min(Math.max(pullGrade,revGrade), (bandCapOK && regimeCapOK) ? 5 : 4);
+  if (!regimeCapOK && bandCapOK && Math.max(pullGrade,revGrade)===5){
+    tags.push({c:"t-warn",t:"⏸ 강세장 — 관심으로 낮춤"});
+    reasons.push({w:1.0,t:"나스닥 강세 국면 — 지수가 강할 때의 강한매수는 1년 실측상 승률이 낮아 매수관심으로 표시"});
+  }
+  /* v21 — 🌊 나스닥 연속하락 반등: 반등 강한매수 + QQQ 2일 이상 연속 하락. 나스닥 전용 등급의 '연속 하락' 축을
+     개별주 반등에 얹은 것. 등급을 바꾸지 않는 상위 표시용 뱃지다(💡처럼).
+     고정 후보 재검증: 이전 1년 +1/+3/+5 68/81/74% (140건) · 최근 1년 79/80/74% (113건) — 세 기간 모두 두 해 65% 이상은 이것뿐.
+     대가: 열흘에 하루꼴(신호 있는 날 9~11%). 한국 종목은 QQQ 날짜가 달라 적용하지 않는다. */
+  const nqRebound = revGrade===5 && has(s.qqq_streak) && s.qqq_streak>=2 && !(s.ticker && isKR(s.ticker));
+  if (nqRebound){
+    tags.unshift({c:"t-good",t:"🌊 나스닥 연속하락 반등"});
+    reasons.push({w:2.9,t:`나스닥 ${s.qqq_streak}일 연속 하락 중 반등 강한매수 — 2년 실측 +3일 80% 안팎`});
+  }
 
   /* 경계 = 등급이 아니라 '신규 진입 주의' 뱃지.
      저항이 너무 가깝고 과열/추격 요소가 겹칠 때만 표시한다. */
@@ -2118,7 +2152,7 @@ function evaluate(s){
   /* 검증용 내역 — 나중에 "저항 보정이 실제로 도움이 됐나"를 사후 비교할 수 있게 남긴다 */
   const adj = { base: baseScore, res: resAdj, resGap, leader, ldr: ldrAdj, final: score };
   return { score, buyScore, trendScore, breakScore, pullScore, revScore, breakGrade, pullGrade, revGrade,
-    pullSetup, pullRelaxed, revStrong, cautionBadge, grade:g, type, line, tags, adj, overheat };
+    pullSetup, pullRelaxed, revStrong, cautionBadge, grade:g, type, line, tags, adj, overheat, nqRebound, regimeCapped: !regimeCapOK };
 }
   
 /* ══════════ 종목 가공 ══════════ */
@@ -2161,6 +2195,52 @@ function histFields(){
    "이미 다 판 자리에서는 방어가 아니라 매수가 맞다"로 타당하지만,
    표본 1일짜리 규칙이므로 다음 급락 사이클에서 재확인해야 한다.
    RSI는 frozen된 qqq_card.hist에서 날짜로 찾으므로 과거 행 재계산이 아니다. */
+/* v21 (2026-10-07) — 날짜별 '시장폭'과 '나스닥 연속 하락'. 둘 다 frozen hist에서 센다(그날 종가까지의 값).
+   · marketBreadthOn: 미국 관심종목 중 그날 종가가 20일선 위인 비율(%). 20종목 미만인 날은 null.
+     main.py breadth_by_date()·나스닥 전용 등급의 '바닥권(30% 미만)'과 같은 정의다.
+   · qqqStreakOn: QQQ가 그날까지 며칠 연속 내렸나(qqq_card.hist 종가).
+   결과는 state.data에 캐시한다 — 데이터가 바뀌면 객체가 바뀌어 자동으로 다시 센다.
+   evaluate()는 이 함수를 직접 부르지 않고 행의 market_breadth·qqq_streak 필드만 읽는다
+   (도구 하네스가 evaluate만 꺼내 써도 깨지지 않게). */
+function marketBreadthOn(date){
+  const d = state.data;
+  if(!d || !date) return null;
+  if(!d._breadthMap){
+    const F = histFields(), iD = F.indexOf("date"), iP = F.indexOf("price"), iM = F.indexOf("ma20");
+    const acc = {};
+    (d.stocks || []).forEach(s => {
+      if(!s || !s.ticker || isKR(s.ticker)) return;
+      (s._hist || []).forEach(r => {
+        if(!Array.isArray(r) || !r[iD]) return;
+        const pv = r[iP], mv = r[iM];
+        if(pv === null || pv === undefined || mv === null || mv === undefined) return;
+        const a = acc[r[iD]] || (acc[r[iD]] = [0, 0]);
+        a[1]++; if(pv > mv) a[0]++;
+      });
+    });
+    const m = {};
+    Object.keys(acc).forEach(k => { const a = acc[k]; m[k] = a[1] >= 20 ? Math.round(100 * a[0] / a[1]) : null; });
+    d._breadthMap = m;
+  }
+  const v = d._breadthMap[String(date)];
+  return v === undefined ? null : v;
+}
+function qqqStreakOn(date){
+  const d = state.data;
+  if(!d || !date) return null;
+  if(!d._qstreakMap){
+    const q = d.qqq_card, m = {};
+    if(q && Array.isArray(q.hist)){
+      const F = histFields(), iD = F.indexOf("date"), iP = F.indexOf("price");
+      const rows = q.hist.filter(r => Array.isArray(r) && r[iD]);
+      let n = 0;
+      rows.forEach((r, i) => { n = (i && num(r[iP]) !== null && num(rows[i-1][iP]) !== null && r[iP] < rows[i-1][iP]) ? n + 1 : 0; m[String(r[iD])] = n; });
+    }
+    d._qstreakMap = m;
+  }
+  const v = d._qstreakMap[String(date)];
+  return v === undefined ? null : v;
+}
 function qqqRsiOn(date){
   const q = state.data && state.data.qqq_card;
   if(!q || !Array.isArray(q.hist)) return null;
@@ -2214,6 +2294,9 @@ function histRow(s, row, i, total){
     w_rsi: num(o.w_rsi), w_ma20_pos: num(o.w_ma20_pos), w_streak: num(o.w_streak),
     m_ma6_pos: num(o.m_ma6_pos), m_streak: num(o.m_streak),
     market_vxn: num(o.market_vxn),   /* 그날의 VXN — 화이트리스트에 꼭 있어야 보인다 */
+    /* v21 — 저장 필드가 아니라 같은 hist에서 날짜로 센 값. 구형 도구(함수만 추출)에서는 null → 규칙이 꺼진다 */
+    market_breadth: (typeof marketBreadthOn === "function") ? marketBreadthOn(o.date) : null,
+    qqq_streak: (typeof qqqStreakOn === "function") ? qqqStreakOn(o.date) : null,
     ext_pair: num(o.ext_pair), ext_root: num(o.ext_root),
     market_ret20: marketRet20,
     range3: num(o.range3), range10: num(o.range10), vol3_ratio: num(o.vol3_ratio),
@@ -2296,6 +2379,9 @@ function allStocks(opt){
       const stored = num(s.market_ret20);
       s.market_ret20 = stored !== null ? stored : num(mk.ret20);
     }
+    /* v21 — 오늘 행의 시장폭·QQQ 연속하락 (hist 마지막 행과 같은 날짜로 찾는다) */
+    if (s.market_breadth == null && typeof marketBreadthOn === "function") s.market_breadth = marketBreadthOn(s.last_date);
+    if (s.qqq_streak == null && typeof qqqStreakOn === "function") s.qqq_streak = qqqStreakOn(s.last_date);
     const sig = evaluate(s);
     const pv = prevStock(s);
     return Object.assign(s, {sig, prevSig: pv ? evaluate(pv) : null, _prev: pv});
@@ -4288,7 +4374,7 @@ function stockBadgeKeys(s){
     "⚠ 경계":"⚠ 저항 임박 주의"
   };
   const keys = ((s.sig && s.sig.tags)||[]).map(t=>badgeKey(t.t))
-    .filter(k=>!["⚠ 시장 주의","⚠ 시장 약세","⚡ 약세 감점 해제","⚡ 주의 감점 해제"].includes(k))
+    .filter(k=>!["⚠ 시장 주의","⚠ 시장 약세","⚡ 약세 감점 해제","⚡ 주의 감점 해제","⏸ 강세장 — 관심으로 낮춤"].includes(k))
     .map(k=>groups[k]||k);
   return [...new Set(keys.concat(flowBadges(s).map(b=>b.key)))];
 }
@@ -5670,6 +5756,19 @@ function strategyValidation(){
     });
   }));
 
+  // v21 — 🌊 나스닥 연속하락 반등 뱃지 성과. 등급과 별개 표시라 따로 센다(같은 실적 제외 규칙).
+  const nqOut=emptyLists();
+  byDate.forEach(entries=>entries.forEach(({row,i})=>{
+    if(!row.sig.nqRebound) return;
+    const pack=stockHist.get(row.ticker); if(!pack) return;
+    const hs=pack.hs, affected=pack.affected;
+    horizons.forEach(h=>{
+      if(i+h>=hs.length || !has(hs[i+h].price)) return;
+      if(validationWindowTouchesEarnings(affected,hs,i,h)) return;
+      nqOut[h].push({ret:(hs[i+h].price/row.price-1)*100,date:row.last_date,ticker:row.ticker,horizon:h});
+    });
+  }));
+
   // 화면과 검증이 갈라지지 않도록 새 일반/강한다중 기준도 multiSignalRank() 하나만 재사용한다.
   byDate.forEach(entries=>{
     const universe=entries.map(x=>x.row);
@@ -5750,6 +5849,8 @@ function strategyValidation(){
   };
   result._strongBuy={};
   horizons.forEach(h=>{ result._strongBuy[h]=stat(strongBuyOut[h]); });
+  result._nqRebound={};
+  horizons.forEach(h=>{ result._nqRebound[h]=stat(nqOut[h]); });
   result._strongByStrategy={pull:{},rev:{}};
   horizons.forEach(h=>{
     result._strongByStrategy.pull[h]=stat(strongByStrategyOut.pull[h]);
@@ -5905,7 +6006,7 @@ function validationBlock(){
   return `<div class="section help-block"><h3 class="validation-title">🧪 최근 ${histWindowDays()}거래일 현재 산식 재검증 <button type="button" class="validation-help-btn" onclick="openValidationIntro()" aria-label="신뢰도 검증 설명">?</button><span class="live-note">(표본 수급에 따라 실시간 변동)</span></h3>
     <div style="margin:0 2px 7px;font-size:12px;font-weight:800;color:var(--ink)">종가에 매수했다면? <span style="font-weight:600;color:var(--muted)">· 상승 vs 하락 (보합 제외)</span><br><span style="font-weight:600;font-size:11px;color:var(--faint)">위 두 행은 <b>신호를 보고 산 사람</b>, 맨 아래 <b>기준선</b>은 신호를 안 보고 그날 전 종목을 다 산 사람이에요</span></div>
     <table class="cmp validation-cmp"><tr><th>구분</th><th colspan="3">상승이 하락을 이길 확률 <button type="button" class="validation-help-btn" onclick="openValidationHelp()" aria-label="승률 계산 설명">?</button><button type="button" class="bulbperf" onclick="openStrictMultiPerf()" title="전략별(추세/반등) 강한매수 분리와 쉬운 예시 보기">전략별 강한매수 분리 📊</button></th></tr><tr><th>신호</th><th>+1거래일</th><th>+3거래일</th><th>+5거래일</th></tr>
-      ${srcRow("💡 강한다중","전구 신호만",v._strict)}${srcRow("🔵 다중신호","강한+일반 합산",v.multi)}${srcRow("🟢 강한매수","최종 초록뱃지",v._strongBuy)}${baseRow}
+      ${srcRow("💡 강한다중","전구 신호만",v._strict)}${srcRow("🌊 연속하락 반등","나스닥 연속 하락 중 반등 강매",v._nqRebound)}${srcRow("🔵 다중신호","강한+일반 합산",v.multi)}${srcRow("🟢 강한매수","최종 초록뱃지",v._strongBuy)}${baseRow}
     </table>
     <div style="margin-top:9px">
       <button type="button" class="perfbtn" onclick="openAllBuyersPerf()" title="매수관심까지 포함해 전부 샀다면">💡 매수관심&강한매수를 다 매수했다면?</button>
@@ -6615,7 +6716,10 @@ function openPhasePerf(){
       · <b>추세와 반등은 승률은 비슷한데 수익 폭이 다릅니다.</b> 중립장 +5일 평균수익이
         추세 +2.4% · 반등 +9.6%였어요. 추세는 자주 조금, 반등은 드물게 크게 버는 쪽입니다.<br>
       · <b>약세장에는 추세 강한매수가 아예 0건입니다.</b> 버그가 아니라 설계예요 —
-        약세장에서는 방어섹터만, 그리고 눌림보다 바닥 반등만 통과시킵니다.<br>
+        약세장에서는 방어섹터만, 그리고 눌림보다 바닥 반등만 통과시킵니다.
+        단 관심종목 70% 이상이 20일선 아래인 <b>바닥권</b>이면 이 제한을 풉니다(v21).<br>
+      · <b>강세장에서는 강한매수를 매수관심으로 낮춥니다(v21).</b> 지수가 강할 때 뜬 강한매수는
+        2년 실측에서 승률이 낮았어요 — 추격이 되기 쉬운 자리입니다.<br>
       · <b>강세장(1일)·주의장(5일)은 판단 불가입니다.</b> 100%로 보이는 칸도 1~5건이라
         흐리게 처리했어요. 표본이 쌓일 때까지 결론을 내지 않습니다.</div>
     <p style="font-size:11px;color:var(--faint);line-height:1.7;margin:8px 0 0">
