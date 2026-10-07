@@ -126,6 +126,44 @@ console.log(`\n■ 바탕 집합 — 1년 · +1 | +3 | +5 · 전반/후반 +5 ·
 for (const [k, a] of Object.entries(BASES))
   console.log(`  ${k.padEnd(12)} ${f1(st(a, 1))} | ${f1(st(a, 3))} | ${f1(st(a, 5))} | 전반 ${f1(st(a.filter(x => x.d < mid), 5))} 후반 ${f1(st(a.filter(x => x.d >= mid), 5))} | ${(a.length / nDays).toFixed(2)}건/일`);
 
+/* ── --nq: 🌊 연속하락 반등을 어디에 둘지 (2026-10-07 사용자 질문) ─────────────
+   ① 추세 강매 자리를 🌊로 바꾸면  ② 다중을 🌊로 바꾸면  ③ 🌊를 강한매수 카드에만 붙이면.
+   멤버십만 바꾸고 수익은 같은 기준선 표본(실적 제외 동일)에서 읽는다. */
+if (process.argv.includes('--nq')) {
+  const cur = recsByVar['현행'], key = x => x.t + '|' + x.d;
+  const tiers = cur.tiers || [];
+  const multiK = new Set(tiers.map(x => x.t + '|' + x.d)), strictK = new Set(tiers.filter(x => x.k === 1).map(x => x.t + '|' + x.d));
+  const NQ = x => x.rg === 5 && x.qs != null && x.qs >= 2 && !/\.(KS|KQ)$/.test(x.t);
+  const S = [
+    ['🟢 강한매수(v21)', x => x.g === 5],
+    ['   └ 추세 강매(최종 5)', x => x.g === 5 && x.pg === 5],
+    ['   └ 반등 강매(최종 5)', x => x.g === 5 && x.rg === 5],
+    ['🌊 현행(반등5 ∧ QQQ 2일+하락)', NQ],
+    ['🌊 강한매수 카드만(최종 5)', x => NQ(x) && x.g === 5],
+    ['🌊 강세장 강등분만(최종 4)', x => NQ(x) && x.g !== 5],
+    ['A 강한매수 = 반등 강매 ∪ 🌊 (추세 제외)', x => (x.g === 5 && x.rg === 5) || NQ(x)],
+    ['A2 강한매수 = 반등 강매만 (추세 제외)', x => x.g === 5 && x.rg === 5],
+    ['B 강한매수 = 🌊만', NQ],
+    ['🔵 다중(v21)', x => multiK.has(key(x))],
+    ['C 다중 ∪ 🌊', x => multiK.has(key(x)) || NQ(x)],
+    ['   다중 ∩ 🌊', x => multiK.has(key(x)) && NQ(x)],
+    ['💡 강한다중(v21)', x => strictK.has(key(x))],
+  ];
+  const last = new Date(dates[nDays - 1]); const y1 = new Date(last); y1.setFullYear(y1.getFullYear() - 1);
+  const Y = y1.toISOString().slice(0, 10), older = x => x.d < Y, recent = x => x.d >= Y;
+  const bo = ALL.filter(older), br = ALL.filter(recent), dO = new Set(bo.map(x => x.d)).size, dR = new Set(br.map(x => x.d)).size;
+  const c3 = a => [1, 3, 5].map(h => f1(st(a, h))).join(' | ');
+  console.log(`\n■ 🌊 배치 비교 — 이전 1년(<${Y}) / 최근 1년 · +1 | +3 | +5 · 신호 있는 날 %`);
+  console.log(`  기준선  이전 ${c3(bo)}   최근 ${c3(br)}`);
+  for (const [nm, fn] of S) {
+    const a = cur.filter(fn), o = a.filter(older), r = a.filter(recent);
+    console.log(`  ${nm}`);
+    console.log(`     이전 ${c3(o)} · ${Math.round(100 * new Set(o.map(x => x.d)).size / dO)}%일   최근 ${c3(r)} · ${Math.round(100 * new Set(r.map(x => x.d)).size / dR)}%일`);
+  }
+  console.log(`\n(${((Date.now() - t0) / 1000).toFixed(0)}초)`);
+  process.exit(0);
+}
+
 /* ── --rules: 후보 고정 검증 모드 ─────────────────────────────────────
    1년 탐색으로 고른 후보를 **바꾸지 않고** 그 이전 1년(탐색에 안 쓴 구간)에서 다시 잰다.
    CI에서 years=3 days=504로 받으면 앞 1년이 미사용 구간이 된다. 후보 목록은 2026-10-06
