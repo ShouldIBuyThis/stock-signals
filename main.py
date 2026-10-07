@@ -849,18 +849,116 @@ def latest_closed_us_session(now=None):
     return _session_str(session)
 
 
+def _valid_last_day(frame):
+    """가격(Close·High·Low)이 실제로 들어 있는 마지막 날짜. 야후가 OHLC를 비우고
+    Volume만 준 행은 날짜가 최신이어도 '미갱신'으로 본다 — drop_invalid_price_rows()가
+    나중에 그 행을 지우므로, 신선도도 같은 기준으로 판정해야 재조회·복원이 작동한다."""
+    if frame is None or not len(frame):
+        return ""
+    cols = [c for c in ("Close", "High", "Low") if c in frame.columns]
+    if not cols:
+        return ""
+    vals = frame[cols].apply(pd.to_numeric, errors="coerce")
+    mask = (vals.notna() & (vals > 0)).all(axis=1)
+    idx = frame.index[mask.values]
+    return idx[-1].strftime("%Y-%m-%d") if len(idx) else ""
+
+
+def _quote_bar(t, expected, prev_close):
+    """야후 시세(quote) 응답의 '정규장 확정값'으로 그날 일봉 한 개를 만든다.
+
+    2026-10-01~10-07: 장 마감 4~5시간 뒤에도 야후 일봉(history)이 40여 종목의 최신 행을
+    OHLC 없이(거래량만) 돌려줘 미국 갱신이 매일 실패했다. 같은 시각 quote 응답에는
+    regularMarketOpen/DayHigh/DayLow/Price/Volume이 들어 있다 — 장 마감 뒤의 이 값은 그날
+    정규장 확정값이다. 아래를 전부 만족할 때만 쓰고, 하나라도 어긋나면 None(기존처럼 실패)이다.
+      · regularMarketTime의 뉴욕 날짜 == 필요한 거래일(expected)
+      · 시가·고가·저가·종가가 유한한 양수이고 저가 ≤ 시가·종가 ≤ 고가
+      · quote의 전일 종가가 우리 일봉의 직전 종가와 2% 이내(분할·다른 시계열 방지)
+    """
+    import math
+    try:
+        info = t.get_info() if hasattr(t, "get_info") else t.info
+    except Exception as e:
+        print(f"종가 복원 실패: quote 조회 오류 — {e}")
+        return None
+    if not isinstance(info, dict):
+        return None
+    ts = info.get("regularMarketTime")
+    if not isinstance(ts, (int, float)):
+        return None
+    if datetime.fromtimestamp(ts, _NY).strftime("%Y-%m-%d") != expected:
+        return None
+    o, h, l, c = (info.get(k) for k in ("regularMarketOpen", "regularMarketDayHigh",
+                                        "regularMarketDayLow", "regularMarketPrice"))
+    if not all(isinstance(v, (int, float)) and math.isfinite(v) and v > 0 for v in (o, h, l, c)):
+        return None
+    if not (l <= o <= h and l <= c <= h):
+        return None
+    pc = info.get("regularMarketPreviousClose")
+    if prev_close is not None and isinstance(pc, (int, float)) and pc > 0:
+        if abs(pc / prev_close - 1) > 0.02:
+            print(f"종가 복원 거부: quote 전일종가 {pc} vs 일봉 직전종가 {prev_close:.4f}")
+            return None
+    v = info.get("regularMarketVolume")
+    return {"Open": float(o), "High": float(h), "Low": float(l), "Close": float(c),
+            "Volume": float(v) if isinstance(v, (int, float)) and v >= 0 else None}
+
+
+def _patch_last_session(df, t, ticker, expected):
+    """expected 거래일 일봉이 비었거나 없으면 quote 확정값으로 그 한 행만 채운다.
+    과거 행은 절대 건드리지 않는다. 채우지 못하면 원래 df를 그대로 돌려준다."""
+    if df is None or not len(df) or _valid_last_day(df) >= expected:
+        return df
+    valid_last = _valid_last_day(df)
+    if not valid_last:
+        return df
+    # 직전 확정 종가 = 비어 있지 않은 마지막 행. 그 행이 expected 바로 앞 거래일이어야 한다
+    # (이틀 이상 비면 하루만 채워서는 시계열이 맞지 않는다 — 기존처럼 실패시킨다).
+    if _session_str(_US_CAL.previous_session(pd.Timestamp(expected))) != valid_last:
+        return df
+    prev_close = float(df.loc[df.index.strftime("%Y-%m-%d") == valid_last, "Close"].iloc[-1])
+    bar = _quote_bar(t, expected, prev_close)
+    if bar is None:
+        return df
+    out = df.copy()
+    hit = out.index.strftime("%Y-%m-%d") == expected
+    if hit.any():
+        key = out.index[hit][-1]
+    else:
+        tz = getattr(out.index, "tz", None)
+        key = pd.Timestamp(expected).tz_localize(tz) if tz is not None else pd.Timestamp(expected)
+        out.loc[key] = np.nan
+        for col in ("Dividends", "Stock Splits", "Capital Gains"):
+            if col in out.columns:
+                out.loc[key, col] = 0.0
+    for col in ("Open", "High", "Low", "Close"):
+        if col in out.columns:
+            out.loc[key, col] = bar[col]
+    if "Adj Close" in out.columns:
+        out.loc[key, "Adj Close"] = bar["Close"]   # 당일 행은 배당·분할 조정 전 = 종가
+    if "Volume" in out.columns:
+        cur_v = pd.to_numeric(pd.Series([out.loc[key, "Volume"]]), errors="coerce").iloc[0]
+        if not (pd.notna(cur_v) and cur_v > 0) and bar["Volume"] is not None:
+            out.loc[key, "Volume"] = bar["Volume"]
+    out = out.sort_index()
+    print(f"종가 복원: {ticker} {expected} 일봉 OHLC 비어 있음 → 야후 quote 정규장 확정값 "
+          f"(종가 {bar['Close']}, 고 {bar['High']}, 저 {bar['Low']})")
+    return out
+
+
 def _fetch_daily(ticker, days_back=520):
     """일봉을 받는다. period= 가 잘려 오면 명시적 날짜 범위로 한 번 더 시도한다.
 
     야후는 .KS(KRX) 같은 일부 시장에서 period="1y"를 줘도 최근 몇 주만 돌려줄 때가
     있다(2026-08-18 실측: 코스피·코스닥이 19봉). 같은 티커라도 start/end를 명시하면
     정상적으로 1년치가 온다. 첫 응답이 충분하면 추가 호출은 하지 않는다.
+    신선도는 '가격이 들어 있는 마지막 날'로 판정한다(_valid_last_day). 두 번 받아도
+    최신 거래일 OHLC가 비어 있으면 quote 확정값으로 그 하루만 채운다(_patch_last_session).
     """
     t = yf.Ticker(ticker)
     df = t.history(period=PERIOD, interval="1d", auto_adjust=False)
     expected = None if is_kr_ticker(ticker) else latest_closed_us_session()
-    def last_day(frame):
-        return frame.index[-1].strftime("%Y-%m-%d") if frame is not None and len(frame) else ""
+    last_day = _valid_last_day
     stale = expected is not None and last_day(df) < expected
     if df is not None and len(df) >= 120 and not stale:
         return df
@@ -875,6 +973,11 @@ def _fetch_daily(ticker, days_back=520):
             df = alt
     except Exception as e:
         print(f"데이터 보정 실패: {ticker} — {e}")
+    if expected is not None and last_day(df) < expected:
+        try:
+            df = _patch_last_session(df, t, ticker, expected)
+        except Exception as e:
+            print(f"종가 복원 실패: {ticker} — {e}")
     return df
 
 # ── 시장 보조 지표 (표시 전용) ──────────────────────────────────────────

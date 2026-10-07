@@ -18,6 +18,10 @@ on:
     # 미국장 백업: 뉴욕 현지 17:20 — 1차 schedule 누락/지연 대비
     - cron: '20 17 * * 1-5'
       timezone: 'America/New_York'
+    # 미국장 3차: 뉴욕 현지 21:30 — 2026-10-01~07 야후 일봉이 마감 4~5시간 뒤에도 최신 행을
+    # 비워 둬 1·2차가 연달아 실패했다. main.py가 quote 확정값으로 복원하지만 그것도 안 되면 여기서 다시 잡는다.
+    - cron: '30 21 * * 1-5'
+      timezone: 'America/New_York'
 
     # 한국장 정기 갱신: 16:45 KST
     - cron: '45 16 * * 1-5'
@@ -137,15 +141,25 @@ jobs:
           fi
 
           if [ "$EVENT_NAME" = "push" ]; then
-            echo "value=all" >> "$GITHUB_OUTPUT"
-            echo "코드 변경 실행 → scope=all"
+            # 코드 변경 배포는 장중인 시장을 건드리지 않는다(CLAUDE.md §5 — 국장 개장 중 scope=kr 금지).
+            # 국장 08:30~17:00 KST(정기 갱신 16:45 전)면 us만, 미장 09:00~16:40 ET면 kr만, 그 밖에는 all.
+            kst_dow=$(TZ=Asia/Seoul date +%u); kst_hm=$((10#$(TZ=Asia/Seoul date +%H%M)))
+            ny_dow=$(TZ=America/New_York date +%u); ny_hm=$((10#$(TZ=America/New_York date +%H%M)))
+            scope=all
+            if [ "$kst_dow" -le 5 ] && [ "$kst_hm" -ge 830 ] && [ "$kst_hm" -lt 1700 ]; then
+              scope=us
+            elif [ "$ny_dow" -le 5 ] && [ "$ny_hm" -ge 900 ] && [ "$ny_hm" -lt 1640 ]; then
+              scope=kr
+            fi
+            echo "value=$scope" >> "$GITHUB_OUTPUT"
+            echo "코드 변경 실행 → scope=$scope (KST $kst_hm · NY $ny_hm)"
             exit 0
           fi
 
           # 중요: 실제 runner 시작 시각으로 시장을 판단하지 않는다.
           # GitHub schedule은 지연될 수 있으므로, 어떤 schedule이 트리거했는지를 기준으로 판정한다.
           case "$SCHEDULE_EXPR" in
-            "40 16 * * 1-5"|"20 17 * * 1-5")
+            "40 16 * * 1-5"|"20 17 * * 1-5"|"30 21 * * 1-5")
               echo "value=us" >> "$GITHUB_OUTPUT"
               echo "자동 실행 → US ($SCHEDULE_EXPR)"
               ;;
