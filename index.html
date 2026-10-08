@@ -1076,8 +1076,10 @@ const CART_MAX = 5;   // 모의구매 점검이 의미를 가지는 상한
    필요한 건 "언제부터 어느 산식이 돌았는가"의 기록이다. 코드 자체는 git이 보관한다.
    나중에 소급 채점할 때: git show <커밋>:index.html 로 그 시점 evaluate()를 꺼내 쓴다. */
 /* LOGIC_VERSION은 '점수 산식'의 버전이다. 순위·표시 정합성 패치로는 올리지 않는다. */
-const LOGIC_VERSION = "v21";
+const LOGIC_VERSION = "v21.1";
 const LOGIC_LOG = [
+  {v:"v21.1", from:"2026-10-07", t:"🌊 연속하락 반등은 최종 강한매수 카드에만 · 다중 상위 단계로 표시",
+   d:"사용자 지적 '연속하락 반등은 다중·반등·추세 중 아무것도 안 들어가는데 왜 순위에 있나'. v21은 🌊를 반등 등급만으로 판정해 강세장 강등(최종 매수관심) 카드에도 붙었고, 그 표본은 강한매수·다중 어디에도 없이 뱃지와 검증표에만 남았다. 실제로도 졌다 — 2년 실측(tools/winrate65-lab.js --nq)에서 강등분은 이전 1년 12건 50/71/80%, 최근 1년 15건 45/44/33%. 최종 강한매수 카드로 한정하면 이전 69/81/73%(144건) · 최근 84/79/73%(131건)이고 다중 ∩ 🌊와 거의 같은 집합이라, 💡처럼 다중 위의 단계로 표시한다(카드 종목명 옆 🌊, 검증표 🌊 행은 다중 표본 중 🌊만 센다). 다중을 🌊로 통째로 바꾸는 안은 신호일이 33~45% → 7~9%로 줄어 채택하지 않았고, 추세 강매를 🌊로 교체하는 안은 사실상 추세 삭제(+1~3%p, NET·SNOW 추세 사례 상실)라 보류. 등급·점수·다른 관문은 그대로다."},
   {v:"v21", from:"2026-10-07", t:"⚖ 강세장 강한매수 → 매수관심 · 바닥권(관심종목 70%가 20일선 아래)에서는 약세 제한 해제 · 🌊 나스닥 연속하락 반등 뱃지",
    d:"사용자 지시 '최근 약세장으로 승률이 너무 떨어졌다, 원인분석 후 나스닥 전용 산식과 비교해서 고쳐라' → '최근 1년 65% 넘기는 경우의 수 탐색' → 2번안 승인. 원인: 2026-09 하락장에서 QQQ 국면은 9/21부터 strong인데 관심종목은 QQQ에 뒤처져(중위 rs20 −2.7~−4.6) 그때 뜬 강한매수가 졌고, 관심종목이 진짜 바닥이던 날(20일선 위 25~34%, 그날 기준선 +3일 67~93%)은 QQQ 기준 weak라 강한매수가 0건이었다 — VXN 최고 23.3이라 기존 VXN≥25 해제가 한 번도 안 떴다. 나스닥 전용 등급(연속 하락·바닥권)은 같은 기간을 제대로 읽었다. 그래서 ① 바닥권 해제: 관심종목 20일선 위 비율 30% 미만이면 VXN 해제와 같은 자리에서 약세·주의 감점과 섹터 관문을 푼다(30은 나스닥 전용 등급 문턱 그대로). ② 강세 국면 강등: QQQ strong이면 강한매수를 매수관심(4)으로 낮춘다. ③ 🌊 뱃지: 반등 강한매수 + QQQ 2일 이상 연속 하락(등급 불변, 표시만). 검증(tools/winrate65-lab.js, CI lab-quick): 최근 1년 39,825조합을 앞 2/3 탐색·뒤 1/3 확인으로 거르고, 후보 16개를 고정해 탐색에 안 쓴 이전 1년에서 다시 쟀다. 강한매수 +1/+3/+5: 현행 이전 57/62/62 · 최근 57/57/63% → v21 이전 56/68/71 · 최근 67/68/68%. 🌊는 이전 68/81/74(140건) · 최근 79/80/74(113건). ⚠ 대가: 강한매수가 뜨는 날이 81% → 36~48%로 준다. 강등되는 표본은 이전 1년 +5일 54%(같은 날 기준선 57% 아래)지만 최근 1년은 58%(같은 날 46%보다 위)라 '지는 표본'이라기보다 '65% 미달 표본'이다. +1일 65%는 이 규칙으로 안 된다. 백테스트라 생존 편향이 있고, 보존 사례 13건은 전부 30일 창 밖이라 회귀 검사를 못 했다. 바닥권 해제의 원장 근거는 4개 날짜뿐('참고')."},
   {v:"v20", from:"2026-09-04", t:"🔄 반등 강한매수 = 반등 2.0 이상 + 볼린저 50 이하 (밴드 아래쪽에서만)",
@@ -2083,10 +2085,13 @@ function evaluate(s){
      개별주 반등에 얹은 것. 등급을 바꾸지 않는 상위 표시용 뱃지다(💡처럼).
      고정 후보 재검증: 이전 1년 +1/+3/+5 68/81/74% (140건) · 최근 1년 79/80/74% (113건) — 세 기간 모두 두 해 65% 이상은 이것뿐.
      대가: 열흘에 하루꼴(신호 있는 날 9~11%). 한국 종목은 QQQ 날짜가 달라 적용하지 않는다. */
-  const nqRebound = revGrade===5 && has(s.qqq_streak) && s.qqq_streak>=2 && !(s.ticker && isKR(s.ticker));
+  /* v21.1 (2026-10-07, 사용자 승인) — 최종 강한매수 카드에만 붙인다. v21은 반등 등급만 봐서 강세장 강등(최종 4) 카드에도
+     붙었고, 그 표본은 강한매수·다중 어디에도 없이 뱃지에만 남았다 — 그리고 졌다(최근 1년 15건 +1/+3/+5 45/44/33%).
+     최종 5만 남기면 이전 1년 69/81/73%(144) · 최근 84/79/73%(131)이고 거의 전부 다중 안이라 💡처럼 '다중 상위 단계'다. */
+  const nqRebound = buyGrade===5 && revGrade===5 && has(s.qqq_streak) && s.qqq_streak>=2 && !(s.ticker && isKR(s.ticker));
   if (nqRebound){
     tags.unshift({c:"t-good",t:"🌊 나스닥 연속하락 반등"});
-    reasons.push({w:2.9,t:`나스닥 ${s.qqq_streak}일 연속 하락 중 반등 강한매수 — 2년 실측 +3일 80% 안팎`});
+    reasons.push({w:2.9,t:`나스닥 ${s.qqq_streak}일 연속 하락 중 반등 강한매수 — 다중 상위 단계 · 2년 실측 +3일 79~81%`});
   }
 
   /* 경계 = 등급이 아니라 '신규 진입 주의' 뱃지.
@@ -4277,7 +4282,7 @@ function compactRow(s, i, rankless=false){
       <span class="c-rank">${(()=>{ if(rankless||state.sort==="category"||state.sort==="hold") return "";
         const n=sortRankOf(s) ?? (i+1);
         return n<=3 ? ["🥇","🥈","🥉"][n-1] : `<span class="num">${n}</span>`; })()}</span>
-      <span class="c-name"><b>${esc(s.ticker)}${levMark(s.ticker)}</b>${s._multiStrict?multiBulb(s.ticker):""}${resTouchMark(s)}${earnStreakMark(s)}<em>${esc(s.name||"")}</em></span>
+      <span class="c-name"><b>${esc(s.ticker)}${levMark(s.ticker)}</b>${s._multiStrict?multiBulb(s.ticker):""}${nqMark(s)}${resTouchMark(s)}${earnStreakMark(s)}<em>${esc(s.name||"")}</em></span>
       <span class="c-badge ${stockGradeCls(s)}">${stockGradeLabel(s)}</span>
       <span class="c-price num">${fmtPrice(s)}<em class="${chgCls(s.change_1d)}">${fmtChg(s.change_1d)}</em></span>
       <span class="c-flag">${key?`<span class="tag ${key.c}">${key.t.replace(/\(.*\)/,"")}</span>`:""}</span>
@@ -5154,7 +5159,7 @@ function stockCard(s, i, rankless=false){
   return `<div class="stock g${g}${s.earnings_hold?" hold-card":""}${LEVERAGED[s.ticker]?" lev-card":""}${s._multiStrict?" multi-strict":""}" data-tk="${esc(s.ticker)}">
     <div class="s-top">
       ${rankMark(i, rankless, s)}
-      <span class="s-tk${externalRiskInfo(s)?" risk-ticker":""}"${riskTickerAttrs(s)}>${esc(s.ticker)}</span>${levMark(s.ticker)}${s._multiStrict?multiBulb(s.ticker):""}${resTouchMark(s)}${earnStreakMark(s)}
+      <span class="s-tk${externalRiskInfo(s)?" risk-ticker":""}"${riskTickerAttrs(s)}>${esc(s.ticker)}</span>${levMark(s.ticker)}${s._multiStrict?multiBulb(s.ticker):""}${nqMark(s)}${resTouchMark(s)}${earnStreakMark(s)}
       <span class="s-nm">${esc(s.name||"")}${LEVERAGED[s.ticker]?` <span class="levnote">(고변동 레버리지)</span>`:""}</span>
       <span class="s-tools">
         <button data-act="own" class="own ${s._hold?"on":""}" title="보유 종목으로 표시">보유${s._hold?"★":"☆"}</button>
@@ -5475,6 +5480,10 @@ function openEarnStreakModal(tk){
     <div class="modal-actions perf-sticky"><button class="primary" onclick="closeModal()">닫기</button></div>`);
 }
 
+/* v21.1 — 다중 상위 단계 🌊 표시. 💡처럼 종목명 옆에 붙인다(다중 안에 든 최종 강한매수의 🌊만). */
+function nqMark(s){
+  return (s && s.sig && s.sig.nqRebound && s._multiTier) ? `<span class="multi-bulb" title="다중 상위 · 나스닥 연속하락 중 반등 (2년 실측 +3일 79~81%)" aria-label="나스닥 연속하락 반등">\u{1F30A}</span>` : "";
+}
 function multiBulb(tk){
   return `<span class="multi-bulb" role="button" tabindex="0" data-multibulb="${esc(tk)}" title="오늘 신호가 강하게 겹친 종목" aria-label="신호가 강하게 겹친 종목 설명">\u{1F4A1}</span>`;
 }
@@ -5756,18 +5765,8 @@ function strategyValidation(){
     });
   }));
 
-  // v21 — 🌊 나스닥 연속하락 반등 뱃지 성과. 등급과 별개 표시라 따로 센다(같은 실적 제외 규칙).
+  // v21.1 — 🌊는 다중의 상위 단계로 센다: 다중 표본 중 🌊가 붙은 것만(아래 다중 루프에서 같이 담는다).
   const nqOut=emptyLists();
-  byDate.forEach(entries=>entries.forEach(({row,i})=>{
-    if(!row.sig.nqRebound) return;
-    const pack=stockHist.get(row.ticker); if(!pack) return;
-    const hs=pack.hs, affected=pack.affected;
-    horizons.forEach(h=>{
-      if(i+h>=hs.length || !has(hs[i+h].price)) return;
-      if(validationWindowTouchesEarnings(affected,hs,i,h)) return;
-      nqOut[h].push({ret:(hs[i+h].price/row.price-1)*100,date:row.last_date,ticker:row.ticker,horizon:h});
-    });
-  }));
 
   // 화면과 검증이 갈라지지 않도록 새 일반/강한다중 기준도 multiSignalRank() 하나만 재사용한다.
   byDate.forEach(entries=>{
@@ -5794,6 +5793,7 @@ function strategyValidation(){
         out.multi[h].push({ret,hit:ret>1,date:ent.row.last_date,endDate:endRow.last_date,ticker:sel.ticker,
           buyPrice:p0,endPrice:endRow.price,horizon:h,
           tier:sel._multiTier});   // 1=💡 강한다중 / 2=일반 다중
+        if(ent.row.sig.nqRebound) nqOut[h].push({ret,date:ent.row.last_date,ticker:sel.ticker,horizon:h});
       });
     });
   });
@@ -6006,7 +6006,7 @@ function validationBlock(){
   return `<div class="section help-block"><h3 class="validation-title">🧪 최근 ${histWindowDays()}거래일 현재 산식 재검증 <button type="button" class="validation-help-btn" onclick="openValidationIntro()" aria-label="신뢰도 검증 설명">?</button><span class="live-note">(표본 수급에 따라 실시간 변동)</span></h3>
     <div style="margin:0 2px 7px;font-size:12px;font-weight:800;color:var(--ink)">종가에 매수했다면? <span style="font-weight:600;color:var(--muted)">· 상승 vs 하락 (보합 제외)</span><br><span style="font-weight:600;font-size:11px;color:var(--faint)">위 두 행은 <b>신호를 보고 산 사람</b>, 맨 아래 <b>기준선</b>은 신호를 안 보고 그날 전 종목을 다 산 사람이에요</span></div>
     <table class="cmp validation-cmp"><tr><th>구분</th><th colspan="3">상승이 하락을 이길 확률 <button type="button" class="validation-help-btn" onclick="openValidationHelp()" aria-label="승률 계산 설명">?</button><button type="button" class="bulbperf" onclick="openStrictMultiPerf()" title="전략별(추세/반등) 강한매수 분리와 쉬운 예시 보기">전략별 강한매수 분리 📊</button></th></tr><tr><th>신호</th><th>+1거래일</th><th>+3거래일</th><th>+5거래일</th></tr>
-      ${srcRow("💡 강한다중","전구 신호만",v._strict)}${srcRow("🌊 연속하락 반등","나스닥 연속 하락 중 반등 강매",v._nqRebound)}${srcRow("🔵 다중신호","강한+일반 합산",v.multi)}${srcRow("🟢 강한매수","최종 초록뱃지",v._strongBuy)}${baseRow}
+      ${srcRow("💡 강한다중","전구 신호만",v._strict)}${srcRow("🌊 연속하락 반등","다중 상위 · 나스닥 연속하락 중 반등",v._nqRebound)}${srcRow("🔵 다중신호","강한+일반 합산",v.multi)}${srcRow("🟢 강한매수","최종 초록뱃지",v._strongBuy)}${baseRow}
     </table>
     <div style="margin-top:9px">
       <button type="button" class="perfbtn" onclick="openAllBuyersPerf()" title="매수관심까지 포함해 전부 샀다면">💡 매수관심&강한매수를 다 매수했다면?</button>
