@@ -34,10 +34,13 @@ PERIOD = "1y"    # 52주 신고가 계산 위해 1년
 # 10이던 것을 30으로 올렸다 — 10에서는 하루 지날 때마다 가장 오래된 거래일이
 # 잘려나가 검증 표본이 영원히 10일에 갇혔고, history/ 폴더 스냅샷이 시작되기 전
 # 날짜(2026-08-03~06)는 잘리는 순간 복구할 방법이 없었다.
-HIST_DAYS = 30
-# QQQ 카드 전용 신호 흐름도 같은 30거래일만 유지한다. 일반 종목 hist와
+# 2026-10-16 30 → 60: 사용자 지시 '승률 30일 말고 60일로'. 30일로는 반쪽 검증(§2)이
+# 15일씩이라 국면 하나에 휩쓸렸다. 늘어난 앞 구간은 history/ 일자 snapshot에서만 채운다
+# (freeze_signal_hist 참조) — 야후 재계산값은 원장에 들이지 않는다.
+HIST_DAYS = 60
+# QQQ 카드 전용 신호 흐름도 같은 60거래일만 유지한다. 일반 종목 hist와
 # 섞지 않는 별도 원장이라, 개별주 산식 변경이 지수 흐름을 바꾸지 않는다.
-QQQ_SIGNAL_HIST_DAYS = 30
+QQQ_SIGNAL_HIST_DAYS = 60
 # 뒤에 필드를 덧붙이는 건 안전하다(옛 행은 짧을 뿐이고 freeze 단계에서 보강한다).
 # 순서를 바꾸거나 중간에 끼워 넣으면 이미 저장된 위치 기반 배열이 전부 어긋난다.
 HIST_FIELDS = ["date","price","change_1d","ma5","ma10","ma20","ma50","ma60","rsi","macd_hist","macd_cross","macd_zero",
@@ -1752,6 +1755,7 @@ def freeze_signal_hist(results, prev_rows, mkt=None, market_events=None, market_
     appended_count = 0
     restored_current = 0
     gap_filled = 0
+    snap_seeded = 0
     restored_from_hist = 0
 
     for r in results:
@@ -1860,18 +1864,35 @@ def freeze_signal_hist(results, prev_rows, mkt=None, market_events=None, market_
             seen.add(last_date)
             appended_count += 1
 
-        # 창이 아직 HIST_DAYS에 못 미치면 analyze()가 방금 가져온 이력에서
-        # '한 번도 저장된 적 없는 과거 날짜'만 끌어와 채운다.
+        # 창이 아직 HIST_DAYS에 못 미치면 '한 번도 hist에 남지 않은 과거 날짜'를 채운다.
         # 이미 있는 행은 절대 건드리지 않으므로 고정 원칙은 그대로다.
         # (HIST_DAYS를 올린 직후 창이 즉시 넓어지게 하는 장치다)
+        # 2026-10-16 30→60일 확장: 그날의 immutable 일자별 snapshot이 있으면 그것을
+        # 그대로 hist 행으로 만든다(그날 카드 top-level = 그날 append된 hist 행과 같은 출처).
+        # snapshot이 없는 30일 밖 날짜는 야후 재계산밖에 없으므로 채우지 않고
+        # 원장이 하루씩 자라서 창을 채우게 둔다.
+        # 재계산 보충은 '그 종목 원장이 시작되기 전, 최근 30거래일 안쪽'에만 허용한다
+        # — 편입 직후 종목의 앞 구간을 예전처럼 그리기 위해서다. 원장 중간의 빈 날
+        # (예: 미국 9/30~10/2, 자동 갱신 누락)은 그날 본 값이 없으므로 비워 둔다.
         if len(old_hist) < HIST_DAYS:
+            calc_days = [str(h0[date_i] or "") for h0 in (r.get("hist") or [])
+                         if isinstance(h0, list) and len(h0) > date_i]
+            recalc_from = calc_days[-30] if len(calc_days) >= 30 else ""
+            first_frozen = min((str(h[date_i]) for h in old_hist if h[date_i]), default="9999")
             for h0 in (r.get("hist") or []):
                 if not isinstance(h0, list) or len(h0) <= date_i:
                     continue
                 d = str(h0[date_i] or "")
                 if not d or d in seen or (last_date and d > last_date):
                     continue
-                old_hist.append(backfill(list(h0), tk, d))
+                snap = day_snapshot(tk, d)
+                if snap:
+                    old_hist.append(backfill(hist_row_from_current(snap), tk, d))
+                    snap_seeded += 1
+                elif bootstrap_hist or recalc_from <= d < first_frozen:
+                    old_hist.append(backfill(list(h0), tk, d))
+                else:
+                    continue
                 seen.add(d)
                 gap_filled += 1
 
@@ -1881,7 +1902,7 @@ def freeze_signal_hist(results, prev_rows, mkt=None, market_events=None, market_
     bf = " · ".join(f"{k} {v}행" for k, v in backfilled.items() if v)
     print(
         f"hist 고정: 기존 {frozen_count}행 유지 · 새 거래일 {appended_count}행 추가 · "
-        f"과거 빈칸 보충 {gap_filled}행 · 현재카드 frozen 복원 {restored_current}종목"
+        f"과거 빈칸 보충 {gap_filled}행(일자 snapshot {snap_seeded}행) · 현재카드 frozen 복원 {restored_current}종목"
         + (f"(hist fallback {restored_from_hist}종목)" if restored_from_hist else "")
         + (f" · 보강 {bf}" if bf else " · 보강 없음")
     )
@@ -2144,6 +2165,25 @@ def main():
     if RUN_SCOPE in ("us", "all"):
         outdated = [r["ticker"] for r in results if not is_kr_ticker(r["ticker"])
                     and str(r.get("last_date") or "") < expected_us]
+        # 숨은 입력(의회 거래 ETF)은 화면·등급·순위에 안 나오고 테마 예측 입력으로만 쓴다.
+        # 이 셋은 거래가 얇아 야후가 종가를 늦게 올리는 날이 있는데, 그것 하나로 미국 전체
+        # 갱신이 멈췄다 — 2026-10-16 KST 08:15·08:40 두 번 연속 'MAGA 미갱신'으로 실패하고
+        # 사이트가 15:04까지 전날 화면에 머물렀다(사용자 지적 "미장 새로고침이 안 됐다").
+        # 이 셋만 늦은 경우에는 직전 날짜 그대로 두고(원장은 날짜가 같으면 덧붙지 않는다)
+        # 상태 표시만 남긴 채 진행한다. 화면에 나오는 종목이 하나라도 늦으면 지금처럼 멈춘다.
+        lagging_ok = [t for t in outdated if t in CONGRESS_ETFS]
+        outdated = [t for t in outdated if t not in CONGRESS_ETFS]
+        # 다른 carry 경로(carried_stale_feed 등)와 같게 직전 signals.json 행을 통째로 쓴다
+        # — 야후가 다시 계산한 어제 행이 아니라 사용자가 이미 본 고정 행이다.
+        for i, r in enumerate(results):
+            if r["ticker"] in lagging_ok and r["ticker"] in prev_rows:
+                kept = dict(prev_rows[r["ticker"]])
+                kept["name"], kept["category"] = r.get("name"), r.get("category")
+                kept["data_status"] = "carried_late_feed"
+                kept["data_status_message"] = f"야후 종가 지연 — {kept.get('last_date')} 값 유지 (숨은 입력이라 갱신을 막지 않음)"
+                results[i] = kept
+        if lagging_ok:
+            print(f"::warning::숨은 입력 종가 지연, 직전 값 유지하고 진행: {', '.join(lagging_ok)}")
         if outdated:
             raise RuntimeError(f"미국 종가 미갱신 ({expected_us} 필요): {', '.join(outdated)}")
 

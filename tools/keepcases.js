@@ -139,7 +139,7 @@ for(const [tk, date, note] of KEEP){
 }
 console.log('  ' + '─'.repeat(112));
 console.log(`  보존 ${ok} · 부분 ${part} · 놓침 ${miss} · 창 밖 ${gone}  (총 ${KEEP.length}건)`);
-if(gone) console.log(`  ❔ '창 밖'은 30거래일 롤링 창이 지나가 그 날짜가 hist에서 밀려난 것이다.
+if(gone) console.log(`  ❔ '창 밖'은 원장 창(최대 60거래일, history/ 스냅샷이 있는 8/10부터) 밖이라 hist에 그 날짜가 없는 것이다.
      산식 회귀가 아니므로 '놓침'과 구분해 센다. 오래된 사례는 시간이 지나면 전부 여기로 간다.`);
 
 if(ALL){
