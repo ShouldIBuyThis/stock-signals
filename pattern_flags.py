@@ -18,6 +18,22 @@ THEME_TRIM = {
     "IONQ": "quantum", "INFQ": "quantum", "RGTI": "quantum", "QUBT": "quantum", "QBTS": "quantum",
 }
 
+# 테마별 저점 매수 규칙 — 다중 신호 '보조' 표시 전용(등급·순위 불변). 2026-11-05 사용자 지시
+# "10년 통틀어 5건만 넘어도 규칙으로 써 보조 다중신호 적중률 높으면".
+# 출처: tools/theme-patterns.py buy_combos(run 42049254937) 테마별 상위 규칙 중
+#   10년 합계 적중 75%↑ · 5건↑ · 마지막 20% 기간에서 무너지지 않은 것(60%↑, 또는 1건 이하이고 맞음).
+# 소프트웨어·데이터센터·나스닥은 마지막 20%에서 무너져 뺐다. 맥도날드·SK하이닉스는 관심종목이 아니다.
+# (대상, RSI≤, 60일 고점 대비, 볼밴 하단 밖, 신호, 특징, 보유일, 앞 80% 적중(건), 뒤 20% 적중(건))
+THEME_BUY = {
+    "M_SEMI":  (("SOXL",), 35, -0.10, True, "ma5_run3", "above200", 10, "93%(15)", "75%(4)"),
+    "M_IND":   (("CAT", "AIT"), 25, -0.20, False, "ma5_run2", None, 20, "100%(8)", "100%(1)"),
+    "M_HOUSE": (("NAIL", "ITB"), 35, -0.10, False, "g2060", None, 20, "100%(9)", "100%(2)"),
+    "M_QUANT": (("IONQ", "QBTS", "RGTI", "INFQ", "QUBT"), 30, -0.30, True, "bblo_reentry", "capitulation", 10, "76%(17)", "100%(1)"),
+    "M_NVDA":  (("NVDA",), 35, -0.10, True, "ma5_run1", "above200", 10, "92%(12)", "75%(4)"),
+    "M_TSLA":  (("TSLA",), 35, -0.20, True, "ma5_run1", "down5", 10, "91%(11)", "67%(3)"),
+    "M_AMAT":  (("AMAT",), 30, -0.20, True, "ma5_run3", None, 20, "100%(8)", "100%(2)"),
+}
+
 # 코드 → (종류, 짧은 이름). 원장(hist)에는 코드만 쉼표로 남는다.
 CODES = {
     "T_HOUSE": ("trim", "주택: 상단 밖 + 거래량 1.5배"),
@@ -30,6 +46,13 @@ CODES = {
     "B_BBLO": ("bounce", "과매도 뒤 볼밴 하단 재진입"),
     "B_MA5": ("bounce", "과매도 뒤 5일선 안착(2일)"),
     "B_G520": ("bounce", "과매도 뒤 5·20일선 골든크로스"),
+    "M_SEMI": ("theme_buy", "반도체: RSI≤35·−10%·하단 밖 뒤 5일선 3일 안착 + 200일선 위"),
+    "M_IND": ("theme_buy", "산업재: RSI≤25·−20% 뒤 5일선 2일 안착"),
+    "M_HOUSE": ("theme_buy", "주택: RSI≤35·−10% 뒤 20·60일선 골든크로스"),
+    "M_QUANT": ("theme_buy", "양자: RSI≤30·−30%·하단 밖 뒤 하단 재진입 + 투매 거래량"),
+    "M_NVDA": ("theme_buy", "엔비디아: RSI≤35·−10%·하단 밖 뒤 5일선 회복 + 200일선 위"),
+    "M_TSLA": ("theme_buy", "테슬라: RSI≤35·−20%·하단 밖 뒤 5일선 회복 + 직전 5일 연속 하락"),
+    "M_AMAT": ("theme_buy", "어플라이드: RSI≤30·−20%·하단 밖 뒤 5일선 3일 안착"),
 }
 
 
@@ -143,6 +166,26 @@ def flag_series(o, h, l, c, v, ticker=""):
     out["B_BBLO"] = rec & _gt(c, bblo) & _lt(c1, _shift(bblo))
     out["B_MA5"] = rec & (run5 == 2)
     out["B_G520"] = rec & _gt(ma[5], ma[20]) & ~_gt(_shift(ma[5]), _shift(ma[20]))
+
+    # ── 테마별 저점 매수 규칙 (theme-patterns buy_combos의 triggers·features·oversold와 같은 정의) ──
+    trig = {
+        "ma5_run1": run5 == 1, "ma5_run2": run5 == 2, "ma5_run3": run5 == 3,
+        "g2060": _gt(ma[20], ma[60]) & ~_gt(_shift(ma[20]), _shift(ma[60])),
+        "bblo_reentry": _gt(c, bblo) & _lt(c1, _shift(bblo)),
+    }
+    vr5 = pd.Series(vr).rolling(5).max().to_numpy()
+    maxdr10 = pd.Series(_runlen(_lt(c, c1))).rolling(10).max().to_numpy()
+    feat = {"above200": _gt(c, ma[200]), "capitulation": _gt(vr5, 2 - 1e-9), "down5": _gt(maxdr10, 5 - 1e-9)}
+    for code, (tks, rt, ddt, band, tn, fn_, *_rest) in THEME_BUY.items():
+        if ticker not in tks:
+            continue
+        os_ = _lt(r14, rt + 1e-9) & _lt(off60, ddt + 1e-9)
+        if band:
+            os_ = os_ & _lt(c, bblo)
+        m = trig[tn] & _recent(os_, 20)
+        if fn_:
+            m = m & feat[fn_]
+        out[code] = m
     return out
 
 

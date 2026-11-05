@@ -49,6 +49,14 @@ def expected(df, ticker):
         "B_STOCH": T["스토캐스틱 K≤20 골든"] & rec, "B_BBLO": T["볼밴 하단 재진입"] & rec,
         "B_MA5": T["5일선 안착(2일 연속 위)"] & rec, "B_G520": T["5·20일선 골든크로스"] & rec,
     }
+    TN = {"ma5_run1": "5일선 회복(첫날)", "ma5_run2": "5일선 안착(2일 연속 위)", "ma5_run3": "5일선 안착(3일 연속 위)",
+          "g2060": "20·60일선 골든크로스", "bblo_reentry": "볼밴 하단 재진입"}
+    FN = {"above200": "200일선 위(장기 상승 중 눌림)", "capitulation": "투매 거래량(최근 5일 2배↑)", "down5": "직전 5일+ 연속 하락"}
+    Fe = tp.features(P)
+    for code, (tks, rt, ddt, band, tn, fn_, *_r) in pf.THEME_BUY.items():
+        if ticker in tks:
+            m = T[TN[tn]] & tp.recent(tp.oversold(P, rt, ddt, band), 20)
+            e[code] = m & Fe[FN[fn_]] if fn_ else m
     X = tt.prep(df); C = dict(tt.candles(X)); B = tt.band_trades(X, 20, 2)
     theme = pf.THEME_TRIM.get(ticker)
     if theme == "house":
@@ -60,9 +68,9 @@ def expected(df, ticker):
 
 def main():
     bad, hits = 0, {}
-    for seed in range(12):
+    for seed in range(30):
         df = synth(seed)
-        for tk in ("ITB", "IONQ", "AAPL"):
+        for tk in ("ITB", "IONQ", "AAPL", "SOXL", "CAT", "NVDA", "TSLA", "AMAT"):
             got = pf.flag_series(*(df[k].to_numpy() for k in ("Open", "High", "Low", "Close", "Volume")), ticker=tk)
             exp = expected(df, tk)
             if set(got) != set(exp):

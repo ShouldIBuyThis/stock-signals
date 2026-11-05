@@ -5239,13 +5239,20 @@ const PAT_INFO = {
   R_BLOW:["risk","블로우오프 대량 음봉"], R_MA20:["risk","20일선 +25% 이격"], R_MA200:["risk","200일선 +80% 이격"],
   R_PARA:["risk","포물선 뒤 20일선 첫 이탈"],
   B_STOCH:["bounce","스토캐스틱 K≤20 골든"], B_BBLO:["bounce","볼밴 하단 재진입"],
-  B_MA5:["bounce","5일선 안착 2일"], B_G520:["bounce","5·20 골든크로스"]
+  B_MA5:["bounce","5일선 안착 2일"], B_G520:["bounce","5·20 골든크로스"],
+  /* 테마별 저점 매수 규칙 — 다중 신호 보조 표시(등급·순위 불변). 정의 = pattern_flags.py THEME_BUY */
+  M_SEMI:["theme","반도체 규칙"], M_IND:["theme","산업재 규칙"], M_HOUSE:["theme","주택 규칙"],
+  M_QUANT:["theme","양자 규칙"], M_NVDA:["theme","엔비디아 규칙"], M_TSLA:["theme","테슬라 규칙"], M_AMAT:["theme","어플라이드 규칙"]
 };
 function patCodes(s){ return String((s && s.pat) || "").split(",").filter(c=>PAT_INFO[c]); }
 function patternBadges(s){
   const cs = patCodes(s); if(!cs.length) return [];
   const pick = k => cs.filter(c=>PAT_INFO[c][0]===k).map(c=>PAT_INFO[c][1]);
-  const out = [], t = pick("trim"), r = pick("risk"), b = pick("bounce");
+  const out = [], t = pick("trim"), r = pick("risk"), b = pick("bounce"), m = pick("theme");
+  if(m.length){
+    const multi = !!(s.sig && s.sig.grade===5 && typeof generalMultiGate==="function" && generalMultiGate(s));
+    out.push({key:"🎯 테마 저점 규칙(다중 보조)",text:"🎯 "+m.join(" · ")+(multi?" · 다중과 겹침":" · 다중 보조"),cls:"t-cool",explain:"테마규칙",why:m});
+  }
   if(t.length) out.push({key:"✂️ 일부 익절 후보",text:"✂️ 일부 익절 후보 · "+t.join(" · "),cls:"t-warn",explain:"패턴익절",why:t});
   if(r.length) out.push({key:"🌋 급락 위험(변동성)",text:"🌋 급락 위험(변동성) · "+r.join(" · "),cls:"t-warn",explain:"패턴위험",why:r});
   if(b.length) out.push({key:"🌱 저점 반등 후보",text:"🌱 저점 반등 후보 · "+b.join(" · "),cls:"t-cool",explain:"패턴반등",why:b});
@@ -6385,6 +6392,26 @@ function explainStyle(kind){
          그래서 비율보다 <b>평균</b>을 봤어요. 나스닥·엔비디아·테슬라·산업재·소프트웨어는 같은 매매가 <b>평균 손해</b>라 안 붙여요.
          앞 80% 기간으로 고르고 뒤 20%로 확인했을 때 75%를 넘긴 규칙은 <b>없었어요</b>(양자 뒤 20%: 67%, 6번).<br><br>
          ⚠ <b>점수·등급·순위에는 안 들어갑니다.</b> 이 표시가 뜬 날부터 원장에 그대로 쌓여, 나중에 실제 성적으로 다시 봅니다.`) + close);
+    return;
+  }
+  if (kind === "테마규칙"){
+    openModal(`<h3>🎯 테마 저점 규칙 (다중 보조)</h3>` +
+      P(`<b>한 줄 요약 — "이 테마에서 10년간 5번 이상 나왔고 대부분 올랐던 저점 반등 모양"이 오늘 나왔다는 표시예요.</b>
+         카드가 다중(강한매수 + 다중 관문)이면 '다중과 겹침'으로 적어요.<br><br>
+         규칙은 모두 <b>최근 20거래일 안 과매도</b>(RSI·60일 최고 종가 대비 낙폭·볼밴 하단 밖) 뒤 <b>반등 모양</b>이에요.
+         앞 80% 기간 → 마지막 20% 기간 적중(오른 비율, 같은 날은 1건)<br>
+         · 반도체(SOXL) — RSI 35↓·−10%·하단 밖 뒤 5일선 3일 안착 + 200일선 위 · 10일: <b>93%(15) → 75%(4)</b><br>
+         · 산업재(CAT·AIT) — RSI 25↓·−20% 뒤 5일선 2일 안착 · 20일: <b>100%(8) → 100%(1)</b><br>
+         · 주택(NAIL·ITB) — RSI 35↓·−10% 뒤 20·60일선 골든크로스 · 20일: <b>100%(9) → 100%(2)</b><br>
+         · 양자 — RSI 30↓·−30%·하단 밖 뒤 하단 재진입 + 최근 5일 투매 거래량 · 10일: <b>76%(17) → 100%(1)</b><br>
+         · 엔비디아 — RSI 35↓·−10%·하단 밖 뒤 5일선 회복 + 200일선 위 · 10일: <b>92%(12) → 75%(4)</b><br>
+         · 테슬라 — RSI 35↓·−20%·하단 밖 뒤 5일선 회복 + 직전 5일 연속 하락 · 10일: <b>91%(11) → 67%(3)</b><br>
+         · 어플라이드 — RSI 30↓·−20%·하단 밖 뒤 5일선 3일 안착 · 20일: <b>100%(8) → 100%(2)</b><br><br>
+         ⚠ <b>믿는 정도 — 낮아요.</b> 테마마다 조합 수천 개 중 가장 잘 맞은 것을 골랐기 때문에, 과거 성적이 부풀어 있어요.
+         같은 방법으로 고른 다른 테마(소프트웨어·데이터센터·나스닥)는 마지막 20%에서 0~56%로 무너져서 뺐고,
+         예측력이 없게 섞은 가격으로 돌려도 12개 중 2~3개가 이 정도로 나왔어요. 남긴 7개도 마지막 기간 표본이 1~4건뿐이에요.
+         또 이 성적은 <b>10~20거래일</b> 보유 기준이라, 다중 신호 검증표(+1·+3·+5일)와 기간이 달라요.<br><br>
+         ⚠ <b>점수·등급·순위에는 안 들어갑니다.</b> 뜬 날이 원장에 쌓이므로, 실제 성적이 쌓이면 다중 관문에 넣을지 그때 판단해요.`) + close);
     return;
   }
   if (kind === "패턴위험"){
