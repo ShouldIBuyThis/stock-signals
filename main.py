@@ -216,6 +216,7 @@ def _timing_code(v):
 
 # NYSE 실제 거래 세션. 주말뿐 아니라 미국 휴장일까지 한 곳에서 처리한다.
 _US_CAL = xcals.get_calendar("XNYS")
+_KR_CAL = xcals.get_calendar("XKRX")
 _NY = ZoneInfo("America/New_York")
 _KST = ZoneInfo("Asia/Seoul")
 
@@ -862,6 +863,27 @@ def latest_closed_us_session(now=None):
     return _session_str(session)
 
 
+def latest_closed_kr_session(now=None):
+    """휴장을 반영한 마지막 확정 한국(KRX) 거래일. 15:30 마감 전이면 직전 거래일.
+
+    2026-11-03·11-05: 야후가 국장 최신 거래일 일봉을 OHLC 없이(거래량만) 돌려줬는데, 국장은
+    신선도 검사 자체가 없어서 그 행이 drop_invalid_price_rows()에서 조용히 지워지고
+    '새 거래일 0행'으로 성공 처리됐다 → 11/3 국장 행이 원장에서 영구히 빠졌다.
+    미장과 같은 기준(가격이 든 마지막 날)으로 판정하려고 만든다."""
+    now = pd.Timestamp(now if now is not None else datetime.now(_KST))
+    if now.tzinfo is None:
+        raise ValueError("now must be timezone-aware")
+    day = now.tz_convert(_KST).date()
+    session = _KR_CAL.date_to_session(pd.Timestamp(day), direction="previous")
+    if now.tz_convert("UTC") < _KR_CAL.session_close(session):
+        session = _KR_CAL.previous_session(session)
+    return _session_str(session)
+
+
+def latest_closed_session_for(ticker, now=None):
+    return latest_closed_kr_session(now) if is_kr_ticker(ticker) else latest_closed_us_session(now)
+
+
 def _valid_last_day(frame):
     """가격(Close·High·Low)이 실제로 들어 있는 마지막 날짜. 야후가 OHLC를 비우고
     Volume만 준 행은 날짜가 최신이어도 '미갱신'으로 본다 — drop_invalid_price_rows()가
@@ -877,14 +899,14 @@ def _valid_last_day(frame):
     return idx[-1].strftime("%Y-%m-%d") if len(idx) else ""
 
 
-def _quote_bar(t, expected, prev_close):
+def _quote_bar(t, expected, prev_close, tz=None):
     """야후 시세(quote) 응답의 '정규장 확정값'으로 그날 일봉 한 개를 만든다.
 
     2026-10-01~10-07: 장 마감 4~5시간 뒤에도 야후 일봉(history)이 40여 종목의 최신 행을
     OHLC 없이(거래량만) 돌려줘 미국 갱신이 매일 실패했다. 같은 시각 quote 응답에는
     regularMarketOpen/DayHigh/DayLow/Price/Volume이 들어 있다 — 장 마감 뒤의 이 값은 그날
     정규장 확정값이다. 아래를 전부 만족할 때만 쓰고, 하나라도 어긋나면 None(기존처럼 실패)이다.
-      · regularMarketTime의 뉴욕 날짜 == 필요한 거래일(expected)
+      · regularMarketTime의 거래소 현지 날짜(미장 뉴욕, 국장 서울) == 필요한 거래일(expected)
       · 시가·고가·저가·종가가 유한한 양수이고 저가 ≤ 시가·종가 ≤ 고가
       · quote의 전일 종가가 우리 일봉의 직전 종가와 2% 이내(분할·다른 시계열 방지)
     """
@@ -899,7 +921,7 @@ def _quote_bar(t, expected, prev_close):
     ts = info.get("regularMarketTime")
     if not isinstance(ts, (int, float)):
         return None
-    if datetime.fromtimestamp(ts, _NY).strftime("%Y-%m-%d") != expected:
+    if datetime.fromtimestamp(ts, tz or _NY).strftime("%Y-%m-%d") != expected:
         return None
     o, h, l, c = (info.get(k) for k in ("regularMarketOpen", "regularMarketDayHigh",
                                         "regularMarketDayLow", "regularMarketPrice"))
@@ -927,10 +949,12 @@ def _patch_last_session(df, t, ticker, expected):
         return df
     # 직전 확정 종가 = 비어 있지 않은 마지막 행. 그 행이 expected 바로 앞 거래일이어야 한다
     # (이틀 이상 비면 하루만 채워서는 시계열이 맞지 않는다 — 기존처럼 실패시킨다).
-    if _session_str(_US_CAL.previous_session(pd.Timestamp(expected))) != valid_last:
+    kr = is_kr_ticker(ticker)
+    cal = _KR_CAL if kr else _US_CAL
+    if _session_str(cal.previous_session(pd.Timestamp(expected))) != valid_last:
         return df
     prev_close = float(df.loc[df.index.strftime("%Y-%m-%d") == valid_last, "Close"].iloc[-1])
-    bar = _quote_bar(t, expected, prev_close)
+    bar = _quote_bar(t, expected, prev_close, _KST if kr else _NY)
     if bar is None:
         return df
     out = df.copy()
@@ -970,7 +994,8 @@ def _fetch_daily(ticker, days_back=520):
     """
     t = yf.Ticker(ticker)
     df = t.history(period=PERIOD, interval="1d", auto_adjust=False)
-    expected = None if is_kr_ticker(ticker) else latest_closed_us_session()
+    # 국장도 미장과 같은 신선도 기준을 쓴다(예전에는 None — 2026-11-03 국장 행 유실의 원인).
+    expected = latest_closed_session_for(ticker)
     last_day = _valid_last_day
     stale = expected is not None and last_day(df) < expected
     if df is not None and len(df) >= 120 and not stale:
@@ -2217,6 +2242,15 @@ def main():
             print(f"::warning::숨은 입력 종가 지연, 직전 값 유지하고 진행: {', '.join(lagging_ok)}")
         if outdated:
             raise RuntimeError(f"미국 종가 미갱신 ({expected_us} 필요): {', '.join(outdated)}")
+    if RUN_SCOPE in ("kr", "all"):
+        # 2026-11-03 국장 행 유실 재발 방지: 미장과 같은 기준으로 '최신 확정 거래일'이 안 들어왔으면
+        # 성공으로 끝내지 않는다. 실패해야 17:00 KST 점검 작업이 한 번 더 돌린다.
+        # (예전에는 OHLC 빈 행이 조용히 지워지고 '새 거래일 0행'으로 성공 처리됐다)
+        expected_kr = latest_closed_kr_session()
+        outdated_kr = [r["ticker"] for r in results if is_kr_ticker(r["ticker"])
+                       and str(r.get("last_date") or "") < expected_kr]
+        if outdated_kr:
+            raise RuntimeError(f"국장 종가 미갱신 ({expected_kr} 필요): {', '.join(outdated_kr)}")
 
     # 신뢰도 검증의 실적 제외일도 과거 기록처럼 append-only로 고정한다.
     freeze_validation_earnings_dates(results, prev_rows)
