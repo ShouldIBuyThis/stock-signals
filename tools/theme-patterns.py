@@ -49,6 +49,8 @@ def prep(df):
         P[f"ma{n}"] = s.rolling(n).mean().to_numpy()
     sd = s.rolling(20).std(ddof=0).to_numpy()
     P["bbup"], P["bblo"] = P["ma20"] + 2 * sd, P["ma20"] - 2 * sd
+    sd1 = s.rolling(20).std(ddof=1).to_numpy()                      # 사이트(main.py)와 같은 표본 표준편차
+    P["bbup1"] = P["ma20"] + 2 * sd1
     trr = np.maximum(h - l, np.maximum(abs(h - shift(c)), abs(l - shift(c))))
     P["atr"] = pd.Series(trr).rolling(14).mean().to_numpy()
     rng = np.where(h - l > 0, h - l, np.nan)
@@ -204,6 +206,55 @@ def section_danger(U, pool, groups):
                     dd = P["dd60"][i]
                     ex.append(f"{t} {P['dates'][i]} {dn.split('(')[0]}{'' if np.isnan(dd) else f' → 60일 최저 {dd:+.0f}%'}")
     log("  최근 사례(2025-06~): " + " · ".join(ex[:40]))
+
+# ── ⑥ 고가 돌파 vs 종가 돌파 · 재진입을 '재매수'로 쓸지 '추가 매도'로 쓸지 ──────────────────
+def band_pats(P):
+    c, h, l, r, up = P["c"], P["h"], P["l"], P["rsi14"], P["bbup1"]
+    c1, h1, l1, up1, r1 = shift(c), shift(h), shift(l), shift(up), shift(r)
+    out_ = gt(c, up); run = tt.runlen(out_)
+    reent = ~gt(c, up) & gt(c1, up1)
+    hh3 = pd.Series(h).shift(1).rolling(3).max().to_numpy()
+    hh3b = pd.Series(h).shift(2).rolling(3).max().to_numpy()
+    return {
+        "고가만 상단 돌파(종가는 안)": gt(h, up) & ~gt(c, up),
+        "종가 상단 돌파 첫날": out_ & (run == 1),
+        "종가 상단 밖 3일째": out_ & (run == 3),
+        "재진입(종가가 밴드 안으로)": reent,
+        "재진입 + RSI 하락 전환": reent & lt(r, r1),
+        "재진입 + 직전 캔들 저점 이탈": reent & lt(c, l1),
+        "재진입 + 1~2일 고점 갱신 실패": reent & lt(h, hh3) & lt(h1, hh3b),
+    }
+
+def band_stats(U, ev):
+    if not ev:
+        return "—(0)"
+    a = lambda k: np.array([U[t][k][i] for t, i in ev])
+    f5, f10, dd = a("f5"), a("f10"), a("dd20")
+    return f"5일 하락 {round(np.mean(f5 < 0)*100)}% · 10일 하락 {round(np.mean(f10 < 0)*100)}% · 10일 평균 {np.mean(f10):+.1f}% · 20일 −10% 급락 {round(np.mean(dd <= -10)*100)}% ({len(ev)})"
+
+def section_band(U, pool, groups):
+    log("\n■ ⑥ 고가 기준 돌파 vs 종가 기준 돌파 · 재진입의 의미 (볼밴 20·2σ, 사이트와 같은 표본 표준편차)")
+    log("  재진입 줄의 '10일 하락'이 50% 아래·평균 플러스면 재진입 때 되사는 쪽(정원님 규칙)이, 위·마이너스면 재진입 때 더 파는 쪽이 맞다")
+    log("    " + "기준(아무 날)".ljust(36) + band_stats(U, collect(U, pool, lambda P: np.ones(len(P["c"]), bool), 10)))
+    for ctx_name, ctx in (("전체", None), ("RSI14≥70(당일 또는 전날)", lambda P: gt(P["rsi14"], 70 - 1e-9) | gt(shift(P["rsi14"]), 70 - 1e-9))):
+        log(f"  [{ctx_name}]")
+        if ctx is not None:
+            log("    " + "맥락만".ljust(36) + band_stats(U, collect(U, pool, ctx)))
+        for bn in band_pats(U[pool[0]]):
+            fn = (lambda P, bn=bn: band_pats(P)[bn]) if ctx is None else (lambda P, bn=bn, ctx=ctx: band_pats(P)[bn] & ctx(P))
+            log("    " + bn.ljust(36) + band_stats(U, collect(U, pool, fn)))
+    log("  테마별 10일 하락(건수) — 고가만 돌파+RSI70 / 종가 돌파 첫날+RSI70 / 재진입 / 재진입+저점 이탈 · 기준")
+    r70 = lambda P: gt(P["rsi14"], 70 - 1e-9) | gt(shift(P["rsi14"]), 70 - 1e-9)
+    def d10(tks, fn):
+        ev = collect(U, tks, fn)
+        return "—(0)" if not ev else f"{round(np.mean([U[t]['f10'][i] < 0 for t, i in ev])*100)}%({len(ev)})"
+    for g, tks in groups.items():
+        cells = [d10(tks, lambda P: band_pats(P)["고가만 상단 돌파(종가는 안)"] & r70(P)),
+                 d10(tks, lambda P: band_pats(P)["종가 상단 돌파 첫날"] & r70(P)),
+                 d10(tks, lambda P: band_pats(P)["재진입(종가가 밴드 안으로)"]),
+                 d10(tks, lambda P: band_pats(P)["재진입 + 직전 캔들 저점 이탈"]),
+                 d10(tks, lambda P: np.ones(len(P["c"]), bool))]
+        log(f"    {g.ljust(12)} " + " / ".join(cells))
 
 # ── ② 샛별십자형 ───────────────────────────────────────────────────────
 def star_pats(P):
@@ -388,6 +439,15 @@ def main():
         if df is not None and t in tt.STARTS:
             df = df[df.index >= tt.STARTS[t]]
         data[t] = df
+    if "--band" in sys.argv:
+        U = {t: prep(df) for t, df in data.items() if df is not None and len(df) > 260 and not t.startswith("^V")}
+        groups = {}
+        for t in U:
+            groups.setdefault(theme_of(t, wl), []).append(t)
+        groups = {g: v for g, v in groups.items() if g in SECTORS or g in EXTRA.values()}
+        section_band(U, [t for t in U if t not in DUP], groups)
+        log(f"\n(총 {time.time()-T0:.0f}초)")
+        return
     run(data, wl, quiet=False)
     if "--placebo" in sys.argv:
         k = int(sys.argv[sys.argv.index("--placebo") + 1])
