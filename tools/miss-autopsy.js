@@ -44,13 +44,13 @@ function extractConst(name){ const st=src.indexOf(`const ${name} =`); if(st<0) d
 
 /* evaluate()가 관문 통과 여부를 밖으로 알려주도록 반환값에 진단을 덧붙인다.
    산식 자체는 한 글자도 바꾸지 않는다 — 이미 계산된 지역변수를 실어 보낼 뿐이다. */
-const RET_ANCHOR = 'pullSetup, pullRelaxed, revStrong, cautionBadge, grade:g, type, line, tags, adj, overheat };';
+/* 반환 꼬리에 필드가 붙어도(v21) 깨지지 않게 'overheat' 뒤 나머지는 그대로 둔다(miss-report.js와 같은 방식). */
+const RET_ANCHOR = /(pullSetup, pullRelaxed, revStrong, cautionBadge, grade:g, type, line, tags, adj, overheat)([^{}]*?)\s*\};/;
 function patchedEvaluate(){
   let e = extractFunction('evaluate');
-  if(!e.includes(RET_ANCHOR)) die('evaluate 반환부 앵커를 못 찾음');
-  return e.replace(RET_ANCHOR, RET_ANCHOR.replace('overheat };',
-    'overheat, _gate:{pullSetup, pullScore, sectorOK, nearHighM, pullChase, ' +
-    'revScore, rsi, run3Eff, marketGuarded, cat:s.category, mkt:s.market_level} };'));
+  if(!RET_ANCHOR.test(e)) die('evaluate 반환부 앵커를 못 찾음');
+  return e.replace(RET_ANCHOR, (m, head, tail) => `${head}${tail}, _gate:{pullSetup, pullScore, sectorOK, nearHighM, pullChase, ` +
+    'revScore, rsi, run3Eff, marketGuarded, cat:s.category, mkt:s.market_level} };');
 }
 
 const OTHER = ['qqqRsiOn','washoutLevel','competitionRank','strategyOrdinalRank','volumeOrdinalRank','rankMapsFor','rankOf',

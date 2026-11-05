@@ -40,12 +40,14 @@ function extractFunction(name){
 function extractLine(re){ const m=src.match(re); if(!m) die(re); return m[0]; }
 function extractConst(name){ const st=src.indexOf(`const ${name} =`); if(st<0) die(name); return src.slice(st, src.indexOf(';',st)+1); }
 
-const RET_ANCHOR = 'pullSetup, pullRelaxed, revStrong, cautionBadge, grade:g, type, line, tags, adj, overheat };';
+/* 반환 객체 꼬리에 필드가 붙어도(v21: nqRebound·regimeCapped) 깨지지 않게 'overheat' 뒤 나머지를 그대로 둔다.
+   2026-10-07~11-05 고정 문자열 앵커가 깨져 reports/실패학습.md가 빈 파일로 나갔다. */
+const RET_ANCHOR = /(pullSetup, pullRelaxed, revStrong, cautionBadge, grade:g, type, line, tags, adj, overheat)([^{}]*?)\s*\};/;
 function patchedEvaluate(){
   let e = extractFunction('evaluate');
-  if(!e.includes(RET_ANCHOR)) die('evaluate 반환부 앵커를 못 찾음');
-  return e.replace(RET_ANCHOR, RET_ANCHOR.replace('overheat };',
-    'overheat, _gate:{pullSetup, pullScore, sectorOK, nearHighM, pullChase, revScore, rsi, run3Eff} };'));
+  if(!RET_ANCHOR.test(e)) die('evaluate 반환부 앵커를 못 찾음');
+  return e.replace(RET_ANCHOR, (m, head, tail) =>
+    `${head}${tail}, _gate:{pullSetup, pullScore, sectorOK, nearHighM, pullChase, revScore, rsi, run3Eff} };`);
 }
 
 const OTHER = ['qqqRsiOn','washoutLevel','competitionRank','strategyOrdinalRank','volumeOrdinalRank','rankMapsFor','rankOf',
