@@ -1309,6 +1309,7 @@ function normalize(raw){
       market_ret20: num(it.market_ret20), atr_pct: num(it.atr_pct),
       market_vxn: num(it.market_vxn),   /* 그날의 VXN — v12 가점 입력. 빠지면 오늘 카드만 가점이 죽는다 */
       ext_pair: num(it.ext_pair), ext_root: num(it.ext_root),   /* 외부 산식 근사 표시(페어 리버설·Root 타격) — 표시 전용 */
+      pat: (typeof it.pat === "string") ? it.pat : "",   /* 2026-11-05 패턴 뱃지 코드 — 표시 전용(patternBadges) */
       /* 진입 위치(Positioning) 파생값 — 빠뜨리면 오늘 카드에서만 관련 로직이 통째로 죽는다 */
       ma20_slope: num(it.ma20_slope), run5_max: num(it.run5_max), run3_sum: num(it.run3_sum),
       range3: num(it.range3), range10: num(it.range10), vol3_ratio: num(it.vol3_ratio),
@@ -2179,7 +2180,8 @@ const HIST_FIELDS_DEFAULT = ["date","price","change_1d","ma5","ma10","ma20","ma5
   "market_level","market_weak","market_ret20","market_events",
   "low_52w","pct_from_low","ma120","ma200","ma200_slope",
   "gap_pct","gap20_pct","gap20_ago","gap20_vol","gap20_fill",
-  "w_rsi","w_ma20_pos","w_streak","m_ma6_pos","m_streak","market_vxn","ext_pair","ext_root"];
+  "w_rsi","w_ma20_pos","w_streak","m_ma6_pos","m_streak","market_vxn","ext_pair","ext_root",
+  "upw","loww","body","bb_hi_pos","pat"];
 /* 화면 문구에 쓰는 '최근 N거래일'. 데이터의 실제 이력 길이를 따른다.
    main.py의 HIST_DAYS를 바꾸면 문구가 자동으로 따라간다. */
 function histWindowDays(){
@@ -2310,6 +2312,8 @@ function histRow(s, row, i, total){
     w_rsi: num(o.w_rsi), w_ma20_pos: num(o.w_ma20_pos), w_streak: num(o.w_streak),
     m_ma6_pos: num(o.m_ma6_pos), m_streak: num(o.m_streak),
     market_vxn: num(o.market_vxn),   /* 그날의 VXN — 화이트리스트에 꼭 있어야 보인다 */
+    upw: num(o.upw), loww: num(o.loww), body: num(o.body), bb_hi_pos: num(o.bb_hi_pos),   /* 2026-11-05 캔들 모양 */
+    pat: (typeof o.pat === "string") ? o.pat : null,   /* 2026-11-05 표시 전용 패턴 뱃지 코드(pattern_flags.py) */
     /* v21 — 저장 필드가 아니라 같은 hist에서 날짜로 센 값. 구형 도구(함수만 추출)에서는 null → 규칙이 꺼진다 */
     market_breadth: (typeof marketBreadthOn === "function") ? marketBreadthOn(o.date) : null,
     qqq_streak: (typeof qqqStreakOn === "function") ? qqqStreakOn(o.date) : null,
@@ -5227,9 +5231,30 @@ function flowSignal(s){
   for(let j = i; j > 0; j--){ const c = num(hs[j].price), p = num(hs[j-1].price); if(!has(c) || !has(p) || !(c > p)) break; up++; }
   return { inflow: n ? Math.round(inflow * 100) / 100 : null, up };
 }
+/* 2026-11-05 패턴 뱃지 — 표시 전용. 점수·등급·순위에는 안 들어간다.
+   판정은 main.py가 pattern_flags.py로 하고 코드만 원장(pat)에 남긴다. 화면은 코드를 읽기만 한다.
+   근거 수치: docs/2026-11-05-theme-patterns.md (10년 89종목, 같은 날 같은 종목 묶음 10일 쿨다운) */
+const PAT_INFO = {
+  T_HOUSE:["trim","상단 밖 + 거래량 1.5배"], T_QUANTUM:["trim","상단 밖 + 음봉·윗꼬리·교수형·별"],
+  R_BLOW:["risk","블로우오프 대량 음봉"], R_MA20:["risk","20일선 +25% 이격"], R_MA200:["risk","200일선 +80% 이격"],
+  R_PARA:["risk","포물선 뒤 20일선 첫 이탈"],
+  B_STOCH:["bounce","스토캐스틱 K≤20 골든"], B_BBLO:["bounce","볼밴 하단 재진입"],
+  B_MA5:["bounce","5일선 안착 2일"], B_G520:["bounce","5·20 골든크로스"]
+};
+function patCodes(s){ return String((s && s.pat) || "").split(",").filter(c=>PAT_INFO[c]); }
+function patternBadges(s){
+  const cs = patCodes(s); if(!cs.length) return [];
+  const pick = k => cs.filter(c=>PAT_INFO[c][0]===k).map(c=>PAT_INFO[c][1]);
+  const out = [], t = pick("trim"), r = pick("risk"), b = pick("bounce");
+  if(t.length) out.push({key:"✂️ 일부 익절 후보",text:"✂️ 일부 익절 후보 · "+t.join(" · "),cls:"t-warn",explain:"패턴익절",why:t});
+  if(r.length) out.push({key:"🌋 급락 위험(변동성)",text:"🌋 급락 위험(변동성) · "+r.join(" · "),cls:"t-warn",explain:"패턴위험",why:r});
+  if(b.length) out.push({key:"🌱 저점 반등 후보",text:"🌱 저점 반등 후보 · "+b.join(" · "),cls:"t-cool",explain:"패턴반등",why:b});
+  return out;
+}
 function flowBadges(s){
-  const f = flowSignal(s); if(!f || s.earnings_hold) return [];
-  const out = [];
+  const pb = patternBadges(s);
+  const f = flowSignal(s); if(!f || s.earnings_hold) return pb;
+  const out = pb.slice();
   if(has(f.inflow) && f.inflow <= -1)
     out.push({key:"🫗 매도 소진",text:`🫗 매도 소진 ${f.inflow}`,cls:"t-good",explain:"매도소진"});
   /* 외부 산식 근사 표시(docs/외부-산식-후보.md) — 점수·등급에는 안 들어간다. 3년 일봉 근사 실측:
@@ -6344,6 +6369,54 @@ function explainStyle(kind){
          손절폭 2배 목표 선착 <b>57%</b>였어요.<br><br>
          ⚠ <b>점수·등급·순위에는 안 들어갑니다.</b> 원래 기법은 분봉으로 보는데 저희는 <b>일봉 근사</b>예요.
          참고 표시로만 쓰고 판단은 <b>카드 등급</b>으로 하세요.`) + close);
+    return;
+  }
+  if (kind === "패턴익절"){
+    openModal(`<h3>✂️ 일부 익절 후보</h3>` +
+      P(`<b>한 줄 요약 — "볼밴 위로 찢고 나간 자리에서 일부만 덜어 둘 만한 캔들이 나왔다"는 표시예요.</b><br><br>
+         정원님 규칙 그대로 쟀어요: 종가가 볼린저(20일, 2σ) <b>상단 밖</b>에서 조금 팔고, 종가가 <b>밴드 안으로 돌아온 날</b> 되사기.
+         밖에 나가 있는 동안 <b>처음</b> 나온 그 캔들 하루에만 붙어요.<br><br>
+         <b>10년 실측이 평균 이익이었던 테마에만 붙입니다</b> (괄호는 횟수, 평균은 왕복 수수료 0.2% 뺀 값)<br>
+         · <b>주택건설(NAIL·ITB)</b> — 상단 밖 + 거래량 1.5배: 되산 값이 판 값보다 쌌던 경우 <b>69%(73번) · 평균 +1.5%</b>
+           (조건 없이 상단 밖이면 58% · +0.7%)<br>
+         · <b>양자(IONQ·RGTI·QBTS·QUBT·INFQ)</b> — 상단 밖에서 첫 음봉 68%(48) +3.0% · 윗꼬리 50%↑ 58%(44) +3.5% ·
+           교수형 70%(22) +4.6% · 큰 양봉 다음 날 별 69%(26) +3.8% (조건 없이 상단 밖이면 57% · −0.1%)<br><br>
+         ⚠ <b>믿는 정도</b> — 이 매매는 <b>무작위 가격에서도 54~60%가 이익</b>으로 나와요(밴드가 가격을 따라 올라오니까).
+         그래서 비율보다 <b>평균</b>을 봤어요. 나스닥·엔비디아·테슬라·산업재·소프트웨어는 같은 매매가 <b>평균 손해</b>라 안 붙여요.
+         앞 80% 기간으로 고르고 뒤 20%로 확인했을 때 75%를 넘긴 규칙은 <b>없었어요</b>(양자 뒤 20%: 67%, 6번).<br><br>
+         ⚠ <b>점수·등급·순위에는 안 들어갑니다.</b> 이 표시가 뜬 날부터 원장에 그대로 쌓여, 나중에 실제 성적으로 다시 봅니다.`) + close);
+    return;
+  }
+  if (kind === "패턴위험"){
+    openModal(`<h3>🌋 급락 위험(변동성)</h3>` +
+      P(`<b>한 줄 요약 — "오를지 내릴지가 아니라, 크게 흔들릴 자리"라는 표시예요.</b> 고전적인 버블 꼭지 모양 네 가지 중 하나가 오늘 나왔어요.<br><br>
+         10년 · 89종목 실측 (20일 안 −15% 급락 / 60일 안 −25% 폭락 / 10일 뒤 하락)<br>
+         · 아무 날: <b>18% / 17% / 44%</b><br>
+         · 블로우오프 대량 음봉(60일 +50% 오른 뒤 거래량 2배 −3% 음봉): <b>49% / 47% / 47%</b> (95번)<br>
+         · 20일선보다 25% 위: <b>51% / 49% / 46%</b> (675번)<br>
+         · 200일선보다 80% 위: <b>50% / 48% / 47%</b> (718번)<br>
+         · 포물선(60일 +50%) 뒤 20일선 첫 이탈: <b>38% / 37% / 46%</b> (877번)<br><br>
+         <b>읽는 법</b> — 급락 확률은 평소의 <b>2~3배</b>인데, 10일 뒤 내려가 있을 확률은 <b>평소와 거의 같고</b> 20일 평균은 오히려 +6~11%였어요.
+         즉 <b>"팔아라"가 아니라 "위아래로 크게 흔든다"</b>는 경고예요. 레버리지·비중을 줄이거나 손절선을 가깝게 두는 용도로 쓰세요.<br><br>
+         참고로 고점의 <b>연속 윗꼬리·샛별십자</b>는 급락 확률 14~17%로 <b>평소(18%)와 같았어요</b> — 그건 위험 신호가 아니라 일부 익절 캔들 쪽입니다.<br><br>
+         ⚠ <b>점수·등급·순위에는 안 들어갑니다.</b>`) + close);
+    return;
+  }
+  if (kind === "패턴반등"){
+    openModal(`<h3>🌱 저점 반등 후보</h3>` +
+      P(`<b>한 줄 요약 — "최근 크게 과매도됐던 종목이 돌아서는 첫 모양을 보였다"는 표시예요.</b><br><br>
+         조건: 최근 20거래일 안에 <b>과매도</b>(RSI14 30 이하 · 종가가 볼밴 하단 밖 · 60일 최고 종가 대비 −15% 이하)가 있었고,
+         오늘 아래 신호 중 하나가 떴을 때.<br><br>
+         10년 · 89종목, 신호일 종가에 샀을 때 20일 뒤 (오른 비율 · 평균)<br>
+         · 아무 날: <b>58% · +3.2%</b><br>
+         · 스토캐스틱 K 20 이하에서 골든: <b>62% · +7.4%</b> (754번)<br>
+         · 볼밴 하단 재진입: <b>63% · +6.1%</b> (687번)<br>
+         · 5일선 안착(2일 연속 위): <b>62% · +4.8%</b> (804번)<br>
+         · 5·20일선 골든크로스: <b>58% · +4.2%</b> (546번) — 전체로는 평소와 같지만 나스닥 94%(16번)·산업재 76%(21번)에서 강했어요<br><br>
+         ⚠ <b>믿는 정도</b> — 평소보다 <b>조금</b> 나은 정도예요. 20일 안에 한 번 더 평균 −10~11% 흔들었어요(아무 날 −8%).
+         한 번에 다 사지 말고 나눠서. 앞 80%로 고르고 뒤 20%로 확인했을 때 75%를 넘긴 조합은 <b>없었어요</b>(무작위 대조와 구별 안 됨).
+         양자(45%, 44번)·엔비디아(43%, 7번)는 5일선 안착 뒤 오른 비율이 절반도 안 됐어요.<br><br>
+         ⚠ <b>점수·등급·순위에는 안 들어갑니다.</b>`) + close);
     return;
   }
   if (kind === "연속상승"){

@@ -14,6 +14,7 @@ import sys
 import yfinance as yf
 import pandas as pd
 import numpy as np
+import pattern_flags
 import json
 import exchange_calendars as xcals
 from datetime import datetime, date, timedelta, time as dtime
@@ -89,7 +90,16 @@ HIST_FIELDS = ["date","price","change_1d","ma5","ma10","ma20","ma50","ma60","rsi
                #   ext_root  Root 타격 근사 — 20봉 저점 스윕 복귀 → 2봉 안 변위 양봉 → 5봉 안
                #             되돌림 확인 종가가 된 날 (1/0). 3년 실측 74건 57/68/68/68 · 103건 60/64/62/70.
                # 점수·등급에는 쓰지 않는다. 카드 표시와 원장 축적용.
-               "ext_pair", "ext_root"]
+               "ext_pair", "ext_root",
+               # 2026-11-05 확장: 캔들 모양(사용자 요청 '볼밴 찢으며 윗꼬리·아랫꼬리·샛별형' 실시간 기록용).
+               #   upw/loww/body  윗꼬리·아랫꼬리·몸통이 그날 고가−저가에서 차지하는 비율(0~1)
+               #   bb_hi_pos      고가의 볼린저 위치(bb_pos와 같은 %B, 100 초과 = 고가가 상단 밖)
+               # 꼬리 확장이라 옛 행은 짧을 뿐이다. 점수·등급에는 쓰지 않는다(표시·원장 축적).
+               "upw", "loww", "body", "bb_hi_pos",
+               # 2026-11-05 확장: 표시 전용 패턴 뱃지 코드(쉼표 구분, 없으면 ""). 정의 = pattern_flags.py
+               #   (연구 tools/theme-trim.py·theme-patterns.py와 봉 단위 대조: tools/test_pattern_flags.py).
+               #   익절 후보 T_* · 급락 위험 R_* · 저점 반등 후보 B_*. 점수·등급에는 쓰지 않는다.
+               "pat"]
 
 # freeze 단계에서 옛 행에 뒤늦게 채워 넣는 열. 이미 값이 있으면 절대 덮지 않는다.
 HIST_BACKFILL_FIELDS = ["atr_pct", "market_level", "market_weak", "market_ret20", "market_events", "market_vxn"]
@@ -1268,6 +1278,13 @@ def analyze(ticker, name, category):
     ma120 = close.rolling(120).mean()
     ma200 = close.rolling(200).mean()
     rsi = wilder_rsi(close)
+    # 표시 전용 패턴 뱃지(pattern_flags.py) — 시가가 없는 피드는 기록하지 않는다.
+    try:
+        pat_series = (pattern_flags.flag_series(op.values, high.values, low.values, close.values, vol.values, ticker)
+                      if op is not None else None)
+    except Exception as e:
+        print(f"  ⚠ {ticker} 패턴 뱃지 계산 실패: {e}")
+        pat_series = None
     ema12, ema26 = close.ewm(span=12, adjust=False).mean(), close.ewm(span=26, adjust=False).mean()
     macd = ema12 - ema26; sig = macd.ewm(span=9, adjust=False).mean()
     std = close.rolling(20).std(); upper, lower = ma20 + 2*std, ma20 - 2*std
@@ -1358,6 +1375,17 @@ def analyze(ticker, name, category):
                 break
         bw = (upper.iloc[i] - lower.iloc[i])
         bb = ((c_i - lower.iloc[i]) / bw * 100) if bw and bw > 0 else None
+        # 캔들 모양 — 그날 OHLC만 쓴다. 시가가 없는 피드는 None.
+        h_i, l_i = float(high.iloc[i]), float(low.iloc[i])
+        o_i = float(op.iloc[i]) if op is not None else None
+        rng_i = h_i - l_i
+        if o_i is not None and np.isfinite(o_i) and np.isfinite(rng_i) and rng_i > 0:
+            upw_i = (h_i - max(o_i, c_i)) / rng_i
+            loww_i = (min(o_i, c_i) - l_i) / rng_i
+            body_i = abs(c_i - o_i) / rng_i
+        else:
+            upw_i = loww_i = body_i = None
+        bb_hi = ((h_i - lower.iloc[i]) / bw * 100) if bw and bw > 0 else None
         va = vavg.iloc[i]
         vr = (vol.iloc[i] / va) if va and va > 0 else None
         chg = (c_i / close.iloc[i-1] - 1) * 100 if len(close) >= abs(i)+1 else None
@@ -1465,6 +1493,8 @@ def analyze(ticker, name, category):
             "m_ma6_pos": safe(m_ma6_pos, 1), "m_streak": m_streak,
             "ext_pair": ext_pair_reversal(close.values, high.values, low.values, end),
             "ext_root": ext_root_strike(close.values, high.values, low.values, (op.values if op is not None else None), end),
+            "upw": safe(upw_i, 2), "loww": safe(loww_i, 2), "body": safe(body_i, 2), "bb_hi_pos": safe(bb_hi),
+            "pat": (pattern_flags.flags_at(pat_series, i) if pat_series is not None else None),
             "last_date": df.index[i].strftime("%Y-%m-%d"),
         }
 
@@ -1508,6 +1538,7 @@ SNAPSHOT_FIELDS = [
     "w_rsi", "w_ma20_pos", "w_streak", "m_ma6_pos", "m_streak",
     "market_vxn",
     "ext_pair", "ext_root",
+    "upw", "loww", "body", "bb_hi_pos", "pat",
 ]
 
 def _storage_row(r, mkt):
