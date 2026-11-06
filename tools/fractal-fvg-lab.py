@@ -22,6 +22,14 @@ import pattern_flags as pf
 def _load(name, fn):
     s = importlib.util.spec_from_file_location(name, f"{ROOT}/tools/{fn}"); m = importlib.util.module_from_spec(s); s.loader.exec_module(m); return m
 tr = _load("tr", "theme-research.py")
+# 2026-11-06 정정: 저장소에 이미 페어 리버설 근사 산식이 있다(main.py ext_pair_reversal · docs/외부-산식-후보.md §1 ·
+#   원장 ext_pair 열). 처음 판에서 쓴 FVG 반전은 내 임의 해석이었다 → 여기서는 main.py 함수를 문자열로 가져와 그대로 쓴다(§0).
+import ast as _ast
+_src = open(f"{ROOT}/main.py", encoding="utf-8").read(); _ns = {"np": np}
+for _n in _ast.parse(_src).body:
+    if isinstance(_n, _ast.FunctionDef) and _n.name in ("_swing_highs_lows", "ext_pair_reversal"):
+        exec(_ast.get_source_segment(_src, _n), _ns)
+ext_pair_reversal = _ns["ext_pair_reversal"]
 ss = _load("ss", "signal-stats.py")
 H, COOL = (3, 5, 10), 10
 
@@ -47,7 +55,10 @@ def feats(o, h, l, c):
         if hit: fvg_rev[i] = True
         tops = [t for t in tops if not (c[i] > t[1]) and i - t[0] <= 20]
         if h[i] < l[i-2]: tops.append((i, l[i-2]))
-    return {"FR_LOW": recent(frl, 3), "FR_BRK": frb, "FVG_REV": recent(fvg_rev, 1), "FVG_UP": fvg_up,
+    pair = np.zeros(N, bool)
+    for i in range(81, N):
+        pair[i] = ext_pair_reversal(c, h, l, i + 1) == 1          # i봉 종가 기준 판정(main.py와 같은 함수)
+    return {"PAIR": pair, "PAIR3": recent(pair, 3), "FR_LOW": recent(frl, 3), "FR_BRK": frb, "FVG_REV": recent(fvg_rev, 1), "FVG_UP": fvg_up,
             "FR_LOW_raw": frl, "FVG_REV3": recent(fvg_rev, 3)}
 
 BOUNCE = {"B_STOCH", "B_BBLO", "B_MA5", "B_G520"}
@@ -79,9 +90,10 @@ def main():
         P = {"오늘 뜬 것(B_MA5∪B_STOCH)": any_of(ser, TODAY, N), "과매도 반등 4종": any_of(ser, BOUNCE, N),
              "🟢 보드 반등 6종": any_of(ser, GREEN, N), "🔵 추세 5종": any_of(ser, BLUE, N), "매수 패턴 전부": any_of(ser, ALLBUY, N)}
         S = {"기준선(5일마다)": np.isin(np.arange(N), np.arange(0, N, 5))}
-        for k in ("FR_LOW", "FR_BRK", "FVG_REV", "FVG_UP"): S[f"{k} 단독"] = F[k]
+        for k in ("PAIR", "FR_LOW", "FR_BRK", "FVG_REV", "FVG_UP"): S[f"{k} 단독"] = F[k]
         for pn, pm in P.items():
             S[pn] = pm
+            S[f"{pn} ∩ 페어 리버설(3일 내 · 사이트 근사)"] = pm & F["PAIR3"]
             S[f"{pn} ∩ 프랙탈 저점(3일 내)"] = pm & F["FR_LOW"]
             S[f"{pn} ∩ 프랙탈 고점 돌파"] = pm & recent(F["FR_BRK"], 3)
             S[f"{pn} ∩ FVG 반전(3일 내)"] = pm & F["FVG_REV3"]
