@@ -101,6 +101,7 @@ def summarize(evs, kind, base_up, cut, base_reg=None, pval=None):
             "hit10": hit(done), "hit5": hit(done, 3),
             "avg": {str(k): float(np.nanmean([r[2 + i] for r in done])) for i, k in enumerate(H)},
             "adverse10": float(np.nanmean([r[6] if up else r[7] for r in done])),
+            "adverse10_med": float(np.nanmedian([r[6] if up else r[7] for r in done])),
             "avg_win": float(wins.mean()) if len(wins) else 0.0, "avg_loss": float(-losses.mean()) if len(losses) else 0.0,
             "front": {"n": len(fr), "hit10": hit(fr)}, "back": {"n": len(bk), "hit10": hit(bk)},
             "hit10_close": hit([r for r in done if not np.isnan(r[8])], 8),

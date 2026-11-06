@@ -658,6 +658,16 @@ html[data-theme="dark"] .badge.gOh,html[data-theme="dark"] .c-badge.gOh,html[dat
 .cr-row.cr-good .cr-list{font-size:13px}.cr-row.cr-bad .cr-list{color:#c0262d}
 .cr-more{margin-top:8px;font-size:11px;color:var(--muted)}.cr-more summary{cursor:pointer}
 .cr-more div{margin:3px 0;line-height:1.5}
+/* 단순화된 신호 줄 · 배지 */
+.vb{display:inline-block;font-size:10.5px;font-weight:700;border-radius:6px;padding:1px 6px;white-space:nowrap}
+.vb-g{background:#dcfce7;color:#15803d}.vb-y{background:#fff3bf;color:#8a6d00}.vb-n{background:#eef0f3;color:#6b7280}
+.sb-item>summary{gap:3px 7px}.sb-ic{font-size:13px}.sb-thumb{display:inline-flex;align-items:center;min-width:4px}
+.sb-item>summary .sb-hit{margin-left:auto;color:var(--text,#111);font-size:12px}
+.sb-nums{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;margin:6px 0}.sb-nums div{background:var(--card,#fff);border-radius:8px;padding:6px 8px}
+.sb-nums span{display:block;font-size:11px;color:var(--muted)}.sb-nums b{font-size:14px}.sb-nums small{font-weight:400;color:var(--muted)}
+.sb-act{font-size:13px;margin:6px 0}.sb-note{font-size:12px;line-height:1.6;margin:6px 0;color:var(--text,#111)}
+.rs-box{border:1px solid var(--line,#e5e7eb);border-radius:12px;padding:8px 10px;background:var(--card,#fff)}.rs-box>summary{cursor:pointer;font-size:14px}
+.up-cmp>summary{cursor:pointer;font-size:12px;color:var(--muted);padding:3px 0}
 /* 🕯 캔들 그림 */
 .edu-glyph{vertical-align:middle;flex:none}.edu-big,.rc-big{background:none;border:0;padding:0;cursor:zoom-in;display:inline-block}.rc-big{width:100%}
 .edu-row{display:flex;gap:10px;align-items:center;padding:6px 0;border-top:1px dashed var(--line,#e5e7eb)}.edu-d{font-size:13px;line-height:1.5}
@@ -4370,7 +4380,7 @@ function eduGlyph(name, scale){
 function eduBlockHtml(codes){
   const names = [...new Set(codes.map(c=>CODE_EDU[c]).filter(Boolean))];
   if(!names.length) return "";
-  return `<details class="sb-sec2"><summary>🕯 이 캔들 모양 설명 보기 <small>교육용 예시</small></summary>
+  return `<details class="sb-sec2"><summary>🕯 캔들 모양 뜻 <small>교육용 그림</small></summary>
     ${names.map(n=>`<div class="edu-row"><button class="edu-big" data-edubig="${esc(n)}" title="눌러서 크게">${eduGlyph(n, 2)}</button>
       <div><b>${esc(n)}</b> <small class="edu-tag">교육용 예시</small><div class="edu-d">${esc(CANDLE_EDU[n].d)}</div></div></div>`).join("")}
   </details>`;
@@ -4400,31 +4410,34 @@ function realChartSvg(s, big){
 function realChartBlock(s){
   const svg = realChartSvg(s, false);
   if (!svg) return `<details class="sb-sec2"><summary>📈 실제 캔들 차트 보기 <small>실제 발생 사례</small></summary><div class="sb-empty">이 종목의 최근 일봉 데이터가 다음 갱신부터 들어와요.</div></details>`;
-  return `<details class="sb-sec2"><summary>📈 실제 캔들 차트 보기 <small>실제 발생 사례 · 최근 40거래일</small></summary>
+  return `<details class="sb-sec2"><summary>📈 실제 차트 보기 <small>실제 가격 · 최근 40일</small></summary>
     <button class="rc-big" data-rcbig="${esc(s.ticker)}" title="눌러서 크게">${svg}</button>
     <div class="rc-legend"><span style="color:#e5484d">▮ 양봉</span> <span style="color:#3b82f6">▮ 음봉</span> <span style="color:#f59e0b">━ 볼린저(20, 2σ)</span> <span>▼ 신호일</span> · 아래 막대 = 거래량</div>
-    <div class="up-cmp"><label class="up-btn">📷 내 캔들 스크린샷과 비교<input type="file" accept="image/*" data-upcmp="${esc(s.ticker)}" hidden></label>
+    <details class="up-cmp"><summary>📷 내 캔들 스크린샷과 비교</summary><label class="up-btn">그림 고르기<input type="file" accept="image/*" data-upcmp="${esc(s.ticker)}" hidden></label>
       <div class="up-out" data-upout="${esc(s.ticker)}"></div>
-      <small>올린 그림은 이 화면에만 잠깐 보이고 어디에도 저장되지 않아요(새로고침하면 사라짐).</small></div>
+      <small>올린 그림은 이 화면에만 잠깐 보이고 저장되지 않아요.</small></details>
   </details>`;
 }
 /* 원장 실제 추적 — 앞으로 뜨는 신호를 날짜별로 기록해 '다음 날 시가 체결 → 10거래일 뒤 종가' 성적을 센다 */
-function ledgerTrack(code, kind){
+function ledgerTrack(code, kind, h){
+  /* h = 그 규칙의 평가 기간(5일 규칙은 5거래일, 나머지 10거래일) — 2026-11-06 정합성 점검 */
+  h = h || 10;
   const d = state.data; if(!d) return null;
   d._ltrack = d._ltrack || {};
-  if (d._ltrack[code]) return d._ltrack[code];
+  const key = code+"|"+h;
+  if (d._ltrack[key]) return d._ltrack[key];
   const F = histFields(), iD = F.indexOf("date"), iP = F.indexOf("price"), iPat = F.indexOf("pat"), iO = F.indexOf("open");
   const up = kind==="green" || kind==="blue";
   let done = [], pend = 0, first = null;
   (d.stocks||[]).forEach(st=>{ const hs = st._hist || [];
     hs.forEach((r,i)=>{ if(!Array.isArray(r) || iPat<0 || !String(r[iPat]||"").split(",").includes(code)) return;
       if(!first || r[iD] < first) first = r[iD];
-      if (i+10 >= hs.length){ pend++; return; }
-      const e = iO>=0 && has(hs[i+1][iO]) ? hs[i+1][iO] : null, x = hs[i+10][iP];
+      if (i+h >= hs.length){ pend++; return; }
+      const e = iO>=0 && has(hs[i+1][iO]) ? hs[i+1][iO] : null, x = hs[i+h][iP];
       if (!has(e) || !has(x)) { pend++; return; }
       done.push((x/e-1)*100); }); });
   const hit = done.length ? done.filter(v=> up ? v>0 : v<0).length/done.length : null;
-  return (d._ltrack[code] = {n:done.length, hit, avg: done.length ? done.reduce((a,b)=>a+b,0)/done.length : null, pend, first});
+  return (d._ltrack[key] = {n:done.length, hit, avg: done.length ? done.reduce((a,b)=>a+b,0)/done.length : null, pend, first, h});
 }
 /* ══════════ 🚦 오늘의 신호 보드 (2026-11-06 사용자 지시 — 두 번째 화면 재설계) ══════════
    "어떤 종목에, 무슨 반등 또는 위험 신호가 떴고, 과거에는 얼마나 잘 맞았으며, 지금 어떤 행동을 고려해야 하나"를 3초 안에.
@@ -4467,7 +4480,7 @@ const SB_NAMES = {   /* signal-stats.json이 없을 때 쓰는 이름(정의는 
   T_HOUSE:"주택: 상단 밖 + 거래량 1.5배", T_QUANTUM:"양자: 상단 밖 + 음봉·윗꼬리·교수형·별", R_MA20:"20일선 이격 +25%", R_MA200:"200일선 이격 +80%",
   X_ESTAR:"고점 석별형(하락반전)", X_TOPBEAR:"고점 장대음봉", X_SUPBREAK:"거래량 동반 지지선 붕괴", X_DIVDN:"고점 RSI 하락 다이버전스", X_MA60:"60일선 하향 이탈(20일선 하락 중)",
   R_PARA:"포물선 뒤 20일선 첫 이탈", R_BLOW:"블로우오프 대량 음봉", D_SEMI:"반도체: 볼밴 상단 밖 십자형", D_SKH:"SK하이닉스: 고가 돌파 + 긴 윗꼬리", D_QUANT:"양자: 볼밴 위 체류 뒤 첫 재진입(VXN≥25)",
-  M_SEMI:"반도체 저점 규칙", M_IND:"산업재 저점 규칙", M_HOUSE:"주택 저점 규칙", M_QUANT:"양자 저점 규칙", M_NVDA:"엔비디아 저점 규칙", M_TSLA:"테슬라 저점 규칙", M_AMAT:"어플라이드 저점 규칙",
+  M_SEMI:"반도체 과매도 반등", M_IND:"산업재 과매도 반등", M_HOUSE:"주택 과매도 반등", M_QUANT:"양자 과매도 반등", M_NVDA:"엔비디아 과매도 반등", M_TSLA:"테슬라 과매도 반등", M_AMAT:"어플라이드 과매도 반등",
 };
 const SB_COND = {   /* 펼쳤을 때 보이는 조건 설명 — pattern_flags.py 정의를 말로 옮긴 것 */
   B_:"최근 20거래일 안에 과매도(RSI14 30 이하 · 볼밴 하단 밖 · 60일 최고 종가 대비 −15% 이하)가 있었고, 오늘 반등 모양이 나온 경우.",
@@ -4484,7 +4497,7 @@ const SB_COND = {   /* 펼쳤을 때 보이는 조건 설명 — pattern_flags.p
 /* 희귀 고적중 후보(2026-11-06 사용자 지시 표본 등급) — tools/theme-research.py 실행(run 42161920714) 결과를 그대로 옮김.
    검증·테스트 모두 75%↑이지만 테스트 5~9건 → '소표본 경고'. 대조(수익률 섞기)에서도 같은 절차로 0~1개가 나와 유의성은 확정 못 함. */
 const RARE_FACTS = {
-  R5_SEMI: {title:"반도체 5일 반등 매수", rule:"RSI7 25 이하(오늘·전날) ∧ 볼밴(30일, 1.5σ) 하단 밖 3일 이상 ∧ 실적 전후 5일 제외", h:5,
+  R5_SEMI: {title:"반도체 5일 반등 매수", rule:"RSI7 25 이하(오늘·전날) ∧ 볼밴(30일, 1.5σ) 하단 밖 3일 이상 (연구의 '실적 전후 제외'는 대상이 ETF라 적용되지 않았음)", h:5,
     tr:"71%(22)", va:"89%(9)", te:"100%(6)", teW:6, teL:0, base:"58%", lift:"+42%p", avg:"+9.18%", maeMed:"−5.7%", maeWorst:"−17.8%", p:"0.038",
     tickers:"^SOX·SOXX·SOXL(사이트는 SOXL)"},
   R10_NVDA: {title:"엔비디아 10일 반등 매수", rule:"RSI9 35 이하(오늘·전날) ∧ 볼밴(10일, 1.5σ) 밖 1일 이상 뒤 재진입 ∧ 양봉", h:10,
@@ -4546,11 +4559,11 @@ function sbItemsFor(s){
   String(s.pat||"").split(",").forEach(c=>{
     if (!c || c.startsWith("C_")) return;
     if (c==="D_QUANT" && !(has(s.market_vxn) && s.market_vxn>=25)) return;
-    if (RARE_FACTS[c]){ if (s.earnings_hold) return;   // 연구 규칙의 '실적 전후 제외'
+    if (RARE_FACTS[c]){   // 연구 당시 실적 조건은 ETF라 무효(R5)·없음(R10) — 사이트도 걸지 않는다(2026-11-06 정합성 점검)
       items.push({s, kind:"green", code:c, name:RARE_FACTS[c].title+" (희귀 고적중 후보)", stat:null, rare:RARE_FACTS[c], verdict:"연구 후보"}); return; }
     const kind = sbKindOf(c); if(!kind) return;
     const st = sbStat(c, s.category);
-    items.push({s, kind, code:c, name:(SIGNAL_BT&&SIGNAL_BT.stats[c]&&SIGNAL_BT.stats[c].name)||SB_NAMES[c]||c, stat:st, verdict:st?st.verdict:"실측 준비 중"});
+    items.push({s, kind, code:c, name:SB_NAMES[c]||(SIGNAL_BT&&SIGNAL_BT.stats[c]&&SIGNAL_BT.stats[c].name)||c, stat:st, verdict:st?st.verdict:"실측 준비 중"});
   });
   items.forEach(x=>{ x.good = /검증 완료|검증됨|75% 달성/.test(x.verdict); x.research = x.verdict==="연구 후보";
     x.judge = x.research ? "연구 후보 · 관망" : sbJudge(x.kind, x.verdict); });
@@ -4585,110 +4598,117 @@ function sbOneLine(x){
   if (x.verdict==="검증 부족") return `성적은 좋았지만${dtxt} 최근 기간 표본이 적어 아직 확인 중이에요.`;
   return `과거 같은 신호 뒤 10일 안에 ${up?"오른":"내린"} 경우가 ${pctS(st.hit10)}였어요${dtxt}.`;
 }
+/* ── 2026-11-06 사용자 지시 "투자자 화면은 단순하게" ──
+   기본 = 한 줄(신호 · 캔들 썸네일 · 과거 적중 · 검증 배지). 누르면 핵심 숫자 4개 + 접힌 차트·사례·캔들 설명.
+   p값·신뢰 하한·블록 대조·국면·코드명 같은 연구 정보는 화면에서 빼고 맨 아래 '📚 상세 연구·검증 자료'로. 계산은 그대로 유지. */
+function sbBadge(x){
+  if (x.rare) return `<span class="vb vb-y">🟡 소표본 연구 후보</span>`;
+  if (x.verdict==="75% 달성" || x.good) return `<span class="vb vb-g">✅ 검증</span>`;
+  if (x.research) return `<span class="vb vb-y">🟡 연구 후보</span>`;
+  if (x.verdict==="표본 부족") return `<span class="vb vb-n">⚪ 표본 적음</span>`;
+  if (!x.stat && !x.rare) return `<span class="vb vb-n">⚪ 통계 준비 중</span>`;
+  return `<span class="vb vb-n">⚪ 평소 수준</span>`;
+}
+function sbShortHit(x){
+  const up = x.kind==="green" || x.kind==="blue";
+  if (x.rare) return `과거 상승 ${x.rare.te.replace(/\((\d+)\)/," ($1건)")}`;
+  const st = x.stat; if(!st) return "";
+  if (x.site) return st.hit5==null ? "" : `최근 5일 적중 ${pctS(st.hit5)} (${st.n}건)`;
+  return st.hit10==null ? "" : `과거 ${up?"상승":"하락"} ${pctS(st.hit10)} (${st.n}건)`;
+}
+function sbThumb(group){
+  const n = group.map(g=>CODE_EDU[g.code]).find(Boolean);
+  return n ? `<button class="edu-big sb-thumb" data-edubig="${esc(n)}" title="${esc(n)} — 눌러서 크게 (교육용 예시)">${eduGlyph(n, 0.9)}</button>` : `<span class="sb-thumb"></span>`;
+}
 function sbCardHtml(group){
   const x = group[0], s = x.s, K = SB_KIND[x.kind], st = x.stat;
-  const names = group.map(g=>esc(g.name)).join(" · ");
-  const up = x.kind==="green"||x.kind==="blue";
-  const head = x.kind==="red" ? `${K.icon} ${esc(s.ticker)} — 고점 반전·하락 위험!` : x.kind==="orange" ? `${K.icon} ${esc(s.ticker)} — 단기 과열!` : `${K.icon} ${esc(s.ticker)} — ${K.head}!`;
-  const lines = [];
-  const thumbs = [...new Set(group.map(g=>CODE_EDU[g.code]).filter(Boolean))];
-  lines.push(`<li><span>현재 신호</span><b>${names}</b></li>`);
-  if (thumbs.length) lines.push(`<li><span>캔들 모양</span><b class="edu-inline">${thumbs.map(n=>`<button class="edu-big" data-edubig="${esc(n)}" title="${esc(n)} — 눌러서 크게(교육용 예시)">${eduGlyph(n,1)}</button><small>${esc(n)}</small>`).join(" ")}</b></li>`);
-  lines.push(`<li><span>신호 강도</span><b>${sbStars(x)} ${esc(x.verdict)}</b>${st && st.why && st.why.length ? ` <small>${esc(st.why.join(" · "))}</small>` : ""}</li>`);
-  const tierTxt = sbTier(st); if (tierTxt) lines.push(`<li><span>표본 등급</span><b>${esc(tierTxt)}</b></li>`);
+  const up = x.kind==="green" || x.kind==="blue";
+  const nums = [];
   if (x.rare){ const R = x.rare;
-    lines.push(`<li><span>표본 등급</span><b>희귀 고적중 후보 · 소표본 경고</b></li>`);
-    lines.push(`<li><span>테스트 적중률</span><b>${R.te} (${R.teW}승 ${R.teL}패)</b> <small>${R.h}거래일 뒤 상승 기준</small></li>`);
-    lines.push(`<li><span>검증 적중률</span><b>${R.va}</b> <small>학습 ${R.tr}</small></li>`);
-    lines.push(`<li><span>평소 ${R.h}일 상승 확률</span><b>${R.base}</b> <small>테스트 기준 평소 대비 ${R.lift}</small></li>`);
-    lines.push(`<li><span>과거 평균 수익률</span><b>${R.avg}</b> <small>테스트 기간 · ${R.h}일</small></li>`);
-    lines.push(`<li><span>최대 불리한 움직임</span><b>중앙 ${R.maeMed} · 최악 ${R.maeWorst}</b></li>`);
-    lines.push(`<li><span>통계적 유의성</span><b>확정 못 함</b> <small>p=${R.p} · 같은 절차로 섞은 가격에서도 0~1개 나옴</small></li>`);
+    nums.push(["과거 평균 수익률", `${R.avg} <small>(${R.h}일)</small>`]);
+    nums.push(["중간 최대 하락폭", `${R.maeMed} <small>(최악 ${R.maeWorst})</small>`]);
+    nums.push(["평소와 비교", `평소 상승 ${R.base} → 이 신호 ${R.te.replace(/\(.*\)/,"")}`]);
+    nums.push(["표본·검증", `테스트 ${R.teW}승 ${R.teL}패 · 검증 ${R.va} · 소표본`]);
   } else if (st && x.site){
-    lines.push(`<li><span>최근 실제 기록</span><b>5일 뒤 적중 ${pctS(st.hit5)} · ${st.n}건</b> <small>평소 ${pctS(st.base5)}</small></li>`);
-    lines.push(`<li><span>평균 수익률</span><b>3일 ${retS(st.avg3)} · 5일 ${retS(st.avg5)}</b></li>`);
+    nums.push(["최근 평균 수익률", `3일 ${retS(st.avg3)} · 5일 ${retS(st.avg5)}`]);
+    nums.push(["평소와 비교", `평소 적중 ${pctS(st.base5)} → 이 신호 ${pctS(st.hit5)}`]);
+    nums.push(["표본·검증", `${st.n}건 · ${esc(x.verdict)}`]);
   } else if (st){
-    lines.push(`<li><span>과거 적중률</span><b>10일 뒤 ${up?"상승":"하락"} ${pctS(st.hit10)} · ${st.n}건</b> <small>평소 ${pctS(st.base10)} · ${esc(st.scope)}</small></li>`);
-    lines.push(`<li><span>과거 평균 수익률</span><b>5일 ${retS(st.avg&&st.avg["5"])} · 10일 ${retS(st.avg&&st.avg["10"])}</b></li>`);
-    lines.push(`<li><span>${up?"10일 안 평균 최저점":"10일 안 평균 최고점"}</span><b>${retS(st.adverse10)}</b> <small>${up?"사고 나서 버텨야 했던 폭":"팔고 나서 더 오른 폭"}</small></li>`);
-    if (st.cat) lines.push(`<li><span>이 테마(${esc(st.cat.name)})</span><b>10일 뒤 ${up?"상승":"하락"} ${pctS(st.cat.hit10)} · ${st.cat.n}건</b> <small>테마 평소 ${pctS(st.cat.base10)} · 참고</small></li>`);
-    if (st.wilson10!=null) lines.push(`<li><span>확신 하한(95%)</span><b>${pctS(st.wilson10)}</b> <small>표본이 적으면 낮아져요 · 평소 ${pctS(st.base10)}</small></li>`);
-    if (st.regime && SIGNAL_BT) { const rt = SIGNAL_BT.regime_today, br = st.base_regime||{}, rg = st.regime;
-      lines.push(`<li><span>시장 국면별</span><b>상승장 ${pctS(rg.up&&rg.up.hit10)}(${rg.up?rg.up.n:0}) · 하락장 ${pctS(rg.down&&rg.down.hit10)}(${rg.down?rg.down.n:0})</b> <small>지금 ${rt==="up"?"상승장":rt==="down"?"하락장":"—"}(나스닥 200일선 ${rt==="up"?"위":"아래"}) · 평소 ${pctS(br[rt])}</small></li>`); }
-  } else lines.push(`<li><span>과거 실측</span><b>준비 중</b></li>`);
-  if (!x.site){ const lt = ledgerTrack(x.code, x.kind);
-    lines.push(`<li><span>원장 실제 추적</span><b>${lt && lt.n ? `완료 ${lt.n}건 · 10일 뒤 ${pctS(lt.hit)} · 평균 ${retS(lt.avg)}` : "아직 완료된 기록 없음"}</b> <small>${lt ? `진행 중 ${lt.pend}건${lt.first?` · ${esc(lt.first)}부터 기록`:""}` : ""} · 다음 날 시가 체결</small></li>`); }
-  lines.push(`<li class="sb-judge"><span>매매 참고</span><b class="pl-pill ${x.good?K.pill:x.research?"pl-yellow":"pl-grey"}">${esc(x.judge)}</b></li>`);
-  // 펼침: 조건 · 사례 · 정상 과열 vs 위험 · 방법
-  const cond = group.map(g=>{ if (g.rare) return `<div><b>${esc(g.rare.title)}</b> — ${esc(g.rare.rule)} (사이트는 실적 보류 종목이면 표시 안 함)</div>`; const t = SB_COND[g.code] || SB_COND[g.code.slice(0,2)] || (g.site ? "사이트 산식(evaluate)의 최종 강한매수. 검증표와 같은 원장 표본." : (PAT_INFO[g.code] ? "테마별 10년 연구에서 고른 규칙(도움말·팝업 참조)." : "")); return `<div><b>${esc(g.name)}</b> — ${esc(t)}</div>`; }).join("");
-  const cases = (st && st.cases || []).slice().reverse().slice(0,15).map(c=>{
-    const r10 = c[4], ok = r10==null ? "" : ((up ? r10>0 : r10<0) ? "✅" : "❌");
-    return `<tr><td>${esc(c[0])}</td><td>${esc(String(c[1]).split(",").slice(0,3).join(", "))}${String(c[1]).split(",").length>3?"…":""}</td><td>${retS(c[2])}</td><td>${retS(c[3])}</td><td>${retS(c[4])}</td><td>${retS(c[5])}</td><td>${ok}</td></tr>`; }).join("");
+    const med = st.adverse10_med!=null ? st.adverse10_med : st.adverse10;
+    nums.push(["과거 평균 수익률", `5일 ${retS(st.avg&&st.avg["5"])} · 10일 ${retS(st.avg&&st.avg["10"])}`]);
+    nums.push([up ? "중간 최대 하락폭" : "중간 최대 반등폭", `${retS(med)} <small>(10일 안)</small>`]);
+    nums.push(["평소와 비교", `평소 ${up?"상승":"하락"} ${pctS(st.base10)} → 이 신호 ${pctS(st.hit10)}`]);
+    nums.push(["표본·검증", `${st.n}건 · ${esc(x.verdict)}`]);
+  }
+  if (!x.site){ const lt = ledgerTrack(x.code, x.kind, x.rare ? x.rare.h : 10);
+    if (lt && lt.n) nums.push(["실제 기록", `${lt.n}건 · ${lt.h}일 뒤 ${pctS(lt.hit)} · 평균 ${retS(lt.avg)}`]); }
   const cmp = SIGNAL_BT && SIGNAL_BT.compare_overheat;
-  const cmpHtml = (x.kind==="orange"||x.kind==="red") && cmp && cmp.calm && cmp.then_red ? `<div class="sb-cmp"><b>정상 과열 vs 위험한 고점 (10년)</b>
-      <div>🟠 과열 뒤 🔴 신호가 이어지지 않음: 10일 뒤 하락 ${pctS(cmp.calm.down10)} · 평균 ${retS(cmp.calm.avg10)} · 10일 안 −10% 급락 ${pctS(cmp.calm.crash10)} (${cmp.calm.n}건)</div>
-      <div>🟠 과열 뒤 5거래일 안 🔴 신호가 이어짐: 10일 뒤 하락 ${pctS(cmp.then_red.down10)} · 평균 ${retS(cmp.then_red.avg10)} · 급락 ${pctS(cmp.then_red.crash10)} (${cmp.then_red.n}건)</div>
-      <div>지금 이 종목: ${sbItemsFor(s).some(y=>y.kind==="red") ? "🔴 위험 신호도 함께 떠 있어요 — 위험한 고점 쪽에 가까운 조건" : "🔴 위험 신호는 아직 없어요 — 정상 과열 쪽 조건"} <small>(과거 통계와 현재 조건을 비교한 것이지 예측이 아니에요)</small></div></div>` : "";
-  const front = st && st.front, back = st && st.back;
-  const method = st && !x.site ? `<div>기간 ${esc((SIGNAL_BT.period||[]).join("~"))} · 앞 80% 적중 ${pctS(front&&front.hit10)}(${front?front.n:0}건) → 뒤 20%(${esc(SIGNAL_BT.cut||"")} 이후) ${pctS(back&&back.hit10)}(${back?back.n:0}건) · 평균 이익 ${retS(st.avg_win)} / 손실 −${st.avg_loss!=null?Number(st.avg_loss).toFixed(1):"—"}% · 같은 종목 10일 쿨다운 · 같은 날 1건</div>
-      <div>체결: ${esc(SIGNAL_BT.entry||"")} · 참고로 신호일 종가 체결이면 10일 적중 ${pctS(st.hit10_close)} · 블록 대조(종목별 신호 날짜를 통째로 옮겨 200번) 우연일 확률 p=${st.p_shift!=null?Number(st.p_shift).toFixed(3):"—"}</div>
-      <div>판정: '검증 완료' = 평소보다 5%p↑ · 30건↑ · 최근 20%에서 8건↑ 재현 · 95% 하한이 평소 위 · 블록 대조 p<0.05 · 손실이 이익의 1.5배 이하 — 모두 충족. 평소보다 낫지만 하나라도 빠지면 '연구 후보'.</div>
-      <div>⚠ 관심종목 10년 백테스트(지금 고른 종목이라 생존 편향) — 원장(실제 기록)이 아니에요.</div>` : (x.site ? `<div>사이트 검증표와 같은 원장 표본(최근 거래일 실제 판정). 승률은 ±1% 보합을 뺀 값.</div>` : "");
+  const warn = (x.kind==="orange"||x.kind==="red") && cmp && cmp.calm && cmp.then_red
+    ? `<div class="sb-note">과거에 과열 뒤 위험 신호가 이어지면 10일 뒤 하락 ${pctS(cmp.then_red.down10)}, 이어지지 않으면 ${pctS(cmp.calm.down10)}였어요. 지금 이 종목은 ${sbItemsFor(s).some(y=>y.kind==="red") ? "<b>위험 신호도 함께</b> 떠 있어요." : "위험 신호는 아직 없어요."}</div>` : "";
+  const cases = (x.rare ? [] : (st && st.cases || [])).slice().reverse().slice(0,12).map(c=>{
+    const r10 = c[4], ok = r10==null ? "" : ((up ? r10>0 : r10<0) ? "✅" : "❌");
+    return `<tr><td>${esc(c[0])}</td><td>${esc(String(c[1]).split(",").slice(0,2).join(", "))}${String(c[1]).split(",").length>2?"…":""}</td><td>${retS(c[3])}</td><td>${retS(c[4])}</td><td>${ok}</td></tr>`; }).join("");
   return `<div class="sb-card sb-${x.kind}">
-    <div class="sb-head">${head}</div>
     <div class="sb-line">${esc(sbOneLine(x))}</div>
-    <ul class="sb-list">${lines.join("")}</ul>
+    <div class="sb-nums">${nums.map(([k,v])=>`<div><span>${k}</span><b>${v}</b></div>`).join("")}</div>
+    <div class="sb-act">매매 참고 <b class="pl-pill ${x.good?K.pill:(x.research||x.rare)?"pl-yellow":"pl-grey"}">${esc(x.judge)}</b></div>
+    ${warn}
     ${realChartBlock(s)}
     ${eduBlockHtml(group.map(g=>g.code))}
-    <details class="sb-more"><summary>📅 과거 ${st && st.cases ? Math.min(15, st.cases.length) : 0}건 결과 · 조건 · 검증 방법</summary>
-      <div class="sb-sec"><b>적용된 조건</b>${cond}</div>
-      ${cases ? `<div class="sb-sec"><b>과거 같은 신호 (최근 ${Math.min(15,(st.cases||[]).length)}번 · 같은 날은 묶음)</b><div class="sb-scroll"><table class="sb-tbl"><tr><th>날짜</th><th>종목</th><th>3일</th><th>5일</th><th>10일</th><th>20일</th><th></th></tr>${cases}</table></div></div>` : ""}
-      ${cmpHtml}
-      <div class="sb-sec"><b>검증 방법</b>${method}</div>
-      <button class="sb-go" data-rankgoto="${esc(s.ticker)}" data-rank-sort="overall">📇 ${esc(s.ticker)} 종목 카드 보기</button>
-    </details>
+    ${cases ? `<details class="sb-sec2"><summary>📅 과거 발생 사례 보기</summary><div class="sb-scroll"><table class="sb-tbl"><tr><th>날짜</th><th>종목</th><th>5일</th><th>10일</th><th></th></tr>${cases}</table></div></details>` : ""}
+    <button class="sb-go" data-rankgoto="${esc(s.ticker)}" data-rank-sort="overall">📇 ${esc(s.ticker)} 종목 카드</button>
   </div>`;
+}
+function sbRowHtml(g){
+  const x = g[0], K = SB_KIND[x.kind];
+  const names = [...new Set(g.map(y=>y.name.replace(/ \(사이트 판정\)| \(희귀 고적중 후보\)/g,"")))];
+  return `<details class="sb-item"><summary>
+      <span class="sb-ic">${K.icon}</span><b class="sb-tk">${esc(x.s.ticker)}</b>${sbThumb(g)}
+      <span class="sb-nm">${esc(names[0])}${names.length>1?` <small>+${names.length-1}</small>`:""}</span>
+      <span class="sb-hit">${esc(sbShortHit(x))}</span>${sbBadge(x)}</summary>${sbCardHtml(g)}</details>`;
 }
 function sbBoardHtml(list){
   const all = [];
   list.forEach(s=>{ sbItemsFor(s).forEach(x=>all.push(x)); });
-  const groups = {};   // kind → ticker → items
+  const groups = {};
   all.forEach(x=>{ ((groups[x.kind] = groups[x.kind] || {})[x.s.ticker] = groups[x.kind][x.s.ticker] || []).push(x); });
-  const rank = x => (x.verdict==="75% 달성"?0:x.good?1:x.research?2:3)*10 + (x.site?0:1);
+  const rank = x => (x.verdict==="75% 달성"?0:x.good?1:(x.rare||x.research)?2:3)*10 + (x.site?0:1);
+  const SHOW = 8;
   const sec = SB_ORDER.map(k=>{
     const K = SB_KIND[k];
     const rows = Object.values(groups[k]||{}).map(g=>g.sort((a,b)=>rank(a)-rank(b))).sort((a,b)=>rank(a[0])-rank(b[0]) || String(a[0].s.ticker).localeCompare(String(b[0].s.ticker)));
-    /* 과거에 잘 맞았던 신호(검증됨·75% 달성)만 위에. 사이트 판정이라도 최근 실제 기록이 평소와 비슷하면 접어 둔다. */
-    const main = rows.filter(g=>g[0].good || g[0].research), rest = rows.filter(g=>!(g[0].good || g[0].research));
-    const restLabel = rest.length ? `그 밖에 오늘 뜬 신호 ${rest.length}종목 — 최근 실제 기록이나 과거 성적이 평소와 비슷하거나 표본이 적음` : "";
-    const row = g => { const x = g[0];
-      const th = CODE_EDU[x.code] ? eduGlyph(CODE_EDU[x.code], 0.8) : "";
-      return `<details class="sb-item"><summary><span class="pl-pill ${x.good?K.pill:x.research?"pl-yellow":"pl-grey"}">${x.good?"✅ ":x.research?"🟡 ":""}${esc(x.judge)}</span>
-        <b class="sb-tk">${esc(x.s.ticker)}</b>${th}<span class="sb-nm">${esc(x.name)}${g.length>1?` <small>외 ${g.length-1}</small>`:""}</span>
-        <span class="sb-hit">${esc(sbHitText(x))} <small>${sbStars(x)}</small></span></summary>${sbCardHtml(g)}</details>`; };
     return `<div class="sb-group sb-${k}"><div class="sb-gh">${K.icon} <b>${K.title}</b> <small>${rows.length ? rows.length+"종목" : ""}</small></div>
-      ${main.length ? main.map(row).join("") : `<div class="sb-empty">${rows.length ? "과거에 잘 맞았던 신호는 현재 없음" : "현재 신호 없음"}</div>`}
-      ${rest.length ? `<details class="sb-rest"><summary>${restLabel}</summary>${rest.slice(0,40).map(row).join("")}${rest.length>40?`<div class="sb-empty">외 ${rest.length-40}종목</div>`:""}</details>` : ""}
+      ${rows.length ? rows.slice(0,SHOW).map(sbRowHtml).join("") : `<div class="sb-empty">현재 신호 없음</div>`}
+      ${rows.length > SHOW ? `<details class="sb-rest"><summary>${rows.length-SHOW}종목 더 보기</summary>${rows.slice(SHOW).map(sbRowHtml).join("")}</details>` : ""}
     </div>`;
   }).join("");
-  const src = SIGNAL_BT ? `패턴 신호 실측: 관심종목 10년 백테스트(${esc((SIGNAL_BT.period||[]).join("~"))}, 갱신 ${esc(SIGNAL_BT.generated_at||"")})` : "패턴 신호 실측 파일을 불러오는 중…";
-  return `<div class="section sb-board"><div class="section-h"><h2>🚦 오늘의 신호</h2><span class="sub">마지막 종가 기준 · 반등 신호가 맨 위</span></div>
-    <div class="sb-legend"><span class="pl-pill pl-green">반등</span> <span class="pl-pill pl-blue">추세</span> <span class="pl-pill pl-orange">과열·익절</span> <span class="pl-pill pl-red">위험</span>
-      <small>✅ 검증 완료 · 🟡 연구 후보(평소보다 나았지만 확인 안 됨) · 회색 = 평소와 비슷</small></div>
-    ${sec}
-    ${(()=>{ const firing = new Set(all.filter(x=>x.rare).map(x=>x.code)); const idle = Object.entries(RARE_FACTS).filter(([c])=>!firing.has(c));
-      return idle.length ? `<details class="sb-rest"><summary>📚 희귀 고적중 후보 규칙 ${idle.length}개 — 오늘 신호 없음 · 과거 연구 결과</summary>${idle.map(([c,R])=>`<div class="sb-card sb-green"><div class="sb-line"><b>🟡 ${esc(R.title)}</b> <small>${esc(R.tickers)}</small></div>
-        <ul class="sb-list"><li><span>조건</span><b>${esc(R.rule)}</b></li><li><span>테스트 적중률</span><b>${R.te} (${R.teW}승 ${R.teL}패)</b></li><li><span>검증 적중률</span><b>${R.va}</b></li>
-        <li><span>평소 ${R.h}일 상승</span><b>${R.base}</b> <small>${R.lift}</small></li><li><span>평균 수익률</span><b>${R.avg}</b></li><li><span>최대 불리한 움직임</span><b>중앙 ${R.maeMed} · 최악 ${R.maeWorst}</b></li>
-        <li><span>신뢰도</span><b>희귀 고적중 후보 · 소표본</b> <small>p=${R.p} · 유의성·수익성 확정 아님</small></li></ul></div>`).join("")}</details>` : ""; })()}
-    <div class="sb-src">${src} · 사이트 판정 실측: 원장(실제 기록). 등급·순위에는 영향이 없어요.</div></div>`;
+  return `<div class="section sb-board"><div class="section-h"><h2>🚦 오늘의 신호</h2><span class="sub">마지막 종가 기준 · 종목을 누르면 자세히</span></div>
+    <div class="sb-legend"><span class="vb vb-g">✅ 검증</span> <span class="vb vb-y">🟡 연구 후보</span> <span class="vb vb-n">⚪ 평소 수준</span> <small>= 과거에 이 신호가 얼마나 믿을 만했나</small></div>
+    ${sec}</div>`;
 }
-/* 종목 카드 안 — 이 종목에 오늘 뜬 신호 */
+/* 페이지 맨 아래 — 연구·검증 자료(기본 접힘). 판단에 쓰는 숫자는 위 카드에, 방법·원자료는 여기에. */
+function researchFooterHtml(){
+  const idle = Object.entries(RARE_FACTS);
+  const src = SIGNAL_BT ? `신호 통계: 관심종목 10년 백테스트 ${esc((SIGNAL_BT.period||[]).join("~"))} · 갱신 ${esc(SIGNAL_BT.generated_at||"")} · 진입은 신호 다음 날 시가` : "신호 통계 파일 불러오는 중";
+  return `<details class="section rs-box"><summary>📚 <b>상세 연구·검증 자료</b> <span class="sub">필요할 때만</span></summary>
+    <details class="sb-sec2"><summary>검증 배지는 어떻게 정하나요?</summary><div class="sb-note">
+      <b>✅ 검증</b> = 10년 동안 평소보다 5%p 이상 잘 맞았고, 30건 이상, 최근 기간에도 재현됐고, 우연으로 보기 어렵고(통계 검정), 틀릴 때 손실이 맞을 때 이익보다 지나치게 크지 않은 신호.<br>
+      <b>🟡 연구 후보</b> = 평소보다 나았지만 위 조건 중 일부(표본 수·최근 재현·통계 검정 등)를 못 채운 신호. <b>🟡 소표본</b> = 검증·테스트 모두 75% 넘었지만 테스트 5~9건.<br>
+      <b>⚪ 평소 수준</b> = 그 모양이 나와도 과거 성적이 아무 날과 비슷했던 신호. 사이트 '강한매수'는 최근 실제 기록(원장)으로 같은 기준을 적용.<br>
+      모든 성과는 '신호가 그날 종가로 확정 → 다음 날 시가에 사거나 판다'로 계산해요.</div></details>
+    <details class="sb-sec2"><summary>희귀 고적중 후보 규칙 ${idle.length}개</summary>${idle.map(([c,R])=>`<div class="sb-note"><b>${esc(R.title)}</b> (${esc(R.tickers)}) — ${esc(R.rule)}<br>
+      학습 ${R.tr} · 검증 ${R.va} · 테스트 ${R.te} · 평소 ${R.base}(${R.lift}) · 평균 ${R.avg} · 최대 하락 중간 ${R.maeMed}/최악 ${R.maeWorst} · p=${R.p} — 유의성·수익성 확정 아님</div>`).join("")}</details>
+    <details class="sb-sec2"><summary>캔들 연구 자료</summary>
+      ${todayCandleHtml(allStocks().filter(s => (state.market==="all" || (state.market==="kr" ? s._kr : !s._kr)) && !state.hidden.includes(s.ticker)))}
+      ${themeCandleRankHtml()}</details>
+    <div class="sb-note">${src}. 관심종목을 지금 골랐으므로 과거 성적이 좋아 보일 수 있어요(생존 편향). 전체 연구 보고서는 저장소 docs/ 폴더에 있어요.</div>
+  </details>`;
+}
+/* 종목 카드 안 — 이 종목에 오늘 뜬 신호(같은 한 줄 형식) */
 function sbStockBlock(s){
   const items = sbItemsFor(s); if(!items.length) return "";
   const byKind = {}; items.forEach(x=>(byKind[x.kind]=byKind[x.kind]||[]).push(x));
-  return `<div class="sb-instock">${SB_ORDER.filter(k=>byKind[k]).map(k=>{ const g = byKind[k].sort((a,b)=>(b.good?1:0)-(a.good?1:0)); const x = g[0], K = SB_KIND[k];
-    return `<details class="sb-item"><summary><span class="pl-pill ${x.good?K.pill:"pl-grey"}">${esc(x.judge)}</span><span class="sb-nm">${K.icon} ${esc(x.name)}${g.length>1?` <small>외 ${g.length-1}</small>`:""}</span><span class="sb-hit">${esc(sbHitText(x))}</span></summary>${sbCardHtml(g)}</details>`; }).join("")}</div>`;
+  return `<div class="sb-instock">${SB_ORDER.filter(k=>byKind[k]).map(k=>sbRowHtml(byKind[k].sort((a,b)=>((b.good||b.research||b.rare)?1:0)-((a.good||a.research||a.rare)?1:0)))).join("")}</div>`;
 }
 
 /* ══════════ 📈📉 52주 신고가·신저가 (2026-11-06 사용자 지시 — 해석해 주는 화면) ══════════
@@ -4799,7 +4819,7 @@ function hlPanelHtml(){
         <svg viewBox="0 0 ${W} ${Hs}" width="100%" style="max-width:420px"><polyline points="${seg.map((z,j)=>`${xx(j).toFixed(1)},${yy(z[9]).toFixed(1)}`).join(" ")}" fill="none" stroke="var(--text,#111)" stroke-width="1.4"/>
           <line x1="${xx(at)}" x2="${xx(at)}" y1="2" y2="${Hs-2}" stroke="#3b82f6" stroke-dasharray="3 2"/><text x="${xx(at)+3}" y="12" font-size="10" fill="#3b82f6">신호일</text></svg>
         <small>나스닥(QQQ) 종가 · 신호일 앞 10일 ~ 뒤 20일</small></details>`; }).join(""); })();
-  return `<details class="hl-box" open><summary>📈📉 <b>52주 신고가 · 신저가</b> <span class="sub">내 관심종목(미국 ${t.n}개) 기준 · NYSE 전체가 아니에요</span></summary>
+  return `<details class="hl-box"><summary>📈📉 <b>52주 신고가 ${t.hi.length} · 신저가 ${t.lo.length}</b> <span class="pl-pill ${S.cls}" style="font-size:11px;padding:1px 7px;min-width:0">${esc(S.label)}</span> <span class="sub">관심종목 기준 · 눌러서 보기</span></summary>
     <div class="hl-concl">
       <div class="hl-state"><span class="pl-pill ${S.cls}">${esc(S.label)}</span></div>
       <div class="hl-nums"><span>📈 52주 신고가 <b class="up">${t.hi.length}</b>개</span><span>📉 52주 신저가 <b class="down">${t.lo.length}</b>개</span><span>📊 분석 대상 <b>${t.n}</b>개</span></div>
@@ -4962,13 +4982,10 @@ function renderTheme(){
       🧊 <b>약한 테마</b> ${cold.length?cold.map(x=>`${esc(x.name)} <span class="down num">${x.avg.toFixed(1)}%</span>`).join(" · "):"없음"}
     </div>
     ${themeForecastHtml()}
-    <details class="cr-box"><summary>📚 <b>캔들 연구 자료</b> <span class="sub">오늘 볼밴 위 캔들 · 테마별 '조금 팔기' 잘 맞은 캔들</span></summary>
-      ${todayCandleHtml(allStocks().filter(s => (state.market==="all" || (state.market==="kr" ? s._kr : !s._kr)) && !state.hidden.includes(s.ticker)))}
-      ${themeCandleRankHtml()}
-    </details>
   </div>
   ${marketBar()}
-  ${hlPanelHtml()}`;
+  ${hlPanelHtml()}
+  ${researchFooterHtml()}`;
 }
 
 /* ══════════ VIEW 2 · 전체순위 ══════════ */
