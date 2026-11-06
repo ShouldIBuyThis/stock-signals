@@ -658,6 +658,13 @@ html[data-theme="dark"] .badge.gOh,html[data-theme="dark"] .c-badge.gOh,html[dat
 .cr-row.cr-good .cr-list{font-size:13px}.cr-row.cr-bad .cr-list{color:#c0262d}
 .cr-more{margin-top:8px;font-size:11px;color:var(--muted)}.cr-more summary{cursor:pointer}
 .cr-more div{margin:3px 0;line-height:1.5}
+/* 오늘 캔들 신호 */
+.tc-box{margin-top:12px;border:1px solid var(--line,#e5e7eb);border-radius:12px;padding:8px 10px;background:var(--card,#fff)}
+.tc-h{font-size:14px;margin-bottom:4px}.tc-h small{font-size:11px;color:var(--muted);margin-left:6px}
+.tc-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;width:100%;text-align:left;background:none;border:0;border-top:1px dashed var(--line,#e5e7eb);padding:7px 0;cursor:pointer;font:inherit;color:inherit}
+.tc-tk{font-size:14px}.tc-nm{font-size:13px}.tc-why{flex-basis:100%;font-size:11px;color:var(--muted);padding-left:2px}
+.tc-empty{font-size:12px;color:var(--muted);padding:6px 0}
+.pl-grey{background:#eef0f3;color:#4b5563}
 /* 52주 신고가·신저가 그래프 */
 .hl-box{margin:12px 0;border:1px solid var(--line,#e5e7eb);border-radius:12px;padding:8px 10px;background:var(--card,#fff)}
 .hl-box summary{cursor:pointer;font-size:13px;list-style:revert}
@@ -4231,13 +4238,54 @@ function themeCandleRankHtml(){
     const base = o.rows.find(r=>r[0].startsWith("조건 없음"));
     return `<div><b>${esc(th)}</b> 기준 ${base?`${base[1]}%·${fmtA(base[3])}`:"—"} · ${ok.map(r=>`${esc(r[0])} ${fmtA(r[3])} (${r[1]}%·${r[2]}건)`).join(" · ")||"—"}</div>`;
   }).join("");
-  return `<details class="cr-box" open><summary>🟡 <b>테마별 '조금 팔기' 잘 맞은 캔들</b></summary>
+  return `<details class="cr-box"><summary>🟡 <b>테마별 '조금 팔기' 잘 맞은 캔들</b> <span class="sub">눌러서 보기</span></summary>
     <div class="cr-lead">볼밴 위로 찢고 올라갔을 때 <b>어떤 캔들에서 조금 팔고 밴드 안에서 되사면</b> 이득이었나 (10년 실측)</div>
     ${rows}
     <details class="cr-more"><summary>숫자 자세히</summary>
       <div class="cr-note">평균 = 판 값과 되산 값 차이(왕복 0.2% 차감), 괄호 = 이익 비율·건수. 무작위 가격에서도 이익 비율은 54~60%가 나오므로 평균을 보세요. 백테스트이며 실제 기록이 아닙니다.</div>
       ${detail}</details>
   </details>`;
+}
+/* 2026-11-06 사용자 지시 "실제 마지막 종가 기준 캔들 모양 신호가 뜨면 테마흐름에 표기" —
+   원장 pat의 C_* 코드(main.py → pattern_flags.py, theme-trim candles와 봉 단위 동일: 볼밴 상단 밖에서 그 캔들이 처음 나온 날)를
+   종목의 연구 테마(CANDLE_MAP)의 10년 성적과 붙여 '오늘 할 일'로 보여준다. 표시 전용(등급 불변). */
+const CANDLE_CODE_NAME = {C_OUT:"조건 없음", C_UPW:"윗꼬리≥50%", C_SHOOT:"유성형", C_LOWW:"아랫꼬리≥50%", C_HANG:"교수형",
+  C_DOJI:"도지·팽이", C_STAR:"샛별 형성(큰 양봉 다음 날 별)", C_BEAR:"음봉", C_BIGBEAR:"장대양봉 다음 날 음봉",
+  C_DIV:"RSI 약세 다이버전스", C_VOL:"거래량≥1.5배"};
+const CANDLE_SHORT = {C_OUT:"볼밴 상단 첫 이탈", C_UPW:"윗꼬리", C_SHOOT:"유성형", C_LOWW:"아랫꼬리", C_HANG:"교수형", C_DOJI:"도지·팽이",
+  C_STAR:"샛별 형성", C_BEAR:"음봉", C_BIGBEAR:"장대양봉 뒤 음봉", C_DIV:"RSI 약세 다이버전스", C_VOL:"거래량 1.5배"};
+function candleThemeOf(tk){
+  for (const [th,o] of Object.entries(CANDLE_MAP)) if (String(o.tk).split("·").includes(tk)) return th;
+  return null;
+}
+function todayCandleRows(list){
+  return list.map(s=>{
+    const codes = String(s.pat||"").split(",").filter(c=>CANDLE_CODE_NAME[c]);
+    if(!codes.length) return null;
+    const th = candleThemeOf(s.ticker), o = th ? CANDLE_MAP[th] : null;
+    const scored = codes.map(c=>{ const r = o ? o.rows.find(x=>x[0]===CANDLE_CODE_NAME[c]) : null; return {c, r}; })
+      .sort((a,b)=>((b.r&&b.r[3])??-99)-((a.r&&a.r[3])??-99));
+    const pick = scored.find(x=>x.c!=="C_OUT") || scored[0];
+    const r = pick.r;
+    let act, cls, why;
+    if(!o){ act="참고만"; cls="pl-grey"; why="이 종목 테마는 10년 실측이 없어요"; }
+    else if(!r || r[2] < 5){ act="참고만"; cls="pl-grey"; why=`${th} 테마에서 이 캔들 표본 5건 미만`; }
+    else if(r[3]!=null && r[3] >= 1){ act="조금 팔기"; cls="pl-yellow"; why=`${th} 10년 평균 +${r[3].toFixed(1)}% (${r[2]}건)`; }
+    else if(r[3]!=null && r[3] > 0){ act="참고만"; cls="pl-grey"; why=`${th} 10년 평균 +${r[3].toFixed(1)}% — 효과 미미`; }
+    else { act="들고 가기"; cls="pl-blue"; why=`${th}에서 이 캔들에 팔면 평균 ${r[3]==null?"±0":r[3].toFixed(1)+"%"} — 손해`; }
+    return {s, act, cls, why, name:codes.map(c=>CANDLE_SHORT[c]).filter((v,i,a)=>a.indexOf(v)===i && (codes.length===1 || v!=="볼밴 상단 첫 이탈")).join(" · "),
+      p:{"조금 팔기":0,"들고 가기":1,"참고만":2}[act]};
+  }).filter(Boolean).sort((a,b)=>a.p-b.p || String(a.s.ticker).localeCompare(String(b.s.ticker)));
+}
+function todayCandleHtml(list){
+  const rows = todayCandleRows(list);
+  const d = rows.length && rows[0].s.last_date ? ` · ${esc(closeDateLabel(rows[0].s.last_date))}` : "";
+  return `<div class="tc-box"><div class="tc-h">🕯 <b>오늘 캔들 신호</b><small>마지막 종가 기준 · 볼밴 위에서 처음 나온 캔들${d}</small></div>
+    ${rows.length ? rows.map(r=>`<button class="tc-row" data-rankgoto="${esc(r.s.ticker)}" data-rank-sort="overall">
+        <span class="pl-pill ${r.cls}">${r.act}</span><b class="tc-tk">${esc(r.s.ticker)}</b><span class="tc-nm">${esc(r.name)}</span>
+        <small class="tc-why">${esc(r.why)}</small></button>`).join("")
+      : `<div class="tc-empty">오늘은 볼밴 위에서 새로 나온 캔들 신호가 없어요.</div>`}
+  </div>`;
 }
 /* 핵심 시그널 '🕯 캔들·패턴' 위젯 — 오늘 pat 코드가 있는 종목. 표시 전용(등급·순위 불변).
    순서: 🔴 하락 패턴 > 🟠 크게 흔들림 > 🟡 일부 익절 > 🔵 테마 규칙·저점 반등. */
@@ -4361,6 +4409,7 @@ function renderTheme(){
       🔥 <b>강한 테마</b> ${hot.length?hot.map(x=>`${esc(x.name)} <span class="up num">+${x.avg.toFixed(1)}%</span>`).join(" · "):"없음"}<br>
       🧊 <b>약한 테마</b> ${cold.length?cold.map(x=>`${esc(x.name)} <span class="down num">${x.avg.toFixed(1)}%</span>`).join(" · "):"없음"}
     </div>
+    ${todayCandleHtml(allStocks().filter(s => (state.market==="all" || (state.market==="kr" ? s._kr : !s._kr)) && !state.hidden.includes(s.ticker)))}
     ${themeCandleRankHtml()}
     ${themeForecastHtml()}
   </div>

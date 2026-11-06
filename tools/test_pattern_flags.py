@@ -66,6 +66,10 @@ def expected(df, ticker):
     if ticker in pf.THEME_DANGER["D_QUANT"]:
         e["D_QUANT"] = Cx["체류 뒤 첫 재진입"]
     X = tt.prep(df); C = dict(tt.candles(X)); B = tt.band_trades(X, 20, 2)
+    names = dict(C)
+    for code, nm in pf.CANDLE_CODES.items():
+        full = next((k for k in names if k.split("(")[0] == nm.split("(")[0]), None)
+        e[code] = first_per_run(B, np.ones(len(X["c"]), bool) if code == "C_OUT" else names[full])
     theme = pf.THEME_TRIM.get(ticker)
     if theme == "house":
         e["T_HOUSE"] = first_per_run(B, C["거래량≥1.5배"])

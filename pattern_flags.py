@@ -45,6 +45,14 @@ THEME_DANGER = {
     "D_QUANT": ("IONQ", "QBTS", "RGTI", "INFQ", "QUBT"),
 }
 
+# 볼밴 상단 밖 캔들(전 종목) — 테마 흐름 '오늘 캔들 신호' 표시용. tools/theme-trim.py candles()·band_trades()와 같은 정의
+# (볼밴 20·2σ 모표준편차, 상단 밖 구간에서 그 캔들이 처음 나온 날). 성적은 index.html CANDLE_MAP(테마별 10년 실측)에서 읽는다.
+CANDLE_CODES = {
+    "C_OUT": "조건 없음", "C_UPW": "윗꼬리≥50%", "C_SHOOT": "유성형", "C_LOWW": "아랫꼬리≥50%", "C_HANG": "교수형",
+    "C_DOJI": "도지·팽이", "C_STAR": "샛별 형성(큰 양봉 다음 날 별)", "C_BEAR": "음봉", "C_BIGBEAR": "장대양봉 다음 날 음봉",
+    "C_DIV": "RSI 약세 다이버전스", "C_VOL": "거래량≥1.5배",
+}
+
 # 코드 → (종류, 짧은 이름). 원장(hist)에는 코드만 쉼표로 남는다.
 CODES = {
     "T_HOUSE": ("trim", "주택: 상단 밖 + 거래량 1.5배"),
@@ -60,6 +68,7 @@ CODES = {
     "D_SEMI": ("danger", "반도체: 볼밴 상단 밖 십자형"),
     "D_SKH": ("danger", "SK하이닉스: 고가만 상단 돌파 + 긴 윗꼬리"),
     "D_QUANT": ("danger", "양자: 볼밴 위 체류 뒤 첫 재진입(VXN≥25일 때)"),
+    **{k: ("candle", v) for k, v in CANDLE_CODES.items()},
     "M_SEMI": ("theme_buy", "반도체: RSI≤35·−10%·하단 밖 뒤 5일선 3일 안착 + 200일선 위"),
     "M_IND": ("theme_buy", "산업재: RSI≤25·−20% 뒤 5일선 2일 안착"),
     "M_HOUSE": ("theme_buy", "주택: RSI≤35·−10% 뒤 20·60일선 골든크로스"),
@@ -158,6 +167,29 @@ def flag_series(o, h, l, c, v, ticker=""):
         hang = _gt(loww, 0.6 - 1e-9) & _lt(body, 0.3 + 1e-9) & _lt(upw, 0.15 + 1e-9)
         cand = [_lt(c, o), _gt(upw, 0.5 - 1e-9), hang, big_up1 & star_today]
         out["T_QUANTUM"] = np.logical_or.reduce([_first_in_run(outside & m, outside) for m in cand])
+
+    # ── 볼밴 상단 밖 캔들 (theme-trim candles, 전 종목) ──
+    b1, rng_ = _shift(body), h - l
+    tr_ = np.maximum(h - l, np.maximum(abs(h - c1), abs(l - c1)))
+    atr = pd.Series(tr_).rolling(14).mean().to_numpy()
+    big_up1c = _gt(c1, o1) & _gt(b1, 0.6 - 1e-9)
+    cmax20 = s.shift(1).rolling(20).max().to_numpy()
+    rmax20 = pd.Series(r14).shift(1).rolling(20).max().to_numpy()
+    cm = {
+        "C_OUT": np.ones(len(c), bool),
+        "C_UPW": _gt(upw, 0.5 - 1e-9),
+        "C_SHOOT": _gt(upw, 0.6 - 1e-9) & _lt(body, 0.3 + 1e-9) & _lt(loww, 0.15 + 1e-9),
+        "C_LOWW": _gt(loww, 0.5 - 1e-9),
+        "C_HANG": _gt(loww, 0.6 - 1e-9) & _lt(body, 0.3 + 1e-9) & _lt(upw, 0.15 + 1e-9),
+        "C_DOJI": _lt(body, 0.3 + 1e-9) & _gt(upw, 0.25 - 1e-9) & _gt(loww, 0.25 - 1e-9),
+        "C_STAR": big_up1c & _lt(body, 0.3 + 1e-9) & _gt(np.minimum(o, c), c1 * 0.995),
+        "C_BEAR": _lt(c, o),
+        "C_BIGBEAR": _gt(c1, o1) & _gt(b1, 0.6 - 1e-9) & _gt(_shift(rng_), 1.5 * _shift(atr)) & _lt(c, o),
+        "C_DIV": _gt(c, cmax20 - 1e-9) & _lt(r14, rmax20),
+        "C_VOL": _gt(vr, 1.5 - 1e-9),
+    }
+    for k, m in cm.items():
+        out[k] = _first_in_run(outside & m, outside)
 
     # ── 급락 위험 (theme-patterns danger_pats) ──
     ret60 = c / _shift(c, 60) - 1
