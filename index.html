@@ -648,6 +648,16 @@ html[data-theme="dark"] .badge.gOh,html[data-theme="dark"] .c-badge.gOh,html[dat
 .cmp.lv .gcol .badge{display:inline-block;white-space:nowrap}
 /* 로고 */
 .brand{font-weight:900;letter-spacing:-0.5px}
+/* 캔들·패턴 '할 일' 색 칸 */
+.pl-pill{display:inline-block;min-width:64px;text-align:center;border-radius:8px;padding:3px 7px;font-size:12px;font-weight:800;border:0;cursor:pointer;white-space:nowrap}
+.pl-red{background:#fde2e2;color:#c0262d}.pl-orange{background:#ffe8d1;color:#b45309}
+.pl-yellow{background:#fff3bf;color:#8a6d00}.pl-blue{background:#dbeafe;color:#1d4ed8}
+.wrow .pl-pill{margin-right:6px}
+.cr-lead{font-size:13px;margin:6px 0 4px;line-height:1.6}
+.cr-ic{flex:0 0 22px;font-size:16px;line-height:1.3}
+.cr-row.cr-good .cr-list{font-size:13px}.cr-row.cr-bad .cr-list{color:#c0262d}
+.cr-more{margin-top:8px;font-size:11px;color:var(--muted)}.cr-more summary{cursor:pointer}
+.cr-more div{margin:3px 0;line-height:1.5}
 /* 52주 신고가·신저가 그래프 */
 .hl-box{margin:12px 0;border:1px solid var(--line,#e5e7eb);border-radius:12px;padding:8px 10px;background:var(--card,#fff)}
 .hl-box summary{cursor:pointer;font-size:13px;list-style:revert}
@@ -2146,7 +2156,7 @@ function evaluate(s){
   const themeDanger = /(^|,)D_(SEMI|SKH)(,|$)/.test(patS)
     || (/(^|,)D_QUANT(,|$)/.test(patS) && has(s.market_vxn) && s.market_vxn >= 25);
   if (themeDanger){
-    tags.unshift({c:"t-hot",t:"🔴 테마 하락 패턴 — 매수 보류",click:"패턴하락"});
+    tags.unshift({c:"t-hot",t:"🔴 사지 마 · 테마 하락 패턴",click:"패턴하락"});
     reasons.push({w:3,t:"테마 하락 패턴(10년 실측 10일 하락 68~72% 또는 급락 40~86%) — 매수 등급 보류"});
   }
   // 경계는 등급을 내리지 않는다. 매수 등급은 그대로 유지(테마 하락 패턴만 예외).
@@ -4202,21 +4212,32 @@ function themeForecast(){
    ⚠ 무작위 가격에서도 이익 비율 54~60% → 순위는 평균 성과로 매긴다. */
 const CANDLE_MAP = {"나스닥":{"tk":"QQQ·TQQQ","rows":[["조건 없음",43,103,-0.2],["윗꼬리≥50%",27,10,-0.6],["유성형",50,2,null],["아랫꼬리≥50%",42,24,0.2],["교수형",57,7,1.2],["도지·팽이",32,18,-0.7],["샛별 형성(큰 양봉 다음 날 별)",33,15,-0.4],["음봉",31,24,null],["장대양봉 다음 날 음봉",50,2,null],["RSI 약세 다이버전스",39,38,-0.3],["거래량≥1.5배",27,11,-0.5]]},"반도체":{"tk":"SOXL","rows":[["조건 없음",55,114,0.0],["윗꼬리≥50%",67,19,0.6],["유성형",71,7,0.7],["아랫꼬리≥50%",54,41,0.7],["교수형",43,14,0.8],["도지·팽이",46,29,0.1],["샛별 형성(큰 양봉 다음 날 별)",53,30,0.7],["음봉",52,31,0.5],["장대양봉 다음 날 음봉",57,7,1.2],["RSI 약세 다이버전스",60,50,0.3],["거래량≥1.5배",48,32,0.1]]},"산업재":{"tk":"CAT·AIT","rows":[["조건 없음",44,265,-0.3],["윗꼬리≥50%",40,66,-0.3],["유성형",35,17,-0.6],["아랫꼬리≥50%",47,69,-0.1],["교수형",47,19,0.1],["도지·팽이",46,66,-0.3],["샛별 형성(큰 양봉 다음 날 별)",35,57,-0.3],["음봉",43,79,-0.4],["장대양봉 다음 날 음봉",53,20,0.1],["RSI 약세 다이버전스",47,104,-0.1],["거래량≥1.5배",46,93,-0.0]]},"주택":{"tk":"NAIL·ITB","rows":[["조건 없음",58,113,0.7],["윗꼬리≥50%",73,13,1.0],["유성형",80,5,0.7],["아랫꼬리≥50%",56,27,0.7],["교수형",50,10,0.9],["도지·팽이",56,16,2.1],["샛별 형성(큰 양봉 다음 날 별)",64,22,0.8],["음봉",48,22,null],["장대양봉 다음 날 음봉",83,3,2.0],["RSI 약세 다이버전스",59,47,0.8],["거래량≥1.5배",69,73,1.5]]},"양자":{"tk":"IONQ·RGTI·QBTS·INFQ","rows":[["조건 없음",57,168,-0.1],["윗꼬리≥50%",58,44,3.5],["유성형",58,12,1.2],["아랫꼬리≥50%",68,52,2.5],["교수형",70,22,4.6],["도지·팽이",50,45,-2.5],["샛별 형성(큰 양봉 다음 날 별)",69,26,3.8],["음봉",68,48,3.0],["장대양봉 다음 날 음봉",60,20,2.8],["RSI 약세 다이버전스",58,58,-0.3],["거래량≥1.5배",57,125,-1.3]]},"소프트":{"tk":"MSFT·NOW","rows":[["조건 없음",47,167,-0.5],["윗꼬리≥50%",58,26,0.0],["유성형",67,6,0.2],["아랫꼬리≥50%",44,36,null],["교수형",38,13,-1.1],["도지·팽이",43,37,null],["샛별 형성(큰 양봉 다음 날 별)",47,32,0.0],["음봉",41,44,-0.5],["장대양봉 다음 날 음봉",50,6,null],["RSI 약세 다이버전스",52,62,-0.3],["거래량≥1.5배",48,57,-0.2]]},"NVDA":{"tk":"NVDA","rows":[["조건 없음",44,102,-0.4],["윗꼬리≥50%",29,21,-0.6],["유성형",25,8,null],["아랫꼬리≥50%",56,25,0.3],["교수형",62,8,-0.6],["도지·팽이",55,20,-0.3],["샛별 형성(큰 양봉 다음 날 별)",50,16,0.9],["음봉",52,23,null],["장대양봉 다음 날 음봉",29,7,-2.5],["RSI 약세 다이버전스",55,33,-0.3],["거래량≥1.5배",42,40,-1.3]]},"TSLA":{"tk":"TSLA","rows":[["조건 없음",45,82,-2.1],["윗꼬리≥50%",45,20,-1.6],["유성형",38,8,-1.6],["아랫꼬리≥50%",33,21,-3.0],["교수형",25,4,-5.0],["도지·팽이",26,23,-4.1],["샛별 형성(큰 양봉 다음 날 별)",43,23,-0.1],["음봉",27,30,-4.2],["장대양봉 다음 날 음봉",33,9,-3.4],["RSI 약세 다이버전스",33,18,-4.4],["거래량≥1.5배",55,40,-1.2]]},"데이터센터":{"tk":"APLD·CRWV·IREN","rows":[["조건 없음",67,98,0.4],["윗꼬리≥50%",59,22,0.5],["유성형",80,5,9.1],["아랫꼬리≥50%",64,22,0.4],["교수형",67,6,2.8],["도지·팽이",62,21,-1.7],["샛별 형성(큰 양봉 다음 날 별)",60,15,-2.0],["음봉",70,27,-0.7],["장대양봉 다음 날 음봉",50,8,-2.6],["RSI 약세 다이버전스",72,29,0.4],["거래량≥1.5배",66,65,0.2]]}};
 function themeCandleRankHtml(){
-  const fmtA = v => v==null ? "평균 ±0 근처" : (v>0?"+":"")+v.toFixed(1)+"%";
-  const lines = Object.entries(CANDLE_MAP).map(([th,o])=>{
-    const ok = o.rows.filter(r=>r[2]>=5 && r[3]!=null).sort((a,b)=>b[3]-a[3]);
-    const base = o.rows.find(r=>r[0].startsWith("조건 없음"));
-    const top = ok.filter(r=>r[3]>0).slice(0,3);
-    const tops = top.length
-      ? top.map((r,i)=>`<span class="cr-item"><b>${i+1}</b> ${esc(r[0])} <span class="up num">${fmtA(r[3])}</span> <small>${r[1]}%·${r[2]}건</small></span>`).join("")
-      : `<span class="cr-none">평균이 플러스인 캔들 없음 — 일부 매도가 손해였던 테마</span>`;
-    return `<div class="cr-row"><div class="cr-th"><b>${esc(th)}</b><small>${esc(o.tk)}</small>
-        <small>기준 ${base?`${base[1]}%·${fmtA(base[3])}`:"—"}</small></div><div class="cr-list">${tops}</div></div>`;
+  /* 2026-11-06 사용자 지적 "너무 복잡" — 테마당 한 줄 결론을 큰 글씨로, 숫자는 접어 둔다.
+     ✅ 평균 +1% 이상·10건 이상인 캔들이 있음 / △ 평균 +1% 이상이지만 10건 미만 / ➖ 플러스지만 +1% 미만 / 🚫 플러스인 캔들 없음 */
+  const fmtA = v => v==null ? "±0" : (v>0?"+":"")+v.toFixed(1)+"%";
+  const short = n => n.replace(/\(.*\)/,"").replace("≥50%","").replace("≥1.5배"," 1.5배").replace("다음 날","뒤").trim();
+  const rows = Object.entries(CANDLE_MAP).map(([th,o])=>{
+    const ok = o.rows.filter(r=>r[2]>=5 && r[3]!=null && r[3]>0).sort((a,b)=>b[3]-a[3]);
+    const strong = ok.filter(r=>r[3]>=1 && r[2]>=10), weak = ok.filter(r=>r[3]>=1 && r[2]<10);
+    let icon, text, cls;
+    if (strong.length){ icon="✅"; cls="cr-good"; text=`<b>${strong.slice(0,3).map(r=>esc(short(r[0]))).join(" · ")}</b>에서 조금 팔면 이득 <small>(평균 ${fmtA(strong[strong.length>2?2:strong.length-1][3])}~${fmtA(strong[0][3])})</small>`; }
+    else if (weak.length){ icon="△"; cls="cr-mid"; text=`${weak.slice(0,2).map(r=>esc(short(r[0]))).join(" · ")} — 이득이지만 <b>표본 10건 미만</b>`; }
+    else if (ok.length){ icon="➖"; cls="cr-mid"; text=`효과 미미 — 조금 팔아도 평균 +1% 미만`; }
+    else { icon="🚫"; cls="cr-bad"; text=`<b>조금 팔면 오히려 손해</b> — 들고 가는 편이 나았음`; }
+    return `<div class="cr-row ${cls}"><span class="cr-ic">${icon}</span><div class="cr-th"><b>${esc(th)}</b><small>${esc(o.tk)}</small></div><div class="cr-list">${text}</div></div>`;
   }).join("");
-  return `<details class="cr-box" open><summary>🕯 <b>테마별 캔들형 순위</b> <span class="sub">볼밴 상단 밖 일부 매도 → 밴드 안 재매수 · 10년 실측 평균 성과 순</span></summary>
-    <div class="cr-note">5건 이상인 캔들만, 평균 성과(왕복 0.2% 차감) 높은 순. 작은 글씨 = 이익 비율·건수. '기준'은 캔들 조건 없이 상단 밖이면 판 경우.
-      무작위 가격에서도 이익 비율은 54~60%가 나오므로 평균을 보세요. 백테스트이며 원장(실제 기록)이 아닙니다.</div>
-    ${lines}</details>`;
+  const detail = Object.entries(CANDLE_MAP).map(([th,o])=>{
+    const ok = o.rows.filter(r=>r[2]>=5 && r[3]!=null).sort((a,b)=>b[3]-a[3]).slice(0,4);
+    const base = o.rows.find(r=>r[0].startsWith("조건 없음"));
+    return `<div><b>${esc(th)}</b> 기준 ${base?`${base[1]}%·${fmtA(base[3])}`:"—"} · ${ok.map(r=>`${esc(r[0])} ${fmtA(r[3])} (${r[1]}%·${r[2]}건)`).join(" · ")||"—"}</div>`;
+  }).join("");
+  return `<details class="cr-box" open><summary>🟡 <b>테마별 '조금 팔기' 잘 맞은 캔들</b></summary>
+    <div class="cr-lead">볼밴 위로 찢고 올라갔을 때 <b>어떤 캔들에서 조금 팔고 밴드 안에서 되사면</b> 이득이었나 (10년 실측)</div>
+    ${rows}
+    <details class="cr-more"><summary>숫자 자세히</summary>
+      <div class="cr-note">평균 = 판 값과 되산 값 차이(왕복 0.2% 차감), 괄호 = 이익 비율·건수. 무작위 가격에서도 이익 비율은 54~60%가 나오므로 평균을 보세요. 백테스트이며 실제 기록이 아닙니다.</div>
+      ${detail}</details>
+  </details>`;
 }
 /* 핵심 시그널 '🕯 캔들·패턴' 위젯 — 오늘 pat 코드가 있는 종목. 표시 전용(등급·순위 불변).
    순서: 🔴 하락 패턴 > 🟠 크게 흔들림 > 🟡 일부 익절 > 🔵 테마 규칙·저점 반등. */
@@ -4225,7 +4246,7 @@ function patternWidgetRows(list){
   return list.map(s=>{ const cs=patCodes(s); if(!cs.length) return null;
       const kinds=[...new Set(cs.map(c=>PAT_INFO[c][0]))].sort((a,b)=>pri[a]-pri[b]);
       const k0=kinds[0];
-      return {s, p:pri[k0], light:PAT_LIGHT[k0], label:PAT_KIND_LABEL[k0],
+      return {s, p:pri[k0], light:PAT_LIGHT[k0], label:PAT_KIND_LABEL[k0], cls:PAT_KIND_CLS[k0],
         why:PAT_INFO[cs.find(c=>PAT_INFO[c][0]===k0)][1], more:kinds.slice(1).map(k=>PAT_LIGHT[k]).join("")}; })
     .filter(Boolean).sort((a,b)=>a.p-b.p || String(a.s.ticker).localeCompare(String(b.s.ticker)));
 }
@@ -4234,17 +4255,17 @@ function patternWidget(list){
   const rows = patternWidgetRows(list);
   const body = rows.length ? rows.map(r=>`
     <button class="wrow" data-rankgoto="${esc(r.s.ticker)}" data-rank-sort="overall">
-      <span class="rk pl">${r.light}</span>
+      <span class="pl-pill ${r.cls}">${esc(r.label)}</span>
       <span class="tk">${esc(r.s.ticker)}</span>
       <span class="nm">${esc(r.s.name||"")}</span>
-      <span class="val"><b>${esc(r.label)}</b> <small>${esc(r.why)}</small>${r.more?` ${r.more}`:""}</span>
+      <span class="val"><small>${esc(r.why)}</small>${r.more?` ${r.more}`:""}</span>
     </button>`).join("") : `<div class="widget-empty">오늘 뜬 캔들·패턴 신호 없음</div>`;
   return `<div class="widget">
-    <div class="widget-h"><span class="wt">🕯 캔들·패턴 신호</span><span class="ws">🔴위험 🟠흔들림 🟡일부익절 🔵매수</span></div>
+    <div class="widget-h"><span class="wt">🕯 캔들·패턴 신호</span><span class="ws">오늘 할 일</span></div>
     ${body}
     <div class="widget-empty" style="text-align:left;font-size:11px">
-      <button class="strategy-info" data-explain="패턴하락">🔴</button> <button class="strategy-info" data-explain="패턴위험">🟠</button>
-      <button class="strategy-info" data-explain="패턴익절">🟡</button> <button class="strategy-info" data-explain="패턴반등">🔵</button> 눌러서 뜻 보기 · 🔴만 등급에 반영(매수 보류)</div>
+      뜻 보기: <button class="pl-pill pl-red" data-explain="패턴하락">사지 마</button> <button class="pl-pill pl-orange" data-explain="패턴위험">비중 줄이기</button>
+      <button class="pl-pill pl-yellow" data-explain="패턴익절">조금 팔기</button> <button class="pl-pill pl-blue" data-explain="패턴반등">살 만함</button></div>
   </div>`;
 }
 function themeForecastHtml(){
@@ -5230,7 +5251,7 @@ function openTrendModal(tk){
 /* 그룹 안에서는 구체적인 신호가 앞, 포괄적인 유형 라벨(추세추종·반등신호)이 뒤.
    "🔄 반등신호 + 🔄 바닥권 전환" 이면 더 구체적인 바닥권 전환이 대표가 된다. */
 const BADGE_GROUPS = [
-  { key:"danger", rank:1, m:["🔴 테마 하락 패턴","🚨 추세 이탈","⚠ 대량 거래 경계","⚠ 대량 음봉 — 추세 유지","⚠ 장기 추세 약세","📉 역배열 하락","📉 약세"] },
+  { key:"danger", rank:1, m:["🔴 사지 마","🚨 추세 이탈","⚠ 대량 거래 경계","⚠ 대량 음봉 — 추세 유지","⚠ 장기 추세 약세","📉 역배열 하락","📉 약세"] },
   { key:"caution", rank:2, m:["🔥 과열 분할익절","⚠ 연속 급등 과열","⚠ 과열","⚠ 추격주의","⚠ 전일 대량 음봉"] },
   { key:"pattern", rank:3, m:["💧 공포 투매","📉 강한 눌림목","📉 정배열 눌림목","🚀 저항선 돌파",
                               "🌱 초기 반등","🌱 바닥 다지기","🔄 바닥권 전환","🔥 상승 초입",
@@ -5395,7 +5416,9 @@ const PAT_INFO = {
 };
 /* 신호등 — 2026-11-06 사용자 지시: 위험은 빨간불, 단기 익절은 노란불, 매수 캔들은 파란불 */
 const PAT_LIGHT = {danger:"🔴", risk:"🟠", trim:"🟡", theme:"🔵", bounce:"🔵"};
-const PAT_KIND_LABEL = {danger:"하락 패턴", risk:"크게 흔들림", trim:"일부 익절", theme:"테마 저점 규칙", bounce:"저점 반등"};
+/* 2026-11-06 사용자 지적 "색만으로는 직관적이지 않다" — 색 칸 안에 '할 일'을 크게 쓴다 */
+const PAT_KIND_LABEL = {danger:"사지 마", risk:"비중 줄이기", trim:"조금 팔기", theme:"살 만함", bounce:"살 만함"};
+const PAT_KIND_CLS = {danger:"pl-red", risk:"pl-orange", trim:"pl-yellow", theme:"pl-blue", bounce:"pl-blue"};
 function patCodes(s){
   return String((s && s.pat) || "").split(",").filter(c=>PAT_INFO[c])
     .filter(c=>c!=="D_QUANT" || (has(s.market_vxn) && s.market_vxn>=25));
@@ -5406,12 +5429,12 @@ function patternBadges(s){
   const out = [], t = pick("trim"), r = pick("risk"), b = pick("bounce"), m = pick("theme");
   if(m.length){
     const multi = !!(s.sig && s.sig.grade===5 && typeof generalMultiGate==="function" && generalMultiGate(s));
-    out.push({key:"🔵 테마 저점 규칙(다중 보조)",text:"🔵 "+m.join(" · ")+(multi?" · 다중과 겹침":" · 다중 보조"),cls:"t-cool",explain:"테마규칙",why:m});
+    out.push({key:"🔵 테마 저점 규칙(다중 보조)",text:"🔵 살 만함 · "+m.join(" · ")+(multi?" · 다중과 겹침":" · 다중 보조"),cls:"t-cool",explain:"테마규칙",why:m});
   }
   /* 🔴 하락 패턴은 evaluate() 태그(매수 보류)로 이미 보이므로 여기서는 다시 만들지 않는다 */
-  if(r.length) out.push({key:"🟠 크게 흔들림",text:"🟠 크게 흔들림 · "+r.join(" · "),cls:"t-warn",explain:"패턴위험",why:r});
-  if(t.length) out.push({key:"🟡 일부 익절 후보",text:"🟡 일부 익절 후보 · "+t.join(" · "),cls:"t-warn",explain:"패턴익절",why:t});
-  if(b.length) out.push({key:"🔵 저점 반등 후보",text:"🔵 저점 반등 후보 · "+b.join(" · "),cls:"t-cool",explain:"패턴반등",why:b});
+  if(r.length) out.push({key:"🟠 크게 흔들림",text:"🟠 비중 줄이기 · "+r.join(" · "),cls:"t-warn",explain:"패턴위험",why:r});
+  if(t.length) out.push({key:"🟡 일부 익절 후보",text:"🟡 조금 팔기 · "+t.join(" · "),cls:"t-warn",explain:"패턴익절",why:t});
+  if(b.length) out.push({key:"🔵 저점 반등 후보",text:"🔵 살 만함 · 저점 반등 · "+b.join(" · "),cls:"t-cool",explain:"패턴반등",why:b});
   return out;
 }
 function flowBadges(s){
@@ -6508,7 +6531,7 @@ function explainStyle(kind){
   const Big = t => `<p style="font-size:17px;font-weight:700;line-height:1.6;margin:6px 0 12px">${t}</p>`;
   const More = t => `<details style="margin-top:4px"><summary style="cursor:pointer;font-size:12px;color:var(--muted)">자세한 설명 · 10년 실측 숫자</summary>
     <p style="font-size:12px;color:var(--muted);line-height:1.75;margin-top:6px">${t}</p></details>`;
-  const LIGHTS = `<p style="font-size:12px;line-height:1.7;margin:0 0 6px">🔴 하락 패턴(매수 보류) · 🟠 크게 흔들림 · 🟡 일부 익절 · 🔵 매수 쪽 캔들</p>`;
+  const LIGHTS = `<p style="font-size:12px;line-height:1.9;margin:0 0 6px"><span class="pl-pill pl-red">사지 마</span> <span class="pl-pill pl-orange">비중 줄이기</span> <span class="pl-pill pl-yellow">조금 팔기</span> <span class="pl-pill pl-blue">살 만함</span></p>`;
 
   if (kind === "페어리버설"){
     openModal(`<h3>🔀 페어 리버설 돌파</h3>` +
