@@ -3673,9 +3673,11 @@ function chatKw(k){
   }
   if(k==="candleAll"){
     chatMe("캔들 패턴 전부 쉽게 설명해줘");
-    const G = [["🟢 바닥에서 보이면 반등 기대", ["망치형","아랫꼬리","샛별형(상승)","상승장악형"]],
-               ["🔴 고점에서 보이면 조심", ["교수형","유성형","윗꼬리","석별형","장대양봉 뒤 음봉","장대음봉","샛별 형성"]],
-               ["⚪ 망설임", ["도지"]]];
+    const G = [["🟢 바닥에서 보이면 반등 기대", ["망치형","역망치형","아랫꼬리","샛별형(상승)","상승장악형","관통형","상승잉태형"]],
+               ["🔴 고점에서 보이면 조심", ["교수형","유성형","윗꼬리","석별형","하락장악형","먹구름형","하락잉태형","장대양봉 뒤 음봉","샛별 형성"]],
+               ["📉 음봉의 종류 (얼마나·어떻게 밀렸나)", ["장대음봉","민음봉","흑삼병","갭하락 음봉","민머리 음봉","민바닥 음봉","중음봉","단음봉"]],
+               ["📈 양봉의 종류", ["장대양봉","민양봉","적삼병","갭상승 양봉","민머리 양봉","민바닥 양봉","중양봉","단양봉"]],
+               ["⚪ 망설임", ["도지","팽이"]]];
     const li = n => CANDLE_EDU[n] ? `· <u class="edu-link" data-edubig="${esc(n)}">${esc(n)}</u> — ${esc(CANDLE_EDU[n].d)}` : "";
     chatBot(`이름을 누르면 그림이 열려요.<br><br>` + G.map(([h, ns]) => `<b>${h}</b><br>${ns.map(li).filter(Boolean).join("<br>")}`).join("<br><br>") +
       `<br><br><b>🆕 새로 검증한 모양</b><br>
@@ -4438,6 +4440,28 @@ const CANDLE_EDU = {
   "음봉": {bars:[[8,8.6,5.4,5.8]], band:7, d:"종가가 시가보다 낮음 — 그날은 파는 쪽이 이김"},
   "양봉": {bars:[[5.4,8.6,5,8.2]], band:7, d:"종가가 시가보다 높음 — 그날은 사는 쪽이 이김"},
   "장족십자 도지": {bars:[[6.3,9.8,2.6,6.4]], band:8.6, d:"위·아래 꼬리가 둘 다 길고 몸통이 거의 없음 — 크게 흔들렸지만 제자리에서 끝난 날"},
+  "역망치형": {bars:[[2.0,6.4,1.8,2.4]], band:1.5, bandLow:true, d:"긴 윗꼬리·작은 몸통이 바닥에 — 위로 사 보려는 시도가 나온 반등 쪽 힌트(확인 필요)"},
+  "팽이": {bars:[[5.6,7.8,3.6,6.2]], band:7, d:"작은 몸통 + 위아래 짧지 않은 꼬리 — 힘이 비슷해 방향을 고르는 중"},
+  "하락장악형": {bars:[[4.2,6.2,4.0,5.9],[6.4,6.6,3.4,3.7]], band:7, d:"전날 양봉 몸통을 오늘 음봉이 통째로 감쌈 — 파는 쪽이 넘어온 하락 쪽 신호"},
+  "먹구름형": {bars:[[3.8,7.4,3.6,7.2],[7.8,8.2,5.2,5.3]], band:7, d:"큰 양봉 다음 날 더 높게 시작했다가 전날 몸통 절반 아래로 밀린 음봉 — 고점 경고"},
+  "관통형": {bars:[[7.2,7.4,3.6,3.8],[3.2,6.2,3.0,5.9]], band:1.5, bandLow:true, d:"큰 음봉 다음 날 더 낮게 시작했다가 전날 몸통 절반 위로 올린 양봉 — 바닥 반등 쪽"},
+  "하락잉태형": {bars:[[3.6,7.6,3.4,7.4],[6.8,7.0,5.6,5.9]], band:7, d:"큰 양봉 몸통 안에 작은 음봉이 들어감 — 상승 힘이 줄어든 신호(확인 필요)"},
+  "상승잉태형": {bars:[[7.4,7.6,3.4,3.6],[4.2,5.6,4.0,5.3]], band:1.5, bandLow:true, d:"큰 음봉 몸통 안에 작은 양봉이 들어감 — 하락 힘이 줄어든 신호(확인 필요)"},
+  "흑삼병": {bars:[[8.6,8.8,7.0,7.2],[7.4,7.6,5.6,5.8],[6.0,6.2,4.2,4.4]], band:7, d:"큰 음봉 3개가 계단처럼 연달아 내려감 — 하락 추세가 강해진 모양"},
+  "적삼병": {bars:[[2.6,4.2,2.4,4.0],[3.8,5.6,3.6,5.4],[5.2,7.0,5.0,6.8]], band:7, d:"큰 양봉 3개가 계단처럼 연달아 올라감 — 상승 추세가 강해진 모양"},
+  "민음봉": {bars:[[8.4,8.4,4.2,4.2]], band:7, d:"꼬리 없이 시가=고가, 종가=저가 — 하루 종일 팔기만 한 강한 음봉"},
+  "민양봉": {bars:[[4.2,8.4,4.2,8.4]], band:7, d:"꼬리 없이 시가=저가, 종가=고가 — 하루 종일 사기만 한 강한 양봉"},
+  "장대양봉": {bars:[[3.0,8.6,2.8,8.3]], band:7, d:"평소보다 큰 진폭에 몸통이 꽉 찬 양봉 — 사는 힘이 강하게 나온 날"},
+  "갭하락 음봉": {bars:[[6.4,7.4,5.0,7.1],[4.6,4.8,3.4,3.6]], band:7, d:"전날 저가보다 아래에서 시작해 더 내린 음봉 — 밤사이 악재·투매"},
+  "갭상승 양봉": {bars:[[4.2,5.6,3.8,5.0],[6.2,7.8,6.0,7.6]], band:7, d:"전날 고가보다 위에서 시작해 더 오른 양봉 — 밤사이 호재·강한 매수"},
+  "민머리 음봉": {bars:[[7.6,7.6,4.4,5.0]], band:7, d:"시가가 그날 고가 — 시작부터 밀린 음봉"},
+  "민바닥 음봉": {bars:[[7.4,8.4,5.0,5.0]], band:7, d:"종가가 그날 저가 — 마감까지 밀린 음봉(다음 날 약세가 이어지기 쉬운 모양)"},
+  "민머리 양봉": {bars:[[5.0,7.6,4.2,7.6]], band:7, d:"종가가 그날 고가 — 마감까지 사들인 양봉"},
+  "민바닥 양봉": {bars:[[5.0,8.2,5.0,7.4]], band:7, d:"시가가 그날 저가 — 시작부터 오른 양봉"},
+  "단음봉": {bars:[[6.4,7.4,5.4,5.9]], band:7, d:"몸통이 짧은 음봉 — 약하게 밀린 날"},
+  "중음봉": {bars:[[7.0,7.6,4.8,5.4]], band:7, d:"몸통이 중간 크기인 음봉 — 보통 수준으로 밀린 날"},
+  "단양봉": {bars:[[5.9,7.0,5.0,6.4]], band:7, d:"몸통이 짧은 양봉 — 약하게 오른 날"},
+  "중양봉": {bars:[[5.4,7.4,4.8,7.0]], band:7, d:"몸통이 중간 크기인 양봉 — 보통 수준으로 오른 날"},
   "고파동": {bars:[[6.0,9.6,2.8,6.9]], band:8.6, d:"장족십자 도지와 비슷하지만 몸통이 조금 있음 — 큰 흔들림 속 팽팽한 힘겨루기"},
 };
 /* 양봉·음봉은 기본 용어라 갤러리 카드로 늘어놓지 않고, 밑줄 링크로만 짧게 연다(2026-11-06 사용자 지시 "축약"). */
@@ -4446,22 +4470,65 @@ const basicLegend = () => `<span class="edu-basic">빨강 = <u class="edu-link" 
 /* 신호 코드 → 교육용 캔들 모양 (모양이 없는 지표 신호는 그림을 붙이지 않는다) */
 const CODE_EDU = {B_HAMMER:"망치형", B_ENGULF:"상승장악형", B_MSTAR:"샛별형(상승)", X_ESTAR:"석별형", X_TOPBEAR:"장대음봉", O_TURN:"윗꼬리",
   T_QUANTUM:"교수형", D_SEMI:"도지", D_SKH:"윗꼬리", C_HANG:"교수형", C_SHOOT:"유성형", C_DOJI:"도지", C_UPW:"윗꼬리", C_LOWW:"아랫꼬리",
-  C_STAR:"샛별 형성", C_BEAR:"음봉", C_BIGBEAR:"장대양봉 뒤 음봉", R_BLOW:"장대음봉", K_LLD_UP:"장족십자 도지", K_HW_UP:"고파동"};
+  C_STAR:"샛별 형성", C_BIGBEAR:"장대양봉 뒤 음봉", R_BLOW:"장대음봉", K_LLD_UP:"장족십자 도지", K_HW_UP:"고파동"};
 /* 오늘 실제 일봉(ohlc60 마지막 봉)의 모양을 교육용 그림 이름으로 분류 — pattern_flags.py와 같은 문턱(몸통·꼬리 비율).
    신호 코드에 캔들 모양이 없을 때(지표 신호) 카드에 '오늘 캔들' 그림을 붙이기 위한 것. 등급·판정에는 쓰지 않는다. */
+/* 마지막 확정 봉(ohlc60)의 캔들 이름 — 화면 표시 전용(등급·점수에 안 씀).
+   2026-11-06 사용자 지시 "음봉도 다 이름이 있어, 단순한 음봉으로 표기하지 말고 형태 분류해".
+   순서: 2~3봉 패턴(석별·샛별·흑삼병·적삼병·장악·먹구름·관통·잉태) → 한 봉 꼬리·몸통 모양 → 몸통 크기·위치(장대·민·갭·단·중).
+   문턱은 pattern_flags.py·candle-context-lab.py와 같은 비율(몸통·꼬리 = 하루 진폭 대비, 큰 봉 = 진폭이 14일 평균의 1.3배↑). */
 function todayShape(s){
-  const D = (s && s.ohlc60) || []; const r = D[D.length-1];
-  if (!r || !has(r[1]) || !has(r[2]) || !has(r[3]) || !has(r[4])) return null;
-  const [_, o, h, l, c] = r, rg = h - l; if (!(rg > 0)) return null;
-  const up = (h - Math.max(o,c))/rg, lo = (Math.min(o,c) - l)/rg, body = Math.abs(c-o)/rg;
-  const hiZone = has(s.bb_pos) ? s.bb_pos >= 60 : true;
-  if (lo >= 0.6 && body <= 0.3 && up <= 0.15) return hiZone ? "교수형" : "망치형";
-  if (up >= 0.6 && body <= 0.3 && lo <= 0.15) return "유성형";
-  if (body <= 0.1) return "도지";
-  if (up >= 0.5) return "윗꼬리";
-  if (lo >= 0.5) return "아랫꼬리";
-  if (c < o && body >= 0.6) return "음봉";
-  return null;
+  const D = ((s && s.ohlc60) || []).filter(r => r && [1,2,3,4].every(k => has(r[k])));
+  const n = D.length; if (!n) return null;
+  const bar = r => { const [_, o, h, l, c] = r, rg = h - l;
+    return {o, h, l, c, rg, up: rg>0 ? (h-Math.max(o,c))/rg : 0, lo: rg>0 ? (Math.min(o,c)-l)/rg : 0, body: rg>0 ? Math.abs(c-o)/rg : 0, bull: c > o, bear: c < o}; };
+  const t = bar(D[n-1]); if (!(t.rg > 0)) return null;
+  const p = n >= 2 ? bar(D[n-2]) : null, q = n >= 3 ? bar(D[n-3]) : null;
+  let atr = null;
+  if (n >= 15){ let sum = 0; for (let k = n-14; k < n; k++){ const h = D[k][2], l = D[k][3], pc = D[k-1][4]; sum += Math.max(h-l, Math.abs(h-pc), Math.abs(l-pc)); } atr = sum/14; }
+  const big = atr ? t.rg >= 1.3*atr : false;
+  const hiZone = has(s.bb_pos) ? s.bb_pos >= 60 : true, loZone = has(s.bb_pos) ? s.bb_pos <= 40 : false;
+  const mid = b => (b.o + b.c)/2, top = b => Math.max(b.o, b.c), bot = b => Math.min(b.o, b.c);
+  if (q && p){
+    if (q.bull && q.body >= 0.6 && p.body <= 0.3 && bot(p) >= q.c*0.995 && t.bear && t.c < mid(q)) return "석별형";
+    if (q.bear && q.body >= 0.6 && p.body <= 0.3 && top(p) <= q.c*1.005 && t.bull && t.c > mid(q)) return "샛별형(상승)";
+    if ([q,p,t].every(b => b.bear && b.body >= 0.5) && p.c < q.c && t.c < p.c && p.o <= q.o && t.o <= p.o) return "흑삼병";
+    if ([q,p,t].every(b => b.bull && b.body >= 0.5) && p.c > q.c && t.c > p.c && p.o >= q.o && t.o >= p.o) return "적삼병";
+  }
+  if (p){
+    if (p.bull && t.bear && t.o >= p.c && t.c <= p.o && (t.o - t.c) > (p.c - p.o)) return "하락장악형";
+    if (p.bear && t.bull && t.o <= p.c && t.c >= p.o && (t.c - t.o) > (p.o - p.c)) return "상승장악형";
+    if (p.bull && p.body >= 0.5 && t.bear && t.o > p.c && t.c < mid(p) && t.c > p.o) return "먹구름형";
+    if (p.bear && p.body >= 0.5 && t.bull && t.o < p.c && t.c > mid(p) && t.c < p.o) return "관통형";
+    if (p.bull && p.body >= 0.5 && t.bear && top(t) <= p.c && bot(t) >= p.o && Math.abs(t.c-t.o) <= 0.5*Math.abs(p.c-p.o)) return "하락잉태형";
+    if (p.bear && p.body >= 0.5 && t.bull && top(t) <= p.o && bot(t) >= p.c && Math.abs(t.c-t.o) <= 0.5*Math.abs(p.c-p.o)) return "상승잉태형";
+  }
+  if (t.body <= 0.1 && t.up >= 0.3 && t.lo >= 0.3 && big) return "장족십자 도지";
+  if (t.body > 0.1 && t.body <= 0.3 && t.up >= 0.3 && t.lo >= 0.3 && big) return "고파동";
+  if (t.lo >= 0.6 && t.body <= 0.3 && t.up <= 0.15) return hiZone ? "교수형" : "망치형";
+  if (t.up >= 0.6 && t.body <= 0.3 && t.lo <= 0.15) return loZone ? "역망치형" : "유성형";
+  if (t.body <= 0.1) return "도지";
+  if (t.body <= 0.3 && t.up >= 0.2 && t.lo >= 0.2) return "팽이";
+  if (t.up >= 0.5) return "윗꼬리";
+  if (t.lo >= 0.5) return "아랫꼬리";
+  const gapDn = p && t.o < p.l, gapUp = p && t.o > p.h;
+  if (t.bear){
+    if (t.up <= 0.05 && t.lo <= 0.05) return "민음봉";
+    if (t.body >= 0.6 && big) return "장대음봉";
+    if (gapDn) return "갭하락 음봉";
+    if (t.up <= 0.05) return "민머리 음봉";
+    if (t.lo <= 0.05) return "민바닥 음봉";
+    return t.body < 0.35 ? "단음봉" : "중음봉";
+  }
+  if (t.bull){
+    if (t.up <= 0.05 && t.lo <= 0.05) return "민양봉";
+    if (t.body >= 0.6 && big) return "장대양봉";
+    if (gapUp) return "갭상승 양봉";
+    if (t.up <= 0.05) return "민머리 양봉";
+    if (t.lo <= 0.05) return "민바닥 양봉";
+    return t.body < 0.35 ? "단양봉" : "중양봉";
+  }
+  return "도지";
 }
 function eduGlyph(name, scale){
   const e = CANDLE_EDU[name]; if(!e) return "";
