@@ -582,6 +582,55 @@ def freeze_validation_earnings_dates(results, prev_rows):
         r["validation_affected_dates"] = sorted(old_a | cur_a)
     return results
 
+# ── 연구 후보 실제 추적 (2026-11-06 사용자 지시) ─────────────────────────────
+# "변동성 주의는 20일 뒤 종가 방향만으로 판단하지 말고, 신호 확정 다음 날 시가부터 60거래일 동안의 최저가를 기록해
+#  60일 내 −25% 하락 발생 여부를 기존 연구와 같은 기준으로 추적 · 최대 상승폭도 기록 · 데이터 부족은 '측정 대기'/'측정 불가'".
+# 원장(hist)·산식과 별개인 추적 기록(payload["cand_track"]). 사건은 원장에 그날 기록된 pat 코드에서만 만든다(소급 탐지 안 함).
+TRACK_CODES = ("K_SV1", "K_SV2", "K_SV3", "K_TOP3", "K_FLAG")
+TRACK_START = "2026-11-06"       # 이 코드들이 원장에 쌓이기 시작한 날 — 그 전은 사건으로 만들지 않는다
+TRACK_DAYS, TRACK_DROP = 60, -25.0
+
+def update_cand_track(prev_track, results):
+    ev = {}
+    for e in (prev_track or []):
+        if isinstance(e, dict) and e.get("code") and e.get("ticker") and e.get("date"):
+            ev[(e["code"], e["ticker"], e["date"])] = dict(e)
+    iD, iPat = HIST_FIELDS.index("date"), HIST_FIELDS.index("pat")
+    for r in results:
+        tk = r.get("ticker")
+        for h in (r.get("hist") or []):
+            if not isinstance(h, list) or len(h) <= iPat: continue
+            d = str(h[iD] or "")
+            if d < TRACK_START: continue
+            for c in str(h[iPat] or "").split(","):
+                if c in TRACK_CODES and (c, tk, d) not in ev:
+                    ev[(c, tk, d)] = {"code": c, "ticker": tk, "date": d, "status": "측정 대기", "days": 0}
+    by_tk = {r.get("ticker"): r.pop("_ohlc_full", None) for r in results}
+    for k, e in ev.items():
+        o = by_tk.get(e["ticker"])
+        if not o: continue                                  # 이번 실행에서 받지 않은 종목(다른 스코프·조회 실패) — 직전 기록 유지
+        if e.get("final"): continue
+        ds = o["d"]
+        if e["date"] not in ds:
+            if ds and e["date"] < ds[0]: e.update(status="측정 불가", note="가격 이력에서 신호일이 빠짐")
+            continue
+        i = ds.index(e["date"])
+        if i + 1 >= len(ds): e.update(status="측정 대기", days=0); continue
+        entry = o["o"][i + 1]
+        if not (entry and entry == entry and entry > 0): e.update(status="측정 불가", note="다음 날 시가 없음"); continue
+        j = min(i + TRACK_DAYS, len(ds) - 1)
+        lows, highs = o["l"][i + 1:j + 1], o["h"][i + 1:j + 1]
+        mdd = round((min(lows) / entry - 1) * 100, 2); mup = round((max(highs) / entry - 1) * 100, 2)
+        days = j - i
+        hit_day = next((n + 1 for n, x in enumerate(lows) if (x / entry - 1) * 100 <= TRACK_DROP), None)
+        e.update(entry_date=ds[i + 1], entry=round(entry, 4), days=days, max_down=mdd, max_up=mup)
+        if hit_day: e.update(status="발생", hit_day=hit_day)
+        elif days >= TRACK_DAYS: e.update(status="미발생")
+        else: e["status"] = "측정 대기"
+        if days >= TRACK_DAYS: e["final"] = True          # 60거래일을 다 채운 뒤에는 다시 계산하지 않는다
+    for r in results: r.pop("_ohlc_full", None)
+    return sorted(ev.values(), key=lambda x: (x["date"], x["ticker"], x["code"]))[-1000:]
+
 def load_previous():
     """직전 signals.json을 티커별로 읽어둔다. 없으면 빈 dict."""
     try:
@@ -1548,6 +1597,13 @@ def analyze(ticker, name, category):
         "currency": "KRW" if is_kr else "USD",
         "leveraged": ticker in LEVERAGED,
     })
+    # 연구 후보 추적용 1년치 OHLC — main()의 update_cand_track()이 쓰고 곧바로 지운다(signals.json·원장에 안 남음).
+    try:
+        row["_ohlc_full"] = {"d": [d.strftime("%Y-%m-%d") for d in df.index],
+                             "o": [float(x) for x in df["Open"].values], "h": [float(x) for x in df["High"].values],
+                             "l": [float(x) for x in df["Low"].values]}
+    except Exception as e:
+        print(f"  ⚠ {ticker} 추적용 OHLC 생략: {e}")
     # 2026-11-06 사이트 '실제 발생 사례' 일봉 차트용 최근 60봉 OHLCV — 화면 표시 전용.
     # SNAPSHOT_FIELDS·HIST_FIELDS에 없으므로 원장(hist·history/)에는 들어가지 않는다.
     try:
@@ -2313,6 +2369,13 @@ def main():
     # 일반 종목 hist·신뢰도 검증·시장국면에는 전혀 관여하지 않는 표시용 원장이다.
     qqq_signal_hist = build_qqq_signal_hist(qqq_card, vxn_history, prev_payload,
                                             breadth_by_date(results))
+    # 연구 후보 실제 추적 — 원장 hist는 읽기만 한다. _ohlc_full은 여기서 모두 지운다.
+    try:
+        cand_track = update_cand_track((prev_payload or {}).get("cand_track"), results)
+    except Exception as e:
+        print("  ⚠ 후보 추적 갱신 실패(직전 기록 유지):", e)
+        cand_track = (prev_payload or {}).get("cand_track") or []
+        for r in results: r.pop("_ohlc_full", None)
 
     payload = {
         "generated_at": now_kst.strftime("%Y-%m-%d %H:%M") + " KST",
@@ -2335,6 +2398,7 @@ def main():
         "calendar_status": calendar_status,
         "sectors": sectors,
         "stocks": results, "failed": failed,
+        "cand_track": cand_track,
     }
     with open("signals.json", "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False)
