@@ -2137,7 +2137,7 @@ function evaluate(s){
   const themeDanger = /(^|,)D_(SEMI|SKH)(,|$)/.test(patS)
     || (/(^|,)D_QUANT(,|$)/.test(patS) && has(s.market_vxn) && s.market_vxn >= 25);
   if (themeDanger){
-    tags.unshift({c:"t-hot",t:"🔴 테마 하락 패턴 — 매수 보류"});
+    tags.unshift({c:"t-hot",t:"🔴 테마 하락 패턴 — 매수 보류",click:"패턴하락"});
     reasons.push({w:3,t:"테마 하락 패턴(10년 실측 10일 하락 68~72% 또는 급락 40~86%) — 매수 등급 보류"});
   }
   // 경계는 등급을 내리지 않는다. 매수 등급은 그대로 유지(테마 하락 패턴만 예외).
@@ -4154,15 +4154,33 @@ function themeCandleRankHtml(){
     ${lines}</details>`;
 }
 /* 핵심 시그널 '🕯 캔들·패턴' 위젯 — 오늘 pat 코드가 있는 종목. 표시 전용(등급·순위 불변).
-   순서: 🎯 테마 규칙 > 🌱 반등 후보 > ✂️ 익절 후보 > 🌋 급락 위험. */
+   순서: 🔴 하락 패턴 > 🟠 크게 흔들림 > 🟡 일부 익절 > 🔵 테마 규칙·저점 반등. */
 function patternWidgetRows(list){
-  const pri = {theme:0, bounce:1, trim:2, risk:3};
-  const icon = {theme:"🎯", bounce:"🌱", trim:"✂️", risk:"🌋"};
+  const pri = {danger:0, risk:1, trim:2, theme:3, bounce:4};
   return list.map(s=>{ const cs=patCodes(s); if(!cs.length) return null;
       const kinds=[...new Set(cs.map(c=>PAT_INFO[c][0]))].sort((a,b)=>pri[a]-pri[b]);
-      return {s, p:pri[kinds[0]], val:kinds.map(k=>icon[k]).join("")+" "+PAT_INFO[cs.find(c=>PAT_INFO[c][0]===kinds[0])][1]}; })
-    .filter(Boolean).sort((a,b)=>a.p-b.p || String(a.s.ticker).localeCompare(String(b.s.ticker)))
-    .map(x=>({ticker:x.s.ticker,name:x.s.name,val:x.val,cls:""}));
+      const k0=kinds[0];
+      return {s, p:pri[k0], light:PAT_LIGHT[k0], label:PAT_KIND_LABEL[k0],
+        why:PAT_INFO[cs.find(c=>PAT_INFO[c][0]===k0)][1], more:kinds.slice(1).map(k=>PAT_LIGHT[k]).join("")}; })
+    .filter(Boolean).sort((a,b)=>a.p-b.p || String(a.s.ticker).localeCompare(String(b.s.ticker)));
+}
+/* 순위 번호 대신 신호등을 찍는다 — 번호를 쓰면 '1위가 위험인지 매수인지' 알 수 없다(사용자 지적). */
+function patternWidget(list){
+  const rows = patternWidgetRows(list);
+  const body = rows.length ? rows.map(r=>`
+    <button class="wrow" data-rankgoto="${esc(r.s.ticker)}" data-rank-sort="overall">
+      <span class="rk pl">${r.light}</span>
+      <span class="tk">${esc(r.s.ticker)}</span>
+      <span class="nm">${esc(r.s.name||"")}</span>
+      <span class="val"><b>${esc(r.label)}</b> <small>${esc(r.why)}</small>${r.more?` ${r.more}`:""}</span>
+    </button>`).join("") : `<div class="widget-empty">오늘 뜬 캔들·패턴 신호 없음</div>`;
+  return `<div class="widget">
+    <div class="widget-h"><span class="wt">🕯 캔들·패턴 신호</span><span class="ws">🔴위험 🟠흔들림 🟡일부익절 🔵매수</span></div>
+    ${body}
+    <div class="widget-empty" style="text-align:left;font-size:11px">
+      <button class="strategy-info" data-explain="패턴하락">🔴</button> <button class="strategy-info" data-explain="패턴위험">🟠</button>
+      <button class="strategy-info" data-explain="패턴익절">🟡</button> <button class="strategy-info" data-explain="패턴반등">🔵</button> 눌러서 뜻 보기 · 🔴만 등급에 반영(매수 보류)</div>
+  </div>`;
 }
 function themeForecastHtml(){
   const f = themeForecast(); if(f.today.length < 3) return "";
@@ -4233,7 +4251,7 @@ function renderTheme(){
       ${widget("🔄 반등 신호","<button class=\"strategy-info\" data-strategyinfo=\"reversal\">저점매수 — 바닥권 전환</button>",rev,"반등 신호 없음","overall")}
       ${widget("📈 추세 신호","<button class=\"strategy-info\" data-strategyinfo=\"trend\">상승추세 중 좋은 눌림목</button>",pull,"추세 신호 없음","overall")}
       ${widget("⚡ 거래량 폭발","20일 평균 대비",byVol,"—","overall")}
-      ${widget("🕯 캔들·패턴 신호","표시 전용 · 등급과 별개",patternWidgetRows(list),"오늘 뜬 캔들·패턴 신호 없음","overall")}
+      ${patternWidget(list)}
       <div class="widget">
         <div class="widget-h"><span class="wt">🗂 테마별 종목</span><span class="ws">${list.length}종목</span></div>
         <div class="sectorlist">
@@ -5146,7 +5164,7 @@ function openTrendModal(tk){
 /* 그룹 안에서는 구체적인 신호가 앞, 포괄적인 유형 라벨(추세추종·반등신호)이 뒤.
    "🔄 반등신호 + 🔄 바닥권 전환" 이면 더 구체적인 바닥권 전환이 대표가 된다. */
 const BADGE_GROUPS = [
-  { key:"danger", rank:1, m:["🚨 추세 이탈","⚠ 대량 거래 경계","⚠ 대량 음봉 — 추세 유지","⚠ 장기 추세 약세","📉 역배열 하락","📉 약세"] },
+  { key:"danger", rank:1, m:["🔴 테마 하락 패턴","🚨 추세 이탈","⚠ 대량 거래 경계","⚠ 대량 음봉 — 추세 유지","⚠ 장기 추세 약세","📉 역배열 하락","📉 약세"] },
   { key:"caution", rank:2, m:["🔥 과열 분할익절","⚠ 연속 급등 과열","⚠ 과열","⚠ 추격주의","⚠ 전일 대량 음봉"] },
   { key:"pattern", rank:3, m:["💧 공포 투매","📉 강한 눌림목","📉 정배열 눌림목","🚀 저항선 돌파",
                               "🌱 초기 반등","🌱 바닥 다지기","🔄 바닥권 전환","🔥 상승 초입",
@@ -5305,20 +5323,29 @@ const PAT_INFO = {
   B_MA5:["bounce","5일선 안착 2일"], B_G520:["bounce","5·20 골든크로스"],
   /* 테마별 저점 매수 규칙 — 다중 신호 보조 표시(등급·순위 불변). 정의 = pattern_flags.py THEME_BUY */
   M_SEMI:["theme","반도체 규칙"], M_IND:["theme","산업재 규칙"], M_HOUSE:["theme","주택 규칙"],
-  M_QUANT:["theme","양자 규칙"], M_NVDA:["theme","엔비디아 규칙"], M_TSLA:["theme","테슬라 규칙"], M_AMAT:["theme","어플라이드 규칙"]
+  M_QUANT:["theme","양자 규칙"], M_NVDA:["theme","엔비디아 규칙"], M_TSLA:["theme","테슬라 규칙"], M_AMAT:["theme","어플라이드 규칙"],
+  /* v22 테마 하락 패턴 — 등급 보류는 evaluate()가 한다. 여기는 위젯 표시용 이름만. D_QUANT는 그날 VXN≥25일 때만 유효 */
+  D_SEMI:["danger","상단 밖 십자형"], D_SKH:["danger","고가 돌파 긴 윗꼬리"], D_QUANT:["danger","체류 뒤 재진입·VXN≥25"]
 };
-function patCodes(s){ return String((s && s.pat) || "").split(",").filter(c=>PAT_INFO[c]); }
+/* 신호등 — 2026-11-06 사용자 지시: 위험은 빨간불, 단기 익절은 노란불, 매수 캔들은 파란불 */
+const PAT_LIGHT = {danger:"🔴", risk:"🟠", trim:"🟡", theme:"🔵", bounce:"🔵"};
+const PAT_KIND_LABEL = {danger:"하락 패턴", risk:"크게 흔들림", trim:"일부 익절", theme:"테마 저점 규칙", bounce:"저점 반등"};
+function patCodes(s){
+  return String((s && s.pat) || "").split(",").filter(c=>PAT_INFO[c])
+    .filter(c=>c!=="D_QUANT" || (has(s.market_vxn) && s.market_vxn>=25));
+}
 function patternBadges(s){
   const cs = patCodes(s); if(!cs.length) return [];
   const pick = k => cs.filter(c=>PAT_INFO[c][0]===k).map(c=>PAT_INFO[c][1]);
   const out = [], t = pick("trim"), r = pick("risk"), b = pick("bounce"), m = pick("theme");
   if(m.length){
     const multi = !!(s.sig && s.sig.grade===5 && typeof generalMultiGate==="function" && generalMultiGate(s));
-    out.push({key:"🎯 테마 저점 규칙(다중 보조)",text:"🎯 "+m.join(" · ")+(multi?" · 다중과 겹침":" · 다중 보조"),cls:"t-cool",explain:"테마규칙",why:m});
+    out.push({key:"🔵 테마 저점 규칙(다중 보조)",text:"🔵 "+m.join(" · ")+(multi?" · 다중과 겹침":" · 다중 보조"),cls:"t-cool",explain:"테마규칙",why:m});
   }
-  if(t.length) out.push({key:"✂️ 일부 익절 후보",text:"✂️ 일부 익절 후보 · "+t.join(" · "),cls:"t-warn",explain:"패턴익절",why:t});
-  if(r.length) out.push({key:"🌋 급락 위험(변동성)",text:"🌋 급락 위험(변동성) · "+r.join(" · "),cls:"t-warn",explain:"패턴위험",why:r});
-  if(b.length) out.push({key:"🌱 저점 반등 후보",text:"🌱 저점 반등 후보 · "+b.join(" · "),cls:"t-cool",explain:"패턴반등",why:b});
+  /* 🔴 하락 패턴은 evaluate() 태그(매수 보류)로 이미 보이므로 여기서는 다시 만들지 않는다 */
+  if(r.length) out.push({key:"🟠 크게 흔들림",text:"🟠 크게 흔들림 · "+r.join(" · "),cls:"t-warn",explain:"패턴위험",why:r});
+  if(t.length) out.push({key:"🟡 일부 익절 후보",text:"🟡 일부 익절 후보 · "+t.join(" · "),cls:"t-warn",explain:"패턴익절",why:t});
+  if(b.length) out.push({key:"🔵 저점 반등 후보",text:"🔵 저점 반등 후보 · "+b.join(" · "),cls:"t-cool",explain:"패턴반등",why:b});
   return out;
 }
 function flowBadges(s){
@@ -6410,6 +6437,11 @@ document.addEventListener("keydown", e=>{ if(e.key==="Escape"){ closeModal(); cl
 function explainStyle(kind){
   const close = `<div class="modal-actions"><button class="primary" onclick="document.getElementById('modal').classList.remove('on')">닫기</button></div>`;
   const P = t => `<p style="font-size:13px;color:var(--reason);line-height:1.8">${t}</p>`;
+  /* 2026-11-06 사용자 지시 "큰 글씨 쉬운 설명 먼저, 자세한 건 작은 글씨로" — 캔들·패턴 신호 팝업 공용 */
+  const Big = t => `<p style="font-size:17px;font-weight:700;line-height:1.6;margin:6px 0 12px">${t}</p>`;
+  const More = t => `<details style="margin-top:4px"><summary style="cursor:pointer;font-size:12px;color:var(--muted)">자세한 설명 · 10년 실측 숫자</summary>
+    <p style="font-size:12px;color:var(--muted);line-height:1.75;margin-top:6px">${t}</p></details>`;
+  const LIGHTS = `<p style="font-size:12px;line-height:1.7;margin:0 0 6px">🔴 하락 패턴(매수 보류) · 🟠 크게 흔들림 · 🟡 일부 익절 · 🔵 매수 쪽 캔들</p>`;
 
   if (kind === "페어리버설"){
     openModal(`<h3>🔀 페어 리버설 돌파</h3>` +
@@ -6441,72 +6473,72 @@ function explainStyle(kind){
          참고 표시로만 쓰고 판단은 <b>카드 등급</b>으로 하세요.`) + close);
     return;
   }
+  if (kind === "패턴하락"){
+    openModal(`<h3>🔴 테마 하락 패턴 — 매수 보류</h3>` + LIGHTS +
+      Big(`이 테마에서 10년 동안 <u>이 모양 뒤에 자주 내렸던</u> 자리예요.<br>그래서 오늘은 매수 신호를 내지 않아요(중립으로 보류).`) +
+      P(`갖고 있다면 일부 익절이나 손절선 점검을 고려하세요.`) +
+      More(`세 가지 모양만 해당돼요 (괄호 = 10년 동안 나온 횟수)<br>
+         · <b>반도체 SOXL</b> — 종가가 볼밴 위로 나간 날 십자형(몸통이 아주 짧은 캔들): 10일 뒤 내린 비율 <b>68%</b>(22) · 평소 41%<br>
+         · <b>SK하이닉스 SKHY</b> — 고가만 볼밴 위를 찌르고 긴 윗꼬리로 밀려 내려온 날: 20일 안 −10% 급락 <b>40%</b>(35) · 평소 28%
+           (연구는 국내 000660 주가로 했어요)<br>
+         · <b>양자</b> — 볼밴 위에 이틀 이상 머물다 처음 안으로 내려온 날, 그날 나스닥 공포지수(VXN)가 25 이상: 10일 뒤 내린 비율 <b>72%</b>·급락 <b>86%</b>(29) · 평소 53%·66%<br><br>
+         ⚠ 믿는 정도 — 테마마다 조합 250개를 훑어 1위를 고른 결과라 과거 성적이 부풀었을 수 있어요. 같은 방식으로 고른 72개를 묶어 보면
+         가짜(섞은) 가격에서도 비슷한 수가 맞았어요. 그래서 '매도 신호'가 아니라 '매수 보류'까지만 반영했어요. 2026-11-05 이후 기록부터 적용돼요.`)
+      + close);
+    return;
+  }
   if (kind === "패턴익절"){
-    openModal(`<h3>✂️ 일부 익절 후보</h3>` +
-      P(`<b>한 줄 요약 — "볼밴 위로 찢고 나간 자리에서 일부만 덜어 둘 만한 캔들이 나왔다"는 표시예요.</b><br><br>
-         정원님 규칙 그대로 쟀어요: 종가가 볼린저(20일, 2σ) <b>상단 밖</b>에서 조금 팔고, 종가가 <b>밴드 안으로 돌아온 날</b> 되사기.
-         밖에 나가 있는 동안 <b>처음</b> 나온 그 캔들 하루에만 붙어요.<br><br>
-         <b>10년 실측이 평균 이익이었던 테마에만 붙입니다</b> (괄호는 횟수, 평균은 왕복 수수료 0.2% 뺀 값)<br>
-         · <b>주택건설(NAIL·ITB)</b> — 상단 밖 + 거래량 1.5배: 되산 값이 판 값보다 쌌던 경우 <b>69%(73번) · 평균 +1.5%</b>
-           (조건 없이 상단 밖이면 58% · +0.7%)<br>
-         · <b>양자(IONQ·RGTI·QBTS·QUBT·INFQ)</b> — 상단 밖에서 첫 음봉 68%(48) +3.0% · 윗꼬리 50%↑ 58%(44) +3.5% ·
-           교수형 70%(22) +4.6% · 큰 양봉 다음 날 별 69%(26) +3.8% (조건 없이 상단 밖이면 57% · −0.1%)<br><br>
-         ⚠ <b>믿는 정도</b> — 이 매매는 <b>무작위 가격에서도 54~60%가 이익</b>으로 나와요(밴드가 가격을 따라 올라오니까).
-         그래서 비율보다 <b>평균</b>을 봤어요. 나스닥·엔비디아·테슬라·산업재·소프트웨어는 같은 매매가 <b>평균 손해</b>라 안 붙여요.
-         앞 80% 기간으로 고르고 뒤 20%로 확인했을 때 75%를 넘긴 규칙은 <b>없었어요</b>(양자 뒤 20%: 67%, 6번).<br><br>
-         ⚠ <b>점수·등급·순위에는 안 들어갑니다.</b> 이 표시가 뜬 날부터 원장에 그대로 쌓여, 나중에 실제 성적으로 다시 봅니다.`) + close);
+    openModal(`<h3>🟡 일부 익절 후보</h3>` + LIGHTS +
+      Big(`볼밴 위로 찢고 올라간 자리예요.<br><u>조금만 팔아 두고</u>, 밴드 안으로 내려오면 <u>다시 사는</u> 자리예요.`) +
+      P(`위험 신호(빨간불)가 아니라 단기 익절용 노란불이에요. 10년 동안 이렇게 했을 때 평균이 이익이었던 <b>주택건설·양자</b>에만 붙어요.`) +
+      More(`정원님 규칙 그대로 쟀어요: 종가가 볼린저(20일, 2σ) 상단 밖에서 조금 팔고, 종가가 밴드 안으로 돌아온 날 되사기. 밖에 나가 있는 동안 처음 나온 그 캔들 하루에만 붙어요.<br>
+         · 주택건설(NAIL·ITB) — 상단 밖 + 거래량 1.5배: 되산 값이 판 값보다 쌌던 경우 69%(73번) · 평균 +1.5% (조건 없이 상단 밖이면 58% · +0.7%)<br>
+         · 양자 — 상단 밖에서 첫 음봉 68%(48) +3.0% · 윗꼬리 50%↑ 58%(44) +3.5% · 교수형 70%(22) +4.6% · 큰 양봉 다음 날 별 69%(26) +3.8%<br>
+         이 매매는 무작위 가격에서도 54~60%가 이익으로 나와서 비율보다 평균을 봤어요. 나스닥·엔비디아·테슬라·산업재·소프트웨어는 같은 매매가 평균 손해라 안 붙여요.
+         점수·등급에는 안 들어가요.`)
+      + close);
     return;
   }
   if (kind === "테마규칙"){
-    openModal(`<h3>🎯 테마 저점 규칙 (다중 보조)</h3>` +
-      P(`<b>한 줄 요약 — "이 테마에서 10년간 5번 이상 나왔고 대부분 올랐던 저점 반등 모양"이 오늘 나왔다는 표시예요.</b>
-         카드가 다중(강한매수 + 다중 관문)이면 '다중과 겹침'으로 적어요.<br><br>
-         규칙은 모두 <b>최근 20거래일 안 과매도</b>(RSI·60일 최고 종가 대비 낙폭·볼밴 하단 밖) 뒤 <b>반등 모양</b>이에요.
-         앞 80% 기간 → 마지막 20% 기간 적중(오른 비율, 같은 날은 1건)<br>
-         · 반도체(SOXL) — RSI 35↓·−10%·하단 밖 뒤 5일선 3일 안착 + 200일선 위 · 10일: <b>93%(15) → 75%(4)</b><br>
-         · 산업재(CAT·AIT) — RSI 25↓·−20% 뒤 5일선 2일 안착 · 20일: <b>100%(8) → 100%(1)</b><br>
-         · 주택(NAIL·ITB) — RSI 35↓·−10% 뒤 20·60일선 골든크로스 · 20일: <b>100%(9) → 100%(2)</b><br>
-         · 양자 — RSI 30↓·−30%·하단 밖 뒤 하단 재진입 + 최근 5일 투매 거래량 · 10일: <b>76%(17) → 100%(1)</b><br>
-         · 엔비디아 — RSI 35↓·−10%·하단 밖 뒤 5일선 회복 + 200일선 위 · 10일: <b>92%(12) → 75%(4)</b><br>
-         · 테슬라 — RSI 35↓·−20%·하단 밖 뒤 5일선 회복 + 직전 5일 연속 하락 · 10일: <b>91%(11) → 67%(3)</b><br>
-         · 어플라이드 — RSI 30↓·−20%·하단 밖 뒤 5일선 3일 안착 · 20일: <b>100%(8) → 100%(2)</b><br><br>
-         ⚠ <b>믿는 정도 — 낮아요.</b> 테마마다 조합 수천 개 중 가장 잘 맞은 것을 골랐기 때문에, 과거 성적이 부풀어 있어요.
-         같은 방법으로 고른 다른 테마(소프트웨어·데이터센터·나스닥)는 마지막 20%에서 0~56%로 무너져서 뺐고,
-         예측력이 없게 섞은 가격으로 돌려도 12개 중 2~3개가 이 정도로 나왔어요. 남긴 7개도 마지막 기간 표본이 1~4건뿐이에요.
-         또 이 성적은 <b>10~20거래일</b> 보유 기준이라, 다중 신호 검증표(+1·+3·+5일)와 기간이 달라요.<br><br>
-         ⚠ <b>점수·등급·순위에는 안 들어갑니다.</b> 뜬 날이 원장에 쌓이므로, 실제 성적이 쌓이면 다중 관문에 넣을지 그때 판단해요.`) + close);
+    openModal(`<h3>🔵 테마 저점 규칙 (다중 보조)</h3>` + LIGHTS +
+      Big(`이 테마에서 10년간 5번 이상 나왔고 <u>대부분 올랐던</u> 저점 반등 모양이에요.<br>다중 신호를 거드는 매수 쪽 보조 표시예요.`) +
+      P(`다중과 같은 날 뜨면 '다중과 겹침'이라고 적어요. 등급·순위에는 안 들어가요.`) +
+      More(`규칙은 모두 최근 20거래일 안 과매도(RSI·60일 최고 종가 대비 낙폭·볼밴 하단 밖) 뒤 반등 모양이에요. 앞 80% 기간 → 마지막 20% 기간 오른 비율:<br>
+         · 반도체(SOXL) 5일선 3일 안착 + 200일선 위 · 10일: 93%(15) → 75%(4)<br>
+         · 산업재(CAT·AIT) RSI 25↓·−20% 뒤 5일선 2일 안착 · 20일: 100%(8) → 100%(1)<br>
+         · 주택(NAIL·ITB) 20·60일선 골든크로스 · 20일: 100%(9) → 100%(2)<br>
+         · 양자 하단 재진입 + 투매 거래량 · 10일: 76%(17) → 100%(1)<br>
+         · 엔비디아 5일선 회복 + 200일선 위 · 10일: 92%(12) → 75%(4)<br>
+         · 테슬라 5일선 회복 + 직전 5일 연속 하락 · 10일: 91%(11) → 67%(3)<br>
+         · 어플라이드 5일선 3일 안착 · 20일: 100%(8) → 100%(2)<br>
+         다중 관문에 넣어 3년을 다시 재 보니 더해도 다중 승률은 그대로(+5일 71%→71%), 겹친 날은 2번뿐이라 관문에는 넣지 않았어요.
+         조합 수천 개 중 고른 결과라 과거 성적이 부풀어 있을 수 있어요.`)
+      + close);
     return;
   }
   if (kind === "패턴위험"){
-    openModal(`<h3>🌋 급락 위험(변동성)</h3>` +
-      P(`<b>한 줄 요약 — "오를지 내릴지가 아니라, 크게 흔들릴 자리"라는 표시예요.</b> 고전적인 버블 꼭지 모양 네 가지 중 하나가 오늘 나왔어요.<br><br>
-         10년 · 89종목 실측 (20일 안 −15% 급락 / 60일 안 −25% 폭락 / 10일 뒤 하락)<br>
-         · 아무 날: <b>18% / 17% / 44%</b><br>
-         · 블로우오프 대량 음봉(60일 +50% 오른 뒤 거래량 2배 −3% 음봉): <b>49% / 47% / 47%</b> (95번)<br>
-         · 20일선보다 25% 위: <b>51% / 49% / 46%</b> (675번)<br>
-         · 200일선보다 80% 위: <b>50% / 48% / 47%</b> (718번)<br>
-         · 포물선(60일 +50%) 뒤 20일선 첫 이탈: <b>38% / 37% / 46%</b> (877번)<br><br>
-         <b>읽는 법</b> — 급락 확률은 평소의 <b>2~3배</b>인데, 10일 뒤 내려가 있을 확률은 <b>평소와 거의 같고</b> 20일 평균은 오히려 +6~11%였어요.
-         즉 <b>"팔아라"가 아니라 "위아래로 크게 흔든다"</b>는 경고예요. 레버리지·비중을 줄이거나 손절선을 가깝게 두는 용도로 쓰세요.<br><br>
-         참고로 고점의 <b>연속 윗꼬리·샛별십자</b>는 급락 확률 14~17%로 <b>평소(18%)와 같았어요</b> — 그건 위험 신호가 아니라 일부 익절 캔들 쪽입니다.<br><br>
-         ⚠ <b>점수·등급·순위에는 안 들어갑니다.</b>`) + close);
+    openModal(`<h3>🟠 크게 흔들림 (과열 변동성)</h3>` + LIGHTS +
+      Big(`너무 많이 오른 상태예요. <u>크게 떨어질 확률이 평소의 2~3배</u>예요.<br>하지만 더 오를 확률도 그대로라 '팔아라'는 아니고 <u>비중·레버리지를 줄이라</u>는 뜻이에요.`) +
+      P(`그래서 빨간불이 아니라 주황불이에요.`) +
+      More(`네 가지 모양 중 하나가 오늘 나왔어요: 블로우오프 대량 음봉(60일 +50% 오른 뒤 거래량 2배 −3% 음봉) · 20일선보다 25% 위 · 200일선보다 80% 위 · 포물선 상승 뒤 20일선 첫 이탈.<br>
+         10년·89종목 (20일 안 −15% 급락 / 10일 뒤 하락): 아무 날 18% / 44% → 이 모양들 38~51% / 46~47%. 20일 평균은 오히려 +6~11%.<br><br>
+         <b>볼밴 위로 찢었다 내려오며 윗꼬리·샛별십자가 나오면 버블이 터지는 것 아닌가요?</b><br>
+         10년 데이터로는 아니었어요. 고점에서 연속 윗꼬리(1250번)·샛별십자(298번) 뒤 10일 하락 비율은 43~44%로 아무 날(44%)과 같았고,
+         급락 확률도 14~17%로 평소(18%)보다 낮았어요. 그 캔들은 '일부 익절'(🟡) 쪽이에요.
+         폭락을 가른 건 캔들 모양보다 <b>얼마나 과하게 올라 있었나</b>(이격·포물선)였어요. 그리고 테마별로 진짜 하락이 잦았던 세 모양만 🔴로 따로 막아요.`)
+      + close);
     return;
   }
   if (kind === "패턴반등"){
-    openModal(`<h3>🌱 저점 반등 후보</h3>` +
-      P(`<b>한 줄 요약 — "최근 크게 과매도됐던 종목이 돌아서는 첫 모양을 보였다"는 표시예요.</b><br><br>
-         조건: 최근 20거래일 안에 <b>과매도</b>(RSI14 30 이하 · 종가가 볼밴 하단 밖 · 60일 최고 종가 대비 −15% 이하)가 있었고,
-         오늘 아래 신호 중 하나가 떴을 때.<br><br>
-         10년 · 89종목, 신호일 종가에 샀을 때 20일 뒤 (오른 비율 · 평균)<br>
-         · 아무 날: <b>58% · +3.2%</b><br>
-         · 스토캐스틱 K 20 이하에서 골든: <b>62% · +7.4%</b> (754번)<br>
-         · 볼밴 하단 재진입: <b>63% · +6.1%</b> (687번)<br>
-         · 5일선 안착(2일 연속 위): <b>62% · +4.8%</b> (804번)<br>
-         · 5·20일선 골든크로스: <b>58% · +4.2%</b> (546번) — 전체로는 평소와 같지만 나스닥 94%(16번)·산업재 76%(21번)에서 강했어요<br><br>
-         ⚠ <b>믿는 정도</b> — 평소보다 <b>조금</b> 나은 정도예요. 20일 안에 한 번 더 평균 −10~11% 흔들었어요(아무 날 −8%).
-         한 번에 다 사지 말고 나눠서. 앞 80%로 고르고 뒤 20%로 확인했을 때 75%를 넘긴 조합은 <b>없었어요</b>(무작위 대조와 구별 안 됨).
-         양자(45%, 44번)·엔비디아(43%, 7번)는 5일선 안착 뒤 오른 비율이 절반도 안 됐어요.<br><br>
-         ⚠ <b>점수·등급·순위에는 안 들어갑니다.</b>`) + close);
+    openModal(`<h3>🔵 저점 반등 후보</h3>` + LIGHTS +
+      Big(`크게 빠졌던 종목이 <u>돌아서는 첫 모양</u>이 나왔어요.<br>평소보다 조금 더 자주 올랐던 매수 쪽 신호예요.`) +
+      P(`한 번 더 흔들릴 수 있으니 나눠서 사세요. 등급·순위에는 안 들어가요.`) +
+      More(`조건: 최근 20거래일 안에 과매도(RSI14 30 이하 · 종가가 볼밴 하단 밖 · 60일 최고 종가 대비 −15% 이하)가 있었고 오늘 아래 신호 중 하나.<br>
+         10년·89종목, 20일 뒤 오른 비율 · 평균: 아무 날 58% · +3.2% → 스토캐스틱 K 20 이하 골든 62% · +7.4%(754) · 볼밴 하단 재진입 63% · +6.1%(687) ·
+         5일선 2일 안착 62% · +4.8%(804) · 5·20일선 골든크로스 58% · +4.2%(546, 나스닥 94%·산업재 76%에서 강함).<br>
+         20일 안에 평균 −10~11% 한 번 더 흔들었어요(아무 날 −8%). 양자(45%)·엔비디아(43%)는 5일선 안착 뒤 오른 비율이 절반도 안 됐어요.
+         75%를 넘긴 조합은 없었어요.`)
+      + close);
     return;
   }
   if (kind === "연속상승"){
