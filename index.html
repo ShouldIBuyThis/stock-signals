@@ -648,6 +648,15 @@ html[data-theme="dark"] .badge.gOh,html[data-theme="dark"] .c-badge.gOh,html[dat
 .cmp.lv .gcol .badge{display:inline-block;white-space:nowrap}
 /* 로고 */
 .brand{font-weight:900;letter-spacing:-0.5px}
+/* 52주 신고가·신저가 그래프 */
+.hl-box{margin:12px 0;border:1px solid var(--line,#e5e7eb);border-radius:12px;padding:8px 10px;background:var(--card,#fff)}
+.hl-box summary{cursor:pointer;font-size:13px;list-style:revert}
+.hl-box summary .sub{font-size:11px;color:var(--muted);margin-left:4px}
+.hl-note{font-size:13px;margin:8px 0 6px;line-height:1.6}
+.hl-note small{font-size:11px;color:var(--muted)}
+.hl-chart{margin-top:8px}
+.hl-title{font-size:12px;margin-bottom:2px}
+.hl-title small{color:var(--muted)}
 /* 테마별 캔들형 순위 */
 .cr-box{margin-top:12px;border:1px solid var(--line,#e5e7eb);border-radius:12px;padding:8px 10px;background:var(--card,#fff)}
 .cr-box summary{cursor:pointer;font-size:13px;list-style:revert}
@@ -2271,6 +2280,62 @@ function marketBreadthOn(date){
   const v = d._breadthMap[String(date)];
   return v === undefined ? null : v;
 }
+/* 2026-11-06 시장 폭(52주 신고가권 − 신저가권) — 관심종목 미국 종목, 원장 hist로 날짜별로 센다.
+   신고가권 = 종가가 52주 최고가 1% 안(pct_from_high ≥ −1) · 신저가권 = 52주 최저가 1% 안(pct_from_low ≤ 1).
+   3년 실측(tools/breadth-lab.js · docs/2026-11-06-breadth.md): 신저가 > 신고가인 날 강한매수 +5일 76% vs 신고가 > 신저가 63%. */
+function highLowMap(){
+  const d = state.data;
+  if(!d) return {};
+  if(!d._hlMap){
+    const F = histFields(), iD = F.indexOf("date"), iH = F.indexOf("pct_from_high"), iL = F.indexOf("pct_from_low");
+    const acc = {};
+    (d.stocks || []).forEach(s => {
+      if(!s || !s.ticker || isKR(s.ticker) || iH < 0 || iL < 0) return;
+      (s._hist || []).forEach(r => {
+        if(!Array.isArray(r) || !r[iD] || r[iH] == null || r[iL] == null) return;
+        const a = acc[r[iD]] || (acc[r[iD]] = {n:0, nh:0, nl:0});
+        a.n++; if(r[iH] >= -1) a.nh++; if(r[iL] <= 1) a.nl++;
+      });
+    });
+    Object.keys(acc).forEach(k => { if(acc[k].n < 20) delete acc[k]; });
+    d._hlMap = acc;
+  }
+  return d._hlMap;
+}
+function highLowOn(date){ const m = highLowMap(); return (date && m[String(date)]) || null; }
+function highLowLatest(){ const m = highLowMap(); const ks = Object.keys(m).sort(); return ks.length ? Object.assign({date:ks[ks.length-1]}, m[ks[ks.length-1]]) : null; }
+function highLowSummaryText(){
+  const x = highLowLatest(); if(!x) return "";
+  return ` · 신고가 ${x.nh} · 신저가 ${x.nl}`;
+}
+function hlSvg(pts, key, color, title){
+  const W = 600, Hh = 170, L = 34, R = 10, T = 14, B = 26;
+  const vals = pts.map(p => p[key]); const mx = Math.max(5, ...vals), mn = 0;
+  const x = i => L + (pts.length > 1 ? i * (W - L - R) / (pts.length - 1) : 0);
+  const y = v => T + (1 - (v - mn) / (mx - mn)) * (Hh - T - B);
+  const line = pts.map((p,i) => `${x(i).toFixed(1)},${y(p[key]).toFixed(1)}`).join(" ");
+  const ticks = [0, Math.round(mx/2), mx].map(v => `<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line,#e5e7eb)" stroke-width="1"/><text x="${L-6}" y="${y(v)+4}" text-anchor="end" font-size="11" fill="var(--muted)">${v}</text>`).join("");
+  const di = [0, Math.floor((pts.length-1)/2), pts.length-1].filter((v,i,a)=>a.indexOf(v)===i);
+  const dl = di.map(i => `<text x="${x(i)}" y="${Hh-6}" text-anchor="${i===0?"start":i===pts.length-1?"end":"middle"}" font-size="11" fill="var(--muted)">${esc(String(pts[i].date).slice(5))}</text>`).join("");
+  const last = pts[pts.length-1];
+  return `<div class="hl-chart"><div class="hl-title">${title} <b style="color:${color}">${last[key]}</b><small> (${esc(String(last.date).slice(5))})</small></div>
+    <svg viewBox="0 0 ${W} ${Hh}" width="100%" role="img" aria-label="${esc(title)}">${ticks}
+      <polyline points="${line}" fill="none" stroke="${color}" stroke-width="2"/>
+      <circle cx="${x(pts.length-1)}" cy="${y(last[key])}" r="3.5" fill="${color}"/>${dl}</svg></div>`;
+}
+function highLowChartsHtml(){
+  const m = highLowMap(); const ks = Object.keys(m).sort();
+  if(ks.length < 2) return "";
+  const pts = ks.map(k => Object.assign({date:k}, m[k]));
+  const last = pts[pts.length-1], net = last.nh - last.nl;
+  return `<details class="hl-box"><summary>📈📉 <b>52주 신고가 · 신저가 종목 수</b> <span class="sub">눌러서 그래프 보기 · 오늘 신고가 ${last.nh} · 신저가 ${last.nl}</span></summary>
+    <div class="hl-note"><b>${net>=0?"🟢 신고가 종목이 더 많아요":"🔴 신저가 종목이 더 많아요"}</b> (관심종목 미국 ${last.n}개 기준)<br>
+      <small>3년 실측: 신저가가 더 많은 날 나온 강한매수는 +5일 76%, 신고가가 더 많은 날은 63%였어요. 시장 약세 경고로는 맞지 않았고(그때 나스닥은 오히려 덜 빠짐), 바닥 국면 확인에 가까웠어요.
+      NYSE 전체가 아니라 관심종목 안에서 센 값이에요(52주 최고가·최저가의 1% 안).</small></div>
+    ${hlSvg(pts, "nh", "#e5484d", "📈 52주 신고가권 종목 수")}
+    ${hlSvg(pts, "nl", "#3b82f6", "📉 52주 신저가권 종목 수")}
+  </details>`;
+}
 function qqqStreakOn(date){
   const d = state.data;
   if(!d || !date) return null;
@@ -3740,7 +3805,7 @@ function marketBar(){
     const px=has(mk.price)?` · $${Number(mk.price).toFixed(2)}`:"";
     const r20=has(mk.ret20)?` · 20일 ${Number(mk.ret20)>=0?"+":""}${Number(mk.ret20).toFixed(1)}%`:"";
     return `<details class="market-bench">
-      <summary><b>🌐 QQQ · 나스닥100 시장 기준</b>${nasdaqEdgeHtml()}<span class="market-bench-summary-main">시장국면 ${esc(levelLabel)}${px}${r20}</span></summary>
+      <summary><b>🌐 QQQ · 나스닥100 시장 기준</b>${nasdaqEdgeHtml()}<span class="market-bench-summary-main">시장국면 ${esc(levelLabel)}${px}${r20}${highLowSummaryText()}</span></summary>
       <div class="market-bench-body">
         <div class="market-bench-main" style="margin-top:10px"><span>시장국면 <b>${esc(levelLabel)}</b>${px}${r20}</span></div>
         <div class="market-bench-reason">QQQ 기술점수 준비 중 · 새 main.py 데이터 갱신 후 추세·반등·매수강도가 자동 표시됩니다.</div>
@@ -3751,7 +3816,7 @@ function marketBar(){
   const histBtn=(s._hist&&s._hist.length>=2)?`<button data-timeline="QQQ">📈 최근 ${histWindowDays()}거래일 신호 흐름</button>`:"";
   const cartOn=state.cart.includes("QQQ");
   return `<details class="market-bench">
-    <summary><b>🌐 QQQ · 나스닥100 시장 기준</b>${qqqGradeBadge()}${resTouchMark(s)}${nasdaqEdgeHtml()}<span class="market-bench-summary-main">시장 ${esc(levelLabel)}</span></summary>
+    <summary><b>🌐 QQQ · 나스닥100 시장 기준</b>${qqqGradeBadge()}${resTouchMark(s)}${nasdaqEdgeHtml()}<span class="market-bench-summary-main">시장 ${esc(levelLabel)}${highLowSummaryText()}</span></summary>
     <div class="market-bench-body">
       <div class="market-bench-cardtop">
         <div class="s-price">
@@ -4278,7 +4343,8 @@ function renderTheme(){
     ${themeCandleRankHtml()}
     ${themeForecastHtml()}
   </div>
-  ${marketBar()}`;
+  ${marketBar()}
+  ${highLowChartsHtml()}`;
 }
 
 /* ══════════ VIEW 2 · 전체순위 ══════════ */
