@@ -4643,10 +4643,28 @@ function sbShortHit(x){
   if (x.site) return st.hit5==null ? "" : `최근 5일 적중 ${pctS(st.hit5)} (${st.n}건)`;
   return st.hit10==null ? "" : `과거 ${up?"상승":"하락"} ${pctS(st.hit10)} (${st.n}건)`;
 }
+/* 실제 마지막 5거래일 일봉(ohlc60 실측 시가·고가·저가·종가). 오른쪽 끝 = 마지막 거래일.
+   2026-11-06 사용자 지적 "이거 진짜 실제 종가 캔들 모양이야?" — 예전 썸네일은 모양 이름에 맞춘 교육용 그림이라
+   종목마다 같은 그림이 나왔다. 목록 썸네일은 실제 봉으로 바꾸고, 교육용 그림은 눌렀을 때 팝업에만 둔다. */
+function realMiniCandles(s, n){
+  const D = ((s && s.ohlc60) || []).slice(-(n||5)).filter(r => r && [1,2,3,4].every(k => has(r[k])));
+  if (D.length < 2) return "";
+  const hi = Math.max(...D.map(r=>r[2])), lo = Math.min(...D.map(r=>r[3])), rg = (hi - lo) || 1;
+  const W = 9*D.length + 4, Hh = 30, y = v => 2 + (hi - v)/rg*(Hh - 4);
+  let g = "";
+  D.forEach(([_, o, h, l, c], i) => { const x = 5 + i*9, col = c >= o ? "#e5484d" : "#3b82f6", last = i === D.length - 1;
+    g += `<line x1="${x}" x2="${x}" y1="${y(h).toFixed(1)}" y2="${y(l).toFixed(1)}" stroke="${col}" stroke-width="1.2"/>`
+       + `<rect x="${x-3}" width="6" y="${y(Math.max(o,c)).toFixed(1)}" height="${Math.max(1.2, Math.abs(y(o)-y(c))).toFixed(1)}" fill="${col}"${last?` stroke="var(--ink,#111)" stroke-width="0.8"`:""}/>`; });
+  return `<svg class="edu-glyph" width="${W}" height="${Hh}" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="실제 최근 ${D.length}거래일 일봉">${g}</svg>`;
+}
 function sbThumb(group){
   const s = group[0].s;
   const n = group.map(g=>CODE_EDU[g.code]).find(Boolean) || todayShape(s);
-  return n ? `<button class="edu-big sb-thumb" data-edubig="${esc(n)}" data-edutk="${esc(s.ticker)}" title="${esc(n)} — 눌러서 크게(교육용 그림 + 실제 차트)">${eduGlyph(n, 0.9)}</button>` : `<span class="sb-thumb"></span>`;
+  const real = realMiniCandles(s, 5);
+  if (real) return n
+    ? `<button class="edu-big sb-thumb" data-edubig="${esc(n)}" data-edutk="${esc(s.ticker)}" title="실제 최근 5거래일 일봉(오른쪽 끝이 마지막 거래일) — 눌러서 크게">${real}</button>`
+    : `<button class="edu-big sb-thumb" data-rcbig="${esc(s.ticker)}" title="실제 최근 5거래일 일봉(오른쪽 끝이 마지막 거래일) — 눌러서 크게">${real}</button>`;
+  return n ? `<button class="edu-big sb-thumb" data-edubig="${esc(n)}" data-edutk="${esc(s.ticker)}" title="${esc(n)} — 교육용 그림(실제 일봉 데이터 없음)">${eduGlyph(n, 0.9)}</button>` : `<span class="sb-thumb"></span>`;
 }
 function sbCardHtml(group){
   const x = group[0], s = x.s, K = SB_KIND[x.kind], st = x.stat;
