@@ -321,6 +321,7 @@ html[data-theme="dark"] .rkitem.top b{color:#a9c6ff}
 .modal-actions button{flex:1;height:42px;border-radius:10px;font-size:13.5px;font-weight:700;border:1px solid var(--line);background:var(--surface2)}
 .modal-actions button.primary{background:var(--navy);color:#fff;border-color:var(--navy)}
 
+.c-light{font-size:.85em;margin-right:3px}
 .edu-link{cursor:pointer;text-decoration:underline;text-underline-offset:3px;color:inherit}
 .edu-basic{color:var(--muted)}
 /* 도움말 */
@@ -3678,7 +3679,7 @@ function chatKw(k){
                ["📉 음봉의 종류 (얼마나·어떻게 밀렸나)", ["장대음봉","민음봉","흑삼병","갭하락 음봉","민머리 음봉","민바닥 음봉","중음봉","단음봉"]],
                ["📈 양봉의 종류", ["장대양봉","민양봉","적삼병","갭상승 양봉","민머리 양봉","민바닥 양봉","중양봉","단양봉"]],
                ["⚪ 망설임", ["도지","팽이"]]];
-    const li = n => CANDLE_EDU[n] ? `· <u class="edu-link" data-edubig="${esc(n)}">${esc(n)}</u> — ${esc(CANDLE_EDU[n].d)}` : "";
+    const li = n => CANDLE_EDU[n] ? `· ${candleLight(n)}<u class="edu-link" data-edubig="${esc(n)}">${esc(n)}</u> — ${esc(CANDLE_EDU[n].d)}` : "";
     chatBot(`이름을 누르면 그림이 열려요.<br><br>` + G.map(([h, ns]) => `<b>${h}</b><br>${ns.map(li).filter(Boolean).join("<br>")}`).join("<br><br>") +
       `<br><br><b>🆕 새로 검증한 모양</b><br>
       ${li("장족십자 도지")}<br>
@@ -4466,6 +4467,18 @@ const CANDLE_EDU = {
 };
 /* 양봉·음봉은 기본 용어라 갤러리 카드로 늘어놓지 않고, 밑줄 링크로만 짧게 연다(2026-11-06 사용자 지시 "축약"). */
 const CANDLE_BASIC = new Set(["양봉","음봉"]);
+/* 캔들 이름 옆 작은 신호등 — 2026-11-06 사용자 지시 "용어별로 이름 옆에 신호등 색깔, 좋은 건지 아닌지 판단 가능하게".
+   색은 신호판과 같은 뜻(🟢 반등 쪽 · 🔵 상승 지속 · 🟠 주의 · 🔴 하락 위험 · ⚪ 중립). 근거는 '교과서 해석'이다 —
+   우리 10년 검증에서 모양 하나만으로는 대부분 평소와 비슷했다(docs/2026-11-06-candle-context.md). 판정·등급에는 안 쓴다. */
+const CANDLE_LIGHT = {
+  "망치형":"🟢","역망치형":"🟢","아랫꼬리":"🟢","샛별형(상승)":"🟢","상승장악형":"🟢","관통형":"🟢","상승잉태형":"🟢",
+  "적삼병":"🔵","장대양봉":"🔵","민양봉":"🔵","갭상승 양봉":"🔵","민머리 양봉":"🔵","민바닥 양봉":"🔵",
+  "윗꼬리":"🟠","샛별 형성":"🟠","장대양봉 뒤 음봉":"🟠","하락잉태형":"🟠","민머리 음봉":"🟠","민바닥 음봉":"🟠",
+  "교수형":"🔴","유성형":"🔴","석별형":"🔴","하락장악형":"🔴","먹구름형":"🔴","장대음봉":"🔴","흑삼병":"🔴","민음봉":"🔴","갭하락 음봉":"🔴",
+  "도지":"⚪","팽이":"⚪","장족십자 도지":"⚪","고파동":"⚪","단양봉":"⚪","중양봉":"⚪","단음봉":"⚪","중음봉":"⚪",
+};
+const candleLight = n => CANDLE_LIGHT[n] ? `<span class="c-light" title="교과서 해석 색">${CANDLE_LIGHT[n]}</span>` : "";
+const candleLightLegend = () => `<span class="edu-basic">이름 옆 색 = 교과서 해석: 🟢 반등 쪽 · 🔵 상승 지속 · 🟠 주의 · 🔴 하락 위험 · ⚪ 중립 — 모양 하나만으로는 과거 성적이 평소와 비슷한 경우가 많아요</span>`;
 const basicLegend = () => `<span class="edu-basic">빨강 = <u class="edu-link" data-edubig="양봉">양봉</u>(종가 > 시가) · 파랑 = <u class="edu-link" data-edubig="음봉">음봉</u>(종가 < 시가)</span>`;
 /* 신호 코드 → 교육용 캔들 모양 (모양이 없는 지표 신호는 그림을 붙이지 않는다) */
 const CODE_EDU = {B_HAMMER:"망치형", B_ENGULF:"상승장악형", B_MSTAR:"샛별형(상승)", X_ESTAR:"석별형", X_TOPBEAR:"장대음봉", O_TURN:"윗꼬리",
@@ -4894,7 +4907,7 @@ function researchFooterHtml(){
       모든 성과는 '신호가 그날 종가로 확정 → 다음 날 시가에 사거나 판다'로 계산해요.</div></details>
     <details class="sb-sec2"><summary>희귀·연구 후보 규칙 ${idle.length}개</summary>${idle.map(([c,R])=>`<div class="sb-note"><b>${esc(R.title)}</b> (${esc(R.tickers)}) — ${esc(R.rule)}<br>
       학습 ${R.tr}${R.va!=="—"?` · 검증 ${R.va} · 테스트 ${R.te}`:` · 시험 ${R.te}`} · 평소 ${R.base}(${R.lift}) · 평균 ${R.avg} · 최대 하락 중간 ${R.maeMed}/최악 ${R.maeWorst}${R.p!=="—"?` · p=${R.p}`:""} — 유의성·수익성 확정 아님</div>`).join("")}</details>
-    <details class="sb-sec2"><summary>🕯 캔들 모양 예시 (교육용 그림)</summary><div style="font-size:12.5px;margin:6px 2px">${basicLegend()}</div><div class="edu-gal">${Object.keys(CANDLE_EDU).filter(n=>!CANDLE_BASIC.has(n)).map(n=>`<button class="edu-big edu-card" data-edubig="${esc(n)}">${eduGlyph(n,1.4)}<b>${esc(n)}</b><small>${esc(CANDLE_EDU[n].d.split(" — ")[0])}</small></button>`).join("")}</div></details>
+    <details class="sb-sec2"><summary>🕯 캔들 모양 예시 (교육용 그림)</summary><div style="font-size:12.5px;margin:6px 2px">${basicLegend()}<br>${candleLightLegend()}</div><div class="edu-gal">${Object.keys(CANDLE_EDU).filter(n=>!CANDLE_BASIC.has(n)).map(n=>`<button class="edu-big edu-card" data-edubig="${esc(n)}">${eduGlyph(n,1.4)}<b>${candleLight(n)}${esc(n)}</b><small>${esc(CANDLE_EDU[n].d.split(" — ")[0])}</small></button>`).join("")}</div></details>
     <details class="sb-sec2"><summary>캔들 연구 자료</summary>
       ${todayCandleHtml(allStocks().filter(s => (state.market==="all" || (state.market==="kr" ? s._kr : !s._kr)) && !state.hidden.includes(s.ticker)))}
       ${themeCandleRankHtml()}</details>
@@ -5572,7 +5585,7 @@ function cartPatternBlock(mine){
     const shape = todayShape(s), real = realMiniCandles(s, 5);
     const sig = SB_ORDER.filter(k => groups[k]).map(k => sbRowHtml(groups[k])).join("");
     return `<div class="cartstock"><div class="cartstock-h"><b>${esc(s.ticker)}</b>${real?`<button class="edu-big sb-thumb" ${shape?`data-edubig="${esc(shape)}" data-edutk="${esc(s.ticker)}"`:`data-rcbig="${esc(s.ticker)}"`} title="실제 최근 5거래일 일봉 — 눌러서 크게">${real}</button>`:""}
-        <span class="lv2">${shape?`마지막 봉 <u class="edu-link" data-edubig="${esc(shape)}">${esc(shape)}</u>`:"마지막 봉 뚜렷한 모양 없음"}</span></div>
+        <span class="lv2">${shape?`마지막 봉 ${candleLight(shape)}<u class="edu-link" data-edubig="${esc(shape)}">${esc(shape)}</u>`:"마지막 봉 뚜렷한 모양 없음"}</span></div>
       <p>· ${cart52wText(s) || "52주 위치 정보 없음"}</p>
       ${sig || `<p class="lv2">· 오늘 새로 뜬 캔들·패턴 신호 없음</p>`}</div>`;
   }).join("");
@@ -8441,13 +8454,13 @@ document.getElementById("main").addEventListener("click", e=>{
     const fmtP = v => !has(v) ? "—" : (st && st.currency==="KRW" ? Math.round(v).toLocaleString("ko-KR") : Number(v).toFixed(2));
     const eduPart = `<div class="md-tag">교육용 그림 — 모양 견본</div><div style="text-align:center;margin:6px 0">${eduGlyph(n, 4)}</div>
       <p style="font-size:15px;line-height:1.7;margin:4px 0 10px">${esc((CANDLE_EDU[n]||{}).d||"")}</p>`;
-    openModal(`<h3>🕯 ${esc(n)}${st?` · ${esc(st.name||st.ticker)} (${esc(st.ticker)})`:""}</h3>
+    openModal(`<h3>🕯 ${candleLight(n)}${esc(n)}${st?` · ${esc(st.name||st.ticker)} (${esc(st.ticker)})`:""}</h3>
       ${realTop && lastBar ? `<div class="md-tag md-real">실제 일봉 — 최근 5거래일 · 오른쪽 끝 = ${esc(lastBar[0])} 확정 봉</div>
       <div style="text-align:center;margin:8px 0">${realTop}</div>
       <div style="font-size:12.5px;text-align:center;margin-bottom:2px">${basicLegend()}</div>
       <div style="font-size:12.5px;color:var(--muted);text-align:center;margin-bottom:6px">${esc(lastBar[0])} · 시가 ${fmtP(lastBar[1])} · 고가 ${fmtP(lastBar[2])} · 저가 ${fmtP(lastBar[3])} · 종가 ${fmtP(lastBar[4])}</div>
       <p style="font-size:15px;line-height:1.7;margin:4px 0 10px">${(()=>{ const rs = todayShape(st); return rs
-        ? `실제 마지막 봉 모양: <u class="edu-link" data-edubig="${esc(rs)}"><b>${esc(rs)}</b></u> — ${esc(((CANDLE_EDU[rs]||{}).d||"").split(" — ")[0])}`
+        ? `실제 마지막 봉 모양: ${candleLight(rs)}<u class="edu-link" data-edubig="${esc(rs)}"><b>${esc(rs)}</b></u> — ${esc(((CANDLE_EDU[rs]||{}).d||"").split(" — ")[0])}`
         : `실제 마지막 봉은 뚜렷한 꼬리·도지 모양이 아닙니다.`; })()}${todayShape(st)!==n ? `<br><span style="font-size:12.5px;color:var(--muted)">‘${esc(n)}’는 신호 규칙이 보는 모양 이름입니다(마지막 봉 하나가 아니라 며칠 흐름).</span>` : ""}</p>
       <details class="sb-sec2" style="margin-bottom:8px"><summary>📘 같은 모양의 교육용 견본 그림 보기</summary>${eduPart}</details>` : eduPart}
       ${rc ? `<div class="md-tag md-real">실제 일봉 — 최근 40거래일 실측 가격</div>${rc}<div style="font-size:11px;color:var(--muted)">▼ = 마지막 거래일 · 주황 선 = 볼린저(20, 2σ) · 아래 막대 = 거래량</div>` : (tk ? `<div style="font-size:12px;color:var(--muted)">이 종목의 실제 일봉 데이터는 다음 갱신부터 보여요.</div>` : "")}
