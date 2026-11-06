@@ -21,6 +21,8 @@ spec = importlib.util.spec_from_file_location("tr", __file__.replace("theme-trim
 tr = importlib.util.module_from_spec(spec); spec.loader.exec_module(tr)
 log, rsi, runlen, shift, gt, lt, wilson, binom_sf = tr.log, tr.rsi, tr.runlen, tr.shift, tr.gt, tr.lt, tr.wilson, tr.binom_sf
 COST, MAXWAIT, MINN = 0.2, 20, 5
+# --next-open: 신호(그날 종가로 확정) 다음 거래일 시가에 팔고, 재진입(종가로 확정) 다음 거래일 시가에 되산다 — 현실 체결 (2026-11-06 지적 반영)
+NEXT_OPEN = "--next-open" in sys.argv
 STARTS = {"QUBT": "2018-03-01"}   # 그 이전은 다른 사업 시절 시계열
 SECTORS = tr.SECTORS
 T0 = time.time()
@@ -84,7 +86,12 @@ def band_trades(X, n, k):
     reent = np.where((nxt > 0) & (nxt - np.arange(N) <= MAXWAIT), nxt, np.arange(N) + MAXWAIT)
     done = reent < N
     reent_c = np.where(done, reent, N - 1)
-    ret = (c / c[reent_c] - 1) * 100 - COST
+    if NEXT_OPEN:
+        o = X["o"]; i1 = np.minimum(np.arange(N) + 1, N - 1); r1 = np.minimum(reent_c + 1, N - 1)
+        ret = (o[i1] / o[r1] - 1) * 100 - COST
+        done = done & (reent_c + 1 < N)
+    else:
+        ret = (c / c[reent_c] - 1) * 100 - COST
     ret[~done] = np.nan
     days = (reent_c - np.arange(N)).astype(float); days[~done] = np.nan
     # 되사기 전까지 더 오른 폭(역행)
@@ -211,9 +218,16 @@ def candle_map(themes):
     log("  칸 = 이익 본 비율(건수) 평균 성과 · 전 기간 10년 · 같은 테마 같은 날 1건 · 성과는 비용 0.2% 차감")
     names = [c[0] for c in themes[0].C[themes[0].tk[0]]]
     log("  " + "캔들".ljust(30) + " | " + " | ".join(T.name for T in themes))
+    emit = []
     for ci, nm in enumerate(names):
-        cells = [f(agg(T.events(20, 2.0, 0, None, None, ci, 1))) for T in themes]
-        log(f"  {nm[:30].ljust(30)} | " + " | ".join(cells))
+        aggs = [agg(T.events(20, 2.0, 0, None, None, ci, 1)) for T in themes]
+        log(f"  {nm[:30].ljust(30)} | " + " | ".join(f(a) for a in aggs))
+        for T, a in zip(themes, aggs):
+            emit.append({"candle": nm, "theme": T.name, "n": int(a["n"]), "win": None if a["n"] == 0 else round(float(a["hit"]), 3),
+                         "avg": None if a["n"] == 0 else round(float(a["mean"]), 2)})
+    if "--emit-map" in sys.argv:
+        import json
+        json.dump({"next_open": NEXT_OPEN, "rows": emit}, open(sys.argv[sys.argv.index("--emit-map") + 1], "w", encoding="utf-8"), ensure_ascii=False)
 
 # ── 고정 기간으로 본 상단 캔들 (밴드 안으로 들어온 날 포함) ─────────────
 def candle_fixed(themes):

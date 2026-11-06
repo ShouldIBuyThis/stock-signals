@@ -410,6 +410,13 @@ def build_mask(G, R, B, F, key):
 def fmt(n, p):
     return f"{'—' if n == 0 or p != p else str(round(p * 100))}%({n})"
 
+def tier(v):
+    """2026-11-06 사용자 지시 — 검증·테스트 모두 75%↑일 때 테스트 표본으로 등급: 10+ 반복 검증 후보 / 5~9 희귀 고적중 후보(소표본) / ≤4 참고용."""
+    if not (v["va"][1] >= 0.75 and v["te"][1] == v["te"][1] and v["te"][1] >= 0.75):
+        return ""
+    n = v["te"][0]
+    return "반복 검증 후보" if n >= 10 else "희귀 고적중 후보(소표본)" if n >= 5 else "참고용(4건 이하)"
+
 def report(G, side, R, B, F, res, ntests):
     word = "매도·익절(하락 적중)" if side == "sell" else "매수(상승 적중)"
     fixed_key = None
@@ -482,7 +489,7 @@ def report(G, side, R, B, F, res, ntests):
         now = [G.tick[i] for i in np.nonzero(m & (G.didx == lastd))[0]]
         nowf = [G.tick[i] for i in np.nonzero(fm & (G.didx == lastd))[0]]
         log(f"       {G.label(lastd)} 발동: 선정 규칙 {', '.join(now) or '없음'} · 고정 규칙 {', '.join(nowf) or '없음'}")
-        out[h] = dict(rule=name, tr=st[0], va=st[1], te=(nte, hte), base=b, p=p, mean=mean_g)
+        out[h] = dict(rule=name, tr=st[0], va=st[1], te=(nte, hte), base=b, p=p, mean=mean_g, adv_med=adv_med, adv_worst=adv_worst)
     return out
 
 # ── 1년 재검산 (사용자 표 §3·§4) ────────────────────────────────────────
@@ -550,7 +557,7 @@ def count_stars(data, mkt, earn, quiet=True):
     keep = log
     if quiet:
         log = lambda *a, **k: None
-    stars = total = 0
+    stars = total = rare = 0
     try:
         for name in SECTORS:
             G = Group(name, data, mkt, earn)
@@ -560,11 +567,14 @@ def count_stars(data, mkt, earn, quiet=True):
                 R, B, F, res = search(G, side)
                 for h, v in report(G, side, R, B, F, res, len(SECTORS) * 2 * len(HS)).items():
                     total += 1
-                    if v["va"][1] >= 0.75 and v["te"][1] == v["te"][1] and v["te"][1] >= 0.75 and v["te"][0] >= 10:
+                    t_ = tier(v)
+                    if t_ == "반복 검증 후보":
                         stars += 1
+                    elif t_.startswith("희귀"):
+                        rare += 1
     finally:
         log = keep
-    return stars, total
+    return stars, total, rare
 
 # ── 실행 ───────────────────────────────────────────────────────────────
 def main():
@@ -600,20 +610,25 @@ def main():
             for h, v in o.items():
                 summary.append((name, side, h, v))
             log(f"    ({time.time()-t1:.0f}초)")
-    log("\n■ 요약 — 선정 규칙의 테스트 적중률 (검증·테스트 둘 다 75% 이상 & 테스트 10건 이상 = ★)")
+    log("\n■ 요약 — 검증·테스트 둘 다 75%↑일 때 테스트 표본으로 등급: ★ 10건+ 반복 검증 후보 · ☆ 5~9건 희귀 고적중 후보(소표본) · · 4건 이하 참고용")
     for name, side, h, v in summary:
-        star = "★" if v["va"][1] >= 0.75 and v["te"][1] == v["te"][1] and v["te"][1] >= 0.75 and v["te"][0] >= 10 else " "
+        t_ = tier(v)
+        star = "★" if t_ == "반복 검증 후보" else "☆" if t_.startswith("희귀") else "·" if t_ else " "
         log(f"  {star} {name:7} {'매도' if side=='sell' else '매수'} {h:2}일 · 학습 {fmt(*v['tr'])} 검증 {fmt(*v['va'])} 테스트 {fmt(*v['te'])} · 기준 {round(v['base'][2]*100)}% · p={v['p']:.2g} · {v['rule']}")
-    real_stars = sum(1 for _, _, _, v in summary if v["va"][1] >= 0.75 and v["te"][1] == v["te"][1] and v["te"][1] >= 0.75 and v["te"][0] >= 10)
+        if t_:
+            lift = (v["te"][1] - v["base"][2]) * 100
+            log(f"      └ {t_} · 테스트 평균 {'하락폭' if side=='sell' else '수익'} {v['mean']:+.2f}% · 최대 불리 중앙 {v['adv_med']:+.1f}% / 최악 {v['adv_worst']:+.1f}% · 평소 대비 {lift:+.0f}%p")
+    real_stars = sum(1 for _, _, _, v in summary if tier(v) == "반복 검증 후보")
+    real_rare = sum(1 for _, _, _, v in summary if tier(v).startswith("희귀"))
     if "--placebo" in sys.argv:
         k = int(sys.argv[sys.argv.index("--placebo") + 1])
         log(f"\n■ 대조 실험 — 종목별 일간 수익률 순서를 섞어(예측력 0) 같은 절차를 {k}번 반복")
         for s in range(k):
             rng = np.random.default_rng(1000 + s)
             pdata = {t: (permuted(df, rng) if df is not None and not t.startswith("^V") else df) for t, df in data.items()}
-            st, tot = count_stars(pdata, mkt, earn)
-            log(f"  섞은 데이터 {s+1}: 선정 규칙 {tot}개 중 ★ {st}개")
-        log(f"  실제 데이터: 선정 규칙 {len(summary)}개 중 ★ {real_stars}개 — 섞은 데이터의 ★ 수와 비슷하면 우연과 구별되지 않는다")
+            st, tot, ra = count_stars(pdata, mkt, earn)
+            log(f"  섞은 데이터 {s+1}: 선정 규칙 {tot}개 중 ★ {st}개 · ☆ {ra}개")
+        log(f"  실제 데이터: 선정 규칙 {len(summary)}개 중 ★ {real_stars}개 · ☆ {real_rare}개 — 섞은 데이터의 수와 비슷하면 우연과 구별되지 않는다")
     log(f"\n(총 {time.time()-T0:.0f}초)")
 
 if __name__ == "__main__":

@@ -43,37 +43,48 @@ def watchlist():
     wl = ast.literal_eval(src[i + len("WATCHLIST = "):j])
     return {t: cat for cat, g in wl.items() for t in g}
 
-def per_ticker(t, df):
+def per_ticker(t, df, regime):
+    """체결 = 신호일 종가로 확정 → 다음 거래일 시가(o[i+1]) 진입, n거래일 뒤 종가 c[i+n] (2026-11-06 지적 반영).
+    참고용으로 신호일 종가 진입(c[i]) 10일 수익도 같이 둔다."""
     o, h, l, c, v = (df[k].to_numpy(float) for k in ("Open", "High", "Low", "Close", "Volume"))
     ser = pf.flag_series(o, h, l, c, v, t)
     dates = np.array([str(d.date()) for d in df.index])
     N = len(c); fw = {}
+    o1 = np.full(N, np.nan); o1[:-1] = o[1:]
     for n in H:
-        f = np.full(N, np.nan); f[:-n] = (c[n:] / c[:-n] - 1) * 100; fw[n] = f
+        f = np.full(N, np.nan); f[:-n] = (c[n:] / o1[:-n] - 1) * 100; fw[n] = f
+    fc10 = np.full(N, np.nan); fc10[:-10] = (c[10:] / c[:-10] - 1) * 100
     lo = pd.Series(l[::-1]).rolling(10).min().to_numpy()[::-1]; hi = pd.Series(h[::-1]).rolling(10).max().to_numpy()[::-1]
     mn = np.full(N, np.nan); mx = np.full(N, np.nan)
-    mn[:-10] = (lo[1:N - 9] / c[:-10] - 1) * 100; mx[:-10] = (hi[1:N - 9] / c[:-10] - 1) * 100
+    mn[:-10] = (lo[1:N - 9] / o1[:-10] - 1) * 100; mx[:-10] = (hi[1:N - 9] / o1[:-10] - 1) * 100
     ok = np.arange(N) >= 260                                   # 지표 워밍업(200일선) 뒤만
-    ev = {}
+    reg = np.array([regime.get(d, "") for d in dates])
+    ev, idx = {}, {}
     for code, m in ser.items():
         if kind_of(code) is None: continue
         last = -10 ** 9
         for i in np.nonzero(m & ok)[0]:
             if i - last < COOL: continue
             last = i
-            ev.setdefault(code, []).append((str(dates[i]), t, *(fw[n][i] for n in H), mn[i], mx[i]))
-    base = [(dates[i], fw[10][i]) for i in range(260, N, 5) if not np.isnan(fw[10][i])]
-    return ev, base
+            ev.setdefault(code, []).append((str(dates[i]), t, *(fw[n][i] for n in H), mn[i], mx[i], fc10[i], reg[i]))
+            idx.setdefault(code, []).append(i)
+    base = [(dates[i], fw[10][i], reg[i]) for i in range(260, N, 5) if not np.isnan(fw[10][i])]
+    return ev, base, idx, fw[10], N
 
-def summarize(evs, kind, base_up, cut):
+def wilson_lb(p, n, z=1.96):
+    if not n: return None
+    d = 1 + z * z / n
+    return (p + z * z / (2 * n) - z * np.sqrt(p * (1 - p) / n + z * z / (4 * n * n))) / d
+
+def summarize(evs, kind, base_up, cut, base_reg=None, pval=None):
     """evs: [(date, tk, f3, f5, f10, f20, mn10, mx10)] → 같은 날 평균 1건으로 묶어 통계."""
     by = {}
     for e in evs:
         by.setdefault(e[0], []).append(e)
     rows = []
     for d, es in sorted(by.items()):
-        a = np.array([x[2:] for x in es], float)
-        rows.append((d, ",".join(sorted({x[1] for x in es})), *np.nanmean(a, axis=0)))
+        a = np.array([x[2:9] for x in es], float)
+        rows.append((d, ",".join(sorted({x[1] for x in es})), *np.nanmean(a, axis=0), es[0][9]))
     done = [r for r in rows if not np.isnan(r[4])]
     up = kind in ("green", "blue")
     def hit(rs, k=4):
@@ -92,21 +103,38 @@ def summarize(evs, kind, base_up, cut):
             "adverse10": float(np.nanmean([r[6] if up else r[7] for r in done])),
             "avg_win": float(wins.mean()) if len(wins) else 0.0, "avg_loss": float(-losses.mean()) if len(losses) else 0.0,
             "front": {"n": len(fr), "hit10": hit(fr)}, "back": {"n": len(bk), "hit10": hit(bk)},
+            "hit10_close": hit([r for r in done if not np.isnan(r[8])], 8),
+            "regime": {g: {"n": len([r for r in done if r[9] == g]), "hit10": hit([r for r in done if r[9] == g])} for g in ("up", "down")},
         })
+        out["wilson10"] = wilson_lb(out["hit10"], n)
     base_hit = base_up if up else (1 - base_up if base_up is not None else None)
     out["base10"] = base_hit
-    v = "표본 부족"
-    if n >= 15:
+    if base_reg:
+        out["base_regime"] = {g: (b if up else (1 - b if b is not None else None)) for g, b in base_reg.items()}
+    out["p_shift"] = pval
+    # 판정 (2026-11-06 강화): 검증 완료 = 아래 전부. 하나라도 빠지면 '연구 후보'(평소보다 나은데 확인 안 됨) 또는 '평소와 비슷'.
+    v, why = "표본 부족", []
+    if n >= 15 and base_hit is not None:
         bh = out["back"]["hit10"]
-        if out["back"]["n"] < 5: v = "검증 부족"
-        elif base_hit is not None and out["hit10"] < base_hit + 0.05: v = "평소와 비슷"
-        elif base_hit is not None and bh is not None and bh <= base_hit: v = "최근 재현 안 됨"
-        elif out["avg_loss"] > 1.5 * max(out["avg_win"], 1e-9): v = "손익비 나쁨"
-        elif out["hit10"] >= 0.75 and bh is not None and bh >= 0.75: v = "75% 달성"
-        else: v = "검증됨"
+        lift = out["hit10"] - base_hit
+        if lift < 0.05:
+            v = "평소와 비슷"
+        else:
+            if n < 30: why.append(f"표본 {n}건(30건 미만)")
+            if out["back"]["n"] < 8: why.append(f"최근 20% 표본 {out['back']['n']}건")
+            elif bh is None or bh <= base_hit: why.append("최근 20%에서 재현 안 됨")
+            if out["wilson10"] is None or out["wilson10"] <= base_hit: why.append("95% 신뢰 하한이 평소 이하")
+            if pval is None or pval >= 0.05: why.append("우연과 구별 안 됨(블록 대조)")
+            if out["avg_loss"] > 1.5 * max(out["avg_win"], 1e-9): why.append("손실이 이익의 1.5배 초과")
+            if why: v = "연구 후보"
+            elif out["hit10"] >= 0.75 and bh is not None and bh >= 0.75: v = "75% 달성"
+            else: v = "검증 완료"
+    elif n < 15 and n and base_hit is not None and out.get("hit10") is not None and out["hit10"] - base_hit >= 0.05:
+        v, why = "연구 후보", [f"표본 {n}건(15건 미만)"]
     out["verdict"] = v
+    out["why"] = why
     keep = 30
-    out["cases"] = [[r[0], r[1], *[None if np.isnan(x) else round(float(x), 1) for x in r[2:8]]] for r in rows[-keep:]]
+    out["cases"] = [[r[0], r[1], *[None if np.isnan(x) else round(float(x), 1) for x in r[2:8]], r[9]] for r in rows[-keep:]]
     return out
 
 def rnd(o):
@@ -119,6 +147,12 @@ def main():
     T0 = time.time()
     out_path = sys.argv[sys.argv.index("--out") + 1] if "--out" in sys.argv else f"{ROOT}/backtest/signal-stats.json"
     wl = watchlist()
+    qq = tr.fetch("QQQ")
+    q200 = qq["Close"].rolling(200).mean()
+    regime = {str(d.date()): ("up" if c >= m else "down") for d, c, m in zip(qq.index, qq["Close"], q200) if not np.isnan(m)}
+    rng = np.random.default_rng(7)
+    shift_hits = {}                                          # code → [placebo별 (적중수, 표본수)] — 블록 대조
+    real_hits = {}
     ev_all, base_all = {}, {}
     hl = {}                                                  # 날짜 → [n, [신고가권], [신저가권]] (미국 관심종목)
     for t, cat in wl.items():
@@ -133,7 +167,21 @@ def main():
                 x = hl.setdefault(str(d.date()), [0, [], []]); x[0] += 1
                 if a >= -0.01: x[1].append(t)
                 if b <= 0.01: x[2].append(t)
-        ev, base = per_ticker(t, df)
+        ev, base, idx, f10, N = per_ticker(t, df, regime)
+        # 블록 대조: 종목의 신호 날짜 묶음을 통째로 원형 이동(k일) — 신호끼리의 뭉침·변동성 군집은 그대로, 시점만 무관하게
+        valid = np.arange(260, N - 11)
+        for code, ii in idx.items():
+            up = kind_of(code) in ("green", "blue")
+            ii = np.array(ii); fv = f10[ii]; fv = fv[~np.isnan(fv)]
+            rh = real_hits.setdefault(code, [0, 0]); rh[0] += int(((fv > 0) == up).sum()); rh[1] += len(fv)
+            sh = shift_hits.setdefault(code, np.zeros((200, 2)))
+            if len(valid) < 50: continue
+            span = len(valid)
+            for b in range(200):
+                k = rng.integers(20, span - 20)
+                jj = valid[0] + ((ii - valid[0] + k) % span)
+                fs = f10[jj]; fs = fs[~np.isnan(fs)]
+                sh[b, 0] += ((fs > 0) == up).sum(); sh[b, 1] += len(fs)
         for code, es in ev.items():
             ev_all.setdefault(code, {}).setdefault(cat, []).extend(es)
         base_all.setdefault(cat, []).extend(base)
@@ -141,13 +189,21 @@ def main():
     cut = alld[int(len(alld) * 0.8)] if alld else "9999"
     def base_up(rows):
         return (sum(r[1] > 0 for r in rows) / len(rows)) if rows else None
+    def base_reg(rows):
+        return {g: base_up([r for r in rows if r[2] == g]) for g in ("up", "down")}
+    def pval(code):
+        rh, sh = real_hits.get(code), shift_hits.get(code)
+        if not rh or not rh[1] or sh is None: return None
+        real = rh[0] / rh[1]; ph = sh[:, 0] / np.maximum(sh[:, 1], 1)
+        return float((np.sum(ph >= real) + 1) / (len(ph) + 1))
     allbase = [r for rs in base_all.values() for r in rs]
     stats = {}
     for code, cats in ev_all.items():
         kind = kind_of(code)
         allev = [e for es in cats.values() for e in es]
-        stats[code] = {"kind": kind, "name": pf.CODES[code][1], "all": summarize(allev, kind, base_up(allbase), cut),
-                       "by_cat": {cat: summarize(es, kind, base_up(base_all.get(cat, [])), cut) for cat, es in cats.items() if len(es) >= 5}}
+        pv = pval(code)
+        stats[code] = {"kind": kind, "name": pf.CODES[code][1], "all": summarize(allev, kind, base_up(allbase), cut, base_reg(allbase), pv),
+                       "by_cat": {cat: summarize(es, kind, base_up(base_all.get(cat, [])), cut, base_reg(base_all.get(cat, [])), None) for cat, es in cats.items() if len(es) >= 5}}
         for cs in stats[code]["by_cat"].values():
             cs["cases"] = cs["cases"][-12:]
     # 정상 과열 vs 위험 고점: 🟠 뒤 5일 안 🔴 이어짐 여부
@@ -173,7 +229,8 @@ def main():
                 "avg20": float(np.nanmean(a[:, 1])), "crash10": float(np.mean(a[:, 2] <= -10))}
     res = {"generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
            "period": [alld[0] if alld else None, alld[-1] if alld else None], "cut": cut,
-           "universe": len(wl), "cooldown": COOL, "horizon": 10,
+           "universe": len(wl), "cooldown": COOL, "horizon": 10, "entry": "신호일 종가 확정 → 다음 거래일 시가 진입, n거래일 뒤 종가",
+           "regime_today": regime.get(max(regime)) if regime else None,
            "note": "백테스트(관심종목 10년, 생존 편향 있음) — 원장이 아님. 판정은 pattern_flags.py(사이트와 같은 함수).",
            "compare_overheat": {"calm": cmp(calm), "then_red": cmp(danger)},
            "stats": stats}
@@ -210,7 +267,9 @@ def main():
         if not a.get("n"): continue
         print(f"  {st['kind']:6} {code:11} {st['name'][:22]:22} n={a['n']:4} 적중10 {a['hit10']*100:4.0f}% (기준 {a['base10']*100:3.0f}%) "
               f"앞 {(a['front']['hit10'] or 0)*100:3.0f}%({a['front']['n']}) 뒤 {(a['back']['hit10'] or 0)*100:3.0f}%({a['back']['n']}) "
-              f"평균10 {a['avg']['10']:+5.1f}% 불리 {a['adverse10']:+5.1f}% → {a['verdict']}")
+              f"평균10 {a['avg']['10']:+5.1f}% 하한 {(a.get('wilson10') or 0)*100:3.0f}% p {a.get('p_shift') if a.get('p_shift') is not None else '-'} "
+              f"상승장 {((a['regime']['up']['hit10'] or 0)*100):3.0f}%({a['regime']['up']['n']}) 하락장 {((a['regime']['down']['hit10'] or 0)*100):3.0f}%({a['regime']['down']['n']}) "
+              f"종가체결 {((a.get('hit10_close') or 0)*100):3.0f}% → {a['verdict']} {' / '.join(a.get('why') or [])}")
     print("  정상 과열 vs 🔴 이어짐:", res["compare_overheat"])
 
 if __name__ == "__main__":
