@@ -22,13 +22,14 @@ const A_HIST = 'market_breadth: (typeof marketBreadthOn === "function") ? market
 const A_NORM = 'if (s.market_breadth == null && typeof marketBreadthOn === "function") s.market_breadth = marketBreadthOn(s.last_date);';
 const A_EVAL = 'const bottomBreadth = has(s.market_breadth) && s.market_breadth < 30;';
 const NETF = '(x => x ? (x.nh - x.nl) / x.n : null)';
-function run(T, W) {
+function run(T, W, tighten) {
   const patch = [
     [A_HIST, A_HIST + ` market_hlnet: (typeof highLowOn === "function") ? ${NETF}(highLowOn(o.date)) : null,`],
     [A_NORM, A_NORM + ` if (s.market_hlnet == null && typeof highLowOn === "function") s.market_hlnet = ${NETF}(highLowOn(s.last_date));`],
   ];
   if (W != null) patch.push(['if(r[iH] >= -1) a.nh++; if(r[iL] <= 1) a.nl++;', `if(r[iH] >= -${W}) a.nh++; if(r[iL] <= ${W}) a.nl++;`]);
-  if (T != null) patch.push([A_EVAL, `const bottomBreadth = (has(s.market_breadth) && s.market_breadth < 30) || (has(s.market_hlnet) && s.market_hlnet < ${T});`]);
+  if (T != null && tighten) patch.push([A_EVAL, `const bottomBreadth = has(s.market_breadth) && s.market_breadth < 30 && !(has(s.market_hlnet) && s.market_hlnet >= ${T});`]);
+  else if (T != null) patch.push([A_EVAL, `const bottomBreadth = (has(s.market_breadth) && s.market_breadth < 30) || (has(s.market_hlnet) && s.market_hlnet < ${T});`]);
   const page = H.loadPage({ patch });
   page.runInPage(`this.__run = j => { state.data = normalize(JSON.parse(j)); const r = strategyValidation(); const o = {};
     ['strongBuy','multi'].forEach(k => { o[k] = {}; [1,3,5].forEach(h => o[k][h] = (r._phaseRows[k][h]||[]).map(x => {
@@ -57,6 +58,12 @@ for (const T of [0.02, 0, -0.02, -0.05, -0.10]) {
   console.log(`   ${''.padEnd(7)} 다중 ${L('multi', f, 0)}| 앞 ${L('multi', f, 1)}| 뒤 ${L('multi', f, 2)}|| 나머지 ${L('multi', g, 0)}`);
 }
 if (process.argv.includes('--cells-only')) process.exit(0);
+if (process.argv.includes('--tighten')) {
+  console.log('\n[T] 바닥권 해제를 순신고가 < T 일 때만 — 변형별 +1·+3·+5 | 앞/뒤 반 +3·+5 | 추가 +3·+5 | 빠짐 +5');
+  show('현행 v22', B0);
+  for (const T of [0, 0.02, 0.04, 0.06]) show(`해제 조건 순신고가<${T}`, run(T, null, true));
+  process.exit(0);
+}
 
 function show(nm, R) {
   for (const k of ['strongBuy', 'multi']) {
@@ -64,7 +71,7 @@ function show(nm, R) {
     const rem = h => { const s1 = new Set(R[k][h].map(key)); return B0[k][h].filter(x => !s1.has(key(x))); };
     console.log(`   ${(nm + ' ' + (k === 'strongBuy' ? '강매' : '다중')).padEnd(24)} 전체 ${[1, 3, 5].map(h => st(R[k][h])).join('')}`
       + ` | 앞 ${[3, 5].map(h => st(R[k][h].filter(x => x.d < mid))).join('')} 뒤 ${[3, 5].map(h => st(R[k][h].filter(x => x.d >= mid))).join('')}`
-      + ` | 추가 ${[3, 5].map(h => st(add(h))).join('')} 빠짐 ${st(rem(5))}`);
+      + ` | 추가 ${[3, 5].map(h => st(add(h))).join('')} 빠짐 ${st(rem(3))}${st(rem(5))}`);
   }
 }
 console.log('\n[2] 변형별 +1·+3·+5 | §2 앞/뒤 반 +3·+5 | 추가된 표본 +3·+5 | 빠진 표본 +5');
