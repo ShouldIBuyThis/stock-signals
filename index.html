@@ -1446,6 +1446,7 @@ function normalize(raw){
            /* QQQ 전용 30일 원장(연속 하락·VXN 고정). 여기 없으면 흐름 팝업이 '연속 하락 축만'으로
               떨어져 'VXN 과거값 대기'가 영원히 찍힌다(2026-09-03 사용자 지적 — 실제로 그랬다). */
            qqq_signal_hist: Array.isArray(raw.qqq_signal_hist) ? raw.qqq_signal_hist : null,
+           cand_track: Array.isArray(raw.cand_track) ? raw.cand_track : [],   /* 연구 후보 60거래일 실제 추적(main.py update_cand_track) — 표시 전용 */
            congress_holdings: raw.congress_holdings || null,   /* 의회 거래 ETF 상위 보유 10종·비중 — 표시 전용 */
            market_extra: raw.market_extra || null,
            spy_card: raw.spy_card || null,
@@ -5009,11 +5010,28 @@ function researchFooterHtml(){
       <b>⚪ 평소 수준</b> = 그 모양이 나와도 과거 성적이 아무 날과 비슷했던 신호. 사이트 '강한매수'는 최근 실제 기록(원장)으로 같은 기준을 적용.<br>
       모든 성과는 '신호가 그날 종가로 확정 → 다음 날 시가에 사거나 판다'로 계산해요.</div></details>
     ${(()=>{ /* 2026-11-06 검토 의견 "후보를 더 늘리기보다 새 데이터에서도 맞는지 추적" — 원장(그날 실제로 본 값)만으로 센다. 연구 숫자와 섞지 않는다. */
-      const TR = [["K_FLAG","blue",10,"상승"],["K_TOP3","orange",10,"하락"],["K_SV1","orange",20,"하락"],["K_SV2","orange",20,"하락"],["K_SV3","orange",20,"하락"],
-                  ["K_LLD_UP","blue",10,"상승"],["K_HW_UP","blue",10,"상승"],["EXT_PAIR","blue",10,"상승"],["R5_SEMI","green",5,"상승"],["R10_NVDA","green",10,"상승"]];
+      /* 변동성 주의·고점 주의·상승 깃발은 main.py가 신호 다음 날 시가부터 60거래일 최저가·최고가를 기록한다(cand_track).
+         −25% 하락 발생 여부는 연구와 같은 기준. 60일을 못 채우면 판정하지 않는다(측정 대기 / 측정 불가). */
+      const CT = (state.data && state.data.cand_track) || [];
+      const med = a => { if(!a.length) return null; const b = a.slice().sort((x,y)=>x-y), m = Math.floor(b.length/2); return b.length%2 ? b[m] : (b[m-1]+b[m])/2; };
+      const f1 = v => v==null ? "—" : `${v>=0?"+":""}${v.toFixed(1)}%`;
+      const ctRow = code => { const E = CT.filter(e=>e.code===code), R = RARE_FACTS[code]||{};
+        const hit = E.filter(e=>e.status==="발생").length, miss = E.filter(e=>e.status==="미발생").length;
+        const wait = E.filter(e=>e.status==="측정 대기").length, na = E.filter(e=>e.status==="측정 불가").length;
+        const fin = E.filter(e=>e.status==="발생"||e.status==="미발생");
+        const done60 = E.filter(e=>e.final);
+        return `<div class="sb-note"><b>${esc(R.title||code)}</b> — 기록 ${E.length}건`
+          + (E.length ? ` · 60일 안 −25% 하락 <b>발생 ${hit}</b> / 미발생 ${miss}${fin.length ? ` (판정된 ${fin.length}건 중 ${Math.round(hit/fin.length*100)}%)` : ""}`
+            + ` · 측정 대기 ${wait}${na ? ` · 측정 불가 ${na}` : ""}`
+            + (done60.length ? ` · 60일 완료 ${done60.length}건의 최대 하락 중간 ${f1(med(done60.map(e=>e.max_down)))} · 최대 상승 중간 ${f1(med(done60.map(e=>e.max_up)))}` : "") : "")
+          + (R.hit ? ` <span style="color:var(--muted)">(연구: ${esc(R.hit)} · ${esc(R.base)})</span>` : "") + `</div>`; };
+      const TR = [["K_LLD_UP","blue",10,"상승"],["K_HW_UP","blue",10,"상승"],["EXT_PAIR","blue",10,"상승"],["R5_SEMI","green",5,"상승"],["R10_NVDA","green",10,"상승"]];
       const rows = TR.map(([c,k,h,w])=>{ const t = ledgerTrack(c,k,h); const R = RARE_FACTS[c]||{};
         return `<div class="sb-note"><b>${esc(R.title||c)}</b> — ${t && t.n ? `확정 ${t.n}건 · ${h}일 뒤 ${w} ${Math.round(t.hit*100)}% · 평균 ${t.avg>=0?"+":""}${t.avg.toFixed(1)}%` : "확정 0건"}${t && t.pend ? ` · 결과 대기 ${t.pend}건` : ""}${t && t.noOpen ? ` · 시가 기록 전이라 제외 ${t.noOpen}건` : ""}${t && t.first ? ` · 첫 기록 ${esc(t.first)}` : ""}</div>`; }).join("");
-      return `<details class="sb-sec2"><summary>📈 새 데이터 추적 (연구 이후 실제 기록)</summary><div class="sb-note" style="color:var(--muted)">사이트가 그날 실제로 본 값(원장)으로만 셉니다. 다음 날 시가 진입 · 정해진 날 뒤 종가. 표본이 쌓일 때까지는 판단에 쓰지 마세요. 변동성 주의(−25% 하락)는 원장에 저가가 없어 20일 뒤 종가 방향으로만 봅니다.</div>${rows}</details>`; })()}
+      const ctHtml = ["K_SV1","K_SV2","K_SV3","K_TOP3","K_FLAG"].map(ctRow).join("");
+      return `<details class="sb-sec2"><summary>📈 새 데이터 추적 (연구 이후 실제 기록)</summary><div class="sb-note" style="color:var(--muted)">신호가 그날 원장에 기록된 경우만 셉니다(2026-11-06부터). 진입 = 다음 날 시가.<br>
+        변동성 주의·고점 주의·상승 깃발: 진입 뒤 60거래일 동안의 최저가·최고가를 매일 기록해 '60일 안 −25% 하락' 발생 여부를 연구와 같은 기준으로 봅니다. 60일을 못 채운 건은 판정하지 않고 '측정 대기', 가격 기록이 빠진 건은 '측정 불가'예요. 표본이 쌓일 때까지는 판단에 쓰지 마세요.</div>${ctHtml}
+        <div class="sb-note" style="color:var(--muted)">그 밖의 후보(정해진 날 뒤 종가 방향):</div>${rows}</details>`; })()}
     <details class="sb-sec2"><summary>희귀·연구 후보 규칙 ${idle.length}개</summary>${idle.map(([c,R])=>R.simple ? `<div class="sb-note"><b>${esc(R.title)}</b> — ${esc(R.detail)}</div>` : `<div class="sb-note"><b>${esc(R.title)}</b> (${esc(R.tickers)}) — ${esc(R.rule)}<br>
       ${R.period ? `전체 ${R.te} · ${R.period}` : `학습 ${R.tr}${R.va!=="—"?` · 검증 ${R.va} · 테스트 ${R.te}`:` · 시험 ${R.te}`}`} · 평소 ${R.base}(${R.lift}) · 평균 ${R.avg} · 최대 하락 중간 ${R.maeMed}/최악 ${R.maeWorst}${R.p!=="—"?` · p=${R.p}`:""} — 유의성·수익성 확정 아님</div>`).join("")}</details>
     <details class="sb-sec2"><summary>🕯 캔들 모양 예시 (교육용 그림)</summary><div style="font-size:12.5px;margin:6px 2px">${basicLegend()}<br>${candleLightLegend()}</div><div class="edu-gal">${Object.keys(CANDLE_EDU).filter(n=>!CANDLE_BASIC.has(n)).map(n=>`<button class="edu-big edu-card" data-edubig="${esc(n)}">${eduGlyph(n,1.4)}<b>${candleLight(n)}${esc(n)}</b><small>${esc(CANDLE_EDU[n].d.split(" — ")[0])}</small></button>`).join("")}</div></details>
