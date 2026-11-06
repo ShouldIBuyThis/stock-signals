@@ -4646,15 +4646,16 @@ function sbShortHit(x){
 /* 실제 마지막 5거래일 일봉(ohlc60 실측 시가·고가·저가·종가). 오른쪽 끝 = 마지막 거래일.
    2026-11-06 사용자 지적 "이거 진짜 실제 종가 캔들 모양이야?" — 예전 썸네일은 모양 이름에 맞춘 교육용 그림이라
    종목마다 같은 그림이 나왔다. 목록 썸네일은 실제 봉으로 바꾸고, 교육용 그림은 눌렀을 때 팝업에만 둔다. */
-function realMiniCandles(s, n){
+function realMiniCandles(s, n, k){
+  k = k || 1;
   const D = ((s && s.ohlc60) || []).slice(-(n||5)).filter(r => r && [1,2,3,4].every(k => has(r[k])));
   if (D.length < 2) return "";
   const hi = Math.max(...D.map(r=>r[2])), lo = Math.min(...D.map(r=>r[3])), rg = (hi - lo) || 1;
-  const W = 9*D.length + 4, Hh = 30, y = v => 2 + (hi - v)/rg*(Hh - 4);
+  const W = (9*D.length + 4)*k, Hh = 30*k, y = v => 2*k + (hi - v)/rg*(Hh - 4*k);
   let g = "";
-  D.forEach(([_, o, h, l, c], i) => { const x = 5 + i*9, col = c >= o ? "#e5484d" : "#3b82f6", last = i === D.length - 1;
-    g += `<line x1="${x}" x2="${x}" y1="${y(h).toFixed(1)}" y2="${y(l).toFixed(1)}" stroke="${col}" stroke-width="1.2"/>`
-       + `<rect x="${x-3}" width="6" y="${y(Math.max(o,c)).toFixed(1)}" height="${Math.max(1.2, Math.abs(y(o)-y(c))).toFixed(1)}" fill="${col}"${last?` stroke="var(--ink,#111)" stroke-width="0.8"`:""}/>`; });
+  D.forEach(([_, o, h, l, c], i) => { const x = (5 + i*9)*k, col = c >= o ? "#e5484d" : "#3b82f6", last = i === D.length - 1;
+    g += `<line x1="${x}" x2="${x}" y1="${y(h).toFixed(1)}" y2="${y(l).toFixed(1)}" stroke="${col}" stroke-width="${1.2*k}"/>`
+       + `<rect x="${x-3*k}" width="${6*k}" y="${y(Math.max(o,c)).toFixed(1)}" height="${Math.max(1.2*k, Math.abs(y(o)-y(c))).toFixed(1)}" fill="${col}"${last?` stroke="var(--ink,#111)" stroke-width="${0.8*k}"`:""}/>`; });
   return `<svg class="edu-glyph" width="${W}" height="${Hh}" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="실제 최근 ${D.length}거래일 일봉">${g}</svg>`;
 }
 function sbThumb(group){
@@ -8242,9 +8243,21 @@ document.getElementById("main").addEventListener("click", e=>{
   if(marketEventBtn){ e.preventDefault(); e.stopPropagation(); openMarketEventModal(marketEventBtn.dataset.marketEvent); return; }
   const eb = e.target.closest("[data-edubig]");
   if (eb){ e.preventDefault(); e.stopPropagation(); const n = eb.dataset.edubig, tk = eb.dataset.edutk; const st = tk ? allStocks().find(z=>z.ticker===tk) : null; const rc = st ? realChartSvg(st, true) : "";
+    /* 2026-11-06 사용자 지적 "교육용이면 견본이야? 실제여야지" — 종목에서 열면 맨 위를 실제 일봉으로 둔다.
+       교육용 견본 그림은 접힌 칸으로만 남긴다(갤러리처럼 종목 없이 열 때만 견본이 주인공). */
+    const lastBar = st && st.ohlc60 && st.ohlc60.length ? st.ohlc60[st.ohlc60.length-1] : null;
+    const realTop = st ? realMiniCandles(st, 5, 4) : "";
+    const fmtP = v => !has(v) ? "—" : (st && st.currency==="KRW" ? Math.round(v).toLocaleString("ko-KR") : Number(v).toFixed(2));
+    const eduPart = `<div class="md-tag">교육용 그림 — 모양 견본</div><div style="text-align:center;margin:6px 0">${eduGlyph(n, 4)}</div>
+      <p style="font-size:15px;line-height:1.7;margin:4px 0 10px">${esc((CANDLE_EDU[n]||{}).d||"")}</p>`;
     openModal(`<h3>🕯 ${esc(n)}${st?` · ${esc(st.name||st.ticker)} (${esc(st.ticker)})`:""}</h3>
-      <div class="md-tag">교육용 그림 — 모양 설명</div><div style="text-align:center;margin:6px 0">${eduGlyph(n, 4)}</div>
-      <p style="font-size:15px;line-height:1.7;margin:4px 0 10px">${esc((CANDLE_EDU[n]||{}).d||"")}</p>
+      ${realTop && lastBar ? `<div class="md-tag md-real">실제 일봉 — 최근 5거래일 · 오른쪽 끝 = ${esc(lastBar[0])} 확정 봉</div>
+      <div style="text-align:center;margin:8px 0">${realTop}</div>
+      <div style="font-size:12.5px;color:var(--muted);text-align:center;margin-bottom:6px">${esc(lastBar[0])} · 시가 ${fmtP(lastBar[1])} · 고가 ${fmtP(lastBar[2])} · 저가 ${fmtP(lastBar[3])} · 종가 ${fmtP(lastBar[4])}</div>
+      <p style="font-size:15px;line-height:1.7;margin:4px 0 10px">${(()=>{ const rs = todayShape(st); return rs
+        ? `실제 마지막 봉 모양: <b>${esc(rs)}</b> — ${esc((CANDLE_EDU[rs]||{}).d||"")}`
+        : `실제 마지막 봉은 뚜렷한 꼬리·도지 모양이 아닙니다.`; })()}${todayShape(st)!==n ? `<br><span style="font-size:12.5px;color:var(--muted)">‘${esc(n)}’는 신호 규칙이 보는 모양 이름입니다(마지막 봉 하나가 아니라 며칠 흐름).</span>` : ""}</p>
+      <details class="sb-sec2" style="margin-bottom:8px"><summary>📘 같은 모양의 교육용 견본 그림 보기</summary>${eduPart}</details>` : eduPart}
       ${rc ? `<div class="md-tag md-real">실제 일봉 — 최근 40거래일 실측 가격</div>${rc}<div style="font-size:11px;color:var(--muted)">▼ = 마지막 거래일 · 주황 선 = 볼린저(20, 2σ) · 아래 막대 = 거래량</div>` : (tk ? `<div style="font-size:12px;color:var(--muted)">이 종목의 실제 일봉 데이터는 다음 갱신부터 보여요.</div>` : "")}
       <div class="modal-actions"><button class="primary" onclick="closeModal()">닫기</button></div>`); return; }
   const rb = e.target.closest("[data-rcbig]");
