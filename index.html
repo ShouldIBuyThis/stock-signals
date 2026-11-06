@@ -658,6 +658,44 @@ html[data-theme="dark"] .badge.gOh,html[data-theme="dark"] .c-badge.gOh,html[dat
 .cr-row.cr-good .cr-list{font-size:13px}.cr-row.cr-bad .cr-list{color:#c0262d}
 .cr-more{margin-top:8px;font-size:11px;color:var(--muted)}.cr-more summary{cursor:pointer}
 .cr-more div{margin:3px 0;line-height:1.5}
+/* 🚦 오늘의 신호 보드 */
+.pl-green{background:#dcfce7;color:#15803d}
+.sb-legend{font-size:11px;margin:2px 0 8px;line-height:2}
+.sb-group{border:1px solid var(--line,#e5e7eb);border-radius:12px;padding:8px 10px;margin-bottom:10px;background:var(--card,#fff)}
+.sb-group.sb-green{border-left:4px solid #16a34a}.sb-group.sb-blue{border-left:4px solid #2563eb}.sb-group.sb-orange{border-left:4px solid #f59e0b}.sb-group.sb-red{border-left:4px solid #dc2626}
+.sb-gh{font-size:15px;margin-bottom:4px}.sb-gh small{color:var(--muted);font-size:11px;margin-left:4px}
+.sb-empty{font-size:12px;color:var(--muted);padding:6px 0}
+.sb-item>summary{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;cursor:pointer;padding:7px 0;border-top:1px dashed var(--line,#e5e7eb);list-style:none}
+.sb-item>summary::-webkit-details-marker{display:none}
+.sb-tk{font-size:15px}.sb-nm{font-size:13px}.sb-hit{margin-left:auto;font-size:12px;color:var(--muted)}
+.sb-rest{margin-top:4px}.sb-rest>summary{font-size:12px;color:var(--muted);cursor:pointer;padding:4px 0}
+.sb-card{border-radius:10px;padding:10px 12px;margin:2px 0 10px;background:var(--bg2,#f8fafc)}
+.sb-head{font-size:18px;font-weight:800;margin-bottom:4px}
+.sb-green .sb-head{color:#15803d}.sb-blue .sb-head{color:#1d4ed8}.sb-orange .sb-head{color:#b45309}.sb-red .sb-head{color:#c0262d}
+.sb-line{font-size:14px;line-height:1.6;margin-bottom:6px}
+.sb-list{list-style:none;padding:0;margin:0 0 6px;font-size:13px}.sb-list li{display:flex;flex-wrap:wrap;gap:6px;padding:3px 0;align-items:baseline}
+.sb-list li>span{flex:0 0 120px;color:var(--muted);font-size:12px}.sb-list small{color:var(--muted)}
+.sb-judge b.pl-pill{font-size:14px}
+.sb-more>summary{cursor:pointer;font-size:12px;color:var(--muted);padding:4px 0}
+.sb-sec{font-size:12px;line-height:1.6;margin:6px 0}.sb-sec>b{display:block;margin-bottom:2px}
+.sb-scroll{overflow-x:auto}.sb-tbl{border-collapse:collapse;font-size:11px;white-space:nowrap}.sb-tbl td,.sb-tbl th{padding:2px 6px;border-bottom:1px solid var(--line,#e5e7eb);text-align:right}.sb-tbl td:first-child,.sb-tbl td:nth-child(2){text-align:left}
+.sb-cmp{font-size:12px;line-height:1.6;margin:6px 0;padding:6px 8px;border-radius:8px;background:var(--card,#fff)}
+.sb-go{margin-top:6px;font:inherit;font-size:12px;border:1px solid var(--line,#e5e7eb);border-radius:8px;padding:4px 8px;background:var(--card,#fff);cursor:pointer}
+.sb-src{font-size:11px;color:var(--muted);margin-top:2px}
+.sb-instock{margin:6px 0}
+/* 52주 신고가·신저가 화면 */
+.hl-concl{padding:8px 0}.hl-state .pl-pill{font-size:15px;padding:5px 12px}
+.hl-nums{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:15px;margin:8px 0}.hl-nums b{font-size:20px}
+.hl-one{font-size:14px;line-height:1.6;margin:6px 0}.hl-scope{font-size:12px;color:var(--muted)}
+.hl-sec{border-top:1px solid var(--line,#e5e7eb);padding:8px 0}.hl-h{font-size:15px;font-weight:700;margin-bottom:4px}.hl-h small{font-weight:400;font-size:11px;color:var(--muted)}
+.hl-sub{font-size:13px;font-weight:700;margin:6px 0 2px}
+.hl-stock{display:block;width:100%;text-align:left;background:none;border:0;border-top:1px dashed var(--line,#e5e7eb);padding:6px 0;font:inherit;color:inherit;cursor:pointer}
+.hl-s1{font-size:14px}.hl-s1 small{color:var(--muted)}.hl-s2{font-size:12px;color:var(--muted);margin-top:2px}.hl-s3{font-size:12px;margin-top:2px}
+.hl-tbl{border-collapse:collapse;font-size:12px;width:100%}.hl-tbl td,.hl-tbl th{padding:3px 6px;border-bottom:1px solid var(--line,#e5e7eb);text-align:right}.hl-tbl td:first-child{text-align:left}
+.hl-note2{font-size:11px;color:var(--muted);line-height:1.6;margin-top:6px}.hl-warn{font-size:12px;color:#b45309;margin-top:4px}
+.hl-per{display:flex;gap:6px;margin:4px 0}.hl-legend{font-size:11px;display:flex;flex-wrap:wrap;gap:4px 10px;margin:4px 0}
+.hl-tip{font-size:10px;color:var(--muted)}.hl-more>summary{cursor:pointer;font-size:13px;padding:6px 0}
+.hl-case>summary{font-size:12px;cursor:pointer;padding:3px 0}
 /* 오늘 캔들 신호 */
 .tc-box{margin-top:12px;border:1px solid var(--line,#e5e7eb);border-radius:12px;padding:8px 10px;background:var(--card,#fff)}
 .tc-h{font-size:14px;margin-bottom:4px}.tc-h small{font-size:11px;color:var(--muted);margin-left:6px}
@@ -4287,6 +4325,363 @@ function todayCandleHtml(list){
       : `<div class="tc-empty">오늘은 볼밴 위에서 새로 나온 캔들 신호가 없어요.</div>`}
   </div>`;
 }
+/* ══════════ 🚦 오늘의 신호 보드 (2026-11-06 사용자 지시 — 두 번째 화면 재설계) ══════════
+   "어떤 종목에, 무슨 반등 또는 위험 신호가 떴고, 과거에는 얼마나 잘 맞았으며, 지금 어떤 행동을 고려해야 하나"를 3초 안에.
+   · 신호 = 원장 pat 코드(pattern_flags.py) + 사이트 판정(반등·추세 강한매수). 숫자는 전부 실측만 쓴다:
+       패턴 신호 → backtest/signal-stats.json(tools/signal-stats.py, 관심종목 10년 백테스트, 같은 함수)
+       사이트 판정 → strategyValidation()(원장 최근 거래일 실제 기록)
+   · 과거 성적이 평소와 비슷하거나 표본이 적으면 그렇게 쓴다. 신호가 없으면 '현재 신호 없음'. 등급·순위에는 영향 없음. */
+let SIGNAL_BT = null, BREADTH_BT = null;
+async function loadJsonFromRepo(name){
+  const tries = [];
+  if (location.protocol.startsWith("http")){
+    const base = location.href.split("?")[0].split("#")[0].replace(/[^/]*$/,"");
+    tries.push(base+"backtest/"+name);
+  }
+  tries.push("https://raw.githubusercontent.com/ShouldIBuyThis/stock-signals/main/backtest/"+name);
+  for (const u of tries){
+    try { const r = await fetch(u, {cache:"no-store"}); if(!r.ok) continue; return await r.json(); } catch(e){}
+  }
+  return null;
+}
+async function loadBoardData(){
+  const [a, b] = await Promise.all([loadJsonFromRepo("signal-stats.json"), loadJsonFromRepo("breadth-history.json")]);
+  if (a && a.stats) SIGNAL_BT = a;
+  if (b && b.rows) BREADTH_BT = b;
+  if ((SIGNAL_BT || BREADTH_BT) && state.data && typeof render === "function") { try { render(); } catch(e){} }
+}
+const SB_KIND = {
+  green:  {icon:"🟢", title:"반등 신호", head:"반등 신호 발생", pill:"pl-green"},
+  blue:   {icon:"🔵", title:"추세전환·상승 지속", head:"추세 전환·상승 신호", pill:"pl-blue"},
+  orange: {icon:"🟠", title:"단기과열·일부익절", head:"단기 과열", pill:"pl-orange"},
+  red:    {icon:"🔴", title:"하락추세·고점 위험", head:"고점·하락 위험", pill:"pl-red"},
+};
+const SB_ORDER = ["green", "blue", "orange", "red"];
+const SB_NAMES = {   /* signal-stats.json이 없을 때 쓰는 이름(정의는 pattern_flags.py SIGNAL_CODES·CODES와 같다) */
+  B_DIVUP:"과매도 뒤 RSI 상승 다이버전스", B_ENGULF:"과매도 뒤 상승장악형", B_HAMMER:"볼밴 하단 망치형", B_MSTAR:"과매도 뒤 샛별형(상승반전)",
+  B_VOLUP:"과매도 뒤 거래량 실린 양봉", B_SUPPORT:"120일 지지선 반등", B_STOCH:"과매도 뒤 스토캐스틱 K≤20 골든", B_BBLO:"과매도 뒤 볼밴 하단 재진입",
+  B_MA5:"과매도 뒤 5일선 안착(2일)", B_G520:"과매도 뒤 5·20일선 골든크로스",
+  U_MA20:"20일선 돌파(60일선 상승 중)", U_BREAK:"거래량 동반 20일 고점 돌파", U_G520:"5·20일선 골든크로스", U_G2060:"20·60일선 골든크로스", U_PULL:"눌림목 뒤 추세 재개",
+  O_RSI:"RSI 70 과열 + 볼밴 상단 밖", O_EXT:"볼밴 상단 과도 이탈", O_TURN:"상단 밖에서 윗꼬리·음봉 전환", O_VOLSTALL:"거래량 급증 뒤 상승 둔화",
+  T_HOUSE:"주택: 상단 밖 + 거래량 1.5배", T_QUANTUM:"양자: 상단 밖 + 음봉·윗꼬리·교수형·별", R_MA20:"20일선 이격 +25%", R_MA200:"200일선 이격 +80%",
+  X_ESTAR:"고점 석별형(하락반전)", X_TOPBEAR:"고점 장대음봉", X_SUPBREAK:"거래량 동반 지지선 붕괴", X_DIVDN:"고점 RSI 하락 다이버전스", X_MA60:"60일선 하향 이탈(20일선 하락 중)",
+  R_PARA:"포물선 뒤 20일선 첫 이탈", R_BLOW:"블로우오프 대량 음봉", D_SEMI:"반도체: 볼밴 상단 밖 십자형", D_SKH:"SK하이닉스: 고가 돌파 + 긴 윗꼬리", D_QUANT:"양자: 볼밴 위 체류 뒤 첫 재진입(VXN≥25)",
+  M_SEMI:"반도체 저점 규칙", M_IND:"산업재 저점 규칙", M_HOUSE:"주택 저점 규칙", M_QUANT:"양자 저점 규칙", M_NVDA:"엔비디아 저점 규칙", M_TSLA:"테슬라 저점 규칙", M_AMAT:"어플라이드 저점 규칙",
+};
+const SB_COND = {   /* 펼쳤을 때 보이는 조건 설명 — pattern_flags.py 정의를 말로 옮긴 것 */
+  B_:"최근 20거래일 안에 과매도(RSI14 30 이하 · 볼밴 하단 밖 · 60일 최고 종가 대비 −15% 이하)가 있었고, 오늘 반등 모양이 나온 경우.",
+  B_HAMMER:"저가가 볼밴 하단 근처(1% 안) · 아랫꼬리 60% 이상 · 몸통 30% 이하 · RSI14 40 이하.",
+  B_SUPPORT:"저가가 최근 120일(직전 5일 제외) 최저가의 −3%~+2% 안에서 양봉으로 반등 · 아랫꼬리 30% 이상.",
+  U_:"과매도 맥락이 아닌 상태에서 이동평균선·고점 돌파.", U_BREAK:"종가가 직전 20일 최고 종가를 처음 넘고 거래량이 20일 평균의 1.5배 이상.",
+  U_PULL:"20일선 > 60일선(60일선 상승 중), 최근 5일 안에 20일선 근처(2% 안)까지 눌렸다가 오늘 5일선 위로 첫 회복.",
+  O_:"볼린저(20일, 2σ) 상단 밖 구간에서 그 모양이 처음 나온 날.", O_VOLSTALL:"직전 5일 안 거래량 3배 이상, 그 뒤 5일 수익률 +1% 미만, RSI 60 이상, 20일선 상승 중.",
+  X_ESTAR:"60일 고점권(97% 안)에서 큰 양봉 → 작은 별 → 큰 양봉 몸통 절반 아래로 마감한 음봉(석별형).",
+  X_TOPBEAR:"최근 5일 RSI 70 이상 또는 60일 고점권에서, 몸통 60% 이상·변동폭이 평소(ATR)의 1.5배 넘는 장대음봉.",
+  X_SUPBREAK:"종가가 직전 20일 최저가 아래로 처음 내려가고 거래량이 20일 평균의 1.5배 이상.",
+  X_DIVDN:"종가는 직전 20일 최고인데 RSI는 직전 20일 최고(70 이상)보다 3 넘게 낮음.", X_MA60:"종가가 60일선 아래로 처음 내려가고 20일선이 5일 전보다 낮음.",
+};
+function sbKindOf(code){
+  const st = SIGNAL_BT && SIGNAL_BT.stats && SIGNAL_BT.stats[code];
+  if (st && st.kind) return st.kind;
+  if (/^(B_|M_)/.test(code)) return "green";
+  if (/^U_/.test(code)) return "blue";
+  if (/^(O_|T_)/.test(code) || code==="R_MA20" || code==="R_MA200") return "orange";
+  if (/^(X_|D_)/.test(code) || code==="R_PARA" || code==="R_BLOW") return "red";
+  return null;
+}
+function sbStat(code, cat){
+  const st = SIGNAL_BT && SIGNAL_BT.stats && SIGNAL_BT.stats[code];
+  if (!st) return null;
+  const c = st.by_cat && st.by_cat[cat];
+  return (c && c.n >= 15) ? Object.assign({scope:cat}, c) : Object.assign({scope:"전체 관심종목"}, st.all);
+}
+const pctS = v => v==null ? "—" : Math.round(v*100)+"%";
+const retS = v => v==null ? "—" : (v>0?"+":"")+Number(v).toFixed(1)+"%";
+/* 사이트 판정(반등·추세 강한매수)의 원장 실측 — 같은 데이터면 한 번만 계산 */
+function sbSiteStats(){
+  const d = state.data; if(!d) return null;
+  if (d._sbSite) return d._sbSite;
+  let v = null; try { v = strategyValidation(); } catch(e){}
+  d._sbSite = v ? {rev:v.rev, pull:v.pull, base:v._baseline} : null;
+  return d._sbSite;
+}
+function sbJudge(kind, verdict, siteRate){
+  const good = verdict==="검증됨" || verdict==="75% 달성";
+  if (kind==="green") return good ? "매수 검토" : "관망";
+  if (kind==="blue")  return good ? "추세 매수 검토" : "관망";
+  if (kind==="orange") return good ? "일부 익절 검토" : "참고만";
+  return good ? "비중 축소 검토" : "추가 확인 필요";
+}
+function sbItemsFor(s){
+  const items = [];
+  const site = sbSiteStats();
+  if (s.sig && s.sig.grade===5 && !s.earnings_hold){
+    const mk = (k, kind, label) => {
+      const st5 = site && site[k] && site[k][5], st3 = site && site[k] && site[k][3], b5 = site && site.base && site.base[5];
+      const rate = st5 && st5.rate!=null ? st5.rate/100 : null;
+      items.push({s, kind, code:"SITE_"+k, name:label, site:true,
+        stat: st5 ? {n:st5.n, hit5:rate, avg5:st5.avg, hit3:st3&&st3.rate!=null?st3.rate/100:null, avg3:st3&&st3.avg, base5:b5&&b5.rate!=null?b5.rate/100:null} : null,
+        verdict: st5 && st5.n>=30 ? (rate>=0.75 ? "75% 달성" : (b5 && rate >= b5.rate/100+0.05 ? "검증됨" : "평소와 비슷")) : "표본 부족"});
+    };
+    if (s.sig.revGrade===5)  mk("rev", "green", "반등 강한매수 (사이트 판정)");
+    if (s.sig.pullGrade===5) mk("pull", "blue", "추세 강한매수 (사이트 판정)");
+  }
+  String(s.pat||"").split(",").forEach(c=>{
+    if (!c || c.startsWith("C_")) return;
+    if (c==="D_QUANT" && !(has(s.market_vxn) && s.market_vxn>=25)) return;
+    const kind = sbKindOf(c); if(!kind) return;
+    const st = sbStat(c, s.category);
+    items.push({s, kind, code:c, name:(SIGNAL_BT&&SIGNAL_BT.stats[c]&&SIGNAL_BT.stats[c].name)||SB_NAMES[c]||c, stat:st, verdict:st?st.verdict:"실측 준비 중"});
+  });
+  items.forEach(x=>{ x.judge = sbJudge(x.kind, x.verdict); x.good = x.verdict==="검증됨"||x.verdict==="75% 달성"; });
+  return items;
+}
+function sbStars(x){ return x.verdict==="75% 달성" ? "★★★" : x.good ? "★★" : "★"; }
+function sbHitText(x){
+  const st = x.stat; if(!st) return "과거 실측 준비 중";
+  if (x.site) return `5일 뒤 ${st.hit5==null?"—":pctS(st.hit5)} 적중 · ${st.n}건`;
+  return `10일 뒤 ${pctS(st.hit10)} ${x.kind==="green"||x.kind==="blue"?"상승":"하락"} · ${st.n}건`;
+}
+function sbOneLine(x){
+  const st = x.stat, k = x.kind;
+  if (!st) return "과거 실측 파일을 불러오는 중이에요.";
+  if (x.site) return x.good ? `사이트 산식이 고른 강한매수예요. 최근 실제 기록에서 5일 뒤 적중 ${pctS(st.hit5)}(평소 ${pctS(st.base5)})로 평소보다 나았어요.`
+                            : `사이트 강한매수지만 최근 실제 기록이 평소(${pctS(st.base5)})와 크게 다르지 않아요.`;
+  const up = k==="green"||k==="blue";
+  const diff = st.hit10!=null && st.base10!=null ? Math.round((st.hit10-st.base10)*100) : null;
+  const dtxt = diff==null ? "" : ` (평소 ${pctS(st.base10)}보다 ${diff>=0?diff+"%p 높음":(-diff)+"%p 낮음"})`;
+  if (x.verdict==="표본 부족") return `모양은 나왔지만 과거 표본이 ${st.n}건뿐이라 믿기 어려워요.`;
+  if (x.verdict==="평소와 비슷") return `모양은 나왔지만 과거 10년 성적이 평소와 비슷했어요${dtxt}. 이것만으로 ${up?"사기":"팔기"}에는 근거가 약해요.`;
+  if (x.verdict==="최근 재현 안 됨") return `예전엔 맞았지만 최근 20% 기간에서는 재현되지 않았어요${dtxt}.`;
+  if (x.verdict==="손익비 나쁨") return `맞을 때보다 틀릴 때 손해가 훨씬 컸어요(평균 이익 ${retS(st.avg_win)} vs 손실 −${Number(st.avg_loss).toFixed(1)}%).`;
+  if (x.verdict==="검증 부족") return `성적은 좋았지만${dtxt} 최근 기간 표본이 적어 아직 확인 중이에요.`;
+  return `과거 같은 신호 뒤 10일 안에 ${up?"오른":"내린"} 경우가 ${pctS(st.hit10)}였어요${dtxt}.`;
+}
+function sbCardHtml(group){
+  const x = group[0], s = x.s, K = SB_KIND[x.kind], st = x.stat;
+  const names = group.map(g=>esc(g.name)).join(" · ");
+  const up = x.kind==="green"||x.kind==="blue";
+  const head = x.kind==="red" ? `${K.icon} ${esc(s.ticker)} — 고점 반전·하락 위험!` : x.kind==="orange" ? `${K.icon} ${esc(s.ticker)} — 단기 과열!` : `${K.icon} ${esc(s.ticker)} — ${K.head}!`;
+  const lines = [];
+  lines.push(`<li><span>현재 신호</span><b>${names}</b></li>`);
+  lines.push(`<li><span>신호 강도</span><b>${sbStars(x)} ${esc(x.verdict)}</b></li>`);
+  if (st && x.site){
+    lines.push(`<li><span>최근 실제 기록</span><b>5일 뒤 적중 ${pctS(st.hit5)} · ${st.n}건</b> <small>평소 ${pctS(st.base5)}</small></li>`);
+    lines.push(`<li><span>평균 수익률</span><b>3일 ${retS(st.avg3)} · 5일 ${retS(st.avg5)}</b></li>`);
+  } else if (st){
+    lines.push(`<li><span>과거 적중률</span><b>10일 뒤 ${up?"상승":"하락"} ${pctS(st.hit10)} · ${st.n}건</b> <small>평소 ${pctS(st.base10)} · ${esc(st.scope)}</small></li>`);
+    lines.push(`<li><span>과거 평균 수익률</span><b>5일 ${retS(st.avg&&st.avg["5"])} · 10일 ${retS(st.avg&&st.avg["10"])}</b></li>`);
+    lines.push(`<li><span>${up?"10일 안 평균 최저점":"10일 안 평균 최고점"}</span><b>${retS(st.adverse10)}</b> <small>${up?"사고 나서 버텨야 했던 폭":"팔고 나서 더 오른 폭"}</small></li>`);
+  } else lines.push(`<li><span>과거 실측</span><b>준비 중</b></li>`);
+  lines.push(`<li class="sb-judge"><span>현재 판단</span><b class="pl-pill ${x.good?K.pill:"pl-grey"}">${esc(x.judge)}</b></li>`);
+  // 펼침: 조건 · 사례 · 정상 과열 vs 위험 · 방법
+  const cond = group.map(g=>{ const t = SB_COND[g.code] || SB_COND[g.code.slice(0,2)] || (g.site ? "사이트 산식(evaluate)의 최종 강한매수. 검증표와 같은 원장 표본." : (PAT_INFO[g.code] ? "테마별 10년 연구에서 고른 규칙(도움말·팝업 참조)." : "")); return `<div><b>${esc(g.name)}</b> — ${esc(t)}</div>`; }).join("");
+  const cases = (st && st.cases || []).slice().reverse().slice(0,15).map(c=>{
+    const r10 = c[4], ok = r10==null ? "" : ((up ? r10>0 : r10<0) ? "✅" : "❌");
+    return `<tr><td>${esc(c[0])}</td><td>${esc(String(c[1]).split(",").slice(0,3).join(", "))}${String(c[1]).split(",").length>3?"…":""}</td><td>${retS(c[2])}</td><td>${retS(c[3])}</td><td>${retS(c[4])}</td><td>${retS(c[5])}</td><td>${ok}</td></tr>`; }).join("");
+  const cmp = SIGNAL_BT && SIGNAL_BT.compare_overheat;
+  const cmpHtml = (x.kind==="orange"||x.kind==="red") && cmp && cmp.calm && cmp.then_red ? `<div class="sb-cmp"><b>정상 과열 vs 위험한 고점 (10년)</b>
+      <div>🟠 과열 뒤 🔴 신호가 이어지지 않음: 10일 뒤 하락 ${pctS(cmp.calm.down10)} · 평균 ${retS(cmp.calm.avg10)} · 10일 안 −10% 급락 ${pctS(cmp.calm.crash10)} (${cmp.calm.n}건)</div>
+      <div>🟠 과열 뒤 5거래일 안 🔴 신호가 이어짐: 10일 뒤 하락 ${pctS(cmp.then_red.down10)} · 평균 ${retS(cmp.then_red.avg10)} · 급락 ${pctS(cmp.then_red.crash10)} (${cmp.then_red.n}건)</div>
+      <div>지금 이 종목: ${sbItemsFor(s).some(y=>y.kind==="red") ? "🔴 위험 신호도 함께 떠 있어요 — 위험한 고점 쪽에 가까운 조건" : "🔴 위험 신호는 아직 없어요 — 정상 과열 쪽 조건"} <small>(과거 통계와 현재 조건을 비교한 것이지 예측이 아니에요)</small></div></div>` : "";
+  const front = st && st.front, back = st && st.back;
+  const method = st && !x.site ? `<div>기간 ${esc((SIGNAL_BT.period||[]).join("~"))} · 앞 80% 적중 ${pctS(front&&front.hit10)}(${front?front.n:0}건) → 뒤 20%(${esc(SIGNAL_BT.cut||"")} 이후) ${pctS(back&&back.hit10)}(${back?back.n:0}건) · 평균 이익 ${retS(st.avg_win)} / 손실 −${st.avg_loss!=null?Number(st.avg_loss).toFixed(1):"—"}% · 같은 종목 10일 쿨다운 · 같은 날 1건</div>
+      <div>판정: 15건 미만 '표본 부족' · 뒤 20% 5건 미만 '검증 부족' · 평소+5%p 미만 '평소와 비슷' · 뒤 20%가 평소 이하 '최근 재현 안 됨' · 손실이 이익의 1.5배 초과 '손익비 나쁨' · 나머지 '검증됨'(전체·뒤 20% 모두 75%↑면 '75% 달성')</div>
+      <div>⚠ 관심종목 10년 백테스트(지금 고른 종목이라 생존 편향) — 원장(실제 기록)이 아니에요.</div>` : (x.site ? `<div>사이트 검증표와 같은 원장 표본(최근 거래일 실제 판정). 승률은 ±1% 보합을 뺀 값.</div>` : "");
+  return `<div class="sb-card sb-${x.kind}">
+    <div class="sb-head">${head}</div>
+    <div class="sb-line">${esc(sbOneLine(x))}</div>
+    <ul class="sb-list">${lines.join("")}</ul>
+    <details class="sb-more"><summary>조건 · 과거 사례 · 검증 방법</summary>
+      <div class="sb-sec"><b>적용된 조건</b>${cond}</div>
+      ${cases ? `<div class="sb-sec"><b>과거 같은 신호 (최근 ${Math.min(15,(st.cases||[]).length)}번 · 같은 날은 묶음)</b><div class="sb-scroll"><table class="sb-tbl"><tr><th>날짜</th><th>종목</th><th>3일</th><th>5일</th><th>10일</th><th>20일</th><th></th></tr>${cases}</table></div></div>` : ""}
+      ${cmpHtml}
+      <div class="sb-sec"><b>검증 방법</b>${method}</div>
+      <button class="sb-go" data-rankgoto="${esc(s.ticker)}" data-rank-sort="overall">📇 ${esc(s.ticker)} 종목 카드 보기</button>
+    </details>
+  </div>`;
+}
+function sbBoardHtml(list){
+  const all = [];
+  list.forEach(s=>{ sbItemsFor(s).forEach(x=>all.push(x)); });
+  const groups = {};   // kind → ticker → items
+  all.forEach(x=>{ ((groups[x.kind] = groups[x.kind] || {})[x.s.ticker] = groups[x.kind][x.s.ticker] || []).push(x); });
+  const rank = x => (x.verdict==="75% 달성"?0:x.good?1:2)*10 + (x.site?0:1);
+  const sec = SB_ORDER.map(k=>{
+    const K = SB_KIND[k];
+    const rows = Object.values(groups[k]||{}).map(g=>g.sort((a,b)=>rank(a)-rank(b))).sort((a,b)=>rank(a[0])-rank(b[0]) || String(a[0].s.ticker).localeCompare(String(b[0].s.ticker)));
+    /* 과거에 잘 맞았던 신호(검증됨·75% 달성)만 위에. 사이트 판정이라도 최근 실제 기록이 평소와 비슷하면 접어 둔다. */
+    const main = rows.filter(g=>g[0].good), rest = rows.filter(g=>!g[0].good);
+    const restLabel = rest.length ? `그 밖에 오늘 뜬 신호 ${rest.length}종목 — 최근 실제 기록이나 과거 성적이 평소와 비슷하거나 표본이 적음` : "";
+    const row = g => { const x = g[0];
+      return `<details class="sb-item"><summary><span class="pl-pill ${x.good?K.pill:"pl-grey"}">${esc(x.judge)}</span>
+        <b class="sb-tk">${esc(x.s.ticker)}</b><span class="sb-nm">${esc(x.name)}${g.length>1?` <small>외 ${g.length-1}</small>`:""}</span>
+        <span class="sb-hit">${esc(sbHitText(x))} <small>${sbStars(x)}</small></span></summary>${sbCardHtml(g)}</details>`; };
+    return `<div class="sb-group sb-${k}"><div class="sb-gh">${K.icon} <b>${K.title}</b> <small>${rows.length ? rows.length+"종목" : ""}</small></div>
+      ${main.length ? main.map(row).join("") : `<div class="sb-empty">${rows.length ? "과거에 잘 맞았던 신호는 현재 없음" : "현재 신호 없음"}</div>`}
+      ${rest.length ? `<details class="sb-rest"><summary>${restLabel}</summary>${rest.slice(0,40).map(row).join("")}${rest.length>40?`<div class="sb-empty">외 ${rest.length-40}종목</div>`:""}</details>` : ""}
+    </div>`;
+  }).join("");
+  const src = SIGNAL_BT ? `패턴 신호 실측: 관심종목 10년 백테스트(${esc((SIGNAL_BT.period||[]).join("~"))}, 갱신 ${esc(SIGNAL_BT.generated_at||"")})` : "패턴 신호 실측 파일을 불러오는 중…";
+  return `<div class="section sb-board"><div class="section-h"><h2>🚦 오늘의 신호</h2><span class="sub">마지막 종가 기준 · 반등 신호가 맨 위</span></div>
+    <div class="sb-legend"><span class="pl-pill pl-green">반등</span> <span class="pl-pill pl-blue">추세</span> <span class="pl-pill pl-orange">과열·익절</span> <span class="pl-pill pl-red">위험</span> <small>회색 = 과거에 잘 안 맞았던 모양</small></div>
+    ${sec}
+    <div class="sb-src">${src} · 사이트 판정 실측: 원장(실제 기록). 등급·순위에는 영향이 없어요.</div></div>`;
+}
+/* 종목 카드 안 — 이 종목에 오늘 뜬 신호 */
+function sbStockBlock(s){
+  const items = sbItemsFor(s); if(!items.length) return "";
+  const byKind = {}; items.forEach(x=>(byKind[x.kind]=byKind[x.kind]||[]).push(x));
+  return `<div class="sb-instock">${SB_ORDER.filter(k=>byKind[k]).map(k=>{ const g = byKind[k].sort((a,b)=>(b.good?1:0)-(a.good?1:0)); const x = g[0], K = SB_KIND[k];
+    return `<details class="sb-item"><summary><span class="pl-pill ${x.good?K.pill:"pl-grey"}">${esc(x.judge)}</span><span class="sb-nm">${K.icon} ${esc(x.name)}${g.length>1?` <small>외 ${g.length-1}</small>`:""}</span><span class="sb-hit">${esc(sbHitText(x))}</span></summary>${sbCardHtml(g)}</details>`; }).join("")}</div>`;
+}
+
+/* ══════════ 📈📉 52주 신고가·신저가 (2026-11-06 사용자 지시 — 해석해 주는 화면) ══════════
+   ① 오늘의 결론 ② 실제 종목 ③ 과거 비슷한 상황 ④ 그래프 ⑤ 상세·사례(접기).
+   오늘 값 = 원장(관심종목 미국, 종가가 52주 최고·최저의 1% 안). 과거 = backtest/breadth-history.json(같은 정의, 야후 10년).
+   NYSE 전체가 아니다. v21 산식은 건드리지 않는다(표시 전용). */
+function hlToday(){
+  const L = allStocks().filter(s=>s && !isKR(s.ticker) && has(s.pct_from_high) && has(s.pct_from_low));
+  const hi = L.filter(s=>s.pct_from_high >= -1), lo = L.filter(s=>s.pct_from_low <= 1);
+  return {n:L.length, hi, lo, date:(L[0]&&L[0].last_date)||""};
+}
+function hlBucket(n, nh, nl){
+  if (!n) return null;
+  if (nl > nh) return "lowdom";
+  if ((nh - nl) / n >= 0.05) return "highdom";
+  return "balance";
+}
+const HL_BUCKET_LABEL = {lowdom:"신저가 종목이 신고가보다 많은 날", balance:"신고가·신저가가 비슷한 날(차이 5% 미만)", highdom:"신고가 종목이 5% 이상 더 많은 날"};
+function hlHistStats(bucket){
+  const B = BREADTH_BT; if(!B || !bucket) return null;
+  const rows = B.rows;
+  const st = sel => { const a5 = sel.filter(r=>r[6]!=null), a10 = sel.filter(r=>r[7]!=null), m = sel.filter(r=>r[8]!=null);
+    const avg = (a,k) => a.length ? a.reduce((z,r)=>z+r[k],0)/a.length : null;
+    return {days:sel.length, up5:a5.length?a5.filter(r=>r[6]>0).length/a5.length:null, up10:a10.length?a10.filter(r=>r[7]>0).length/a10.length:null,
+            avg5:avg(a5,6), avg10:avg(a10,7), mdd:avg(m,8)}; };
+  const same = rows.filter(r=>hlBucket(r[1],r[2],r[3])===bucket);
+  let runs = 0, prev = false; rows.forEach(r=>{ const on = hlBucket(r[1],r[2],r[3])===bucket; if(on && !prev) runs++; prev = on; });
+  const years = {}; same.forEach(r=>{ const y = r[0].slice(0,4); years[y] = (years[y]||0)+1; });
+  const top = Object.entries(years).sort((a,b)=>b[1]-a[1])[0];
+  return {same:st(same), base:st(rows), runs, period:[rows[0][0], rows[rows.length-1][0]], topYear: top ? {y:top[0], share: top[1]/Math.max(1,same.length)} : null};
+}
+function hlState(t, H){
+  const tot = t.hi.length + t.lo.length;
+  if (tot <= 2 && t.n >= 20) return {cls:"pl-grey", label:"중립", why:`신고가·신저가 종목이 ${tot}개뿐이라 이 지표로 방향을 말하기 어려워요.`};
+  if (!H || H.same.days < 30 || H.same.up10==null) return {cls:"pl-grey", label:"중립", why:"과거 비교 자료가 부족해요."};
+  const d = Math.round((H.same.up10 - H.base.up10)*100);
+  if (d >= 5) return {cls:"pl-green", label:"반등 가능성(과거 통계)", why:`과거 같은 상황에서 나스닥이 10일 뒤 오른 비율이 평소보다 ${d}%p 높았어요.`};
+  if (d <= -5) return {cls:"pl-red", label:"약세 주의", why:`과거 같은 상황에서 나스닥이 10일 뒤 오른 비율이 평소보다 ${-d}%p 낮았어요.`};
+  return {cls:"pl-grey", label:"중립", why:"과거 같은 상황의 성적이 평소와 비슷했어요."};
+}
+function hlSeries(){
+  const out = []; const seen = new Set();
+  (BREADTH_BT ? BREADTH_BT.rows : []).forEach(r=>{ out.push({date:r[0], n:r[1], nh:r[2], nl:r[3], hl:r[4], ll:r[5], src:"bt"}); seen.add(r[0]); });
+  const m = highLowMap();
+  Object.keys(m).sort().forEach(k=>{ if(!seen.has(k) && (!out.length || k > out[out.length-1].date)) out.push({date:k, n:m[k].n, nh:m[k].nh, nl:m[k].nl, src:"ledger"}); });
+  return out;
+}
+function hlChartSvg(pts){
+  if (pts.length < 2) return "";
+  const W = 640, Hh = 210, L = 30, R = 34, T = 12, B = 26;
+  const mx = Math.max(4, ...pts.map(p=>Math.max(p.nh, p.nl)));
+  const x = i => L + i*(W-L-R)/(pts.length-1), y = v => T + (1 - v/mx)*(Hh-T-B);
+  const line = k => pts.map((p,i)=>`${x(i).toFixed(1)},${y(p[k]).toFixed(1)}`).join(" ");
+  const bw = Math.max(1, (W-L-R)/pts.length*0.8);
+  const diff = pts.map((p,i)=>{ const d = p.nh-p.nl; if(!d) return ""; const y0 = y(0), yy = y(Math.abs(d)); return `<rect x="${(x(i)-bw/2).toFixed(1)}" y="${yy.toFixed(1)}" width="${bw.toFixed(1)}" height="${(y0-yy).toFixed(1)}" fill="${d>0?"#e5484d":"#3b82f6"}" opacity="0.13"/>`; }).join("");
+  const grid = [0, Math.round(mx/2), mx].map(v=>`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line,#e5e7eb)"/><text x="${L-5}" y="${y(v)+4}" text-anchor="end" font-size="10" fill="var(--muted)">${v}</text>`).join("");
+  const di = [0, Math.floor((pts.length-1)/2), pts.length-1];
+  const dl = di.map(i=>`<text x="${x(i)}" y="${Hh-7}" text-anchor="${i===0?"start":i===pts.length-1?"end":"middle"}" font-size="10" fill="var(--muted)">${esc(pts[i].date)}</text>`).join("");
+  let marks = "", prev = false;
+  pts.forEach((p,i)=>{ const on = p.nl > p.nh; if(on && !prev) marks += `<path d="M${x(i).toFixed(1)},${Hh-B+2} l-4,7 h8 z" fill="#3b82f6"><title>${esc(p.date)} 신저가 우세 시작</title></path>`; prev = on; });
+  const hov = pts.map((p,i)=>`<rect x="${(x(i)-(W-L-R)/pts.length/2).toFixed(1)}" y="${T}" width="${((W-L-R)/pts.length).toFixed(2)}" height="${Hh-T-B}" fill="transparent"><title>${esc(p.date)} · 신고가 ${p.nh}${p.hl&&p.hl.length?" ("+p.hl.slice(0,8).join(", ")+(p.hl.length>8?"…":"")+")":""} · 신저가 ${p.nl}${p.ll&&p.ll.length?" ("+p.ll.slice(0,8).join(", ")+(p.ll.length>8?"…":"")+")":""} · 대상 ${p.n}</title></rect>`).join("");
+  const last = pts[pts.length-1];
+  return `<svg viewBox="0 0 ${W} ${Hh}" width="100%" role="img" aria-label="52주 신고가·신저가 종목 수">${grid}${diff}
+    <polyline points="${line("nh")}" fill="none" stroke="#e5484d" stroke-width="1.8"/><polyline points="${line("nl")}" fill="none" stroke="#3b82f6" stroke-width="1.8"/>
+    <circle cx="${x(pts.length-1)}" cy="${y(last.nh)}" r="3.5" fill="#e5484d"/><text x="${x(pts.length-1)+5}" y="${y(last.nh)-3}" font-size="11" fill="#e5484d" font-weight="700">${last.nh}</text>
+    <circle cx="${x(pts.length-1)}" cy="${y(last.nl)}" r="3.5" fill="#3b82f6"/><text x="${x(pts.length-1)+5}" y="${y(last.nl)+12}" font-size="11" fill="#3b82f6" font-weight="700">${last.nl}</text>
+    ${marks}${dl}${hov}</svg>`;
+}
+function hlTrendSentence(pts){
+  if (pts.length < 20) return "";
+  const a = pts.slice(-10), b = pts.slice(-20,-10), m = (xs,k)=>xs.reduce((z,p)=>z+p[k],0)/xs.length;
+  const dh = m(a,"nh")-m(b,"nh"), dl = m(a,"nl")-m(b,"nl");
+  if (dl >= 1 && dh <= 0) return "최근 2주 신저가 종목이 늘고 신고가는 줄어 관심종목 내부 흐름이 약해지고 있어요.";
+  if (dl <= -1 && dh >= 0) return "최근 2주 신저가 종목이 줄고 신고가가 늘어 관심종목 참여가 나아지고 있어요.";
+  if (dh >= 1) return "최근 2주 신고가 종목이 늘고 있어요.";
+  if (dl >= 1) return "최근 2주 신저가 종목이 늘고 있어요.";
+  return "최근 2주 신고가·신저가 수에 뚜렷한 변화가 없어요.";
+}
+function hlStockRow(s, hi){
+  const hs = (s._hist || []), F = histFields(), iP = F.indexOf("price");
+  const p5 = hs.length > 5 && iP >= 0 ? hs[hs.length-6][iP] : null;
+  const r5 = has(p5) && has(s.price) && p5 ? (s.price/p5-1)*100 : null;
+  const st = hi ? ((has(s.ma5) && s.price > s.ma5 && (s.change_1d||0) >= 0) ? "상승 지속" : "숨고르기")
+                : ((has(s.ma20) && s.price > s.ma20) ? "추세전환 가능성" : ((s.change_1d||0) > 0 || (has(s.ma5) && s.price > s.ma5)) ? "반등 시도" : "하락 지속");
+  const ref = hi ? s.high_52w : s.low_52w;
+  return `<button class="hl-stock" data-rankgoto="${esc(s.ticker)}" data-rank-sort="overall">
+    <div class="hl-s1"><b>${esc(s.name||s.ticker)}</b> <small>(${esc(s.ticker)})</small> <span class="pl-pill ${hi?(st==="상승 지속"?"pl-red":"pl-grey"):(st==="하락 지속"?"pl-blue":"pl-green")}">${st}</span></div>
+    <div class="hl-s2">현재가 ${fmtPrice(s)} · 52주 ${hi?"신고가":"신저가"} ${has(ref)?esc(String(ref)):"—"} · 5일 ${r5==null?"—":retS(r5)} · 거래량 ${has(s.vol_ratio)?r1(s.vol_ratio)+"배":"—"}</div>
+    ${sbItemsFor(s).length ? `<div class="hl-s3">오늘 신호: ${sbItemsFor(s).slice(0,3).map(x=>SB_KIND[x.kind].icon+" "+esc(x.name)).join(" · ")}</div>` : ""}</button>`;
+}
+function hlPanelHtml(){
+  const t = hlToday();
+  if (!t.n) return "";
+  const bucket = hlBucket(t.n, t.hi.length, t.lo.length), H = hlHistStats(bucket), S = hlState(t, H);
+  const pctN = k => t.n ? Math.round(k/t.n*100) : 0;
+  const allPts = hlSeries(), per = state.hlPeriod || "3M";
+  const cnt = {"1M":21, "3M":63, "1Y":252, "3Y":756}[per] || 63;
+  const pts = allPts.slice(-cnt);
+  const dpp = (a,b) => a==null||b==null ? "" : (()=>{ const d = Math.round((a-b)*100); return d===0 ? "평소와 같음" : d>0 ? `평소보다 ${d}%p 높음` : `평소보다 ${-d}%p 낮음`; })();
+  const conc = H && H.topYear && H.topYear.share >= 0.5 ? `<div class="hl-warn">⚠ 이 상황의 ${Math.round(H.topYear.share*100)}%가 ${esc(H.topYear.y)}년에 몰려 있어요 — 특정 시기 성과일 수 있어요.</div>` : "";
+  const cases = (()=>{ if(!BREADTH_BT || !bucket) return ""; const rows = BREADTH_BT.rows; const starts = [];
+    let prev = false; rows.forEach((r,i)=>{ const on = hlBucket(r[1],r[2],r[3])===bucket; if(on && !prev) starts.push(i); prev = on; });
+    return starts.slice(-20).reverse().map(i=>{ const r = rows[i]; const ok = r[7]==null ? "" : r[7] > 0 ? "✅ 올랐음" : "❌ 내렸음";
+      const seg = rows.slice(Math.max(0,i-10), i+21), mx = Math.max(...seg.map(z=>z[9])), mn = Math.min(...seg.map(z=>z[9]));
+      const W = 300, Hs = 70, xx = j => j*(W-4)/Math.max(1,seg.length-1)+2, yy = v => 4+(1-(v-mn)/Math.max(1e-9,mx-mn))*(Hs-8);
+      const at = Math.min(10, i);
+      return `<details class="hl-case"><summary>${esc(r[0])} · 신고가 ${r[2]} · 신저가 ${r[3]} · 나스닥 5일 ${retS(r[6])} · 10일 ${retS(r[7])} ${ok}</summary>
+        <svg viewBox="0 0 ${W} ${Hs}" width="100%" style="max-width:420px"><polyline points="${seg.map((z,j)=>`${xx(j).toFixed(1)},${yy(z[9]).toFixed(1)}`).join(" ")}" fill="none" stroke="var(--text,#111)" stroke-width="1.4"/>
+          <line x1="${xx(at)}" x2="${xx(at)}" y1="2" y2="${Hs-2}" stroke="#3b82f6" stroke-dasharray="3 2"/><text x="${xx(at)+3}" y="12" font-size="10" fill="#3b82f6">신호일</text></svg>
+        <small>나스닥(QQQ) 종가 · 신호일 앞 10일 ~ 뒤 20일</small></details>`; }).join(""); })();
+  return `<details class="hl-box" open><summary>📈📉 <b>52주 신고가 · 신저가</b> <span class="sub">내 관심종목(미국 ${t.n}개) 기준 · NYSE 전체가 아니에요</span></summary>
+    <div class="hl-concl">
+      <div class="hl-state"><span class="pl-pill ${S.cls}">${esc(S.label)}</span></div>
+      <div class="hl-nums"><span>📈 52주 신고가 <b class="up">${t.hi.length}</b>개</span><span>📉 52주 신저가 <b class="down">${t.lo.length}</b>개</span><span>📊 분석 대상 <b>${t.n}</b>개</span></div>
+      <div class="hl-one">💬 관심종목 ${t.n}개 중 신고가 ${t.hi.length}개(${pctN(t.hi.length)}%), 신저가 ${t.lo.length}개(${pctN(t.lo.length)}%)예요. ${esc(S.why)}</div>
+      <div class="hl-scope">⚠ 미국 시장 전체의 신고가·신저가는 이 사이트가 받는 데이터(야후)에 없어서, <b>내 관심종목 안에서만</b> 셌어요.</div>
+    </div>
+    <div class="hl-sec"><div class="hl-h">${t.lo.length||t.hi.length ? "오늘 기록한 종목" : "오늘 52주 신고가·신저가 종목 없음"}</div>
+      ${t.lo.length ? `<div class="hl-sub">📉 52주 신저가 ${t.lo.length}개</div>${t.lo.map(s=>hlStockRow(s,false)).join("")}` : ""}
+      ${t.hi.length ? `<div class="hl-sub">📈 52주 신고가 ${t.hi.length}개</div>${t.hi.map(s=>hlStockRow(s,true)).join("")}` : ""}
+    </div>
+    <div class="hl-sec"><div class="hl-h">📅 과거 비슷한 상황에서는? <small>${bucket ? esc(HL_BUCKET_LABEL[bucket]) : ""}</small></div>
+      ${H ? `<table class="hl-tbl"><tr><th></th><th>이런 날</th><th>평소</th><th>차이</th></tr>
+        <tr><td>나스닥 5일 뒤 상승 확률</td><td><b>${pctS(H.same.up5)}</b></td><td>${pctS(H.base.up5)}</td><td>${dpp(H.same.up5,H.base.up5)}</td></tr>
+        <tr><td>나스닥 10일 뒤 상승 확률</td><td><b>${pctS(H.same.up10)}</b></td><td>${pctS(H.base.up10)}</td><td>${dpp(H.same.up10,H.base.up10)}</td></tr>
+        <tr><td>5일 뒤 평균 수익률</td><td>${retS(H.same.avg5)}</td><td>${retS(H.base.avg5)}</td><td></td></tr>
+        <tr><td>10일 뒤 평균 수익률</td><td>${retS(H.same.avg10)}</td><td>${retS(H.base.avg10)}</td><td></td></tr>
+        <tr><td>10일 안 평균 최대 하락폭</td><td>${retS(H.same.mdd)}</td><td>${retS(H.base.mdd)}</td><td></td></tr></table>
+        <div class="hl-note2">이런 날 ${H.same.days}일(연속 구간 ${H.runs}번) · 분석 기간 ${esc(H.period.join("~"))} · 하루하루가 이어져 있어 실제 독립 표본은 구간 수에 가까워요.</div>${conc}`
+        : `<div class="hl-note2">과거 자료를 불러오는 중이에요.</div>`}
+    </div>
+    <div class="hl-sec"><div class="hl-h">시장 흐름 그래프</div>
+      <div class="hl-per">${["1M","3M","1Y","3Y"].map(k=>`<button class="chip ${per===k?"on":""}" data-hlper="${k}">${{"1M":"1개월","3M":"3개월","1Y":"1년","3Y":"3년"}[k]}</button>`).join("")}</div>
+      <div class="hl-legend"><span style="color:#e5484d">━ 신고가 수</span> <span style="color:#3b82f6">━ 신저가 수</span> <span>▮ 연한 막대 = 둘의 차이</span> <span style="color:#3b82f6">▲ 신저가 우세 시작일</span></div>
+      ${hlChartSvg(pts)}
+      <div class="hl-one">💬 ${esc(hlTrendSentence(allPts))}</div>
+      <small class="hl-tip">그래프에 마우스를 올리거나 길게 누르면 그날 종목 목록이 보여요.</small>
+    </div>
+    <details class="hl-more"><summary>📅 과거 비슷했던 날 보기 · 상세</summary>
+      ${cases || "<div class='hl-note2'>과거 자료를 불러오는 중이에요.</div>"}
+      <div class="hl-note2"><b>이 지표를 어떻게 쓰나</b> — 신고가·신저가 수만으로 사고팔지 않고, 반등·추세 신호를 볼 때 시장 분위기를 확인하는 보조 자료로 써요.
+        예) 신저가가 늘면서 하락 추세가 이어지면 추가 하락 위험 확인 · 신저가가 줄면서 반등 캔들이 나오면 바닥 가능성 확인 · 신고가가 늘면 상승 추세 강화 확인.
+        <b>이 관계들은 가설이에요</b>(위 표 말고는 검증하지 않았어요). 기존 매수 산식에 넣는 안은 검증에서 통과하지 못해 반영하지 않았어요.</div>
+      <div class="hl-note2">정의: 종가가 52주 최고가(최저가)의 1% 안이면 신고가(신저가)권 · 관심종목 미국 종목만 · 과거 = 야후 수정주가 10년(${BREADTH_BT?esc(BREADTH_BT.generated_at):"—"} 생성) · 오늘 = 사이트 원장.</div>
+    </details>
+  </details>`;
+}
+
 /* 핵심 시그널 '🕯 캔들·패턴' 위젯 — 오늘 pat 코드가 있는 종목. 표시 전용(등급·순위 불변).
    순서: 🔴 하락 패턴 > 🟠 크게 흔들림 > 🟡 일부 익절 > 🔵 테마 규칙·저점 반등. */
 function patternWidgetRows(list){
@@ -4396,6 +4791,8 @@ function renderTheme(){
     ${earningsHoldSection()}
   </div>
 
+  ${sbBoardHtml(allStocks().filter(s => (state.market==="all" || (state.market==="kr" ? s._kr : !s._kr)) && !state.hidden.includes(s.ticker)))}
+
   <div class="section">
     <div class="section-h"><h2>테마 흐름</h2><span class="pill">전일 종가 기준</span><span class="sub">레버리지 1배 환산 · 상승=빨강, 하락=파랑</span></div>
     <div class="heat">
@@ -4409,12 +4806,14 @@ function renderTheme(){
       🔥 <b>강한 테마</b> ${hot.length?hot.map(x=>`${esc(x.name)} <span class="up num">+${x.avg.toFixed(1)}%</span>`).join(" · "):"없음"}<br>
       🧊 <b>약한 테마</b> ${cold.length?cold.map(x=>`${esc(x.name)} <span class="down num">${x.avg.toFixed(1)}%</span>`).join(" · "):"없음"}
     </div>
-    ${todayCandleHtml(allStocks().filter(s => (state.market==="all" || (state.market==="kr" ? s._kr : !s._kr)) && !state.hidden.includes(s.ticker)))}
-    ${themeCandleRankHtml()}
     ${themeForecastHtml()}
+    <details class="cr-box"><summary>📚 <b>캔들 연구 자료</b> <span class="sub">오늘 볼밴 위 캔들 · 테마별 '조금 팔기' 잘 맞은 캔들</span></summary>
+      ${todayCandleHtml(allStocks().filter(s => (state.market==="all" || (state.market==="kr" ? s._kr : !s._kr)) && !state.hidden.includes(s.ticker)))}
+      ${themeCandleRankHtml()}
+    </details>
   </div>
   ${marketBar()}
-  ${highLowChartsHtml()}`;
+  ${hlPanelHtml()}`;
 }
 
 /* ══════════ VIEW 2 · 전체순위 ══════════ */
@@ -5406,6 +5805,7 @@ function stockCard(s, i, rankless=false){
     </div>
     <div class="s-reason">${esc(s.earnings_hold ? (s.earnings_hold_reason||"실적 이벤트 영향권 — 기술등급 보류") : s.sig.line)}</div>
     <div class="tags">${tags}${flowTagsHtml(s)}</div>
+    ${sbStockBlock(s)}
     ${rankLine}
     ${timelineCta}${detail}${expandBtn}
   </div>`;
@@ -6496,6 +6896,7 @@ async function loadTickerBacktest(){
 async function boot(){
   bootLog = [];
   loadTickerBacktest();   // 기다리지 않는다 — 늦게 와도 다음 팝업부터 반영된다
+  loadBoardData();        // 🚦 신호 보드·52주 화면 실측 — 오면 다시 그린다
   const tries = [];
   if (location.protocol.startsWith("http")){
     const base = location.href.split("?")[0].split("#")[0].replace(/[^/]*$/,"");
@@ -7590,6 +7991,8 @@ document.getElementById("main").addEventListener("click", e=>{
   if(earnBtn){ e.preventDefault(); e.stopPropagation(); openEarnStreakModal(earnBtn.dataset.earnstreak); return; }
   const marketEventBtn = e.target.closest("[data-market-event]");
   if(marketEventBtn){ e.preventDefault(); e.stopPropagation(); openMarketEventModal(marketEventBtn.dataset.marketEvent); return; }
+  const hlp = e.target.closest("[data-hlper]");
+  if (hlp){ e.preventDefault(); state.hlPeriod = hlp.dataset.hlper; render(); return; }
   const rankGoto = e.target.closest("[data-rankgoto]");
   if (rankGoto){
     gotoStock(rankGoto.dataset.rankgoto, rankGoto.dataset.rankSort || "overall");
