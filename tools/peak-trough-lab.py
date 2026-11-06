@@ -150,5 +150,84 @@ def main():
                     if ev: cells.append(f"{th} {np.mean([e['w']['post'][f] for e in ev]) * 100:.0f}%({len(ev)})")
                 print(f"    {f}: " + " · ".join(cells) + f" | 대조 {np.mean([x['w']['post'][f] for x in C]) * 100:.0f}%")
 
-if __name__ == "__main__":
+if __name__ == "__main__" and "--forward" not in sys.argv:
     main()
+
+
+# ── 2단계: 공통점을 '그날 알 수 있는 규칙'으로 바꿔 앞으로 맞혔는지 (python tools/peak-trough-lab.py --forward) ──
+# 사례 비교의 '직후 3일' 공통점은 고점·저점을 이미 알고 본 것이라 반은 정의상 당연하다(폭락했으니 5일선이 깨졌다).
+# 그래서 같은 공통점을 그날 기준 규칙으로 만들고, 모든 날에 대해 '그 뒤 정말 폭락/급반등했나'를 센다(시간순 · 다음 날 시가 진입).
+#  고점 경계 T0  과열 맥락: 최근 10일 안 RSI≥70 · 52주 고가 5% 안 · 직전 60일 상승 ≥ max(30%, 8u)
+#           T1  T0 + 오늘 처음 5일선 아래 마감
+#           T2  T1 + 오늘 종가 < 전일 저가
+#           T3  T2 + 직전 5일 안 거래량 3배↑ 날
+#           T4  T1 + 직전 5일 안 하루 −8%↓ 아님 대신 오늘 −8%↓ (급락 첫날)
+#  저점 확인 B0  과매도 맥락: 최근 10일 안 RSI≤30 · 52주 저가 5% 안 · 직전 60일 하락 ≥ max(20%, 8u)
+#           B1  B0 + 오늘 처음 5일선 위 마감
+#           B2  B1 + 오늘 종가 > 전일 고가
+#           B3  B2 + 직전 5일 안 하루 −8%↓(투매) 있었음
+#           B4  B1 + 오늘 하루 +8%↑
+#  잴 것: 진입(다음 날 시가) 뒤 60일 안 문턱만큼 폭락(고점 쪽)/급등(저점 쪽)한 비율 · 10·20일 수익 · 앞/뒤 반
+def forward():
+    allrows = []
+    for theme, tks in THEMES.items():
+        for tk in tks:
+            df = tr.fetch(tk)
+            if df is None or len(df) < 300: continue
+            o, h, l, c, v = (df[k].to_numpy(float) for k in ("Open", "High", "Low", "Close", "Volume"))
+            N = len(c); dates = [str(d.date()) for d in df.index]
+            R = cc.rsi(c); u = pd.Series((h - l) / c).rolling(60).median().to_numpy()
+            ma5 = pd.Series(c).rolling(5).mean().to_numpy()
+            vs = pd.Series(v).rolling(20).mean().to_numpy(); vr = v / np.where(vs > 0, vs, np.nan)
+            ret = np.r_[np.nan, c[1:] / c[:-1] - 1] * 100
+            hi250 = pd.Series(h).rolling(250, min_periods=120).max().to_numpy(); lo250 = pd.Series(l).rolling(250, min_periods=120).min().to_numpy()
+            rmax10 = pd.Series(R).rolling(10).max().to_numpy(); rmin10 = pd.Series(R).rolling(10).min().to_numpy()
+            for t in range(130, N - 61):
+                if np.isnan(u[t]): continue
+                thr_dn, thr_up = max(0.20, 8 * u[t]), max(0.30, 8 * u[t]); e = o[t + 1]
+                run = c[t] / l[t - 60:t + 1].min() - 1; drop = 1 - c[t] / h[t - 60:t + 1].max()
+                fall60 = 1 - l[t + 1:t + 61].min() / e; rise60 = h[t + 1:t + 61].max() / e - 1
+                r10, r20 = c[t + 10] / e - 1, c[t + 20] / e - 1
+                below5, above5 = c[t] < ma5[t], c[t] > ma5[t]
+                first_below = below5 and not (c[t - 1] < ma5[t - 1]); first_above = above5 and not (c[t - 1] > ma5[t - 1])
+                T0 = rmax10[t] >= 70 and c[t] >= 0.95 * hi250[t - 1] and run >= thr_up
+                B0 = rmin10[t] <= 30 and c[t] <= 1.05 * lo250[t - 1] and drop >= thr_dn
+                if not (T0 or B0): continue
+                d = dict(theme=theme, d=dates[t], r10=r10 * 100, r20=r20 * 100, crash=fall60 >= thr_dn, surge=rise60 >= thr_up, tags=[])
+                if T0:
+                    d["tags"].append("T0")
+                    if first_below:
+                        d["tags"].append("T1")
+                        if c[t] < l[t - 1]:
+                            d["tags"].append("T2")
+                            if np.nanmax(vr[t - 5:t]) >= 3: d["tags"].append("T3")
+                        if ret[t] <= -8: d["tags"].append("T4")
+                if B0:
+                    d["tags"].append("B0")
+                    if first_above:
+                        d["tags"].append("B1")
+                        if c[t] > h[t - 1]:
+                            d["tags"].append("B2")
+                            if np.nanmin(ret[t - 5:t]) <= -8: d["tags"].append("B3")
+                        if ret[t] >= 8: d["tags"].append("B4")
+                allrows.append(d)
+    ds = sorted({r["d"] for r in allrows}); mid = ds[len(ds) // 2] if ds else ""
+    NM = {"T0": "과열 맥락(전부)", "T1": "+ 처음 5일선 아래 마감", "T2": "+ 전일 저가 아래 마감", "T3": "+ 직전 5일 거래량 3배↑", "T4": "+ 오늘 −8%↓",
+          "B0": "과매도 맥락(전부)", "B1": "+ 처음 5일선 위 마감", "B2": "+ 전일 고가 위 마감", "B3": "+ 직전 5일 투매(−8%↓)", "B4": "+ 오늘 +8%↑"}
+    def thin(rows):     # 같은 테마·같은 날 몰림 완화는 하지 않고, 같은 종목 연속일은 이미 '처음' 조건이 걸러 준다
+        return rows
+    print(f"\n■ 2단계 — 공통점을 그날 규칙으로 · 앞으로 맞혔나 ({ds[0] if ds else ''}~{ds[-1] if ds else ''}, 앞/뒤 경계 {mid}) · 다음 날 시가 진입")
+    for side, keys, ev, lab in (("top", ["T0", "T1", "T2", "T3", "T4"], "crash", "60일 안 폭락"), ("bot", ["B0", "B1", "B2", "B3", "B4"], "surge", "60일 안 급반등")):
+        print(f"  [{'🔴 고점 경계' if side == 'top' else '🟢 저점 확인'}] — {lab} 비율 · 10일/20일 평균 수익 · 앞/뒤 반 {lab} 비율")
+        for k in keys:
+            rows = thin([r for r in allrows if k in r["tags"]])
+            if not rows: print(f"    {NM[k]:<22} 표본 0"); continue
+            f = lambda rr: (np.mean([x[ev] for x in rr]) * 100 if rr else float("nan"))
+            fr, bk = [x for x in rows if x["d"] < mid], [x for x in rows if x["d"] >= mid]
+            th = " · ".join(f"{t} {f([x for x in rows if x['theme'] == t]):.0f}%({len([x for x in rows if x['theme'] == t])})" for t in THEMES if any(x['theme'] == t for x in rows))
+            print(f"    {NM[k]:<22} n={len(rows):<5} {lab} {f(rows):.0f}% · 10일 {np.mean([x['r10'] for x in rows]):+.1f}% · 20일 {np.mean([x['r20'] for x in rows]):+.1f}%"
+                  f" · 앞 {f(fr):.0f}%({len(fr)}) 뒤 {f(bk):.0f}%({len(bk)})")
+            print(f"      테마별: {th}")
+
+if __name__ == "__main__" and "--forward" in sys.argv:
+    forward()
