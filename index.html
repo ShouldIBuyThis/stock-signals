@@ -3679,9 +3679,10 @@ function chatKw(k){
     const li = n => CANDLE_EDU[n] ? `· <u class="edu-link" data-edubig="${esc(n)}">${esc(n)}</u> — ${esc(CANDLE_EDU[n].d)}` : "";
     chatBot(`이름을 누르면 그림이 열려요.<br><br>` + G.map(([h, ns]) => `<b>${h}</b><br>${ns.map(li).filter(Boolean).join("<br>")}`).join("<br><br>") +
       `<br><br><b>🆕 새로 검증한 모양</b><br>
-      · <b>장족십자 도지</b> — 위·아래 꼬리가 둘 다 길고 몸통이 거의 없음(평소보다 하루 움직임이 큼). 위아래로 크게 흔들렸지만 제자리에서 끝난 날<br>
-      · <b>고파동 캔들</b> — 장족십자 도지와 비슷한데 몸통이 조금 있음<br>
-      <span class="tkrec-sub">10년 검증(관심종목 89개): 볼밴 위·RSI 70 이상·직전 급등에서 나와도 10일 뒤 하락 비율이 평소와 비슷했어요(장족도지 43% vs 평소 46%, 40건). 고점 신호로 <b>확인되지 않아</b> 화면 신호에는 넣지 않았습니다.</span><br><br>
+      ${li("장족십자 도지")}<br>
+      ${li("고파동")}<br>
+      <span class="tkrec-sub">10년 검증(관심종목 89개): 볼밴 위·RSI 70 이상·직전 급등에서 나와도 10일 뒤 하락 비율이 평소와 비슷했어요(장족도지 43% vs 평소 46%, 40건) — <b>고점 신호로는 확인되지 않았어요</b>.
+      오히려 <b>볼밴 상단 근처 · RSI 50~70</b>에서 나오면 10일 뒤 더 오른 경우가 많아(시험 기간 장족도지 74%·24건, 고파동 65%·27건, 평소 55%) 신호판에 <b>🔵 연구 후보</b>로 표시해요. 표본이 적어 확정 규칙은 아니에요.</span><br><br>
       ⚠️ <b>캔들 모양 하나로 사고팔지 마세요.</b> 우리 10년 검증에서 대부분의 캔들 모양은 단독으로는 '아무 날이나 산 것'과 비슷했어요.
       화면에 뜨는 신호는 위치(볼밴·이동평균)·거래량까지 같이 본 것이고, 과거 성적을 같이 보여줍니다.`);
     renderChat([["chatKw('signalColors')","🚦 신호 색깔 뜻"],["chatKw('candleBasic')","🕯 캔들 읽는 법"],["chatHome()","↩ 처음으로"]]); return;
@@ -4436,6 +4437,8 @@ const CANDLE_EDU = {
   "장대음봉": {bars:[[8.6,9.0,3.0,3.4]], band:7, d:"고점에서 큰 음봉 — 매도세가 강하게 나온 자리"},
   "음봉": {bars:[[8,8.6,5.4,5.8]], band:7, d:"종가가 시가보다 낮음 — 그날은 파는 쪽이 이김"},
   "양봉": {bars:[[5.4,8.6,5,8.2]], band:7, d:"종가가 시가보다 높음 — 그날은 사는 쪽이 이김"},
+  "장족십자 도지": {bars:[[6.3,9.8,2.6,6.4]], band:8.6, d:"위·아래 꼬리가 둘 다 길고 몸통이 거의 없음 — 크게 흔들렸지만 제자리에서 끝난 날"},
+  "고파동": {bars:[[6.0,9.6,2.8,6.9]], band:8.6, d:"장족십자 도지와 비슷하지만 몸통이 조금 있음 — 큰 흔들림 속 팽팽한 힘겨루기"},
 };
 /* 양봉·음봉은 기본 용어라 갤러리 카드로 늘어놓지 않고, 밑줄 링크로만 짧게 연다(2026-11-06 사용자 지시 "축약"). */
 const CANDLE_BASIC = new Set(["양봉","음봉"]);
@@ -4443,7 +4446,7 @@ const basicLegend = () => `<span class="edu-basic">빨강 = <u class="edu-link" 
 /* 신호 코드 → 교육용 캔들 모양 (모양이 없는 지표 신호는 그림을 붙이지 않는다) */
 const CODE_EDU = {B_HAMMER:"망치형", B_ENGULF:"상승장악형", B_MSTAR:"샛별형(상승)", X_ESTAR:"석별형", X_TOPBEAR:"장대음봉", O_TURN:"윗꼬리",
   T_QUANTUM:"교수형", D_SEMI:"도지", D_SKH:"윗꼬리", C_HANG:"교수형", C_SHOOT:"유성형", C_DOJI:"도지", C_UPW:"윗꼬리", C_LOWW:"아랫꼬리",
-  C_STAR:"샛별 형성", C_BEAR:"음봉", C_BIGBEAR:"장대양봉 뒤 음봉", R_BLOW:"장대음봉"};
+  C_STAR:"샛별 형성", C_BEAR:"음봉", C_BIGBEAR:"장대양봉 뒤 음봉", R_BLOW:"장대음봉", K_LLD_UP:"장족십자 도지", K_HW_UP:"고파동"};
 /* 오늘 실제 일봉(ohlc60 마지막 봉)의 모양을 교육용 그림 이름으로 분류 — pattern_flags.py와 같은 문턱(몸통·꼬리 비율).
    신호 코드에 캔들 모양이 없을 때(지표 신호) 카드에 '오늘 캔들' 그림을 붙이기 위한 것. 등급·판정에는 쓰지 않는다. */
 function todayShape(s){
@@ -4595,6 +4598,17 @@ const RARE_FACTS = {
   R10_NVDA: {title:"엔비디아 10일 반등 매수", rule:"RSI9 35 이하(오늘·전날) ∧ 볼밴(10일, 1.5σ) 밖 1일 이상 뒤 재진입 ∧ 양봉", h:10,
     tr:"70%(27)", va:"100%(8)", te:"78%(9)", teW:7, teL:2, base:"54%", lift:"+24%p", avg:"+4.60%", maeMed:"−4.4%", maeWorst:"−21.4%", p:"0.14",
     tickers:"NVDA"},
+  /* 2026-11-06 사용자 지시 "장족도지·고파동 65~74% 후보는 숨기지 말고 표시" — tools/candle-context-lab.py(run 42215642393).
+     학습(~2023-10-18)에서 고르고 시험(2023-10-18~)에서 다시 확인한 값. 10일 · 다음 날 시가 진입 · 보합 ±1% 제외 · 관심종목 89개(생존 편향).
+     등급·점수에는 쓰지 않는다(참고 표시). 판정은 pattern_flags.py K_LLD_UP·K_HW_UP. */
+  K_LLD_UP: {title:"장족십자 도지 · 상단 근처 상승 지속", kind:"blue", suffix:" (연구 후보)", h:10,
+    rule:"볼밴(20일, 2σ) 상단 근처(밴드 80~100% 위치, 상단 안) · RSI14 50~70 · 장족십자 도지(위·아래 꼬리 각 30%↑, 몸통 10%↓, 하루 진폭이 14일 평균의 1.3배↑)",
+    tr:"67%(32)", va:"—", te:"74%(24)", teW:14, teL:5, base:"55%", lift:"+19%p", avg:"+7.19%", maeMed:"−3.8%", maeWorst:"−28.6%", p:"—", tickers:"관심종목 전체",
+    one:"위아래로 크게 흔들렸지만 밴드 위쪽에서 버틴 모양이에요. 흔히 '고점 신호'로 알려졌지만, 우리 10년 검증에서는 RSI가 과열(70) 전일 때 오히려 10일 뒤 더 오른 경우가 많았어요. 시험 기간 표본이 24건뿐이라 확정은 아니에요."},
+  K_HW_UP: {title:"고파동 캔들 · 상단 근처 상승 지속", kind:"blue", suffix:" (연구 후보)", h:10,
+    rule:"볼밴(20일, 2σ) 상단 근처(밴드 80~100% 위치, 상단 안) · RSI14 50~70 · 고파동(위·아래 꼬리 각 30%↑, 몸통 10~30%, 하루 진폭이 14일 평균의 1.3배↑)",
+    tr:"76%(43)", va:"—", te:"65%(27)", teW:17, teL:9, base:"55%", lift:"+10%p", avg:"+4.52%", maeMed:"−2.1%", maeWorst:"−37.6%", p:"—", tickers:"관심종목 전체",
+    one:"위아래 꼬리가 긴 큰 흔들림이 밴드 위쪽에서 나온 모양이에요. 과열(RSI 70) 전이면 과거엔 계속 오른 경우가 많았지만, 시험 기간에는 학습 때보다 약해졌어요(76%→65%). 최악 −37.6%까지 빠진 사례도 있어요."},
 };
 function sbKindOf(code){
   const st = SIGNAL_BT && SIGNAL_BT.stats && SIGNAL_BT.stats[code];
@@ -4652,7 +4666,8 @@ function sbItemsFor(s){
     if (!c || c.startsWith("C_")) return;
     if (c==="D_QUANT" && !(has(s.market_vxn) && s.market_vxn>=25)) return;
     if (RARE_FACTS[c]){   // 연구 당시 실적 조건은 ETF라 무효(R5)·없음(R10) — 사이트도 걸지 않는다(2026-11-06 정합성 점검)
-      items.push({s, kind:"green", code:c, name:RARE_FACTS[c].title+" (희귀 고적중 후보)", stat:null, rare:RARE_FACTS[c], verdict:"연구 후보"}); return; }
+      const RF = RARE_FACTS[c];
+      items.push({s, kind:RF.kind||"green", code:c, name:RF.title+(RF.suffix||" (희귀 고적중 후보)"), stat:null, rare:RF, verdict:"연구 후보"}); return; }
     const kind = sbKindOf(c); if(!kind) return;
     const st = sbStat(c, s.category);
     items.push({s, kind, code:c, name:SB_NAMES[c]||(SIGNAL_BT&&SIGNAL_BT.stats[c]&&SIGNAL_BT.stats[c].name)||c, stat:st, verdict:st?st.verdict:"실측 준비 중"});
@@ -4669,12 +4684,13 @@ function sbTier(st){
   const n = st.back.n; return n>=10 ? "반복 검증 후보" : n>=5 ? "희귀 고적중 후보 · 소표본 경고" : "참고용(4건 이하)";
 }
 function sbHitText(x){
-  if (x.rare) return `테스트 ${x.rare.te} · 검증 ${x.rare.va} · 소표본`;
+  if (x.rare) return x.rare.va!=="—" ? `테스트 ${x.rare.te} · 검증 ${x.rare.va} · 소표본` : `시험 기간 ${x.rare.te} · 소표본`;
   const st = x.stat; if(!st) return "과거 실측 준비 중";
   if (x.site) return `5일 뒤 ${st.hit5==null?"—":pctS(st.hit5)} 적중 · ${st.n}건`;
   return `10일 뒤 ${pctS(st.hit10)} ${x.kind==="green"||x.kind==="blue"?"상승":"하락"} · ${st.n}건`;
 }
 function sbOneLine(x){
+  if (x.rare && x.rare.one) return x.rare.one;
   if (x.rare) return `극단 과매도 반등 모양이에요. 과거 검증·테스트 모두 75%를 넘었지만 테스트가 ${x.rare.teW+x.rare.teL}건뿐이라 확정된 규칙은 아니에요(평소보다 ${x.rare.lift}, 최악 ${x.rare.maeWorst}까지 흔들린 적 있음).`;
   const st = x.stat, k = x.kind;
   if (!st) return "과거 실측 파일을 불러오는 중이에요.";
@@ -4740,7 +4756,7 @@ function sbCardHtml(group){
     nums.push(["과거 평균 수익률", `${R.avg} <small>(${R.h}일)</small>`]);
     nums.push(["중간 최대 하락폭", `${R.maeMed} <small>(최악 ${R.maeWorst})</small>`]);
     nums.push(["평소와 비교", `평소 상승 ${R.base} → 이 신호 ${R.te.replace(/\(.*\)/,"")}`]);
-    nums.push(["표본·검증", `테스트 ${R.teW}승 ${R.teL}패 · 검증 ${R.va} · 소표본`]);
+    nums.push(["표본·검증", `${R.va!=="—"?"테스트":"시험 기간"} ${R.teW}승 ${R.teL}패${R.va!=="—"?` · 검증 ${R.va}`:` · 학습 ${R.tr}`} · 소표본`]);
   } else if (st && x.site){
     nums.push(["최근 평균 수익률", `3일 ${retS(st.avg3)} · 5일 ${retS(st.avg5)}`]);
     nums.push(["평소와 비교", `평소 적중 ${pctS(st.base5)} → 이 신호 ${pctS(st.hit5)}`]);
@@ -4809,8 +4825,8 @@ function researchFooterHtml(){
       <b>🟡 연구 후보</b> = 평소보다 나았지만 위 조건 중 일부(표본 수·최근 재현·통계 검정 등)를 못 채운 신호. <b>🟡 소표본</b> = 검증·테스트 모두 75% 넘었지만 테스트 5~9건.<br>
       <b>⚪ 평소 수준</b> = 그 모양이 나와도 과거 성적이 아무 날과 비슷했던 신호. 사이트 '강한매수'는 최근 실제 기록(원장)으로 같은 기준을 적용.<br>
       모든 성과는 '신호가 그날 종가로 확정 → 다음 날 시가에 사거나 판다'로 계산해요.</div></details>
-    <details class="sb-sec2"><summary>희귀 고적중 후보 규칙 ${idle.length}개</summary>${idle.map(([c,R])=>`<div class="sb-note"><b>${esc(R.title)}</b> (${esc(R.tickers)}) — ${esc(R.rule)}<br>
-      학습 ${R.tr} · 검증 ${R.va} · 테스트 ${R.te} · 평소 ${R.base}(${R.lift}) · 평균 ${R.avg} · 최대 하락 중간 ${R.maeMed}/최악 ${R.maeWorst} · p=${R.p} — 유의성·수익성 확정 아님</div>`).join("")}</details>
+    <details class="sb-sec2"><summary>희귀·연구 후보 규칙 ${idle.length}개</summary>${idle.map(([c,R])=>`<div class="sb-note"><b>${esc(R.title)}</b> (${esc(R.tickers)}) — ${esc(R.rule)}<br>
+      학습 ${R.tr}${R.va!=="—"?` · 검증 ${R.va} · 테스트 ${R.te}`:` · 시험 ${R.te}`} · 평소 ${R.base}(${R.lift}) · 평균 ${R.avg} · 최대 하락 중간 ${R.maeMed}/최악 ${R.maeWorst}${R.p!=="—"?` · p=${R.p}`:""} — 유의성·수익성 확정 아님</div>`).join("")}</details>
     <details class="sb-sec2"><summary>🕯 캔들 모양 예시 (교육용 그림)</summary><div style="font-size:12.5px;margin:6px 2px">${basicLegend()}</div><div class="edu-gal">${Object.keys(CANDLE_EDU).filter(n=>!CANDLE_BASIC.has(n)).map(n=>`<button class="edu-big edu-card" data-edubig="${esc(n)}">${eduGlyph(n,1.4)}<b>${esc(n)}</b><small>${esc(CANDLE_EDU[n].d.split(" — ")[0])}</small></button>`).join("")}</div></details>
     <details class="sb-sec2"><summary>캔들 연구 자료</summary>
       ${todayCandleHtml(allStocks().filter(s => (state.market==="all" || (state.market==="kr" ? s._kr : !s._kr)) && !state.hidden.includes(s.ticker)))}

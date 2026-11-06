@@ -85,6 +85,13 @@ SIGNAL_CODES = {
 }
 RARE_RULES = {"R5_SEMI": ("SOXL", "SOXX"), "R10_NVDA": ("NVDA",)}
 
+# 연구 후보 캔들 (2026-11-06 사용자 지시 "장족도지·고파동 65~74% 후보는 숨기지 말고 표시").
+# 출처 tools/candle-context-lab.py 탐색 격자(run 42214209999): 학습(~2023-10-18)에서 고른 뒤 시험 구간에서도 유지된 2개.
+#   K_LLD_UP  장족십자 도지 · 볼밴 상단 근처(pos 0.8~1, 상단 안) · RSI 50~70 — 10일 상승 학습 67%(32) → 시험 74%(24) vs 평소 55%
+#   K_HW_UP   고파동 캔들   · 같은 위치·RSI                       — 10일 상승 학습 76%(43) → 시험 65%(27) vs 평소 55%
+# 정의는 연구 도구와 같다(볼밴 표본표준편차 ddof=1, RSI ewm(1/14), ATR14 = 실제 진폭 14일 평균). 등급·점수에는 쓰지 않는다(참고 표시).
+RESEARCH_CODES = {"K_LLD_UP": "장족십자 도지 · 상단 근처 상승 지속 후보", "K_HW_UP": "고파동 캔들 · 상단 근처 상승 지속 후보"}
+
 # 코드 → (종류, 짧은 이름). 원장(hist)에는 코드만 쉼표로 남는다.
 CODES = {
     "T_HOUSE": ("trim", "주택: 상단 밖 + 거래량 1.5배"),
@@ -109,6 +116,7 @@ CODES = {
     "M_NVDA": ("theme_buy", "엔비디아: RSI≤35·−10%·하단 밖 뒤 5일선 회복 + 200일선 위"),
     "M_TSLA": ("theme_buy", "테슬라: RSI≤35·−20%·하단 밖 뒤 5일선 회복 + 직전 5일 연속 하락"),
     "M_AMAT": ("theme_buy", "어플라이드: RSI≤30·−20%·하단 밖 뒤 5일선 3일 안착"),
+    **{k: ("research", v) for k, v in RESEARCH_CODES.items()},
 }
 
 
@@ -337,7 +345,29 @@ def flag_series(o, h, l, c, v, ticker=""):
         lo10 = s.rolling(10).mean().to_numpy() - 1.5 * s.rolling(10).std(ddof=0).to_numpy()
         o10 = _lt(c, lo10); prev_run = np.concatenate([[0], _runlen(o10)[:-1]])
         out["R10_NVDA"] = _lt(np.fmin(r9, _shift(r9)), 35 + 1e-9) & ~o10 & (prev_run >= 1) & _gt(c, o)
+    out.update(research_candles(o, h, l, c))
     return out
+
+
+def research_candles(o, h, l, c):
+    """연구 후보 K_LLD_UP · K_HW_UP — tools/candle-context-lab.py features()와 같은 식(대조: tools/test_pattern_flags.py)."""
+    N = len(c); r = h - l; rr = np.where(r > 0, r, np.nan)
+    body = np.abs(c - o) / rr; uw = (h - np.maximum(o, c)) / rr; lw = (np.minimum(o, c) - l) / rr
+    pc = np.r_[np.nan, c[:-1]]
+    tr_ = np.maximum.reduce([h - l, np.abs(h - pc), np.abs(l - pc)]); atr = pd.Series(tr_).rolling(14).mean().to_numpy()
+    with np.errstate(invalid="ignore"):
+        big = r >= 1.3 * atr
+        lld = (body <= 0.1) & (uw >= 0.3) & (lw >= 0.3) & big
+        hw = (body > 0.1) & (body <= 0.3) & (uw >= 0.3) & (lw >= 0.3) & big
+        m = pd.Series(c).rolling(20).mean().to_numpy(); sd = pd.Series(c).rolling(20).std().to_numpy()
+        up, lo = m + 2 * sd, m - 2 * sd; pos = (c - lo) / (up - lo)
+        near_up = (pos >= 0.8) & (c <= up)
+        d = np.diff(c, prepend=c[0]); au = pd.Series(np.clip(d, 0, None)).ewm(alpha=1 / 14, adjust=False).mean().to_numpy()
+        ad = pd.Series(np.clip(-d, 0, None)).ewm(alpha=1 / 14, adjust=False).mean().to_numpy()
+        R = 100 - 100 / (1 + au / np.where(ad == 0, np.nan, ad))
+        rmid = (R > 50) & (R < 70)
+    f = lambda x: np.nan_to_num(np.asarray(x, float)) > 0
+    return {"K_LLD_UP": f(lld) & f(near_up) & f(rmid), "K_HW_UP": f(hw) & f(near_up) & f(rmid)}
 
 
 def flags_at(series, i):

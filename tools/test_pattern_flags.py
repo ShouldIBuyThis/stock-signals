@@ -73,6 +73,11 @@ def expected(df, ticker):
             e["R5_SEMI"] = R["RSI7≤25"] & Bb["BB30×1.5하단 -0% 3일+"]
         if ticker in pf.RARE_RULES["R10_NVDA"]:
             e["R10_NVDA"] = R["RSI9≤35"] & Bb["BB10×1.5 밖 1일+ 후 재진입"] & tr_.gt(Xr["c"], Xr["o"])
+    cc = _load("cc", "candle-context-lab.py")
+    K, Z, R, _T, *_x = cc.features(*(df[k].to_numpy(float) for k in ("Open", "High", "Low", "Close")))
+    rb = np.nan_to_num(((R > 50) & (R < 70)).astype(float)) > 0
+    e["K_LLD_UP"] = K["LLDOJI"] & Z["NEAR_UP"] & rb
+    e["K_HW_UP"] = K["HWAVE"] & Z["NEAR_UP"] & rb
     X = tt.prep(df); C = dict(tt.candles(X)); B = tt.band_trades(X, 20, 2)
     names = dict(C)
     for code, nm in pf.CANDLE_CODES.items():

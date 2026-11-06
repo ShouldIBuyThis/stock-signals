@@ -215,6 +215,16 @@ def main():
               f"{'' if at is None else f'{at:+.1f}%'} [{keep}]")
     surv = sum(1 for x in found if x[6] is not None and x[7] is not None and (x[6] - x[7]) * (x[2] - x[3]) > 0 and abs(x[6] - x[7]) >= 5)
     print(f"    시험에서 같은 방향 5%p+ 유지: {surv}/{len(found)}")
+    # 사이트 표시용 상세(2026-11-06 사용자 지시 "장족도지·고파동 65~74% 후보 표시") — pattern_flags.py K_LLD_UP·K_HW_UP과 같은 칸
+    print(f"\n  [사이트 표시 후보 상세 — 학습 ~{cut70} / 시험 {cut70}~ / 전체]")
+    for k, nm in (("LLDOJI", "K_LLD_UP 장족십자 도지"), ("HWAVE", "K_HW_UP 고파동")):
+        rows = ev.get(("G", k, "NEAR_UP", "50~70"), [])
+        for lab, part in (("학습", [r for r in rows if r[0] < cut70]), ("시험", [r for r in rows if r[0] >= cut70]), ("전체", rows)):
+            if not part: print(f"    {nm} {lab} 표본 0"); continue
+            x10 = [r[5] for r in part if not np.isnan(r[5])]; w = sum(v > 1 for v in x10); lo_ = sum(v < -1 for v in x10)
+            mae = [r[7] for r in part if not np.isnan(r[7])]
+            cells = " · ".join(f"+{n}일 {f0(upr(part, j)[0])}%/평소 {f0(bshare(part, j))}%" for j, n in enumerate(H))
+            print(f"    {nm} {lab} n={len(part)} 10일 {w}승 {lo_}패 평균 {np.mean(x10):+.2f}% · 중간 최대하락 {np.median(mae):+.1f}% 최악 {np.min(mae):+.1f}% · {cells}")
 
 if __name__ == "__main__":
     main()
