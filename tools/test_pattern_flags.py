@@ -65,6 +65,14 @@ def expected(df, ticker):
         e["D_SKH"] = Cx["고가만 상단 돌파"] & Kd["윗꼬리≥50%"]
     if ticker in pf.THEME_DANGER["D_QUANT"]:
         e["D_QUANT"] = Cx["체류 뒤 첫 재진입"]
+    if ticker in pf.RARE_RULES["R5_SEMI"] or ticker in pf.RARE_RULES["R10_NVDA"]:
+        tr_ = tp.tr; q = df["Close"]
+        Xr = tr_.indicators(df, {"qqq_c": q, "qqq_ma20": q.rolling(20).mean(), "qqq_ma60": q.rolling(60).mean(), "vxn": pd.Series(dtype=float)})
+        R = dict(tr_.rsi_conds(Xr, "buy")); Bb = dict(tr_.bb_conds(Xr, "buy"))
+        if ticker in pf.RARE_RULES["R5_SEMI"]:
+            e["R5_SEMI"] = R["RSI7≤25"] & Bb["BB30×1.5하단 -0% 3일+"]
+        if ticker in pf.RARE_RULES["R10_NVDA"]:
+            e["R10_NVDA"] = R["RSI9≤35"] & Bb["BB10×1.5 밖 1일+ 후 재진입"] & tr_.gt(Xr["c"], Xr["o"])
     X = tt.prep(df); C = dict(tt.candles(X)); B = tt.band_trades(X, 20, 2)
     names = dict(C)
     for code, nm in pf.CANDLE_CODES.items():
@@ -85,7 +93,7 @@ def main():
         for tk in ("ITB", "IONQ", "AAPL", "SOXL", "CAT", "NVDA", "TSLA", "AMAT", "SKHY"):
             got = pf.flag_series(*(df[k].to_numpy() for k in ("Open", "High", "Low", "Close", "Volume")), ticker=tk)
             exp = expected(df, tk)
-            got = {k: v for k, v in got.items() if k not in pf.SIGNAL_CODES}   # 신호 보드 코드는 signal-stats.py가 이 함수를 그대로 쓴다(대조 대상 없음)
+            got = {k: v for k, v in got.items() if k not in pf.SIGNAL_CODES or k in pf.RARE_RULES}   # 신호 보드 코드는 signal-stats.py가 이 함수를 그대로 쓴다(대조 대상 없음)
             if set(got) != set(exp):
                 print(f"seed {seed} {tk}: 코드 집합 다름 {sorted(set(got) ^ set(exp))}"); bad += 1; continue
             for k in exp:

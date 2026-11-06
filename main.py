@@ -99,7 +99,9 @@ HIST_FIELDS = ["date","price","change_1d","ma5","ma10","ma20","ma50","ma60","rsi
                # 2026-11-05 확장: 표시 전용 패턴 뱃지 코드(쉼표 구분, 없으면 ""). 정의 = pattern_flags.py
                #   (연구 tools/theme-trim.py·theme-patterns.py와 봉 단위 대조: tools/test_pattern_flags.py).
                #   익절 후보 T_* · 급락 위험 R_* · 저점 반등 후보 B_*. 점수·등급에는 쓰지 않는다.
-               "pat"]
+               "pat",
+               # 2026-11-06 확장: 그날 시가 — 원장에서 '신호 다음 날 시가 체결'로 실제 성적을 추적하기 위해(꼬리 추가).
+               "open"]
 
 # freeze 단계에서 옛 행에 뒤늦게 채워 넣는 열. 이미 값이 있으면 절대 덮지 않는다.
 HIST_BACKFILL_FIELDS = ["atr_pct", "market_level", "market_weak", "market_ret20", "market_events", "market_vxn"]
@@ -1520,6 +1522,7 @@ def analyze(ticker, name, category):
             "ext_root": ext_root_strike(close.values, high.values, low.values, (op.values if op is not None else None), end),
             "upw": safe(upw_i, 2), "loww": safe(loww_i, 2), "body": safe(body_i, 2), "bb_hi_pos": safe(bb_hi),
             "pat": (pattern_flags.flags_at(pat_series, i) if pat_series is not None else None),
+            "open": (safe(o_i, nd) if o_i is not None else None),
             "last_date": df.index[i].strftime("%Y-%m-%d"),
         }
 
@@ -1545,6 +1548,19 @@ def analyze(ticker, name, category):
         "currency": "KRW" if is_kr else "USD",
         "leveraged": ticker in LEVERAGED,
     })
+    # 2026-11-06 사이트 '실제 발생 사례' 일봉 차트용 최근 60봉 OHLCV — 화면 표시 전용.
+    # SNAPSHOT_FIELDS·HIST_FIELDS에 없으므로 원장(hist·history/)에는 들어가지 않는다.
+    try:
+        tail = df.iloc[-60:]
+        pr = 0 if is_kr else 4
+        row["ohlc60"] = [[d.strftime("%Y-%m-%d"),
+                          safe(float(tail["Open"].iloc[k]), pr) if op is not None else None,
+                          safe(float(tail["High"].iloc[k]), pr), safe(float(tail["Low"].iloc[k]), pr),
+                          safe(float(tail["Close"].iloc[k]), pr),
+                          int(tail["Volume"].iloc[k]) if np.isfinite(float(tail["Volume"].iloc[k])) else None]
+                         for k, d in enumerate(tail.index)]
+    except Exception as e:
+        print(f"  ⚠ {ticker} ohlc60 생성 실패: {e}")
     return row
 
 # evaluate() 재현에 필요한 입력값을 모두 보관한다. 점수 자체는 저장하지 않는다.
@@ -1563,7 +1579,7 @@ SNAPSHOT_FIELDS = [
     "w_rsi", "w_ma20_pos", "w_streak", "m_ma6_pos", "m_streak",
     "market_vxn",
     "ext_pair", "ext_root",
-    "upw", "loww", "body", "bb_hi_pos", "pat",
+    "upw", "loww", "body", "bb_hi_pos", "pat", "open",
 ]
 
 def _storage_row(r, mkt):

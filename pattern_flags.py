@@ -77,7 +77,12 @@ SIGNAL_CODES = {
     "X_SUPBREAK": ("red", "거래량 동반 지지선 붕괴"),
     "X_DIVDN": ("red", "고점 RSI 하락 다이버전스"),
     "X_MA60": ("red", "60일선 하향 이탈(20일선 하락 중)"),
+    # 2026-11-06 사용자 지시 표본 등급 — theme-research 선정 규칙 중 검증·테스트 모두 75%↑, 테스트 5~9건 = '희귀 고적중 후보(소표본)'.
+    # 연구 규칙의 '실적 전후 제외(5일)'는 여기 넣지 않는다(실적일 데이터 없음) — 사이트는 실적 보류 종목이면 표시하지 않는다.
+    "R5_SEMI": ("green", "반도체 5일 반등 매수(희귀 고적중 후보)"),
+    "R10_NVDA": ("green", "엔비디아 10일 반등 매수(희귀 고적중 후보)"),
 }
+RARE_RULES = {"R5_SEMI": ("SOXL", "SOXX"), "R10_NVDA": ("NVDA",)}
 
 # 코드 → (종류, 짧은 이름). 원장(hist)에는 코드만 쉼표로 남는다.
 CODES = {
@@ -321,6 +326,16 @@ def flag_series(o, h, l, c, v, ticker=""):
     rmax20p = rr.shift(1).rolling(20).max().to_numpy()
     out["X_DIVDN"] = _gt(c, cmax20p - 1e-9) & _lt(r14, rmax20p - 3) & _gt(rmax20p, 70 - 1e-9)
     out["X_MA60"] = _lt(c, ma[60]) & ~_lt(c1, _shift(ma[60])) & _lt(ma[20], _shift(ma[20], 5))
+    # 희귀 고적중 후보 (theme-research rsi_conds·bb_conds·filter_conds와 같은 정의 — 볼밴 모표준편차)
+    if ticker in RARE_RULES["R5_SEMI"]:
+        r7 = _rsi(c, 7)
+        lo30 = s.rolling(30).mean().to_numpy() - 1.5 * s.rolling(30).std(ddof=0).to_numpy()
+        out["R5_SEMI"] = _lt(np.fmin(r7, _shift(r7)), 25 + 1e-9) & (_runlen(_lt(c, lo30)) >= 3)
+    if ticker in RARE_RULES["R10_NVDA"]:
+        r9 = _rsi(c, 9)
+        lo10 = s.rolling(10).mean().to_numpy() - 1.5 * s.rolling(10).std(ddof=0).to_numpy()
+        o10 = _lt(c, lo10); prev_run = np.concatenate([[0], _runlen(o10)[:-1]])
+        out["R10_NVDA"] = _lt(np.fmin(r9, _shift(r9)), 35 + 1e-9) & ~o10 & (prev_run >= 1) & _gt(c, o)
     return out
 
 
