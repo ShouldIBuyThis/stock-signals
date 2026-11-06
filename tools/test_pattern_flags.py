@@ -78,6 +78,10 @@ def expected(df, ticker):
     rb = np.nan_to_num(((R > 50) & (R < 70)).astype(float)) > 0
     e["K_LLD_UP"] = K["LLDOJI"] & Z["NEAR_UP"] & rb
     e["K_HW_UP"] = K["HWAVE"] & Z["NEAR_UP"] & rb
+    cp = _load("cp", "chart-pattern-lab.py"); sv = _load("sv", "surge-volume-lab.py")
+    arr = [df[k].to_numpy(float) for k in ("Open", "High", "Low", "Close", "Volume")]
+    e["K_FLAG"] = cp.flag_combo(*arr[:4]); e["K_TOP3"] = cp.top3_mask(*arr)
+    for lv, m in sv.surge_tiers(*arr).items(): e[f"K_SV{lv}"] = m
     X = tt.prep(df); C = dict(tt.candles(X)); B = tt.band_trades(X, 20, 2)
     names = dict(C)
     for code, nm in pf.CANDLE_CODES.items():
