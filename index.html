@@ -321,6 +321,8 @@ html[data-theme="dark"] .rkitem.top b{color:#a9c6ff}
 .modal-actions button{flex:1;height:42px;border-radius:10px;font-size:13.5px;font-weight:700;border:1px solid var(--line);background:var(--surface2)}
 .modal-actions button.primary{background:var(--navy);color:#fff;border-color:var(--navy)}
 
+.edu-link{cursor:pointer;text-decoration:underline;text-underline-offset:3px;color:inherit}
+.edu-basic{color:var(--muted)}
 /* 도움말 */
 .help-block{margin-bottom:18px}
 .help-block h3{font-size:14px;font-weight:800;margin-bottom:8px}
@@ -4374,7 +4376,11 @@ const CANDLE_EDU = {
   "장대양봉 뒤 음봉": {bars:[[2.8,8.4,2.5,8.2],[8.4,8.8,6.2,6.6]], band:7, d:"큰 양봉 다음 날 음봉 — 상승 탄력이 꺾였을 수 있음"},
   "장대음봉": {bars:[[8.6,9.0,3.0,3.4]], band:7, d:"고점에서 큰 음봉 — 매도세가 강하게 나온 자리"},
   "음봉": {bars:[[8,8.6,5.4,5.8]], band:7, d:"종가가 시가보다 낮음 — 그날은 파는 쪽이 이김"},
+  "양봉": {bars:[[5.4,8.6,5,8.2]], band:7, d:"종가가 시가보다 높음 — 그날은 사는 쪽이 이김"},
 };
+/* 양봉·음봉은 기본 용어라 갤러리 카드로 늘어놓지 않고, 밑줄 링크로만 짧게 연다(2026-11-06 사용자 지시 "축약"). */
+const CANDLE_BASIC = new Set(["양봉","음봉"]);
+const basicLegend = () => `<span class="edu-basic">빨강 = <u class="edu-link" data-edubig="양봉">양봉</u>(종가 > 시가) · 파랑 = <u class="edu-link" data-edubig="음봉">음봉</u>(종가 < 시가)</span>`;
 /* 신호 코드 → 교육용 캔들 모양 (모양이 없는 지표 신호는 그림을 붙이지 않는다) */
 const CODE_EDU = {B_HAMMER:"망치형", B_ENGULF:"상승장악형", B_MSTAR:"샛별형(상승)", X_ESTAR:"석별형", X_TOPBEAR:"장대음봉", O_TURN:"윗꼬리",
   T_QUANTUM:"교수형", D_SEMI:"도지", D_SKH:"윗꼬리", C_HANG:"교수형", C_SHOOT:"유성형", C_DOJI:"도지", C_UPW:"윗꼬리", C_LOWW:"아랫꼬리",
@@ -4746,7 +4752,7 @@ function researchFooterHtml(){
       모든 성과는 '신호가 그날 종가로 확정 → 다음 날 시가에 사거나 판다'로 계산해요.</div></details>
     <details class="sb-sec2"><summary>희귀 고적중 후보 규칙 ${idle.length}개</summary>${idle.map(([c,R])=>`<div class="sb-note"><b>${esc(R.title)}</b> (${esc(R.tickers)}) — ${esc(R.rule)}<br>
       학습 ${R.tr} · 검증 ${R.va} · 테스트 ${R.te} · 평소 ${R.base}(${R.lift}) · 평균 ${R.avg} · 최대 하락 중간 ${R.maeMed}/최악 ${R.maeWorst} · p=${R.p} — 유의성·수익성 확정 아님</div>`).join("")}</details>
-    <details class="sb-sec2"><summary>🕯 캔들 모양 예시 (교육용 그림)</summary><div class="edu-gal">${Object.keys(CANDLE_EDU).map(n=>`<button class="edu-big edu-card" data-edubig="${esc(n)}">${eduGlyph(n,1.4)}<b>${esc(n)}</b><small>${esc(CANDLE_EDU[n].d.split(" — ")[0])}</small></button>`).join("")}</div></details>
+    <details class="sb-sec2"><summary>🕯 캔들 모양 예시 (교육용 그림)</summary><div style="font-size:12.5px;margin:6px 2px">${basicLegend()}</div><div class="edu-gal">${Object.keys(CANDLE_EDU).filter(n=>!CANDLE_BASIC.has(n)).map(n=>`<button class="edu-big edu-card" data-edubig="${esc(n)}">${eduGlyph(n,1.4)}<b>${esc(n)}</b><small>${esc(CANDLE_EDU[n].d.split(" — ")[0])}</small></button>`).join("")}</div></details>
     <details class="sb-sec2"><summary>캔들 연구 자료</summary>
       ${todayCandleHtml(allStocks().filter(s => (state.market==="all" || (state.market==="kr" ? s._kr : !s._kr)) && !state.hidden.includes(s.ticker)))}
       ${themeCandleRankHtml()}</details>
@@ -8253,9 +8259,10 @@ document.getElementById("main").addEventListener("click", e=>{
     openModal(`<h3>🕯 ${esc(n)}${st?` · ${esc(st.name||st.ticker)} (${esc(st.ticker)})`:""}</h3>
       ${realTop && lastBar ? `<div class="md-tag md-real">실제 일봉 — 최근 5거래일 · 오른쪽 끝 = ${esc(lastBar[0])} 확정 봉</div>
       <div style="text-align:center;margin:8px 0">${realTop}</div>
+      <div style="font-size:12.5px;text-align:center;margin-bottom:2px">${basicLegend()}</div>
       <div style="font-size:12.5px;color:var(--muted);text-align:center;margin-bottom:6px">${esc(lastBar[0])} · 시가 ${fmtP(lastBar[1])} · 고가 ${fmtP(lastBar[2])} · 저가 ${fmtP(lastBar[3])} · 종가 ${fmtP(lastBar[4])}</div>
       <p style="font-size:15px;line-height:1.7;margin:4px 0 10px">${(()=>{ const rs = todayShape(st); return rs
-        ? `실제 마지막 봉 모양: <b>${esc(rs)}</b> — ${esc((CANDLE_EDU[rs]||{}).d||"")}`
+        ? `실제 마지막 봉 모양: <u class="edu-link" data-edubig="${esc(rs)}"><b>${esc(rs)}</b></u> — ${esc(((CANDLE_EDU[rs]||{}).d||"").split(" — ")[0])}`
         : `실제 마지막 봉은 뚜렷한 꼬리·도지 모양이 아닙니다.`; })()}${todayShape(st)!==n ? `<br><span style="font-size:12.5px;color:var(--muted)">‘${esc(n)}’는 신호 규칙이 보는 모양 이름입니다(마지막 봉 하나가 아니라 며칠 흐름).</span>` : ""}</p>
       <details class="sb-sec2" style="margin-bottom:8px"><summary>📘 같은 모양의 교육용 견본 그림 보기</summary>${eduPart}</details>` : eduPart}
       ${rc ? `<div class="md-tag md-real">실제 일봉 — 최근 40거래일 실측 가격</div>${rc}<div style="font-size:11px;color:var(--muted)">▼ = 마지막 거래일 · 주황 선 = 볼린저(20, 2σ) · 아래 막대 = 거래량</div>` : (tk ? `<div style="font-size:12px;color:var(--muted)">이 종목의 실제 일봉 데이터는 다음 갱신부터 보여요.</div>` : "")}
