@@ -1,0 +1,48 @@
+name: 신호 보드 10년 실측 생성
+
+# 사이트 '오늘의 신호' 보드가 읽는 backtest/signal-stats.json을 만든다(백테스트 · 원장 아님).
+# 판정은 pattern_flags.py — 사이트 원장 pat과 같은 함수. 주 1회 + 수동.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 3 * * 0'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: signal-stats
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: 의존성 설치
+        run: pip install -q yfinance pandas numpy exchange_calendars
+      - name: 신호별 10년 실측
+        run: python tools/signal-stats.py --out backtest/signal-stats.json
+      - name: 원장 불변 확인
+        run: |
+          if [ -n "$(git status --porcelain -- signals.json history/)" ]; then
+            echo "::error::원장(signals.json·history/)이 변경됐다 — 중단한다"; exit 1
+          fi
+      - name: 커밋
+        run: |
+          git config user.name  "Claude"
+          git config user.email "noreply@anthropic.com"
+          git add backtest/signal-stats.json backtest/breadth-history.json
+          if git diff --cached --quiet; then echo "변경 없음"; exit 0; fi
+          git commit -m "신호 보드 10년 실측 갱신"
+          BR="${GITHUB_REF_NAME}"
+          for i in 1 2 3; do
+            if git push origin "HEAD:${BR}"; then exit 0; fi
+            echo "push 충돌 — 리베이스 후 재시도 ($i/3)"
+            git pull --rebase origin "${BR}"
+            sleep $((i*5))
+          done
+          echo "::error::리베이스 재시도 3회 실패"; exit 1

@@ -85,6 +85,7 @@ def main():
         for tk in ("ITB", "IONQ", "AAPL", "SOXL", "CAT", "NVDA", "TSLA", "AMAT", "SKHY"):
             got = pf.flag_series(*(df[k].to_numpy() for k in ("Open", "High", "Low", "Close", "Volume")), ticker=tk)
             exp = expected(df, tk)
+            got = {k: v for k, v in got.items() if k not in pf.SIGNAL_CODES}   # 신호 보드 코드는 signal-stats.py가 이 함수를 그대로 쓴다(대조 대상 없음)
             if set(got) != set(exp):
                 print(f"seed {seed} {tk}: 코드 집합 다름 {sorted(set(got) ^ set(exp))}"); bad += 1; continue
             for k in exp:

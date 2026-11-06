@@ -53,6 +53,32 @@ CANDLE_CODES = {
     "C_DIV": "RSI 약세 다이버전스", "C_VOL": "거래량≥1.5배",
 }
 
+# 2026-11-06 신호 보드(사용자 지시: '오늘 어떤 반등·추세전환·과열·위험 신호가 떴나'를 4분류로) — 새 신호 코드.
+# 성적은 미리 정하지 않는다. tools/signal-stats.py가 이 함수 그대로 10년을 돌려 backtest/signal-stats.json에 실측을 쓴다.
+#   🟢 B_* 반등(과매도 뒤)  🔵 U_* 추세전환·상승 지속  🟠 O_* 단기과열·일부익절  🔴 X_* 하락추세·고점 위험
+SIGNAL_CODES = {
+    "B_DIVUP": ("green", "과매도 뒤 RSI 상승 다이버전스"),
+    "B_ENGULF": ("green", "과매도 뒤 상승장악형"),
+    "B_HAMMER": ("green", "볼밴 하단 망치형"),
+    "B_MSTAR": ("green", "과매도 뒤 샛별형(상승반전)"),
+    "B_VOLUP": ("green", "과매도 뒤 거래량 실린 양봉"),
+    "B_SUPPORT": ("green", "120일 지지선 반등"),
+    "U_MA20": ("blue", "20일선 돌파(60일선 상승 중)"),
+    "U_BREAK": ("blue", "거래량 동반 20일 고점 돌파"),
+    "U_G520": ("blue", "5·20일선 골든크로스"),
+    "U_G2060": ("blue", "20·60일선 골든크로스"),
+    "U_PULL": ("blue", "눌림목 뒤 추세 재개"),
+    "O_RSI": ("orange", "RSI 70 과열 + 볼밴 상단 밖"),
+    "O_EXT": ("orange", "볼밴 상단 과도 이탈"),
+    "O_TURN": ("orange", "상단 밖에서 윗꼬리·음봉 전환"),
+    "O_VOLSTALL": ("orange", "거래량 급증 뒤 상승 둔화"),
+    "X_ESTAR": ("red", "고점 석별형(하락반전)"),
+    "X_TOPBEAR": ("red", "고점 장대음봉"),
+    "X_SUPBREAK": ("red", "거래량 동반 지지선 붕괴"),
+    "X_DIVDN": ("red", "고점 RSI 하락 다이버전스"),
+    "X_MA60": ("red", "60일선 하향 이탈(20일선 하락 중)"),
+}
+
 # 코드 → (종류, 짧은 이름). 원장(hist)에는 코드만 쉼표로 남는다.
 CODES = {
     "T_HOUSE": ("trim", "주택: 상단 밖 + 거래량 1.5배"),
@@ -69,6 +95,7 @@ CODES = {
     "D_SKH": ("danger", "SK하이닉스: 고가만 상단 돌파 + 긴 윗꼬리"),
     "D_QUANT": ("danger", "양자: 볼밴 위 체류 뒤 첫 재진입(VXN≥25일 때)"),
     **{k: ("candle", v) for k, v in CANDLE_CODES.items()},
+    **{k: (v[0], v[1]) for k, v in SIGNAL_CODES.items()},
     "M_SEMI": ("theme_buy", "반도체: RSI≤35·−10%·하단 밖 뒤 5일선 3일 안착 + 200일선 위"),
     "M_IND": ("theme_buy", "산업재: RSI≤25·−20% 뒤 5일선 2일 안착"),
     "M_HOUSE": ("theme_buy", "주택: RSI≤35·−10% 뒤 20·60일선 골든크로스"),
@@ -245,6 +272,55 @@ def flag_series(o, h, l, c, v, ticker=""):
     if ticker in THEME_DANGER["D_QUANT"]:
         prev_out = _shift(out1_.astype(float)) > 0.5
         out["D_QUANT"] = ~out1_ & prev_out & (_shift(run1.astype(float)) >= 2)
+
+    # ── 신호 보드 4분류 (SIGNAL_CODES) ──
+    o2_, c2_, b1_, b2_ = _shift(o, 2), _shift(c, 2), _shift(body), _shift(body, 2)
+    l1_, h1_, h2_ = _shift(l), _shift(h), _shift(h, 2)
+    rng_all = h - l
+    tr2 = np.maximum(h - l, np.maximum(abs(h - c1), abs(l - c1)))
+    atr14 = pd.Series(tr2).rolling(14).mean().to_numpy()
+    long_bear = _lt(c, o) & _gt(body, 0.6 - 1e-9) & _gt(rng_all, 1.5 * atr14)
+    up_day = _gt(c, c1)
+    # 🟢 반등 (최근 20일 안 과매도 rec 맥락)
+    lowc10 = s.rolling(10).min().to_numpy(); lowc_prev = s.shift(10).rolling(20).min().to_numpy()
+    rr = pd.Series(np.nan_to_num(r14, nan=50))
+    lowr10 = rr.rolling(10).min().to_numpy(); lowr_prev = rr.shift(10).rolling(20).min().to_numpy()
+    out["B_DIVUP"] = rec & _lt(lowc10, lowc_prev) & _gt(lowr10, lowr_prev) & up_day
+    out["B_ENGULF"] = rec & _lt(c1, o1) & _gt(c, o) & _gt(c, o1) & _lt(o, c1)
+    out["B_HAMMER"] = _lt(l, bblo * 1.01) & _gt(loww, 0.6 - 1e-9) & _lt(body, 0.3 + 1e-9) & _lt(upw, 0.15 + 1e-9) & _lt(r14, 40 + 1e-9)
+    out["B_MSTAR"] = rec & _lt(c2_, o2_) & _gt(b2_, 0.6 - 1e-9) & _lt(b1_, 0.3 + 1e-9) & _lt(np.maximum(o1, c1), c2_ * 1.005) \
+        & _gt(c, o) & _gt(c, (o2_ + c2_) / 2)
+    out["B_VOLUP"] = rec & _gt(vr, 1.5 - 1e-9) & _gt(c, o) & _gt(c / c1 - 1, 0.02 - 1e-9)
+    supp = pd.Series(l).shift(5).rolling(120).min().to_numpy()
+    out["B_SUPPORT"] = _lt(l, supp * 1.02) & _gt(l, supp * 0.97) & _gt(c, o) & up_day & _gt(loww, 0.3 - 1e-9)
+    # 🔵 추세전환·상승 지속 (과매도 맥락 아님)
+    ma60_up = _gt(ma[60], _shift(ma[60], 5))
+    out["U_MA20"] = _gt(c, ma[20]) & ~_gt(c1, _shift(ma[20])) & ma60_up & ~rec
+    cmax20p = s.shift(1).rolling(20).max().to_numpy()
+    out["U_BREAK"] = _gt(c, cmax20p) & _gt(vr, 1.5 - 1e-9) & ~_gt(c1, _shift(cmax20p))
+    out["U_G520"] = _gt(ma[5], ma[20]) & ~_gt(_shift(ma[5]), _shift(ma[20])) & ~rec
+    out["U_G2060"] = _gt(ma[20], ma[60]) & ~_gt(_shift(ma[20]), _shift(ma[60]))
+    near20 = pd.Series(_lt(c, ma[20] * 1.02).astype(float)).rolling(5).max().to_numpy() > 0.5
+    out["U_PULL"] = _gt(ma[20], ma[60]) & ma60_up & near20 & _gt(c, ma[20]) & (run5 == 1) & up_day
+    # 🟠 단기과열·일부익절
+    pctb = (c - bblo) / np.where(bbup - bblo > 0, bbup - bblo, np.nan)
+    out["O_RSI"] = _first_in_run(outside & _gt(r14, 70 - 1e-9), outside)
+    out["O_EXT"] = _first_in_run(outside & _gt(pctb, 1.25 - 1e-9), outside)
+    prev_outside = _shift(outside.astype(float)) > 0.5
+    out["O_TURN"] = prev_outside & (_gt(upw, 0.5 - 1e-9) | _lt(c, o))
+    vrmax5p = pd.Series(np.nan_to_num(vr)).shift(1).rolling(5).max().to_numpy()
+    out["O_VOLSTALL"] = _gt(vrmax5p, 3 - 1e-9) & _lt(c / _shift(c, 5) - 1, 0.01) & _gt(r14, 60 - 1e-9) & _gt(ma[20], _shift(ma[20], 5))
+    # 🔴 하락추세·고점 위험
+    hh60 = pd.Series(h).rolling(60).max().to_numpy()
+    out["X_ESTAR"] = _gt(c2_, o2_) & _gt(b2_, 0.6 - 1e-9) & _lt(b1_, 0.3 + 1e-9) & _gt(np.minimum(o1, c1), c2_ * 0.995) \
+        & _lt(c, o) & _lt(c, (o2_ + c2_) / 2) & _gt(h2_, _shift(hh60, 2) * 0.97)
+    rmax5 = pd.Series(np.nan_to_num(r14)).rolling(5).max().to_numpy()
+    out["X_TOPBEAR"] = long_bear & (_gt(rmax5, 70 - 1e-9) | _gt(h, hh60 * 0.97))
+    lmin20p = pd.Series(l).shift(1).rolling(20).min().to_numpy()
+    out["X_SUPBREAK"] = _lt(c, lmin20p) & _gt(vr, 1.5 - 1e-9) & ~_lt(c1, _shift(lmin20p))
+    rmax20p = rr.shift(1).rolling(20).max().to_numpy()
+    out["X_DIVDN"] = _gt(c, cmax20p - 1e-9) & _lt(r14, rmax20p - 3) & _gt(rmax20p, 70 - 1e-9)
+    out["X_MA60"] = _lt(c, ma[60]) & ~_lt(c1, _shift(ma[60])) & _lt(ma[20], _shift(ma[20], 5))
     return out
 
 
