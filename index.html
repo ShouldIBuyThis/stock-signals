@@ -5982,6 +5982,7 @@ function strategyValidation(){
   };
   result._strongBuy={};
   horizons.forEach(h=>{ result._strongBuy[h]=stat(strongBuyOut[h]); });
+  /* 2026-11-06 사용자 지시로 도움말 백테스트 검증표에서 🌊 행은 뺐다. 값은 내부 진단용으로만 남긴다. */
   result._nqRebound={};
   horizons.forEach(h=>{ result._nqRebound[h]=stat(nqOut[h]); });
   result._strongByStrategy={pull:{},rev:{}};
@@ -6139,7 +6140,7 @@ function validationBlock(){
   return `<div class="section help-block"><h3 class="validation-title">🧪 최근 ${histWindowDays()}거래일${histWindowRange()?` <span style="font-weight:600;font-size:.8em;color:var(--muted)">(${histWindowRange()})</span>`:""} 현재 산식 재검증 <button type="button" class="validation-help-btn" onclick="openValidationIntro()" aria-label="신뢰도 검증 설명">?</button><span class="live-note">(표본 수급에 따라 실시간 변동)</span></h3>
     <div style="margin:0 2px 7px;font-size:12px;font-weight:800;color:var(--ink)">종가에 매수했다면? <span style="font-weight:600;color:var(--muted)">· 상승 vs 하락 (보합 제외)</span><br><span style="font-weight:600;font-size:11px;color:var(--faint)">위 두 행은 <b>신호를 보고 산 사람</b>, 맨 아래 <b>기준선</b>은 신호를 안 보고 그날 전 종목을 다 산 사람이에요</span></div>
     <table class="cmp validation-cmp"><tr><th>구분</th><th colspan="3">상승이 하락을 이길 확률 <button type="button" class="validation-help-btn" onclick="openValidationHelp()" aria-label="승률 계산 설명">?</button><button type="button" class="bulbperf" onclick="openStrictMultiPerf()" title="전략별(추세/반등) 강한매수 분리와 쉬운 예시 보기">전략별 강한매수 분리 📊</button></th></tr><tr><th>신호</th><th>+1거래일</th><th>+3거래일</th><th>+5거래일</th></tr>
-      ${srcRow("💡 강한다중","전구 신호만",v._strict)}${srcRow("🌊 연속하락 반등","다중 상위 · 나스닥 연속하락 중 반등",v._nqRebound)}${srcRow("🔵 다중신호","강한+일반 합산",v.multi)}${srcRow("🟢 강한매수","최종 초록뱃지",v._strongBuy)}${baseRow}
+      ${srcRow("💡 강한다중","전구 신호만",v._strict)}${srcRow("🔵 다중신호","강한+일반 합산",v.multi)}${srcRow("🟢 강한매수","최종 초록뱃지",v._strongBuy)}${baseRow}
     </table>
     <div style="margin-top:9px">
       <button type="button" class="perfbtn" onclick="openAllBuyersPerf()" title="매수관심까지 포함해 전부 샀다면">💡 매수관심&강한매수를 다 매수했다면?</button>
