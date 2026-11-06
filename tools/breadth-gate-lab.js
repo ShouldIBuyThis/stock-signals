@@ -48,6 +48,15 @@ console.log('\n[1] 중복 — 현행(v22) 표본을 v21 바닥권 × 순신고�
 const cells = [['바닥권 O · 순신고가<0', x => x.mb != null && x.mb < 30 && x.net < 0], ['바닥권 O · 순신고가≥0', x => x.mb != null && x.mb < 30 && x.net >= 0],
                ['바닥권 X · 순신고가<0', x => !(x.mb != null && x.mb < 30) && x.net < 0], ['바닥권 X · 순신고가≥0', x => !(x.mb != null && x.mb < 30) && x.net >= 0]];
 for (const [nm, f] of cells) console.log('   ' + nm.padEnd(26) + st(B0.strongBuy[3].filter(f)) + st(B0.strongBuy[5].filter(f)) + '   ' + st(B0.multi[3].filter(f)) + st(B0.multi[5].filter(f)));
+/* 상위 단계 후보(바닥권 ∩ 순신고가<T) — §2 앞/뒤 반 · §3 문턱 */
+console.log('\n[1-b] 상위 단계 후보: 바닥권 O ∩ 순신고가<T — 강한매수 +1·+3·+5 (전체 | 앞 반 | 뒤 반)  vs 나머지 바닥권');
+for (const T of [0.02, 0, -0.02, -0.05, -0.10]) {
+  const f = x => x.mb != null && x.mb < 30 && x.net != null && x.net < T, g = x => x.mb != null && x.mb < 30 && !(x.net != null && x.net < T);
+  const L = (k, fn, half) => [1, 3, 5].map(h => st(B0[k][h].filter(x => fn(x) && (half === 0 || (half === 1 ? x.d < mid : x.d >= mid))))).join('');
+  console.log(`   T=${String(T).padEnd(5)} 강매 ${L('strongBuy', f, 0)}| 앞 ${L('strongBuy', f, 1)}| 뒤 ${L('strongBuy', f, 2)}|| 나머지 ${L('strongBuy', g, 0)}`);
+  console.log(`   ${''.padEnd(7)} 다중 ${L('multi', f, 0)}| 앞 ${L('multi', f, 1)}| 뒤 ${L('multi', f, 2)}|| 나머지 ${L('multi', g, 0)}`);
+}
+if (process.argv.includes('--cells-only')) process.exit(0);
 
 function show(nm, R) {
   for (const k of ['strongBuy', 'multi']) {
