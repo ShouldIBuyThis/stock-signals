@@ -90,7 +90,13 @@ RARE_RULES = {"R5_SEMI": ("SOXL", "SOXX"), "R10_NVDA": ("NVDA",)}
 #   K_LLD_UP  장족십자 도지 · 볼밴 상단 근처(pos 0.8~1, 상단 안) · RSI 50~70 — 10일 상승 학습 67%(32) → 시험 74%(24) vs 평소 55%
 #   K_HW_UP   고파동 캔들   · 같은 위치·RSI                       — 10일 상승 학습 76%(43) → 시험 65%(27) vs 평소 55%
 # 정의는 연구 도구와 같다(볼밴 표본표준편차 ddof=1, RSI ewm(1/14), ATR14 = 실제 진폭 14일 평균). 등급·점수에는 쓰지 않는다(참고 표시).
-RESEARCH_CODES = {"K_LLD_UP": "장족십자 도지 · 상단 근처 상승 지속 후보", "K_HW_UP": "고파동 캔들 · 상단 근처 상승 지속 후보"}
+RESEARCH_CODES = {"K_LLD_UP": "장족십자 도지 · 상단 근처 상승 지속 후보", "K_HW_UP": "고파동 캔들 · 상단 근처 상승 지속 후보",
+    # 2026-11-06 사용자 지시 "세 후보 모두 활용하되 기존 매수 점수는 변경하지 마세요"(표시 전용 · 등급·점수에 안 씀)
+    #   K_FLAG  상승 깃발 돌파 + 맥락 + 확인 캔들 — tools/chart-pattern-lab.py flag_combo() (run 42221750347: 10일 61% vs 55%, 153건)
+    #   K_TOP3  과열 + 거래량 3배 + 볼밴 상단 밖→안 + 전일 저가 이탈 — chart-pattern-lab.py top3_mask() (60일 큰 하락 27% vs 11%, 11건)
+    #   K_SV1~3 1년 저점 대비 +100/200/300% 급등 + 거래량 3배 — tools/surge-volume-lab.py surge_tiers() (60일 −25% 40/45/50% vs 34/45/50%)
+    "K_FLAG": "상승 깃발 돌파 · 상승 지속 후보", "K_TOP3": "과열 뒤 거래량 폭증·볼밴 복귀·저가 이탈 · 희귀 고점 주의",
+    "K_SV1": "1년 +100%↑ 급등 + 거래량 3배", "K_SV2": "1년 +200%↑ 급등 + 거래량 3배", "K_SV3": "1년 +300%↑ 급등 + 거래량 3배"}
 
 # 코드 → (종류, 짧은 이름). 원장(hist)에는 코드만 쉼표로 남는다.
 CODES = {
@@ -346,7 +352,59 @@ def flag_series(o, h, l, c, v, ticker=""):
         o10 = _lt(c, lo10); prev_run = np.concatenate([[0], _runlen(o10)[:-1]])
         out["R10_NVDA"] = _lt(np.fmin(r9, _shift(r9)), 35 + 1e-9) & ~o10 & (prev_run >= 1) & _gt(c, o)
     out.update(research_candles(o, h, l, c))
+    out.update(research_patterns(o, h, l, c, v))
     return out
+
+
+def _ctx_rsi_band(c):
+    """연구 도구(candle-context-lab)와 같은 RSI(ewm 1/14)·볼밴(20, 표본표준편차 2σ) 상단."""
+    d = np.diff(c, prepend=c[0])
+    au = pd.Series(np.clip(d, 0, None)).ewm(alpha=1 / 14, adjust=False).mean().to_numpy()
+    ad = pd.Series(np.clip(-d, 0, None)).ewm(alpha=1 / 14, adjust=False).mean().to_numpy()
+    with np.errstate(invalid="ignore", divide="ignore"):
+        R = 100 - 100 / (1 + au / np.where(ad == 0, np.nan, ad))
+    m = pd.Series(c).rolling(20).mean().to_numpy(); sd = pd.Series(c).rolling(20).std().to_numpy()
+    return R, m + 2 * sd
+
+
+def research_patterns(o, h, l, c, v):
+    """K_FLAG · K_TOP3 · K_SV1~3 — 대조: tools/test_pattern_flags.py (chart-pattern-lab·surge-volume-lab 함수와 봉 단위 비교)."""
+    N = len(c); R, up = _ctx_rsi_band(c)
+    with np.errstate(invalid="ignore"):
+        out_up = np.nan_to_num(c > up).astype(bool)
+        rng = h - l; body = np.abs(c - o) / np.where(rng > 0, rng, np.nan)
+        bullc = np.nan_to_num((c > o) & (body >= 0.5)).astype(bool)
+    # ① 상승 깃발: 깃대 10봉 +15%↑ → 5~15봉 깃발(깃대 고가 +1% 넘지 않음 · 깃대 상승분 절반 넘게 안 밀림) → 깃발 최고가 첫 상향 돌파
+    flag = np.zeros(N, bool)
+    for i in range(7, N):
+        for fl in range(5, 16):
+            p = i - 1 - fl
+            if p < 11: break
+            if c[p] / c[p - 10] - 1 < 0.15: continue
+            seg_h, seg_l = h[p + 1:i].max(), l[p + 1:i].min()
+            if seg_h <= h[p] * 1.01 and (c[p] - seg_l) <= 0.5 * (c[p] - c[p - 10]) and c[i] > seg_h and c[i - 1] <= seg_h:
+                flag[i] = True; break
+    Rn = np.nan_to_num(R, nan=50)
+    k_flag = flag & (Rn < 70) & ~out_up & bullc
+    # ② 고점 3중: 과열 맥락(최근 10일 RSI≥70 · 52주 고가 5% 안 · 60일 급등 ≥ max(30%, 8u)) ∧ 직전 5일 거래량 3배 ∧ 상단 밖→안 ∧ 종가<전일 저가
+    u = pd.Series((h - l) / c).rolling(60).median().to_numpy()
+    vs = pd.Series(v).rolling(20).mean().to_numpy()
+    with np.errstate(invalid="ignore", divide="ignore"):
+        vr = v / np.where(vs > 0, vs, np.nan)
+    hi250 = pd.Series(h).rolling(250, min_periods=120).max().to_numpy(); rmax10 = pd.Series(R).rolling(10).max().to_numpy()
+    top3 = np.zeros(N, bool)
+    for i in range(61, N):          # 사이트는 1년치(약 250봉)만 받는다 → 지표가 계산되는 봉부터(연구 집계는 260봉부터였다)
+        if np.isnan(u[i]) or np.isnan(hi250[i - 1]): continue
+        run = c[i] / l[i - 60:i + 1].min() - 1
+        if not (rmax10[i] >= 70 and c[i] >= 0.95 * hi250[i - 1] and run >= max(0.30, 8 * u[i])): continue
+        top3[i] = bool(np.nanmax(vr[i - 5:i]) >= 3) and bool(out_up[i - 1] and not out_up[i]) and c[i] < l[i - 1]
+    # ③ 급등 + 거래량: 1년(250봉) 최저가 대비 급등 등급 ∧ 오늘 포함 5일 안 거래량이 직전 20일 평균의 3배↑
+    vs1 = pd.Series(v).shift(1).rolling(20).mean().to_numpy()
+    with np.errstate(invalid="ignore", divide="ignore"):
+        vr1 = v / np.where(vs1 > 0, vs1, np.nan); surge = c / pd.Series(l).rolling(250, min_periods=200).min().to_numpy() - 1   # 국장 1년 ≈ 245봉
+    v3 = pd.Series(np.nan_to_num(vr1) >= 3).astype(float).rolling(5).max().to_numpy() > 0
+    ok = v3 & ~np.isnan(surge); s_ = np.nan_to_num(surge, nan=-1)
+    return {"K_FLAG": k_flag, "K_TOP3": top3, "K_SV1": ok & (s_ >= 1) & (s_ < 2), "K_SV2": ok & (s_ >= 2) & (s_ < 3), "K_SV3": ok & (s_ >= 3)}
 
 
 def research_candles(o, h, l, c):

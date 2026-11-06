@@ -93,6 +93,28 @@ def patterns(o, h, l, c):
                     out["FIB"][i] = True
     return out
 
+def flag_combo(o, h, l, c):
+    """사이트 표시 후보 ① 상승 깃발 돌파 + 맥락(RSI<70·볼밴 상단 밖 아님) + 캔들(몸통 50%↑ 양봉) — pattern_flags K_FLAG 대조용."""
+    Kc, Z, R, *_ = cc.features(o, h, l, c)
+    body = np.abs(c - o) / np.where(h - l > 0, h - l, np.nan)
+    bullc = np.nan_to_num((c > o) & (body >= 0.5)).astype(bool)
+    Rn = np.nan_to_num(R, nan=50)
+    return patterns(o, h, l, c)["FLAG"] & (Rn < 70) & ~Z["OUT_UP"] & bullc
+
+def top3_mask(o, h, l, c, v):
+    """사이트 표시 후보 ② 과열 맥락 + 직전 5일 거래량 3배 + 볼밴 상단 밖→안 + 전일 저가 아래 마감 — pattern_flags K_TOP3 대조용."""
+    N = len(c); Kc, Z, R, *_ = cc.features(o, h, l, c)
+    u = pd.Series((h - l) / c).rolling(60).median().to_numpy()
+    vs = pd.Series(v).rolling(20).mean().to_numpy(); vr = v / np.where(vs > 0, vs, np.nan)
+    hi250 = pd.Series(h).rolling(250, min_periods=120).max().to_numpy(); rmax10 = pd.Series(R).rolling(10).max().to_numpy()
+    out = np.zeros(N, bool)
+    for i in range(61, N):          # 사이트 판정과 같은 워밍업(1년치 데이터용). 연구 집계(main)는 260봉부터.
+        if np.isnan(u[i]) or np.isnan(hi250[i - 1]): continue
+        run = c[i] / l[i - 60:i + 1].min() - 1
+        if not (rmax10[i] >= 70 and c[i] >= 0.95 * hi250[i - 1] and run >= max(0.30, 8 * u[i])): continue
+        out[i] = bool(np.nanmax(vr[i - 5:i]) >= 3) and bool(Z["OUT_UP"][i - 1] and not Z["OUT_UP"][i]) and c[i] < l[i - 1]
+    return out
+
 UP = {"W": "쌍바닥(W) 넥라인 돌파", "IHS": "역헤드앤숄더 돌파", "TRI_UP": "삼각수렴 위로 돌파", "FLAG": "상승 깃발 돌파", "FIB": "피보나치 0.5~0.618 지지 양봉"}
 DN = {"M": "쌍봉(M) 넥라인 이탈", "HS": "헤드앤숄더 넥라인 이탈", "TRI_DN": "삼각수렴 아래로 이탈"}
 REV_UP = {"W", "IHS"}
