@@ -1,11 +1,12 @@
 name: 도움말 승률표 3년 백테스트
 
 # 도움말 '현재 산식 검증' 표(💡·🔵·🟢·기준선)가 읽는 backtest/validation-3y.json을 만든다(백테스트 · 원장 아님).
-# 판정은 index.html strategyValidation() 그대로(tools/validation-3y.js). 주 1회 + 수동.
+# 판정은 index.html strategyValidation() 그대로(tools/validation-3y.js).
+# 2026-11-06 사용자 지시: "일주일에 한 번 월요일마다, 매일 하지 말고" → 월요일 07:41 KST(일 22:41 UTC) + 수동.
 on:
   workflow_dispatch:
   schedule:
-    - cron: '41 4 * * 0'
+    - cron: '41 22 * * 0'
 
 permissions:
   contents: write
