@@ -22,6 +22,14 @@ const IN = process.argv[2] || 'signals.json';
 const RAW = fs.readFileSync(IN, 'utf8');
 const base = JSON.parse(RAW);
 if (!(base.hist_fields || []).includes('pat')) H.die('hist_fields에 pat 없음 — main.py 2026-11-05 이후 데이터가 필요');
+/* VXN 주입 — raw.json은 macro.vxn에만 있다(winrate65-lab.js와 같은 처리). 빠지면 💡 강한다중이 0건이 된다. */
+const F = base.hist_fields, iD = F.indexOf('date'), iV = F.indexOf('market_vxn'), VXN = ((base.macro || {}).vxn) || {};
+let vfill = 0;
+for (const s of base.stocks) for (const r of s.hist || []) {
+  while (r.length <= iV) r.push(null);
+  if (r[iV] == null && VXN[r[iD]] != null) { r[iV] = +VXN[r[iD]]; vfill++; }
+}
+const RAW_IN = JSON.stringify(base);
 
 const BASEPUSH = 'baseOut[h].push({ret:(hs[i+h].price/row.price-1)*100, date:row.last_date});';
 const page = H.loadPage({ patch: [[BASEPUSH,
@@ -31,7 +39,8 @@ page.runInPage(`this.__run = j => { state.data = normalize(JSON.parse(j)); const
   H.forEach(h=>{ o.base[h]=(r._phaseRows.base[h]||[]).map(x=>({t:x.ticker,d:x.date,ret:x.ret,pat:x.pat||'',g:x.grade}));
                  o.multi[h]=(r._phaseRows.multi[h]||[]).map(x=>({t:x.ticker,d:x.date,ret:x.ret,k:x.tier})); });
   return JSON.stringify(o); };`);
-const R = JSON.parse(page.__run(RAW));
+const R = JSON.parse(page.__run(RAW_IN));
+console.log(`VXN 주입 ${vfill}칸`);
 
 const HS = [1, 3, 5, 10, 20];
 const isM = p => String(p || '').split(',').some(c => c.startsWith('M_'));
