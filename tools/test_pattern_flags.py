@@ -57,6 +57,14 @@ def expected(df, ticker):
         if ticker in tks:
             m = T[TN[tn]] & tp.recent(tp.oversold(P, rt, ddt, band), 20)
             e[code] = m & Fe[FN[fn_]] if fn_ else m
+    tc = _load("tc", "theme-combos.py")
+    Cx, Kd = tc.contexts(P), tc.candles(P)
+    if ticker in pf.THEME_DANGER["D_SEMI"]:
+        e["D_SEMI"] = Cx["종가 상단 밖"] & Kd["십자형(몸통≤10%)"]
+    if ticker in pf.THEME_DANGER["D_SKH"]:
+        e["D_SKH"] = Cx["고가만 상단 돌파"] & Kd["윗꼬리≥50%"]
+    if ticker in pf.THEME_DANGER["D_QUANT"]:
+        e["D_QUANT"] = Cx["체류 뒤 첫 재진입"]
     X = tt.prep(df); C = dict(tt.candles(X)); B = tt.band_trades(X, 20, 2)
     theme = pf.THEME_TRIM.get(ticker)
     if theme == "house":
@@ -70,7 +78,7 @@ def main():
     bad, hits = 0, {}
     for seed in range(30):
         df = synth(seed)
-        for tk in ("ITB", "IONQ", "AAPL", "SOXL", "CAT", "NVDA", "TSLA", "AMAT"):
+        for tk in ("ITB", "IONQ", "AAPL", "SOXL", "CAT", "NVDA", "TSLA", "AMAT", "SKHY"):
             got = pf.flag_series(*(df[k].to_numpy() for k in ("Open", "High", "Low", "Close", "Volume")), ticker=tk)
             exp = expected(df, tk)
             if set(got) != set(exp):

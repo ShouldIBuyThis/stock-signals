@@ -34,6 +34,17 @@ THEME_BUY = {
     "M_AMAT":  (("AMAT",), 30, -0.20, True, "ma5_run3", None, 20, "100%(8)", "100%(2)"),
 }
 
+# 테마 하락 패턴 — v22 산식 입력(evaluate가 매수 등급을 보류한다). 2026-11-06 사용자 지시 "산식에 넣어야지".
+# 출처: tools/theme-combos.py(run 42146129826) 테마별 1위 중 10년 20건+ · 마지막 20%에서도 방향 유지한 3개.
+#   D_SEMI  SOXL      종가 볼밴 상단(20·2σ, 표본 표준편차) 밖 + 십자형(몸통≤10%)   10일 하락 68%(22) vs 기준 41%
+#   D_SKH   SKHY      고가만 상단 돌파(종가는 안) + 윗꼬리≥50%                  20일 −10% 급락 40%(35) vs 28% (연구는 000660.KS)
+#   D_QUANT 양자      상단 밖 2일+ 체류 뒤 첫 재진입 (+ evaluate에서 그날 VXN≥25)    10일 하락 72%·급락 86%(29) vs 53%·66%
+THEME_DANGER = {
+    "D_SEMI": ("SOXL",),
+    "D_SKH": ("SKHY",),
+    "D_QUANT": ("IONQ", "QBTS", "RGTI", "INFQ", "QUBT"),
+}
+
 # 코드 → (종류, 짧은 이름). 원장(hist)에는 코드만 쉼표로 남는다.
 CODES = {
     "T_HOUSE": ("trim", "주택: 상단 밖 + 거래량 1.5배"),
@@ -46,6 +57,9 @@ CODES = {
     "B_BBLO": ("bounce", "과매도 뒤 볼밴 하단 재진입"),
     "B_MA5": ("bounce", "과매도 뒤 5일선 안착(2일)"),
     "B_G520": ("bounce", "과매도 뒤 5·20일선 골든크로스"),
+    "D_SEMI": ("danger", "반도체: 볼밴 상단 밖 십자형"),
+    "D_SKH": ("danger", "SK하이닉스: 고가만 상단 돌파 + 긴 윗꼬리"),
+    "D_QUANT": ("danger", "양자: 볼밴 위 체류 뒤 첫 재진입(VXN≥25일 때)"),
     "M_SEMI": ("theme_buy", "반도체: RSI≤35·−10%·하단 밖 뒤 5일선 3일 안착 + 200일선 위"),
     "M_IND": ("theme_buy", "산업재: RSI≤25·−20% 뒤 5일선 2일 안착"),
     "M_HOUSE": ("theme_buy", "주택: RSI≤35·−10% 뒤 20·60일선 골든크로스"),
@@ -186,6 +200,19 @@ def flag_series(o, h, l, c, v, ticker=""):
         if fn_:
             m = m & feat[fn_]
         out[code] = m
+
+    # ── 테마 하락 패턴 (theme-combos contexts·candles와 같은 정의 — 볼밴은 표본 표준편차 bbup1) ──
+    sd1 = s.rolling(20).std(ddof=1).to_numpy()
+    up1 = ma[20] + 2 * sd1
+    out1_ = _gt(c, up1)
+    run1 = _runlen(out1_)
+    if ticker in THEME_DANGER["D_SEMI"]:
+        out["D_SEMI"] = out1_ & _lt(body, 0.10 + 1e-9)
+    if ticker in THEME_DANGER["D_SKH"]:
+        out["D_SKH"] = _gt(h, up1) & ~out1_ & _gt(upw, 0.5 - 1e-9)
+    if ticker in THEME_DANGER["D_QUANT"]:
+        prev_out = _shift(out1_.astype(float)) > 0.5
+        out["D_QUANT"] = ~out1_ & prev_out & (_shift(run1.astype(float)) >= 2)
     return out
 
 
