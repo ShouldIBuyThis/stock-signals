@@ -658,6 +658,16 @@ html[data-theme="dark"] .badge.gOh,html[data-theme="dark"] .c-badge.gOh,html[dat
 .cr-row.cr-good .cr-list{font-size:13px}.cr-row.cr-bad .cr-list{color:#c0262d}
 .cr-more{margin-top:8px;font-size:11px;color:var(--muted)}.cr-more summary{cursor:pointer}
 .cr-more div{margin:3px 0;line-height:1.5}
+/* 최종 단순화 */
+.sb-none{font-size:14px;padding:10px 4px;color:var(--muted)}
+.md-tag{display:inline-block;font-size:11px;font-weight:700;border-radius:6px;padding:2px 7px;background:#eef0f3;color:#4b5563;margin-top:4px}.md-real{background:#dbeafe;color:#1d4ed8}
+.edu-gal{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px;margin:6px 0}
+.edu-card{display:flex!important;flex-direction:column;align-items:center;gap:2px;border:1px solid var(--line,#e5e7eb)!important;border-radius:8px;padding:6px 4px!important;background:var(--card,#fff)!important}
+.edu-card b{font-size:12px}.edu-card small{font-size:10px;color:var(--muted);text-align:center;line-height:1.3}
+.hl-why{font-size:14px;line-height:1.6;margin:6px 0}.hl-cmp{font-size:12px;color:var(--muted);margin-top:2px}
+.hl-list{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}.hl-chip{font:inherit;font-size:12px;border:1px solid var(--line,#e5e7eb);border-radius:8px;padding:4px 8px;background:var(--card,#fff);cursor:pointer;color:inherit}
+.hl-chip small{color:var(--muted)}.hl-guide{font-size:13px;line-height:1.6;margin:8px 0;padding:6px 8px;border-radius:8px;background:var(--bg2,#f8fafc)}.hl-guide small{color:var(--muted)}
+.hl-pred{font-size:12px;margin:4px 0}
 /* 단순화된 신호 줄 · 배지 */
 .vb{display:inline-block;font-size:10.5px;font-weight:700;border-radius:6px;padding:1px 6px;white-space:nowrap}
 .vb-g{background:#dcfce7;color:#15803d}.vb-y{background:#fff3bf;color:#8a6d00}.vb-n{background:#eef0f3;color:#6b7280}
@@ -4369,6 +4379,22 @@ const CANDLE_EDU = {
 const CODE_EDU = {B_HAMMER:"망치형", B_ENGULF:"상승장악형", B_MSTAR:"샛별형(상승)", X_ESTAR:"석별형", X_TOPBEAR:"장대음봉", O_TURN:"윗꼬리",
   T_QUANTUM:"교수형", D_SEMI:"도지", D_SKH:"윗꼬리", C_HANG:"교수형", C_SHOOT:"유성형", C_DOJI:"도지", C_UPW:"윗꼬리", C_LOWW:"아랫꼬리",
   C_STAR:"샛별 형성", C_BEAR:"음봉", C_BIGBEAR:"장대양봉 뒤 음봉", R_BLOW:"장대음봉"};
+/* 오늘 실제 일봉(ohlc60 마지막 봉)의 모양을 교육용 그림 이름으로 분류 — pattern_flags.py와 같은 문턱(몸통·꼬리 비율).
+   신호 코드에 캔들 모양이 없을 때(지표 신호) 카드에 '오늘 캔들' 그림을 붙이기 위한 것. 등급·판정에는 쓰지 않는다. */
+function todayShape(s){
+  const D = (s && s.ohlc60) || []; const r = D[D.length-1];
+  if (!r || !has(r[1]) || !has(r[2]) || !has(r[3]) || !has(r[4])) return null;
+  const [_, o, h, l, c] = r, rg = h - l; if (!(rg > 0)) return null;
+  const up = (h - Math.max(o,c))/rg, lo = (Math.min(o,c) - l)/rg, body = Math.abs(c-o)/rg;
+  const hiZone = has(s.bb_pos) ? s.bb_pos >= 60 : true;
+  if (lo >= 0.6 && body <= 0.3 && up <= 0.15) return hiZone ? "교수형" : "망치형";
+  if (up >= 0.6 && body <= 0.3 && lo <= 0.15) return "유성형";
+  if (body <= 0.1) return "도지";
+  if (up >= 0.5) return "윗꼬리";
+  if (lo >= 0.5) return "아랫꼬리";
+  if (c < o && body >= 0.6) return "음봉";
+  return null;
+}
 function eduGlyph(name, scale){
   const e = CANDLE_EDU[name]; if(!e) return "";
   const k = scale || 1, bars = e.bars, W = (14*bars.length+10)*k, Hh = 30*k, y = v => Hh - 2*k - v/10*(Hh-4*k);
@@ -4617,8 +4643,9 @@ function sbShortHit(x){
   return st.hit10==null ? "" : `과거 ${up?"상승":"하락"} ${pctS(st.hit10)} (${st.n}건)`;
 }
 function sbThumb(group){
-  const n = group.map(g=>CODE_EDU[g.code]).find(Boolean);
-  return n ? `<button class="edu-big sb-thumb" data-edubig="${esc(n)}" title="${esc(n)} — 눌러서 크게 (교육용 예시)">${eduGlyph(n, 0.9)}</button>` : `<span class="sb-thumb"></span>`;
+  const s = group[0].s;
+  const n = group.map(g=>CODE_EDU[g.code]).find(Boolean) || todayShape(s);
+  return n ? `<button class="edu-big sb-thumb" data-edubig="${esc(n)}" data-edutk="${esc(s.ticker)}" title="${esc(n)} — 눌러서 크게(교육용 그림 + 실제 차트)">${eduGlyph(n, 0.9)}</button>` : `<span class="sb-thumb"></span>`;
 }
 function sbCardHtml(group){
   const x = group[0], s = x.s, K = SB_KIND[x.kind], st = x.stat;
@@ -4673,15 +4700,16 @@ function sbBoardHtml(list){
   const groups = {};
   all.forEach(x=>{ ((groups[x.kind] = groups[x.kind] || {})[x.s.ticker] = groups[x.kind][x.s.ticker] || []).push(x); });
   const rank = x => (x.verdict==="75% 달성"?0:x.good?1:(x.rare||x.research)?2:3)*10 + (x.site?0:1);
-  const SHOW = 8;
+  const SHOW = 5;
   const sec = SB_ORDER.map(k=>{
     const K = SB_KIND[k];
     const rows = Object.values(groups[k]||{}).map(g=>g.sort((a,b)=>rank(a)-rank(b))).sort((a,b)=>rank(a[0])-rank(b[0]) || String(a[0].s.ticker).localeCompare(String(b[0].s.ticker)));
-    return `<div class="sb-group sb-${k}"><div class="sb-gh">${K.icon} <b>${K.title}</b> <small>${rows.length ? rows.length+"종목" : ""}</small></div>
-      ${rows.length ? rows.slice(0,SHOW).map(sbRowHtml).join("") : `<div class="sb-empty">현재 신호 없음</div>`}
-      ${rows.length > SHOW ? `<details class="sb-rest"><summary>${rows.length-SHOW}종목 더 보기</summary>${rows.slice(SHOW).map(sbRowHtml).join("")}</details>` : ""}
+    if (!rows.length) return "";   // 오늘 신호가 없는 유형은 자리 자체를 만들지 않는다
+    return `<div class="sb-group sb-${k}"><div class="sb-gh">${K.icon} <b>${K.title}</b> <small>${rows.length}종목</small></div>
+      ${rows.slice(0,SHOW).map(sbRowHtml).join("")}
+      ${rows.length > SHOW ? `<details class="sb-rest"><summary>전체 신호 보기 (${rows.length}종목)</summary>${rows.slice(SHOW).map(sbRowHtml).join("")}</details>` : ""}
     </div>`;
-  }).join("");
+  }).join("") || `<div class="sb-none">오늘 새로 발생한 신호가 없습니다.</div>`;
   return `<div class="section sb-board"><div class="section-h"><h2>🚦 오늘의 신호</h2><span class="sub">마지막 종가 기준 · 종목을 누르면 자세히</span></div>
     <div class="sb-legend"><span class="vb vb-g">✅ 검증</span> <span class="vb vb-y">🟡 연구 후보</span> <span class="vb vb-n">⚪ 평소 수준</span> <small>= 과거에 이 신호가 얼마나 믿을 만했나</small></div>
     ${sec}</div>`;
@@ -4698,6 +4726,7 @@ function researchFooterHtml(){
       모든 성과는 '신호가 그날 종가로 확정 → 다음 날 시가에 사거나 판다'로 계산해요.</div></details>
     <details class="sb-sec2"><summary>희귀 고적중 후보 규칙 ${idle.length}개</summary>${idle.map(([c,R])=>`<div class="sb-note"><b>${esc(R.title)}</b> (${esc(R.tickers)}) — ${esc(R.rule)}<br>
       학습 ${R.tr} · 검증 ${R.va} · 테스트 ${R.te} · 평소 ${R.base}(${R.lift}) · 평균 ${R.avg} · 최대 하락 중간 ${R.maeMed}/최악 ${R.maeWorst} · p=${R.p} — 유의성·수익성 확정 아님</div>`).join("")}</details>
+    <details class="sb-sec2"><summary>🕯 캔들 모양 예시 (교육용 그림)</summary><div class="edu-gal">${Object.keys(CANDLE_EDU).map(n=>`<button class="edu-big edu-card" data-edubig="${esc(n)}">${eduGlyph(n,1.4)}<b>${esc(n)}</b><small>${esc(CANDLE_EDU[n].d.split(" — ")[0])}</small></button>`).join("")}</div></details>
     <details class="sb-sec2"><summary>캔들 연구 자료</summary>
       ${todayCandleHtml(allStocks().filter(s => (state.market==="all" || (state.market==="kr" ? s._kr : !s._kr)) && !state.hidden.includes(s.ticker)))}
       ${themeCandleRankHtml()}</details>
@@ -4800,59 +4829,53 @@ function hlStockRow(s, hi){
     ${sbItemsFor(s).length ? `<div class="hl-s3">오늘 신호: ${sbItemsFor(s).slice(0,3).map(x=>SB_KIND[x.kind].icon+" "+esc(x.name)).join(" · ")}</div>` : ""}</button>`;
 }
 function hlPanelHtml(){
+  /* 2026-11-06 사용자 지시 — ① 결론 ② 근거(오늘·5일·20일) ③ 종목 ④ 확인할 것(일반 해석 예시) · 그래프·사례는 접기.
+     '관심종목(미국) N개' 기준임을 늘 밝힌다. 예측력은 과거 실측이 평소와 5%p 넘게 다를 때만 말한다. */
   const t = hlToday();
   if (!t.n) return "";
-  const bucket = hlBucket(t.n, t.hi.length, t.lo.length), H = hlHistStats(bucket), S = hlState(t, H);
-  const pctN = k => t.n ? Math.round(k/t.n*100) : 0;
-  const allPts = hlSeries(), per = state.hlPeriod || "3M";
-  const cnt = {"1M":21, "3M":63, "1Y":252, "3Y":756}[per] || 63;
-  const pts = allPts.slice(-cnt);
-  const dpp = (a,b) => a==null||b==null ? "" : (()=>{ const d = Math.round((a-b)*100); return d===0 ? "평소와 같음" : d>0 ? `평소보다 ${d}%p 높음` : `평소보다 ${-d}%p 낮음`; })();
-  const conc = H && H.topYear && H.topYear.share >= 0.5 ? `<div class="hl-warn">⚠ 이 상황의 ${Math.round(H.topYear.share*100)}%가 ${esc(H.topYear.y)}년에 몰려 있어요 — 특정 시기 성과일 수 있어요.</div>` : "";
-  const cases = (()=>{ if(!BREADTH_BT || !bucket) return ""; const rows = BREADTH_BT.rows; const starts = [];
-    let prev = false; rows.forEach((r,i)=>{ const on = hlBucket(r[1],r[2],r[3])===bucket; if(on && !prev) starts.push(i); prev = on; });
-    return starts.slice(-20).reverse().map(i=>{ const r = rows[i]; const ok = r[7]==null ? "" : r[7] > 0 ? "✅ 올랐음" : "❌ 내렸음";
-      const seg = rows.slice(Math.max(0,i-10), i+21), mx = Math.max(...seg.map(z=>z[9])), mn = Math.min(...seg.map(z=>z[9]));
-      const W = 300, Hs = 70, xx = j => j*(W-4)/Math.max(1,seg.length-1)+2, yy = v => 4+(1-(v-mn)/Math.max(1e-9,mx-mn))*(Hs-8);
-      const at = Math.min(10, i);
-      return `<details class="hl-case"><summary>${esc(r[0])} · 신고가 ${r[2]} · 신저가 ${r[3]} · 나스닥 5일 ${retS(r[6])} · 10일 ${retS(r[7])} ${ok}</summary>
-        <svg viewBox="0 0 ${W} ${Hs}" width="100%" style="max-width:420px"><polyline points="${seg.map((z,j)=>`${xx(j).toFixed(1)},${yy(z[9]).toFixed(1)}`).join(" ")}" fill="none" stroke="var(--text,#111)" stroke-width="1.4"/>
-          <line x1="${xx(at)}" x2="${xx(at)}" y1="2" y2="${Hs-2}" stroke="#3b82f6" stroke-dasharray="3 2"/><text x="${xx(at)+3}" y="12" font-size="10" fill="#3b82f6">신호일</text></svg>
-        <small>나스닥(QQQ) 종가 · 신호일 앞 10일 ~ 뒤 20일</small></details>`; }).join(""); })();
-  return `<details class="hl-box"><summary>📈📉 <b>52주 신고가 ${t.hi.length} · 신저가 ${t.lo.length}</b> <span class="pl-pill ${S.cls}" style="font-size:11px;padding:1px 7px;min-width:0">${esc(S.label)}</span> <span class="sub">관심종목 기준 · 눌러서 보기</span></summary>
-    <div class="hl-concl">
-      <div class="hl-state"><span class="pl-pill ${S.cls}">${esc(S.label)}</span></div>
-      <div class="hl-nums"><span>📈 52주 신고가 <b class="up">${t.hi.length}</b>개</span><span>📉 52주 신저가 <b class="down">${t.lo.length}</b>개</span><span>📊 분석 대상 <b>${t.n}</b>개</span></div>
-      <div class="hl-one">💬 관심종목 ${t.n}개 중 신고가 ${t.hi.length}개(${pctN(t.hi.length)}%), 신저가 ${t.lo.length}개(${pctN(t.lo.length)}%)예요. ${esc(S.why)}</div>
-      <div class="hl-scope">⚠ 미국 시장 전체의 신고가·신저가는 이 사이트가 받는 데이터(야후)에 없어서, <b>내 관심종목 안에서만</b> 셌어요.</div>
-    </div>
-    <div class="hl-sec"><div class="hl-h">${t.lo.length||t.hi.length ? "오늘 기록한 종목" : "오늘 52주 신고가·신저가 종목 없음"}</div>
-      ${t.lo.length ? `<div class="hl-sub">📉 52주 신저가 ${t.lo.length}개</div>${t.lo.map(s=>hlStockRow(s,false)).join("")}` : ""}
-      ${t.hi.length ? `<div class="hl-sub">📈 52주 신고가 ${t.hi.length}개</div>${t.hi.map(s=>hlStockRow(s,true)).join("")}` : ""}
-    </div>
-    <div class="hl-sec"><div class="hl-h">📅 과거 비슷한 상황에서는? <small>${bucket ? esc(HL_BUCKET_LABEL[bucket]) : ""}</small></div>
-      ${H ? `<table class="hl-tbl"><tr><th></th><th>이런 날</th><th>평소</th><th>차이</th></tr>
-        <tr><td>나스닥 5일 뒤 상승 확률</td><td><b>${pctS(H.same.up5)}</b></td><td>${pctS(H.base.up5)}</td><td>${dpp(H.same.up5,H.base.up5)}</td></tr>
-        <tr><td>나스닥 10일 뒤 상승 확률</td><td><b>${pctS(H.same.up10)}</b></td><td>${pctS(H.base.up10)}</td><td>${dpp(H.same.up10,H.base.up10)}</td></tr>
-        <tr><td>5일 뒤 평균 수익률</td><td>${retS(H.same.avg5)}</td><td>${retS(H.base.avg5)}</td><td></td></tr>
-        <tr><td>10일 뒤 평균 수익률</td><td>${retS(H.same.avg10)}</td><td>${retS(H.base.avg10)}</td><td></td></tr>
-        <tr><td>10일 안 평균 최대 하락폭</td><td>${retS(H.same.mdd)}</td><td>${retS(H.base.mdd)}</td><td></td></tr></table>
-        <div class="hl-note2">이런 날 ${H.same.days}일(연속 구간 ${H.runs}번) · 분석 기간 ${esc(H.period.join("~"))} · 하루하루가 이어져 있어 실제 독립 표본은 구간 수에 가까워요.</div>${conc}`
-        : `<div class="hl-note2">과거 자료를 불러오는 중이에요.</div>`}
-    </div>
-    <div class="hl-sec"><div class="hl-h">시장 흐름 그래프</div>
+  const allPts = hlSeries();
+  const avg = (k, n) => { const a = allPts.slice(-n); return a.length ? a.reduce((z,p)=>z+p[k],0)/a.length : null; };
+  const nh = t.hi.length, nl = t.lo.length, n = t.n, pc = k => Math.round(k/n*100);
+  const h5 = avg("nh",5), l5 = avg("nl",5), h20 = avg("nh",20), l20 = avg("nl",20);
+  let concl, cls, kind;
+  if ((nh + nl) / n < 0.03) { concl = "방향 불분명"; cls = "pl-yellow"; kind = "quiet"; }
+  else if (nh >= 2*Math.max(nl,1) && nh/n >= 0.05) { concl = "시장 강세 쪽"; cls = "pl-green"; kind = "high"; }
+  else if (nl >= 2*Math.max(nh,1) && nl/n >= 0.05) { concl = "약세 주의"; cls = "pl-red"; kind = "low"; }
+  else { concl = "방향 불분명"; cls = "pl-yellow"; kind = "mixed"; }
+  const bucket = hlBucket(n, nh, nl), H = hlHistStats(bucket);
+  let pred = "예측력 미확인";
+  if (H && H.same.days >= 30 && H.same.up10!=null && H.base.up10!=null){
+    const d = Math.round((H.same.up10 - H.base.up10)*100);
+    pred = Math.abs(d) < 5 ? `예측력 미확인 — 과거 같은 상황에서 나스닥 10일 뒤 상승 ${pctS(H.same.up10)}, 평소 ${pctS(H.base.up10)}로 비슷했어요`
+                           : `과거 같은 상황에서 나스닥 10일 뒤 상승 ${pctS(H.same.up10)}(평소 ${pctS(H.base.up10)}, ${d>0?"+":""}${d}%p)`;
+  }
+  const chg = (cur, a, lab) => a==null ? "" : `${lab} 평균 ${a.toFixed(1)}개 ${cur > a+0.5 ? "보다 많음 ↑" : cur < a-0.5 ? "보다 적음 ↓" : "와 비슷"}`;
+  const guide = {
+    high: "🟢 신고가가 퍼지는 중이면 — 상승 추세 종목과 거래량이 함께 붙는지 확인",
+    low:  "🔴 신저가가 늘어나는 중이면 — 새로 사기 전에 시장 약세와 추가 하락 위험을 먼저 확인",
+    quiet:"🟡 신고가·신저가 모두 적으면 — 시장 방향이 뚜렷하지 않으니 다른 신호와 함께 판단",
+    mixed:"🟡 신고가·신저가가 섞여 있으면 — 시장 방향이 뚜렷하지 않으니 다른 신호와 함께 판단"}[kind];
+  const per = state.hlPeriod || "3M", cnt = {"1M":21, "3M":63, "1Y":252, "3Y":756}[per] || 63;
+  const stockLine = (s, hi) => `<button class="hl-chip" data-rankgoto="${esc(s.ticker)}" data-rank-sort="overall"><b>${esc(s.ticker)}</b> ${esc(s.name||"")} <small>${hi?"신고가":"신저가"} · ${fmtPrice(s)}</small></button>`;
+  return `<details class="hl-box" open><summary>📉 <b>52주 신고가·신저가</b> <span class="pl-pill ${cls}" style="font-size:12px;padding:2px 8px;min-width:0">${esc(concl)}</span> <span class="sub">내 관심종목(미국) ${n}개 기준</span></summary>
+    <div class="hl-why"><b>왜?</b> 오늘 신고가 <b class="up">${nh}개</b>(${pc(nh)}%) · 신저가 <b class="down">${nl}개</b>(${pc(nl)}%) / 조사 ${n}개
+      <div class="hl-cmp">신고가: ${chg(nh,h5,"최근 5일")} · ${chg(nh,h20,"20일")}<br>신저가: ${chg(nl,l5,"최근 5일")} · ${chg(nl,l20,"20일")}</div></div>
+    ${nh||nl ? `<div class="hl-list">${t.lo.map(s=>stockLine(s,false)).join("")}${t.hi.map(s=>stockLine(s,true)).join("")}</div>` : `<div class="hl-note2">오늘 52주 신고가·신저가를 기록한 관심종목이 없어요.</div>`}
+    <div class="hl-guide">${guide}<br><small>일반적인 해석 예시예요. 매수·매도 지시가 아니에요.</small></div>
+    <div class="hl-pred">📊 ${esc(pred)}</div>
+    <div class="hl-scope">⚠ NYSE 전체가 아니라 이 사이트 관심종목 안에서만 센 숫자예요(전체 시장 집계는 데이터가 없어요).</div>
+    <details class="hl-more"><summary>📈 그래프 보기</summary>
       <div class="hl-per">${["1M","3M","1Y","3Y"].map(k=>`<button class="chip ${per===k?"on":""}" data-hlper="${k}">${{"1M":"1개월","3M":"3개월","1Y":"1년","3Y":"3년"}[k]}</button>`).join("")}</div>
-      <div class="hl-legend"><span style="color:#e5484d">━ 신고가 수</span> <span style="color:#3b82f6">━ 신저가 수</span> <span>▮ 연한 막대 = 둘의 차이</span> <span style="color:#3b82f6">▲ 신저가 우세 시작일</span></div>
-      ${hlChartSvg(pts)}
-      <div class="hl-one">💬 ${esc(hlTrendSentence(allPts))}</div>
-      <small class="hl-tip">그래프에 마우스를 올리거나 길게 누르면 그날 종목 목록이 보여요.</small>
-    </div>
-    <details class="hl-more"><summary>📅 과거 비슷했던 날 보기 · 상세</summary>
-      ${cases || "<div class='hl-note2'>과거 자료를 불러오는 중이에요.</div>"}
-      <div class="hl-note2"><b>이 지표를 어떻게 쓰나</b> — 신고가·신저가 수만으로 사고팔지 않고, 반등·추세 신호를 볼 때 시장 분위기를 확인하는 보조 자료로 써요.
-        예) 신저가가 늘면서 하락 추세가 이어지면 추가 하락 위험 확인 · 신저가가 줄면서 반등 캔들이 나오면 바닥 가능성 확인 · 신고가가 늘면 상승 추세 강화 확인.
-        <b>이 관계들은 가설이에요</b>(위 표 말고는 검증하지 않았어요). 기존 매수 산식에 넣는 안은 검증에서 통과하지 못해 반영하지 않았어요.</div>
-      <div class="hl-note2">정의: 종가가 52주 최고가(최저가)의 1% 안이면 신고가(신저가)권 · 관심종목 미국 종목만 · 과거 = 야후 수정주가 10년(${BREADTH_BT?esc(BREADTH_BT.generated_at):"—"} 생성) · 오늘 = 사이트 원장.</div>
+      <div class="hl-legend"><span style="color:#e5484d">━ 신고가 수</span> <span style="color:#3b82f6">━ 신저가 수</span> <span>▮ 둘의 차이</span></div>
+      ${hlChartSvg(allPts.slice(-cnt))}
+      <div class="hl-one">💬 ${esc(hlTrendSentence(allPts))}</div></details>
+    <details class="hl-more"><summary>📅 과거 비슷했던 날 · 숫자 자세히</summary>
+      ${H ? `<table class="hl-tbl"><tr><th></th><th>이런 날</th><th>평소</th></tr>
+        <tr><td>나스닥 5일 뒤 상승</td><td>${pctS(H.same.up5)}</td><td>${pctS(H.base.up5)}</td></tr>
+        <tr><td>나스닥 10일 뒤 상승</td><td>${pctS(H.same.up10)}</td><td>${pctS(H.base.up10)}</td></tr>
+        <tr><td>10일 뒤 평균</td><td>${retS(H.same.avg10)}</td><td>${retS(H.base.avg10)}</td></tr>
+        <tr><td>10일 안 최대 하락 평균</td><td>${retS(H.same.mdd)}</td><td>${retS(H.base.mdd)}</td></tr></table>
+        <div class="hl-note2">이런 날 ${H.same.days}일(연속 구간 ${H.runs}번) · ${esc(H.period.join("~"))}</div>` : `<div class="hl-note2">과거 자료를 불러오는 중이에요.</div>`}
     </details>
   </details>`;
 }
@@ -8172,7 +8195,12 @@ document.getElementById("main").addEventListener("click", e=>{
   const marketEventBtn = e.target.closest("[data-market-event]");
   if(marketEventBtn){ e.preventDefault(); e.stopPropagation(); openMarketEventModal(marketEventBtn.dataset.marketEvent); return; }
   const eb = e.target.closest("[data-edubig]");
-  if (eb){ e.preventDefault(); const n = eb.dataset.edubig; openModal(`<h3>🕯 ${esc(n)} <small style="font-size:12px;color:var(--muted)">교육용 예시</small></h3><div style="text-align:center;margin:10px 0">${eduGlyph(n, 4)}</div><p style="font-size:15px;line-height:1.7">${esc((CANDLE_EDU[n]||{}).d||"")}</p><p style="font-size:12px;color:var(--muted)">실제 가격이 아니라 모양을 설명하는 그림이에요. 점선 = 볼린저밴드${(CANDLE_EDU[n]||{}).bandLow?" 하단":" 상단"}.</p><div class="modal-actions"><button class="primary" onclick="closeModal()">닫기</button></div>`); return; }
+  if (eb){ e.preventDefault(); e.stopPropagation(); const n = eb.dataset.edubig, tk = eb.dataset.edutk; const st = tk ? allStocks().find(z=>z.ticker===tk) : null; const rc = st ? realChartSvg(st, true) : "";
+    openModal(`<h3>🕯 ${esc(n)}${st?` · ${esc(st.name||st.ticker)} (${esc(st.ticker)})`:""}</h3>
+      <div class="md-tag">교육용 그림 — 모양 설명</div><div style="text-align:center;margin:6px 0">${eduGlyph(n, 4)}</div>
+      <p style="font-size:15px;line-height:1.7;margin:4px 0 10px">${esc((CANDLE_EDU[n]||{}).d||"")}</p>
+      ${rc ? `<div class="md-tag md-real">실제 일봉 — 최근 40거래일 실측 가격</div>${rc}<div style="font-size:11px;color:var(--muted)">▼ = 마지막 거래일 · 주황 선 = 볼린저(20, 2σ) · 아래 막대 = 거래량</div>` : (tk ? `<div style="font-size:12px;color:var(--muted)">이 종목의 실제 일봉 데이터는 다음 갱신부터 보여요.</div>` : "")}
+      <div class="modal-actions"><button class="primary" onclick="closeModal()">닫기</button></div>`); return; }
   const rb = e.target.closest("[data-rcbig]");
   if (rb){ e.preventDefault(); const st = allStocks().find(z=>z.ticker===rb.dataset.rcbig); if(st) openModal(`<h3>📈 ${esc(st.name||st.ticker)} (${esc(st.ticker)}) <small style="font-size:12px;color:var(--muted)">실제 발생 사례 · 최근 40거래일</small></h3>${realChartSvg(st, true)}<div class="modal-actions"><button class="primary" onclick="closeModal()">닫기</button></div>`); return; }
   const hlp = e.target.closest("[data-hlper]");
