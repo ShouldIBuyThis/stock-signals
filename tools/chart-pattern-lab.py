@@ -106,7 +106,7 @@ def top3_mask(o, h, l, c, v):
     N = len(c); Kc, Z, R, *_ = cc.features(o, h, l, c)
     u = pd.Series((h - l) / c).rolling(60).median().to_numpy()
     vs = pd.Series(v).rolling(20).mean().to_numpy(); vr = v / np.where(vs > 0, vs, np.nan)
-    hi250 = pd.Series(h).rolling(250, min_periods=120).max().to_numpy(); rmax10 = pd.Series(R).rolling(10).max().to_numpy()
+    hi250 = pd.Series(h).rolling(250, min_periods=240).max().to_numpy(); rmax10 = pd.Series(R).rolling(10).max().to_numpy()   # 사이트와 같은 52주(240봉↑)
     out = np.zeros(N, bool)
     for i in range(61, N):          # 사이트 판정과 같은 워밍업(1년치 데이터용). 연구 집계(main)는 260봉부터.
         if np.isnan(u[i]) or np.isnan(hi250[i - 1]): continue

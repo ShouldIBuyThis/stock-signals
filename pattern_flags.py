@@ -391,7 +391,8 @@ def research_patterns(o, h, l, c, v):
     vs = pd.Series(v).rolling(20).mean().to_numpy()
     with np.errstate(invalid="ignore", divide="ignore"):
         vr = v / np.where(vs > 0, vs, np.nan)
-    hi250 = pd.Series(h).rolling(250, min_periods=120).max().to_numpy(); rmax10 = pd.Series(R).rolling(10).max().to_numpy()
+    # 52주 고가 = 최근 1년(250봉, 국장은 1년치 ≈245봉) — 240봉 미만 종목은 52주 조건에서 뺀다(2026-11-06 검토 "120봉을 52주라 부르지 말 것")
+    hi250 = pd.Series(h).rolling(250, min_periods=240).max().to_numpy(); rmax10 = pd.Series(R).rolling(10).max().to_numpy()
     top3 = np.zeros(N, bool)
     for i in range(61, N):          # 사이트는 1년치(약 250봉)만 받는다 → 지표가 계산되는 봉부터(연구 집계는 260봉부터였다)
         if np.isnan(u[i]) or np.isnan(hi250[i - 1]): continue
@@ -401,7 +402,7 @@ def research_patterns(o, h, l, c, v):
     # ③ 급등 + 거래량: 1년(250봉) 최저가 대비 급등 등급 ∧ 오늘 포함 5일 안 거래량이 직전 20일 평균의 3배↑
     vs1 = pd.Series(v).shift(1).rolling(20).mean().to_numpy()
     with np.errstate(invalid="ignore", divide="ignore"):
-        vr1 = v / np.where(vs1 > 0, vs1, np.nan); surge = c / pd.Series(l).rolling(250, min_periods=200).min().to_numpy() - 1   # 국장 1년 ≈ 245봉
+        vr1 = v / np.where(vs1 > 0, vs1, np.nan); surge = c / pd.Series(l).rolling(250, min_periods=240).min().to_numpy() - 1   # 1년 저가 · 국장 1년 ≈ 245봉 · 240봉 미만은 판정 안 함
     v3 = pd.Series(np.nan_to_num(vr1) >= 3).astype(float).rolling(5).max().to_numpy() > 0
     ok = v3 & ~np.isnan(surge); s_ = np.nan_to_num(surge, nan=-1)
     return {"K_FLAG": k_flag, "K_TOP3": top3, "K_SV1": ok & (s_ >= 1) & (s_ < 2), "K_SV2": ok & (s_ >= 2) & (s_ < 3), "K_SV3": ok & (s_ >= 3)}

@@ -31,7 +31,7 @@ def surge_tiers(o, h, l, c, v):
     """사이트 표시 후보 ③ 1년 저점 대비 급등 등급(1=100~200%, 2=200~300%, 3=300%↑) ∧ 직전 5일(오늘 포함) 거래량 3배 — pattern_flags K_SV1~3 대조용."""
     N = len(c)
     vs = pd.Series(v).shift(1).rolling(20).mean().to_numpy(); vr = v / np.where(vs > 0, vs, np.nan)
-    lo250 = pd.Series(l).rolling(250, min_periods=200).min().to_numpy(); surge = c / lo250 - 1   # 사이트 1년치용 워밍업(연구 집계는 260봉부터)
+    lo250 = pd.Series(l).rolling(250, min_periods=240).min().to_numpy(); surge = c / lo250 - 1   # 사이트와 같은 1년(240봉↑) · 연구 집계는 260봉부터
     v3 = pd.Series(np.nan_to_num(vr) >= 3).astype(float).rolling(5).max().to_numpy() > 0
     ok = v3 & ~np.isnan(surge)
     s_ = np.nan_to_num(surge, nan=-1)

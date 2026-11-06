@@ -4647,16 +4647,17 @@ function ledgerTrack(code, kind, h){
   const F = histFields(), iD = F.indexOf("date"), iP = F.indexOf("price"), iPat = F.indexOf("pat"), iO = F.indexOf("open"), iEP = F.indexOf("ext_pair");
   const isHit = r => code==="EXT_PAIR" ? (iEP>=0 && Number(r[iEP])===1) : (iPat>=0 && String(r[iPat]||"").split(",").includes(code));
   const up = kind==="green" || kind==="blue";
-  let done = [], pend = 0, first = null;
+  let done = [], pend = 0, noOpen = 0, first = null;
   (d.stocks||[]).forEach(st=>{ const hs = st._hist || [];
     hs.forEach((r,i)=>{ if(!Array.isArray(r) || !isHit(r)) return;
       if(!first || r[iD] < first) first = r[iD];
       if (i+h >= hs.length){ pend++; return; }
       const e = iO>=0 && has(hs[i+1][iO]) ? hs[i+1][iO] : null, x = hs[i+h][iP];
-      if (!has(e) || !has(x)) { pend++; return; }
+      if (!has(e)) { noOpen++; return; }          // 시가 열(open)은 2026-11-05부터 원장에 쌓인다 — 그 전 신호는 다음 날 시가 진입을 잴 수 없다
+      if (!has(x)) { pend++; return; }
       done.push((x/e-1)*100); }); });
   const hit = done.length ? done.filter(v=> up ? v>0 : v<0).length/done.length : null;
-  return (d._ltrack[key] = {n:done.length, hit, avg: done.length ? done.reduce((a,b)=>a+b,0)/done.length : null, pend, first, h});
+  return (d._ltrack[key] = {n:done.length, hit, avg: done.length ? done.reduce((a,b)=>a+b,0)/done.length : null, pend, noOpen, first, h});
 }
 /* ══════════ 🚦 오늘의 신호 보드 (2026-11-06 사용자 지시 — 두 번째 화면 재설계) ══════════
    "어떤 종목에, 무슨 반등 또는 위험 신호가 떴고, 과거에는 얼마나 잘 맞았으며, 지금 어떤 행동을 고려해야 하나"를 3초 안에.
@@ -4750,17 +4751,17 @@ const RARE_FACTS = {
     one:"크게 오른 종목이 거래량 폭증 뒤 볼밴 위에서 내려오고 전날 저가까지 깬 날이에요.",
     hit:"60일 안 큰 하락 27%(3건)", base:"과열 종목 평소 11%", n:"11건(희귀)", badge:"🟠 희귀 후보",
     detail:"과열 맥락(최근 10일 RSI≥70 · 52주 고가 5% 안 · 60일 급등 ≥ max(30%, 진폭 8배)) ∧ 직전 5일 거래량 20일 평균 3배↑ ∧ 볼밴 상단 밖→안 ∧ 종가<전일 저가. 큰 하락 = max(20%, 진폭 8배) — 11건 중 3건. 10/20/60일 뒤 종가 하락 82/64/55% · −25% 폭락 0/0/27% · 평균 −3.9/−2.2/−1.3% (run 42225576867). 2중(거래량3배+볼밴 복귀)만으로는 과열 맥락 안 78건 60일 −25% 17%(과열 평소 21%) — 3중일 때만 다름 · 확정 경고 아님 (run 42221750347)"},
-  K_SV1: {title:"⚠️ 급등 + 거래량 폭증", kind:"orange", suffix:"", simple:true, mainOnly:true, caution:true, h:60,
-    one:"1년 저점보다 2배 넘게 오른 종목에 거래량이 평소 3배 넘게 몰렸어요. 이런 때 크게 빠진 경우가 조금 더 많았어요.",
-    hit:"60일 안 −25% 하락 40%", base:"같은 급등 평소 34%", n:"681건", badge:"⚠️ 위험 안내",
+  K_SV1: {title:"⚠️ 급등 + 거래량 폭증 · 변동성 주의", kind:"orange", suffix:"", simple:true, mainOnly:true, caution:true, h:60,
+    one:"1년 저점보다 2배 넘게 오른 종목에 거래량이 평소 3배 넘게 몰렸어요. 위아래로 크게 출렁일 수 있다는 안내예요 — 매도 신호는 아니에요.",
+    hit:"60일 안 −25% 하락 40%", base:"같은 급등 평소 34%", n:"681건", badge:"⚠️ 변동성 주의",
     detail:"1년(250봉) 최저가 대비 +100%↑ ∧ 오늘 포함 5일 안 거래량이 직전 20일 평균 3배↑ · 일반 주식(레버리지 제외). −25% 하락 10/20/60일 11/19/40% (급등 평소 8/16/34%) · 앞 34%(286)·뒤 44%(395) vs 평소 23·40% · 계속 상승 20/60일 30/30% (run 42222284507)"},
-  K_SV2: {title:"⚠️ 급등 + 거래량 폭증", kind:"orange", suffix:"", simple:true, mainOnly:true, caution:true, h:60,
-    one:"1년 저점보다 3배 넘게 오른 종목에 거래량이 몰렸어요. 이 정도 급등이면 거래량과 상관없이 크게 빠진 경우가 절반 가까이 됐어요.",
-    hit:"60일 안 −25% 하락 45%", base:"같은 급등 평소 45%", n:"355건", badge:"⚠️ 위험 안내",
+  K_SV2: {title:"⚠️ 급등 + 거래량 폭증 · 변동성 주의", kind:"orange", suffix:"", simple:true, mainOnly:true, caution:true, h:60,
+    one:"1년 저점보다 3배 넘게 오른 종목에 거래량이 몰렸어요. 이 정도 급등이면 거래량과 상관없이 위아래로 크게 출렁인 경우가 많았어요 — 매도 신호는 아니에요.",
+    hit:"60일 안 −25% 하락 45%", base:"같은 급등 평소 45%", n:"355건", badge:"⚠️ 변동성 주의",
     detail:"+200%↑ 구간 · 거래량 3배는 추가 위험 없음(45% vs 45%) — 위험은 급등 폭 자체 (run 42222284507)"},
-  K_SV3: {title:"⚠️ 급등 + 거래량 폭증", kind:"orange", suffix:"", simple:true, mainOnly:true, caution:true, h:60,
-    one:"1년 저점보다 4배 넘게 오른 종목에 거래량이 몰렸어요. 이 정도 급등이면 거래량과 상관없이 절반이 크게 빠졌어요.",
-    hit:"60일 안 −25% 하락 50%", base:"같은 급등 평소 50%", n:"244건", badge:"⚠️ 위험 안내",
+  K_SV3: {title:"⚠️ 급등 + 거래량 폭증 · 변동성 주의", kind:"orange", suffix:"", simple:true, mainOnly:true, caution:true, h:60,
+    one:"1년 저점보다 4배 넘게 오른 종목에 거래량이 몰렸어요. 이 정도 급등이면 거래량과 상관없이 절반은 한 번 크게 빠졌어요 — 매도 신호는 아니에요.",
+    hit:"60일 안 −25% 하락 50%", base:"같은 급등 평소 50%", n:"244건", badge:"⚠️ 변동성 주의",
     detail:"+300%↑ 구간 · 거래량 3배는 추가 위험 없음(50% vs 50%) — 위험은 급등 폭 자체 (run 42222284507)"},
   K_HW_UP: {title:"고파동 캔들 · 상단 근처 상승 지속", kind:"blue", suffix:" (연구 후보)", h:10,
     rule:"볼밴(20일, 2σ) 상단 근처(밴드 80~100% 위치, 상단 안) · RSI14 50~70 · 고파동(위·아래 꼬리 각 30%↑, 몸통 10~30%, 하루 진폭이 14일 평균의 1.3배↑)",
@@ -5007,6 +5008,12 @@ function researchFooterHtml(){
       <b>🟡 연구 후보</b> = 평소보다 나았지만 위 조건 중 일부(표본 수·최근 재현·통계 검정 등)를 못 채운 신호. <b>🟡 소표본</b> = 검증·테스트 모두 75% 넘었지만 테스트 5~9건.<br>
       <b>⚪ 평소 수준</b> = 그 모양이 나와도 과거 성적이 아무 날과 비슷했던 신호. 사이트 '강한매수'는 최근 실제 기록(원장)으로 같은 기준을 적용.<br>
       모든 성과는 '신호가 그날 종가로 확정 → 다음 날 시가에 사거나 판다'로 계산해요.</div></details>
+    ${(()=>{ /* 2026-11-06 검토 의견 "후보를 더 늘리기보다 새 데이터에서도 맞는지 추적" — 원장(그날 실제로 본 값)만으로 센다. 연구 숫자와 섞지 않는다. */
+      const TR = [["K_FLAG","blue",10,"상승"],["K_TOP3","orange",10,"하락"],["K_SV1","orange",20,"하락"],["K_SV2","orange",20,"하락"],["K_SV3","orange",20,"하락"],
+                  ["K_LLD_UP","blue",10,"상승"],["K_HW_UP","blue",10,"상승"],["EXT_PAIR","blue",10,"상승"],["R5_SEMI","green",5,"상승"],["R10_NVDA","green",10,"상승"]];
+      const rows = TR.map(([c,k,h,w])=>{ const t = ledgerTrack(c,k,h); const R = RARE_FACTS[c]||{};
+        return `<div class="sb-note"><b>${esc(R.title||c)}</b> — ${t && t.n ? `확정 ${t.n}건 · ${h}일 뒤 ${w} ${Math.round(t.hit*100)}% · 평균 ${t.avg>=0?"+":""}${t.avg.toFixed(1)}%` : "확정 0건"}${t && t.pend ? ` · 결과 대기 ${t.pend}건` : ""}${t && t.noOpen ? ` · 시가 기록 전이라 제외 ${t.noOpen}건` : ""}${t && t.first ? ` · 첫 기록 ${esc(t.first)}` : ""}</div>`; }).join("");
+      return `<details class="sb-sec2"><summary>📈 새 데이터 추적 (연구 이후 실제 기록)</summary><div class="sb-note" style="color:var(--muted)">사이트가 그날 실제로 본 값(원장)으로만 셉니다. 다음 날 시가 진입 · 정해진 날 뒤 종가. 표본이 쌓일 때까지는 판단에 쓰지 마세요. 변동성 주의(−25% 하락)는 원장에 저가가 없어 20일 뒤 종가 방향으로만 봅니다.</div>${rows}</details>`; })()}
     <details class="sb-sec2"><summary>희귀·연구 후보 규칙 ${idle.length}개</summary>${idle.map(([c,R])=>R.simple ? `<div class="sb-note"><b>${esc(R.title)}</b> — ${esc(R.detail)}</div>` : `<div class="sb-note"><b>${esc(R.title)}</b> (${esc(R.tickers)}) — ${esc(R.rule)}<br>
       ${R.period ? `전체 ${R.te} · ${R.period}` : `학습 ${R.tr}${R.va!=="—"?` · 검증 ${R.va} · 테스트 ${R.te}`:` · 시험 ${R.te}`}`} · 평소 ${R.base}(${R.lift}) · 평균 ${R.avg} · 최대 하락 중간 ${R.maeMed}/최악 ${R.maeWorst}${R.p!=="—"?` · p=${R.p}`:""} — 유의성·수익성 확정 아님</div>`).join("")}</details>
     <details class="sb-sec2"><summary>🕯 캔들 모양 예시 (교육용 그림)</summary><div style="font-size:12.5px;margin:6px 2px">${basicLegend()}<br>${candleLightLegend()}</div><div class="edu-gal">${Object.keys(CANDLE_EDU).filter(n=>!CANDLE_BASIC.has(n)).map(n=>`<button class="edu-big edu-card" data-edubig="${esc(n)}">${eduGlyph(n,1.4)}<b>${candleLight(n)}${esc(n)}</b><small>${esc(CANDLE_EDU[n].d.split(" — ")[0])}</small></button>`).join("")}</div></details>
