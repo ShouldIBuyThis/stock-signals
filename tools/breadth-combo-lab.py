@@ -50,7 +50,7 @@ def main():
         if i - W < 0 or n[i] < 20 or n[i - W] < 20: return False
         c = [NHp[i] > NHp[i - W], A20p[i] > A20p[i - W], nl[i] < nl[i - W]]
         return all(cc for cc, u in zip(c, use) if u)
-    end = N - 21; start = max(260, end - 756)
+    end = N - 22; start = max(260, end - 756)      # i+1 시가 진입 · i+20 종가가 있어야 함(버그 수정, 기준 변경 아님)
     days = list(range(start, end + 1))
     ret = {k: np.array([(qc[i + k] / qo[i + 1] - 1) * 100 for i in range(N - k - 1)] + [np.nan] * (k + 1)) for k in KS}
     def stat(ix):
