@@ -693,7 +693,7 @@ html[data-theme="dark"] .badge.gOh,html[data-theme="dark"] .c-badge.gOh,html[dat
 .pl-green{background:#dcfce7;color:#15803d}
 .sb-legend{font-size:11px;margin:2px 0 8px;line-height:2}
 .sb-group{border:1px solid var(--line,#e5e7eb);border-radius:12px;padding:8px 10px;margin-bottom:10px;background:var(--card,#fff)}
-.sb-group.sb-green{border-left:4px solid #16a34a}.sb-group.sb-blue{border-left:4px solid #2563eb}.sb-group.sb-orange{border-left:4px solid #f59e0b}.sb-group.sb-red{border-left:4px solid #dc2626}
+.sb-group.sb-green{border-left:4px solid #16a34a}.sb-group.sb-blue{border-left:4px solid #2563eb}.sb-group.sb-orange{border-left:4px solid #f59e0b}.sb-group.sb-red{border-left:4px solid #dc2626}.sb-group.sb-caution{border-left:4px solid #eab308}
 .sb-gh{font-size:15px;margin-bottom:4px}.sb-gh small{color:var(--muted);font-size:11px;margin-left:4px}
 .sb-empty{font-size:12px;color:var(--muted);padding:6px 0}
 .sb-item>summary{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;cursor:pointer;padding:7px 0;border-top:1px dashed var(--line,#e5e7eb);list-style:none}
@@ -4692,8 +4692,11 @@ const SB_KIND = {
   blue:   {icon:"🔵", title:"추세전환·상승 지속", head:"추세 전환·상승 신호", pill:"pl-blue"},
   orange: {icon:"🟠", title:"단기과열·일부익절", head:"단기 과열", pill:"pl-orange"},
   red:    {icon:"🔴", title:"하락추세·고점 위험", head:"고점·하락 위험", pill:"pl-red"},
+  /* 2026-11-07 사용자 지적 "오늘의 신호는 단기과열인데 캔들 신호는 살 만함 — 기준이 뭐야" — 변동성 주의·희귀 고점 주의는
+     과열·익절 신호가 아니라 '위아래로 크게 움직일 수 있다'는 안내라 단기과열 묶음에서 빼 따로 둔다. 판정·등급은 그대로. */
+  caution:{icon:"⚠️", title:"주의 안내 (변동성·고점)", head:"주의 안내", pill:"pl-yellow"},
 };
-const SB_ORDER = ["green", "blue", "orange", "red"];
+const SB_ORDER = ["green", "blue", "orange", "red", "caution"];
 const SB_NAMES = {   /* signal-stats.json이 없을 때 쓰는 이름(정의는 pattern_flags.py SIGNAL_CODES·CODES와 같다) */
   B_DIVUP:"과매도 뒤 RSI 상승 다이버전스", B_ENGULF:"과매도 뒤 상승장악형", B_HAMMER:"볼밴 하단 망치형", B_MSTAR:"과매도 뒤 샛별형(상승반전)",
   B_VOLUP:"과매도 뒤 거래량 실린 양봉", B_SUPPORT:"120일 지지선 반등", B_STOCH:"과매도 뒤 스토캐스틱 K≤20 골든", B_BBLO:"과매도 뒤 볼밴 하단 재진입",
@@ -4749,19 +4752,19 @@ const RARE_FACTS = {
     one:"크게 오른 뒤 며칠 옆으로 쉬다가(깃발) 다시 위로 뚫고 힘 있는 양봉으로 마감한 날이에요.",
     hit:"10일 뒤 상승 61%", base:"평소 55%", n:"153건", badge:"🔵 연구 후보",
     detail:"깃대 10봉 +15%↑ → 5~15봉 깃발(깃대 고가 +1% 안 · 상승분 절반 넘게 안 밀림) → 깃발 최고가 첫 돌파 · RSI<70 · 볼밴 상단 밖 아님 · 몸통 50%↑ 양봉. 관심종목 89개 10년 · 다음 날 시가 · 3/5/10/20일 50/55/61/58% (평소 53/54/55/57) · 10일 앞 63%·뒤 59%·최근 20% 64% · 10일 평균 +5.0% (run 42221750347)"},
-  K_TOP3: {title:"희귀 고점 주의", kind:"orange", suffix:"", simple:true, mainOnly:true, caution:true, h:60,
+  K_TOP3: {title:"희귀 고점 주의", kind:"caution", suffix:"", simple:true, mainOnly:true, caution:true, h:60,
     one:"크게 오른 종목이 거래량 폭증 뒤 볼밴 위에서 내려오고 전날 저가까지 깬 날이에요.",
     hit:"60일 안 큰 하락 27%(3건)", base:"과열 종목 평소 11%", n:"11건(희귀)", badge:"🟠 희귀 후보",
     detail:"과열 맥락(최근 10일 RSI≥70 · 52주 고가 5% 안 · 60일 급등 ≥ max(30%, 진폭 8배)) ∧ 직전 5일 거래량 20일 평균 3배↑ ∧ 볼밴 상단 밖→안 ∧ 종가<전일 저가. 큰 하락 = max(20%, 진폭 8배) — 11건 중 3건. 10/20/60일 뒤 종가 하락 82/64/55% · −25% 폭락 0/0/27% · 평균 −3.9/−2.2/−1.3% (run 42225576867). 2중(거래량3배+볼밴 복귀)만으로는 과열 맥락 안 78건 60일 −25% 17%(과열 평소 21%) — 3중일 때만 다름 · 확정 경고 아님 (run 42221750347)"},
-  K_SV1: {title:"⚠️ 급등 + 거래량 폭증 · 변동성 주의", kind:"orange", suffix:"", simple:true, mainOnly:true, caution:true, h:60,
+  K_SV1: {title:"급등 + 거래량 폭증 · 변동성 주의", kind:"caution", suffix:"", simple:true, mainOnly:true, caution:true, h:60,
     one:"1년 저점보다 2배 넘게 오른 종목에 거래량이 평소 3배 넘게 몰렸어요. 위아래로 크게 출렁일 수 있다는 안내예요 — 매도 신호는 아니에요.",
     hit:"60일 안 −25% 하락 40%", base:"같은 급등 평소 34%", n:"681건", badge:"⚠️ 변동성 주의",
     detail:"1년(250봉) 최저가 대비 +100%↑ ∧ 오늘 포함 5일 안 거래량이 직전 20일 평균 3배↑ · 일반 주식(레버리지 제외). −25% 하락 10/20/60일 11/19/40% (급등 평소 8/16/34%) · 앞 34%(286)·뒤 44%(395) vs 평소 23·40% · 계속 상승 20/60일 30/30% (run 42222284507)"},
-  K_SV2: {title:"⚠️ 급등 + 거래량 폭증 · 변동성 주의", kind:"orange", suffix:"", simple:true, mainOnly:true, caution:true, h:60,
+  K_SV2: {title:"급등 + 거래량 폭증 · 변동성 주의", kind:"caution", suffix:"", simple:true, mainOnly:true, caution:true, h:60,
     one:"1년 저점보다 3배 넘게 오른 종목에 거래량이 몰렸어요. 이 정도 급등이면 거래량과 상관없이 위아래로 크게 출렁인 경우가 많았어요 — 매도 신호는 아니에요.",
     hit:"60일 안 −25% 하락 45%", base:"같은 급등 평소 45%", n:"355건", badge:"⚠️ 변동성 주의",
     detail:"+200%↑ 구간 · 거래량 3배는 추가 위험 없음(45% vs 45%) — 위험은 급등 폭 자체 (run 42222284507)"},
-  K_SV3: {title:"⚠️ 급등 + 거래량 폭증 · 변동성 주의", kind:"orange", suffix:"", simple:true, mainOnly:true, caution:true, h:60,
+  K_SV3: {title:"급등 + 거래량 폭증 · 변동성 주의", kind:"caution", suffix:"", simple:true, mainOnly:true, caution:true, h:60,
     one:"1년 저점보다 4배 넘게 오른 종목에 거래량이 몰렸어요. 이 정도 급등이면 거래량과 상관없이 절반은 한 번 크게 빠졌어요 — 매도 신호는 아니에요.",
     hit:"60일 안 −25% 하락 50%", base:"같은 급등 평소 50%", n:"244건", badge:"⚠️ 변동성 주의",
     detail:"+300%↑ 구간 · 거래량 3배는 추가 위험 없음(50% vs 50%) — 위험은 급등 폭 자체 (run 42222284507)"},
@@ -4839,7 +4842,7 @@ function sbItemsFor(s, opts){
   if (cau.length > 1){
     const keep = items.filter(x => !(x.rare && x.rare.caution));
     items.length = 0; keep.forEach(x => items.push(x));
-    items.push({s, kind:"orange", code:cau.map(x=>x.code).join("+"), name:"⚠️ 고점 주의 (조건 "+cau.length+"개)", stat:null, verdict:"연구 후보",
+    items.push({s, kind:"caution", code:cau.map(x=>x.code).join("+"), name:"고점 주의 (조건 "+cau.length+"개)", stat:null, verdict:"연구 후보",
       rare:{simple:true, mainOnly:true, caution:true, h:60, badge:"⚠️ 주의 겹침", parts:cau.map(x=>x.rare),
         one:cau.map(x=>x.rare.one).join(" "), hit:cau.map(x=>x.rare.hit).join(" / "), base:cau.map(x=>x.rare.base).join(" / "), n:cau.map(x=>x.rare.n).join(" / ")}});
   }
@@ -4977,7 +4980,7 @@ function sbRowHtml(g){
   const names = [...new Set(g.map(y=>y.name.replace(/ \(사이트 판정\)| \(희귀 고적중 후보\)/g,"")))];
   return `<details class="sb-item"><summary>
       <span class="sb-ic">${K.icon}</span><b class="sb-tk">${esc(x.s.ticker)}</b>${sbThumb(g)}
-      <span class="sb-nm">${esc(names[0])}${names.length>1?` <small>+${names.length-1}</small>`:""}</span>
+      <span class="sb-nm">${esc(names[0])}${names.length>1?` <small>+${names.length-1}</small>`:""}${x._cau?` <span title="이 종목은 아래 ‘주의 안내’에도 있어요">⚠️</span>`:""}</span>
       ${x._compact ? "" : `<span class="sb-hit">${esc(sbShortHit(x))}</span>${sbBadge(x)}`}</summary>${sbCardHtml(g)}</details>`;
 }
 function sbBoardHtml(list){
@@ -4985,6 +4988,9 @@ function sbBoardHtml(list){
   list.forEach(s=>{ sbItemsFor(s, {main:true}).forEach(x=>all.push(x)); });
   const groups = {};
   all.forEach(x=>{ ((groups[x.kind] = groups[x.kind] || {})[x.s.ticker] = groups[x.kind][x.s.ticker] || []).push(x); });
+  /* 같은 종목에 주의 안내가 따로 있으면 다른 묶음의 그 종목 줄에도 ⚠️ 표시 — 한쪽만 보고 판단하지 않게 */
+  const cauTk = new Set(all.filter(x=>x.kind==="caution").map(x=>x.s.ticker));
+  all.forEach(x=>{ x._cau = x.kind!=="caution" && cauTk.has(x.s.ticker); });
   const rank = x => (x.verdict==="75% 달성"?0:x.good?1:(x.rare||x.research)?2:3)*10 + (x.site?0:1);
   const SHOW = 5;
   const sec = SB_ORDER.map(k=>{
@@ -4993,7 +4999,7 @@ function sbBoardHtml(list){
     if (!rows.length) return "";   // 오늘 신호가 없는 유형은 자리 자체를 만들지 않는다
     /* 같은 사이트 판정(예: 반등 강한매수)이 여러 종목에 같은 숫자로 반복되면 숫자·배지는 묶음 머리에 한 번만 (2026-11-06 "중복 배지 안내 통합").
        행의 종목·썸네일·이름·펼침 카드는 그대로 — 표시 숫자와 계산은 바뀌지 않는다. */
-    const sigOf = g => g.length===1 && g[0].site ? g[0].code+"|"+sbShortHit(g[0]) : null;
+    const sigOf = g => g[0].site ? g[0].code+"|"+sbShortHit(g[0]) : null;
     const cnt = {}; rows.forEach(g=>{ const k2 = sigOf(g); if (k2) cnt[k2] = (cnt[k2]||0)+1; });
     const shared = Object.keys(cnt).filter(k2=>cnt[k2]>=2);
     rows.forEach(g=>{ g[0]._compact = shared.includes(sigOf(g)); });
@@ -5204,7 +5210,8 @@ function patternWidgetRows(list){
       const kinds=[...new Set(cs.map(c=>PAT_INFO[c][0]))].sort((a,b)=>pri[a]-pri[b]);
       const k0=kinds[0];
       return {s, p:pri[k0], light:PAT_LIGHT[k0], label:PAT_KIND_LABEL[k0], cls:PAT_KIND_CLS[k0],
-        why:PAT_INFO[cs.find(c=>PAT_INFO[c][0]===k0)][1], more:kinds.slice(1).map(k=>PAT_LIGHT[k]).join("")}; })
+        why:PAT_INFO[cs.find(c=>PAT_INFO[c][0]===k0)][1], more:kinds.slice(1).map(k=>PAT_LIGHT[k]).join("")
+          + (String(s.pat||"").split(",").some(c=>c==="K_TOP3" || (/^K_SV/.test(c) && !(s.leveraged || LEVERAGED[s.ticker]))) ? "⚠️" : "")}; })
     .filter(Boolean).sort((a,b)=>a.p-b.p || String(a.s.ticker).localeCompare(String(b.s.ticker)));
 }
 /* 순위 번호 대신 신호등을 찍는다 — 번호를 쓰면 '1위가 위험인지 매수인지' 알 수 없다(사용자 지적). */
@@ -5222,7 +5229,7 @@ function patternWidget(list){
     ${body}
     <div class="widget-empty" style="text-align:left;font-size:11px">
       뜻 보기: <button class="pl-pill pl-red" data-explain="패턴하락">사지 마</button> <button class="pl-pill pl-orange" data-explain="패턴위험">비중 줄이기</button>
-      <button class="pl-pill pl-yellow" data-explain="패턴익절">조금 팔기</button> <button class="pl-pill pl-blue" data-explain="패턴반등">살 만함</button></div>
+      <button class="pl-pill pl-yellow" data-explain="패턴익절">조금 팔기</button> <button class="pl-pill pl-blue" data-explain="패턴반등">살 만함</button> · ⚠️ = 변동성·고점 주의 안내도 있음</div>
   </div>`;
 }
 function themeForecastHtml(){
