@@ -4929,6 +4929,10 @@ function sbThumb(group){
     : `<button class="edu-big sb-thumb" data-rcbig="${esc(s.ticker)}" title="${esc(CLb?CLb.label+" — ":"")}실제 최근 5거래일 일봉(장 마감 확정 봉만) · 오른쪽 끝이 마지막 확정일 · 눌러서 크게">${real}</button>`;
   return n ? `<button class="edu-big sb-thumb" data-edubig="${esc(n)}" data-edutk="${esc(s.ticker)}" title="${esc(n)} — 교육용 그림(실제 일봉 데이터 없음)">${eduGlyph(n, 0.9)}</button>` : `<span class="sb-thumb"></span>`;
 }
+/* 반등 + 변동성 주의 동시 발생 — 실제 K_SV(급등+거래량) 조건이 원장 pat에 있는 종목만(레버리지 제외, sbItemsFor와 같은 규칙).
+   2026-11-08 사용자 지시: 반등 옆 작은 ⚠️ · 누르면 두 신호 뜻 한 줄씩. 새 판정 없음. */
+function hasVolCaution(s){ return String((s && s.pat) || "").split(",").some(c => /^K_SV/.test(c)) && !(s.leveraged || LEVERAGED[s.ticker]); }
+const VOL_CAU_NOTE = `<div class="sb-note">🟢 반등: 기술적 반등 조건 발생<br>⚠️ 변동성 주의: 가격이 크게 출렁일 가능성, 매도 신호는 아님</div>`;
 function sbSimpleCard(x){
   const R = x.rare, rows = R.parts ? R.parts : [R];
   return `<div class="sb-card"><div class="sb-line">${esc(R.one)}</div>${rows.map(P=>`<div class="sb-nums">
@@ -4965,7 +4969,7 @@ function sbCardHtml(group){
     const r10 = c[4], ok = r10==null ? "" : ((up ? r10>0 : r10<0) ? "✅" : "❌");
     return `<tr><td>${esc(c[0])}</td><td>${esc(String(c[1]).split(",").slice(0,2).join(", "))}${String(c[1]).split(",").length>2?"…":""}</td><td>${retS(c[3])}</td><td>${retS(c[4])}</td><td>${ok}</td></tr>`; }).join("");
   return `<div class="sb-card sb-${x.kind}">
-    <div class="sb-line">${esc(sbOneLine(x))}</div>
+    ${x.kind==="green" && hasVolCaution(s) ? VOL_CAU_NOTE : ""}<div class="sb-line">${esc(sbOneLine(x))}</div>
     <div class="sb-nums">${nums.map(([k,v])=>`<div><span>${k}</span><b>${v}</b></div>`).join("")}</div>
     <div class="sb-act">매매 참고 <b class="pl-pill ${x.good?K.pill:(x.research||x.rare)?"pl-yellow":"pl-grey"}">${esc(x.judge)}</b></div>
     ${warn}
@@ -4980,7 +4984,7 @@ function sbRowHtml(g){
   const names = [...new Set(g.map(y=>y.name.replace(/ \(사이트 판정\)| \(희귀 고적중 후보\)/g,"")))];
   return `<details class="sb-item"><summary>
       <span class="sb-ic">${K.icon}</span><b class="sb-tk">${esc(x.s.ticker)}</b>${sbThumb(g)}
-      <span class="sb-nm">${esc(names[0])}${names.length>1?` <small>+${names.length-1}</small>`:""}${x._cau?` <span title="이 종목은 아래 ‘주의 안내’에도 있어요">⚠️</span>`:""}</span>
+      <span class="sb-nm">${esc(names[0])}${names.length>1?` <small>+${names.length-1}</small>`:""}${x._cau?` <span title="변동성 주의도 있어요 — 펼치면 뜻">⚠️</span>`:""}</span>
       ${x._compact ? "" : `<span class="sb-hit">${esc(sbShortHit(x))}</span>${sbBadge(x)}`}</summary>${sbCardHtml(g)}</details>`;
 }
 function sbBoardHtml(list){
@@ -4988,9 +4992,8 @@ function sbBoardHtml(list){
   list.forEach(s=>{ sbItemsFor(s, {main:true}).forEach(x=>all.push(x)); });
   const groups = {};
   all.forEach(x=>{ ((groups[x.kind] = groups[x.kind] || {})[x.s.ticker] = groups[x.kind][x.s.ticker] || []).push(x); });
-  /* 같은 종목에 주의 안내가 따로 있으면 다른 묶음의 그 종목 줄에도 ⚠️ 표시 — 한쪽만 보고 판단하지 않게 */
-  const cauTk = new Set(all.filter(x=>x.kind==="caution").map(x=>x.s.ticker));
-  all.forEach(x=>{ x._cau = x.kind!=="caution" && cauTk.has(x.s.ticker); });
+  /* 반등 줄에만, 실제 변동성 주의 조건이 있는 종목에만 ⚠️ (2026-11-08) */
+  all.forEach(x=>{ x._cau = x.kind==="green" && hasVolCaution(x.s); });
   const rank = x => (x.verdict==="75% 달성"?0:x.good?1:(x.rare||x.research)?2:3)*10 + (x.site?0:1);
   const SHOW = 5;
   const sec = SB_ORDER.map(k=>{
@@ -5211,7 +5214,7 @@ function patternWidgetRows(list){
       const k0=kinds[0];
       return {s, p:pri[k0], light:PAT_LIGHT[k0], label:PAT_KIND_LABEL[k0], cls:PAT_KIND_CLS[k0],
         why:PAT_INFO[cs.find(c=>PAT_INFO[c][0]===k0)][1], more:kinds.slice(1).map(k=>PAT_LIGHT[k]).join("")
-          + (String(s.pat||"").split(",").some(c=>c==="K_TOP3" || (/^K_SV/.test(c) && !(s.leveraged || LEVERAGED[s.ticker]))) ? "⚠️" : "")}; })
+          + ((k0==="bounce" || k0==="theme") && hasVolCaution(s) ? "⚠️" : "")}; })
     .filter(Boolean).sort((a,b)=>a.p-b.p || String(a.s.ticker).localeCompare(String(b.s.ticker)));
 }
 /* 순위 번호 대신 신호등을 찍는다 — 번호를 쓰면 '1위가 위험인지 매수인지' 알 수 없다(사용자 지적). */
@@ -5234,7 +5237,7 @@ function openPatternHorizonHelp(){
 function patternWidget(list){
   const rows = patternWidgetRows(list);
   const body = rows.length ? rows.map(r=>`
-    <button class="wrow" data-rankgoto="${esc(r.s.ticker)}" data-rank-sort="overall">
+    <button class="wrow" data-patpick="${esc(r.s.ticker)}">
       <span class="pl-pill ${r.cls}">${esc(r.label)}</span>
       <span class="tk">${esc(r.s.ticker)}</span>
       <span class="nm">${esc(r.s.name||"")}</span>
@@ -5245,7 +5248,7 @@ function patternWidget(list){
     ${body}
     <div class="widget-empty" style="text-align:left;font-size:11px">
       뜻 보기: <button class="pl-pill pl-red" data-explain="패턴하락">사지 마</button> <button class="pl-pill pl-orange" data-explain="패턴위험">비중 줄이기</button>
-      <button class="pl-pill pl-yellow" data-explain="패턴익절">조금 팔기</button> <button class="pl-pill pl-blue" data-explain="패턴반등">살 만함</button> · ⚠️ = 변동성·고점 주의 안내도 있음</div>
+      <button class="pl-pill pl-yellow" data-explain="패턴익절">조금 팔기</button> <button class="pl-pill pl-blue" data-explain="패턴반등">살 만함</button> · ⚠️ = 변동성 주의도 있음</div>
   </div>`;
 }
 function themeForecastHtml(){
@@ -7552,10 +7555,36 @@ async function addHeart(){
 
 /* ══════════ 모달 ══════════ */
 const modal = document.getElementById("modal"), modalBox = document.getElementById("modalBox");
+/* 캔들 팝업(교육용 그림 + 실제 일봉) — 본문 클릭과 팝업 안 링크·선택 팝업이 같은 함수를 쓴다(2026-11-08 연결 오류 수정: 팝업 안 링크가 죽어 있었다). */
+function openCandleModal(n, tk){ const st = tk ? allStocks().find(z=>z.ticker===tk) : null; const rc = st ? realChartSvg(st, true) : "";
+    /* 2026-11-06 사용자 지적 "교육용이면 견본이야? 실제여야지" — 종목에서 열면 맨 위를 실제 일봉으로 둔다.
+       교육용 견본 그림은 접힌 칸으로만 남긴다(갤러리처럼 종목 없이 열 때만 견본이 주인공). */
+    const lastBar = st && st.ohlc60 && st.ohlc60.length ? st.ohlc60[st.ohlc60.length-1] : null;
+    const realTop = st ? realMiniCandles(st, 5, 4) : "";
+    const fmtP = v => !has(v) ? "—" : (st && st.currency==="KRW" ? Math.round(v).toLocaleString("ko-KR") : Number(v).toFixed(2));
+    const eduPart = `<div class="md-tag">교육용 그림 — 모양 견본</div><div style="text-align:center;margin:6px 0">${eduGlyph(n, 4)}</div>
+      <p style="font-size:15px;line-height:1.7;margin:4px 0 10px">${esc((CANDLE_EDU[n]||{}).d||"")}</p>`;
+    openModal(`<h3>🕯 ${candleLight(n)}${esc(n)}${st?` · ${esc(st.name||st.ticker)} (${esc(st.ticker)})`:""}</h3>
+      ${realTop && lastBar ? `<div class="md-tag md-real">실제 일봉 — 최근 5거래일 · 오른쪽 끝 = ${esc(lastBar[0])} 확정 봉</div>
+      <div style="text-align:center;margin:8px 0">${realTop}</div>
+      <div style="font-size:12.5px;text-align:center;margin-bottom:2px">${basicLegend()}</div>
+      <div style="font-size:12.5px;color:var(--muted);text-align:center;margin-bottom:6px">${esc(lastBar[0])} · 시가 ${fmtP(lastBar[1])} · 고가 ${fmtP(lastBar[2])} · 저가 ${fmtP(lastBar[3])} · 종가 ${fmtP(lastBar[4])}</div>
+      <p style="font-size:15px;line-height:1.7;margin:4px 0 10px">${(()=>{ const CL = candleLabel(st); return CL
+        ? `실제 마지막 봉: <span class="c-light">${CL.light}</span><u class="edu-link" data-edubig="${esc(CL.link)}"><b>${esc(CL.label)}</b></u><br>${esc(CL.desc)}`
+        : `실제 마지막 봉 정보가 없어요.`; })()}${(()=>{ const CL = candleLabel(st); return CL && CL.link!==n && CL.label!==n ? `<br><span style="font-size:12.5px;color:var(--muted)">‘${esc(n)}’는 신호 규칙이 보는 모양 이름입니다(마지막 봉 하나가 아니라 며칠 흐름).</span>` : ""; })()}</p>
+      <details class="sb-sec2" style="margin-bottom:8px"><summary>📘 같은 모양의 교육용 견본 그림 보기</summary>${eduPart}</details>` : eduPart}
+      ${rc ? `<div class="md-tag md-real">실제 일봉 — 최근 40거래일 실측 가격</div>${rc}<div style="font-size:11px;color:var(--muted)">▼ = 마지막 거래일 · 주황 선 = 볼린저(20, 2σ) · 아래 막대 = 거래량</div>` : (tk ? `<div style="font-size:12px;color:var(--muted)">이 종목의 실제 일봉 데이터는 다음 갱신부터 보여요.</div>` : "")}
+      <div class="modal-actions"><button class="primary" onclick="closeModal()">닫기</button></div>`);
+}
+function openRealChartModal(tk){ const st = allStocks().find(z=>z.ticker===tk); if(st) openModal(`<h3>📈 ${esc(st.name||st.ticker)} (${esc(st.ticker)}) <small style="font-size:12px;color:var(--muted)">실제 발생 사례 · 최근 40거래일</small></h3>${realChartSvg(st, true)}<div class="modal-actions"><button class="primary" onclick="closeModal()">닫기</button></div>`); }
 function openModal(html){ modalBox.innerHTML = html; modal.classList.add("on"); }
 function closeModal(){ modal.classList.remove("on"); }
 modal.addEventListener("click", e=>{
   if (e.target.closest("[data-openmat]")){ openMaterialModal(); return; }
+  /* 팝업 안의 캔들 링크·실제 차트·종목 카드 이동도 본문과 같은 함수로 (2026-11-08 연결 오류 수정) */
+  const meb = e.target.closest("[data-edubig]"); if (meb){ openCandleModal(meb.dataset.edubig, meb.dataset.edutk); return; }
+  const mrb = e.target.closest("[data-rcbig]"); if (mrb){ openRealChartModal(mrb.dataset.rcbig); return; }
+  const mrg = e.target.closest("[data-rankgoto]"); if (mrg){ closeModal(); gotoStock(mrg.dataset.rankgoto, mrg.dataset.rankSort || "overall"); return; }
   /* 팝업(비서·모의점검·카드 상세) 안에 렌더된 뱃지도 살아 있어야 한다.
      이 리스너가 안 받으면 팝업 속 돌파·🔨 뱃지는 죽은 버튼이 된다 — 실제 버그였다. */
   const ex = e.target.closest("[data-explain]");
@@ -8600,29 +8629,21 @@ document.getElementById("main").addEventListener("click", e=>{
   const marketEventBtn = e.target.closest("[data-market-event]");
   if(marketEventBtn){ e.preventDefault(); e.stopPropagation(); openMarketEventModal(marketEventBtn.dataset.marketEvent); return; }
   const eb = e.target.closest("[data-edubig]");
-  if (eb){ e.preventDefault(); e.stopPropagation(); const n = eb.dataset.edubig, tk = eb.dataset.edutk; const st = tk ? allStocks().find(z=>z.ticker===tk) : null; const rc = st ? realChartSvg(st, true) : "";
-    /* 2026-11-06 사용자 지적 "교육용이면 견본이야? 실제여야지" — 종목에서 열면 맨 위를 실제 일봉으로 둔다.
-       교육용 견본 그림은 접힌 칸으로만 남긴다(갤러리처럼 종목 없이 열 때만 견본이 주인공). */
-    const lastBar = st && st.ohlc60 && st.ohlc60.length ? st.ohlc60[st.ohlc60.length-1] : null;
-    const realTop = st ? realMiniCandles(st, 5, 4) : "";
-    const fmtP = v => !has(v) ? "—" : (st && st.currency==="KRW" ? Math.round(v).toLocaleString("ko-KR") : Number(v).toFixed(2));
-    const eduPart = `<div class="md-tag">교육용 그림 — 모양 견본</div><div style="text-align:center;margin:6px 0">${eduGlyph(n, 4)}</div>
-      <p style="font-size:15px;line-height:1.7;margin:4px 0 10px">${esc((CANDLE_EDU[n]||{}).d||"")}</p>`;
-    openModal(`<h3>🕯 ${candleLight(n)}${esc(n)}${st?` · ${esc(st.name||st.ticker)} (${esc(st.ticker)})`:""}</h3>
-      ${realTop && lastBar ? `<div class="md-tag md-real">실제 일봉 — 최근 5거래일 · 오른쪽 끝 = ${esc(lastBar[0])} 확정 봉</div>
-      <div style="text-align:center;margin:8px 0">${realTop}</div>
-      <div style="font-size:12.5px;text-align:center;margin-bottom:2px">${basicLegend()}</div>
-      <div style="font-size:12.5px;color:var(--muted);text-align:center;margin-bottom:6px">${esc(lastBar[0])} · 시가 ${fmtP(lastBar[1])} · 고가 ${fmtP(lastBar[2])} · 저가 ${fmtP(lastBar[3])} · 종가 ${fmtP(lastBar[4])}</div>
-      <p style="font-size:15px;line-height:1.7;margin:4px 0 10px">${(()=>{ const CL = candleLabel(st); return CL
-        ? `실제 마지막 봉: <span class="c-light">${CL.light}</span><u class="edu-link" data-edubig="${esc(CL.link)}"><b>${esc(CL.label)}</b></u><br>${esc(CL.desc)}`
-        : `실제 마지막 봉 정보가 없어요.`; })()}${(()=>{ const CL = candleLabel(st); return CL && CL.link!==n && CL.label!==n ? `<br><span style="font-size:12.5px;color:var(--muted)">‘${esc(n)}’는 신호 규칙이 보는 모양 이름입니다(마지막 봉 하나가 아니라 며칠 흐름).</span>` : ""; })()}</p>
-      <details class="sb-sec2" style="margin-bottom:8px"><summary>📘 같은 모양의 교육용 견본 그림 보기</summary>${eduPart}</details>` : eduPart}
-      ${rc ? `<div class="md-tag md-real">실제 일봉 — 최근 40거래일 실측 가격</div>${rc}<div style="font-size:11px;color:var(--muted)">▼ = 마지막 거래일 · 주황 선 = 볼린저(20, 2σ) · 아래 막대 = 거래량</div>` : (tk ? `<div style="font-size:12px;color:var(--muted)">이 종목의 실제 일봉 데이터는 다음 갱신부터 보여요.</div>` : "")}
-      <div class="modal-actions"><button class="primary" onclick="closeModal()">닫기</button></div>`); return; }
+  if (eb){ e.preventDefault(); e.stopPropagation(); openCandleModal(eb.dataset.edubig, eb.dataset.edutk); return; }
   const rb = e.target.closest("[data-rcbig]");
-  if (rb){ e.preventDefault(); const st = allStocks().find(z=>z.ticker===rb.dataset.rcbig); if(st) openModal(`<h3>📈 ${esc(st.name||st.ticker)} (${esc(st.ticker)}) <small style="font-size:12px;color:var(--muted)">실제 발생 사례 · 최근 40거래일</small></h3>${realChartSvg(st, true)}<div class="modal-actions"><button class="primary" onclick="closeModal()">닫기</button></div>`); return; }
+  if (rb){ e.preventDefault(); openRealChartModal(rb.dataset.rcbig); return; }
   const hlp = e.target.closest("[data-hlper]");
   if (hlp){ e.preventDefault(); state.hlPeriod = hlp.dataset.hlper; render(); return; }
+  const pick = e.target.closest("[data-patpick]");
+  if (pick){ const st = allStocks().find(z=>z.ticker===pick.dataset.patpick); if(!st) return;
+    const sh = todayShape(st), row = patternWidgetRows([st])[0];
+    openModal(`<h3>${esc(st.name||st.ticker)} (${esc(st.ticker)})</h3>
+      ${row && (row.label==="살 만함") && hasVolCaution(st) ? VOL_CAU_NOTE : ""}
+      <div class="modal-actions" style="flex-direction:column;gap:8px">
+        <button class="primary" data-rankgoto="${esc(st.ticker)}" data-rank-sort="overall">📇 종목 카드 보기</button>
+        <button ${sh ? `data-edubig="${esc(sh)}" data-edutk="${esc(st.ticker)}"` : `data-rcbig="${esc(st.ticker)}"`}>🕯 캔들 분석 보기</button>
+        <button onclick="closeModal()">닫기</button></div>`);
+    return; }
   const rankGoto = e.target.closest("[data-rankgoto]");
   if (rankGoto){
     gotoStock(rankGoto.dataset.rankgoto, rankGoto.dataset.rankSort || "overall");
