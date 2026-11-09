@@ -55,3 +55,23 @@ const cands = out.filter(o => o.s.n >= 15 && o.s.hit >= 0.61), pass = cands.filt
 const n15 = out.filter(o => o.s.n >= 15).length;
 console.log(`\n  15건 이상 칸 ${n15}개 중 61% 이상 ${cands.length}개 · 그중 워크포워드 두 번 통과 ${pass.length}개`);
 console.log(`  15건 미만이라 판단 불가 칸 ${out.filter(o => o.s.n < 15).length}개`);
+
+/* 2026-11-09 추가(결과 확인 뒤 '보고 항목'만 늘림 · 칸·기준·숫자 불변): 61% 이상 칸의 상세 — 사용자 요청 항목
+   +5·+15분 평균과 비용 차감 순수익, 블록·반쪽별, 같은 상태 이웃 캔들·같은 캔들 다른 상태(§3 고원/절벽), 종목·날짜 쏠림,
+   그리고 기준선만으로 우연히 61%를 넘을 기대 칸 수(이항). */
+const binTail = (n, k, p) => { let s = 0, c = 1; for (let i = 0; i <= n; i++){ if (i > 0) c = c*(n - i + 1)/i; if (i >= k) s += c*Math.pow(p, i)*Math.pow(1 - p, n - i); } return s; };
+const exp61 = out.filter(o => o.s.n >= 15).reduce((a, o) => a + binTail(o.s.n, Math.ceil(0.61*o.s.n), bAll.hit), 0);
+console.log(`  기준선(${pct(bAll.hit)})만으로 15건 이상 칸 ${n15}개 중 우연히 61% 이상이 나올 기대 개수 ≈ ${exp61.toFixed(2)}개`);
+for (const o of cands){
+  const [st, pat] = [o.c.when, o.c.pat], s5 = S(o.z, 5);
+  console.log(`\n  ◆ ${o.c.key} 상세`);
+  console.log(`    +5분: 상승 ${pct(s5.hit)} · 평균 ${sg(s5.avg)}% · 순(0.05%) ${sg(s5.avg - 0.05)}% · 순(0.10%) ${sg(s5.avg - 0.10)}%`);
+  console.log(`    +15분: 상승 ${pct(o.s.hit)} · 평균 ${sg(o.s.avg)}% · 순(0.05%) ${sg(o.s.avg - 0.05)}% · 순(0.10%) ${sg(o.s.avg - 0.10)}% · 이 n에서 우연히 이 이상 나올 확률 ${(binTail(o.s.n, Math.round(o.s.hit*o.s.n), bAll.hit)*100).toFixed(1)}%`);
+  [0, 1, 2].forEach(b => { const x = S(o.z.filter(e => inB(e, [b]))), bb = S(BASE.filter(e => inB(e, [b]))); console.log(`    블록${b + 1}: n${x.n} ${pct(x.hit)} ${sg(x.avg)}% (같은 기간 기준선 ${pct(bb.hit)})`); });
+  const half = new Set(dates.slice(0, dates.length >> 1)), h1 = S(o.z.filter(e => half.has(e.day))), h2 = S(o.z.filter(e => !half.has(e.day)));
+  console.log(`    반쪽: 앞 n${h1.n} ${pct(h1.hit)} ${sg(h1.avg)}% · 뒤 n${h2.n} ${pct(h2.hit)} ${sg(h2.avg)}%`);
+  const tk = {}; o.z.forEach(e => tk[e.t] = (tk[e.t] || 0) + 1); const top = Object.entries(tk).sort((a, b) => b[1] - a[1]);
+  console.log(`    쏠림: ${top.length}종목 · ${new Set(o.z.map(e => e.day)).size}거래일 · 많은 종목 ${top.slice(0, 5).map(([t, n]) => t + ' ' + n).join(', ')}`);
+  console.log(`    같은 캔들 다른 상태: ${out.filter(x => x.c.pat === pat && x.c.when && x !== o && !x.c.vwap && !x.c.tr30).map(x => `${x.c.when} ${pct(x.s.hit)} n${x.s.n}`).join(' · ')}`);
+  console.log(`    같은 상태 다른 캔들: ${out.filter(x => x.c.when === st && x.c.pat !== pat && !x.c.vwap && !x.c.tr30).map(x => `${x.c.pat} ${pct(x.s.hit)} n${x.s.n}`).join(' · ')}`);
+}
