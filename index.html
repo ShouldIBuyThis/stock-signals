@@ -4889,10 +4889,23 @@ function sbOneLine(x){
 /* ── 2026-11-06 사용자 지시 "투자자 화면은 단순하게" ──
    기본 = 한 줄(신호 · 캔들 썸네일 · 과거 적중 · 검증 배지). 누르면 핵심 숫자 4개 + 접힌 차트·사례·캔들 설명.
    p값·신뢰 하한·블록 대조·국면·코드명 같은 연구 정보는 화면에서 빼고 맨 아래 '📚 상세 연구·검증 자료'로. 계산은 그대로 유지. */
+/* 연구 후보 표시 규칙 (2026-11-09 사용자 지시) — 표시는 표본 11건↑부터. 30건↑·z≥3 같은 채택 기준은 표시 조건에 쓰지 않는다.
+   11~29건이면서 평소보다 5%p↑면 '🟡 소표본 연구 후보'. 매수 점수·등급에는 영향 없음(가점은 별도 검증 뒤 결정). */
+const SMALL_MIN = 11, SMALL_MAX = 29;
+const isSmallCand = (n, hit, base) => n >= SMALL_MIN && n <= SMALL_MAX && hit != null && base != null && hit >= base + 0.05;
+/* 레버리지 ETF의 기존 캔들·패턴 매수 신호 — tools/mtf-pattern-lab.py(run 42545980504) 레버리지 별도 집계에서
+   가장 유리했던 3일: 최근 2년(미사용 검증) 76% · 같은 국면 평소 53% · 25건(앞 8년은 68% · 88건). 위젯 줄에 통합 표시만. */
+const LEV_CANDLE_CAND = {h:3, hit:"76%", base:"53%", n:25, note:"최근 2년"};
+/* 희귀 규칙(R5·R10)은 시험 구간만 보면 6·9건이라 11건 기준에 못 미친다 → 학습+검증+시험 합계로 표시(표본 수를 숨기지 않는다) */
+function rareTotal(R){ const P = t => { const m = String(t||"").match(/([\d.]+)%\((\d+)\)/); return m ? [+m[1]/100, +m[2]] : null; };
+  const parts = [R.tr, R.va, R.te].map(P).filter(Boolean); const n = parts.reduce((a,b)=>a+b[1],0);
+  return n ? {n, hit: parts.reduce((a,b)=>a+b[0]*b[1],0)/n} : null; }
 function sbBadge(x){
   if (x.rare && x.rare.simple) return `<span class="vb vb-y">${esc(x.rare.badge)}</span>`;
+  if (x.rare && x.rare.va!=="—"){ const T = rareTotal(x.rare); return T && T.n > SMALL_MAX ? `<span class="vb vb-y">🟡 연구 후보</span>` : `<span class="vb vb-y">🟡 소표본 연구 후보</span>`; }
   if (x.rare) return x.rare.period ? `<span class="vb vb-y">🟡 연구 후보</span>` : `<span class="vb vb-y">🟡 소표본 연구 후보</span>`;
   if (x.verdict==="75% 달성" || x.good) return `<span class="vb vb-g">✅ 검증</span>`;
+  if (x.stat && isSmallCand(x.stat.n, x.stat.hit10, x.stat.base10)) return `<span class="vb vb-y">🟡 소표본 연구 후보</span>`;
   if (x.research) return `<span class="vb vb-y">🟡 연구 후보</span>`;
   if (x.verdict==="표본 부족") return `<span class="vb vb-n">⚪ 표본 적음</span>`;
   if (!x.stat && !x.rare) return `<span class="vb vb-n">⚪ 통계 준비 중</span>`;
@@ -4902,6 +4915,7 @@ function sbShortHit(x){
   const up = x.kind==="green" || x.kind==="blue";
   if (x.rare && x.rare.simple) return x.rare.parts ? `주의 조건 ${x.rare.parts.length}개 겹침` : `${x.rare.hit} (${x.rare.n})`;
   if (x.rare && x.rare.period) return `과거 상승 68% (223건)`;
+  if (x.rare && x.rare.va!=="—"){ const T = rareTotal(x.rare); if (T) return `과거 상승 ${Math.round(T.hit*100)}% (${T.n}건 · ${x.rare.h}일)`; }
   if (x.rare) return `과거 상승 ${x.rare.te.replace(/\((\d+)\)/," ($1건)")}`;
   const st = x.stat; if(!st) return "";
   if (x.site) return st.hit5==null ? "" : `최근 5일 적중 ${pctS(st.hit5)} (${st.n}건)`;
@@ -5244,9 +5258,11 @@ function patternWidget(list){
       <span class="tk">${esc(r.s.ticker)}</span>
       <span class="nm">${esc(r.s.name||"")}</span>
       <span class="val"><small>${esc(r.why)}</small>${r.more?` ${r.more}`:""}${(()=>{ /* 2026-11-09 사용자 "승률 작은 글씨로" — 신호판과 같은 10년 실측(signal-stats.json) */
-        const st = SIGNAL_BT && SIGNAL_BT.stats && SIGNAL_BT.stats[r.code] && SIGNAL_BT.stats[r.code].all; if (!st || st.hit10==null || st.base10==null) return "";
         const up = PAT_INFO[r.code][0]==="bounce" || PAT_INFO[r.code][0]==="theme";
-        return `<small class="wstat">10일 ${up?"상승":"하락"} ${pctS(st.hit10)} · 평소 ${pctS(st.base10)} (${st.n}건)</small>`; })()}</span>
+        if (up && LEVERAGED[r.s.ticker]) { const L = LEV_CANDLE_CAND;   /* 레버리지 종목은 레버리지 별도 연구 숫자로 */
+          return `<small class="wstat">🟡 소표본 연구 후보 · ${L.h}일 상승 ${L.hit} · 평소 ${L.base} (${L.n}건·${L.note})</small>`; }
+        const st = SIGNAL_BT && SIGNAL_BT.stats && SIGNAL_BT.stats[r.code] && SIGNAL_BT.stats[r.code].all; if (!st || st.hit10==null || st.base10==null || st.n < SMALL_MIN) return "";
+        return `<small class="wstat">${isSmallCand(st.n, st.hit10, st.base10) ? "🟡 소표본 연구 후보 · " : ""}10일 ${up?"상승":"하락"} ${pctS(st.hit10)} · 평소 ${pctS(st.base10)} (${st.n}건)</small>`; })()}</span>
     </button>`).join("") : `<div class="widget-empty">오늘 뜬 캔들·패턴 신호 없음</div>`;
   return `<div class="widget">
     <div class="widget-h"><span class="wt">🕯 캔들·패턴 신호</span><span class="ws"><button class="strategy-info" onclick="openPatternHorizonHelp()">3일~2주 관점</button></span></div>
