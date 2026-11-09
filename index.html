@@ -323,6 +323,7 @@ html[data-theme="dark"] .rkitem.top b{color:#a9c6ff}
 .modal-actions.md-sticky{position:sticky;bottom:-20px;background:var(--surface);padding:10px 0 4px;margin-bottom:-4px;z-index:2}
 
 .c-light{font-size:.85em;margin-right:3px}
+.wrow .val .wstat{display:block;font-size:10.5px;color:var(--muted);font-weight:500;margin-top:1px}
 .edu-link{cursor:pointer;text-decoration:underline;text-underline-offset:3px;color:inherit}
 .edu-basic{color:var(--muted)}
 /* 도움말 */
@@ -5214,7 +5215,7 @@ function patternWidgetRows(list){
       const kinds=[...new Set(cs.map(c=>PAT_INFO[c][0]))].sort((a,b)=>pri[a]-pri[b]);
       const k0=kinds[0];
       return {s, p:pri[k0], light:PAT_LIGHT[k0], label:PAT_KIND_LABEL[k0], cls:PAT_KIND_CLS[k0],
-        why:PAT_INFO[cs.find(c=>PAT_INFO[c][0]===k0)][1], more:kinds.slice(1).map(k=>PAT_LIGHT[k]).join("")
+        code:cs.find(c=>PAT_INFO[c][0]===k0), why:PAT_INFO[cs.find(c=>PAT_INFO[c][0]===k0)][1], more:kinds.slice(1).map(k=>PAT_LIGHT[k]).join("")
           + ((k0==="bounce" || k0==="theme") && hasVolCaution(s) ? "⚠️" : "")}; })
     .filter(Boolean).sort((a,b)=>a.p-b.p || String(a.s.ticker).localeCompare(String(b.s.ticker)));
 }
@@ -5242,7 +5243,10 @@ function patternWidget(list){
       <span class="pl-pill ${r.cls}">${esc(r.label)}</span>
       <span class="tk">${esc(r.s.ticker)}</span>
       <span class="nm">${esc(r.s.name||"")}</span>
-      <span class="val"><small>${esc(r.why)}</small>${r.more?` ${r.more}`:""}</span>
+      <span class="val"><small>${esc(r.why)}</small>${r.more?` ${r.more}`:""}${(()=>{ /* 2026-11-09 사용자 "승률 작은 글씨로" — 신호판과 같은 10년 실측(signal-stats.json) */
+        const st = SIGNAL_BT && SIGNAL_BT.stats && SIGNAL_BT.stats[r.code] && SIGNAL_BT.stats[r.code].all; if (!st || st.hit10==null || st.base10==null) return "";
+        const up = PAT_INFO[r.code][0]==="bounce" || PAT_INFO[r.code][0]==="theme";
+        return `<small class="wstat">10일 ${up?"상승":"하락"} ${pctS(st.hit10)} · 평소 ${pctS(st.base10)} (${st.n}건)</small>`; })()}</span>
     </button>`).join("") : `<div class="widget-empty">오늘 뜬 캔들·패턴 신호 없음</div>`;
   return `<div class="widget">
     <div class="widget-h"><span class="wt">🕯 캔들·패턴 신호</span><span class="ws"><button class="strategy-info" onclick="openPatternHorizonHelp()">3일~2주 관점</button></span></div>
