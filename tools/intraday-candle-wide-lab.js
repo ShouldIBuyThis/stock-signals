@@ -36,7 +36,7 @@ for (const [t, D] of Object.entries(data)){
       const F = ctx.feat(A, L); if (!F) continue;
       const mk = side => { const o1 = outcome(B, k, side); if (!o1) return null;
         const k2 = B.findIndex(b => b[0] === tau + 1200);
-        return { t, kr, day: today.day, F, o1, o2: kr ? (k2 >= 0 ? outcome(B, k2, side) : 'na') : null }; };
+        return { t, kr, day: today.day, F, o1, o2: kr ? (k2 >= 0 ? outcome(B, k2, side) : 'na') : null, tod: B[k][0] - t0 < 3600 ? '장초반' : end - B[k][0] <= 3600 ? '마감전' : '장중' }; };
       if (newGo){ const x = mk(1); if (x) POP.go.push(x); }
       if (newDown){ const x = mk(-1); if (x) POP.down.push(x); }
       if (isE){ const x = mk(1); if (x) POP.E.push(x); }
@@ -87,10 +87,11 @@ for (const [pk, lab] of [['go','🟢 5분 재돌파 확인(새 진입)'], ['down
   }
 }
 /* ---------- 워크포워드 ---------- */
+const WF = {};
 const zOf = (k, n, p) => n ? (k - n*p)/Math.sqrt(n*p*(1 - p) || 1) : 0;
 const avgNet = (xs, c) => { const s = hitOf(xs, 15); return s.avg - c; };
 for (const [pk, lab] of [['go','🟢 5분 재돌파 확인'], ['down','🔵 하락 주의'], ['E','보조: E 충족 봉']]){
-  const P = POP[pk]; let tested = 0; const res = {};
+  const P = POP[pk]; let tested = 0; const res = {}; WF[pk] = res;
   for (const [fi, tr, te] of [[1, [0], [1]], [2, [0, 1], [2]]]){
     const TR = P.filter(e => inB(e, tr)), TE = P.filter(e => inB(e, te)), bT = hitOf(TR, 15), bV = hitOf(TE, 15);
     for (const C of CAND){
@@ -127,3 +128,42 @@ for (const [pk, lab] of [['go','🟢 재돌파'], ['down','🔵 하락 주의'],
   console.log(fmtRow(`${lab} ①`, K, null, 'o1')); console.log(fmtRow(`${lab} ②+20분`, K.filter(e => e.o2 !== 'na'), null, 'o2'));
   console.log(`  ${''.padEnd(20)} ②에서 장 종료로 미평가 ${K.filter(e => e.o2 === 'na').length}건`);
 }
+
+/* ---------- [7] 연구 후보 (15분 ≥60% · n≥15) — docs §7 ---------- */
+const LAB = { go:'🟢 재돌파', down:'🔵 하락 주의', E:'E 충족' };
+const pfOf = (xs, h) => { const z = xs.map(e => e.o1.r[h]).filter(v => v != null); const g = z.filter(v => v > 0).reduce((a, b) => a + b, 0), l = -z.filter(v => v < 0).reduce((a, b) => a + b, 0); return l ? g/l : (g ? Infinity : NaN); };
+const half = (xs, h) => { const a = hitOf(xs.filter(e => e.day < mid2), 15), b = hitOf(xs.filter(e => e.day >= mid2), 15); return `앞 ${pct(a.hit)} n${a.n} / 뒤 ${pct(b.hit)} n${b.n}`; };
+const mid2 = dates[Math.floor(dates.length/2)];
+const wfTxt = (pk, key) => { const a = (WF[pk] || {})[key]; if (!a) return '워크포워드 대상 아님';
+  return a.map(x => `${x.fi}차 학습 n${x.trn} ${sg(x.trl*100, 1)}%p ${x.sel ? '선택' : '미선택'} → 검증 n${x.ten} ${sg(x.tel*100, 1)}%p ${x.ok ? '통과' : '실패'}`).join(' | '); };
+console.log('\n■ [7] 연구 후보 — 15분 적중 ≥60% · n≥15 (매매 추천 아님 · 검증 실패·표본 부족 표시)');
+const CANDS = [];
+for (const pk of ['go', 'down', 'E']) for (const cat of ['대표패턴', '1봉형태']){
+  const C = CAND.find(c => c.name === cat), g = {};
+  POP[pk].forEach(e => { const v = C.get(e); if (v != null) (g[v] = g[v] || []).push(e); });
+  for (const [v, xs] of Object.entries(g)){ const s15 = hitOf(xs, 15); if (s15.n >= 15 && s15.hit >= 0.6) CANDS.push({ pk, cat, v, xs }); }
+}
+if (!CANDS.length) console.log('  해당 없음');
+for (const c of CANDS){
+  const s5 = hitOf(c.xs, 5), s15 = hitOf(c.xs, 15), s30 = hitOf(c.xs, 30), s60 = hitOf(c.xs, 60), base = hitOf(POP[c.pk], 15);
+  const a = WF[c.pk] && WF[c.pk][`${c.cat}=${c.v}`], ver = a ? (a.every(x => x.ok) ? '✅ 검증 통과' : a.some(x => x.sel) ? '❌ 학습 선택됐으나 검증 실패' : '❌ 학습 선택 안 됨(기준 미달)') : '—';
+  console.log(`  ${LAB[c.pk]} · ${c.cat} ${c.v} · 방향 ${c.pk === 'down' ? '하락(매도 쪽)' : '상승(매수 쪽)'} · n=${c.xs.length}(${grade(c.xs.length)}) · 종목 ${new Set(c.xs.map(e => e.t)).size} · 날짜 ${new Set(c.xs.map(e => e.day)).size}`);
+  console.log(`     5분 ${pct(s5.hit)} ${sg(s5.avg)}% · 15분 ${pct(s15.hit)} ${sg(s15.avg)}% (신호 전체 ${pct(base.hit)}) · 순 ${sg(s15.avg - COST[0])}/${sg(s15.avg - COST[1])}% · PF ${isFinite(pfOf(c.xs, 15)) ? pfOf(c.xs, 15).toFixed(2) : '—'} · 30분 ${pct(s30.hit)} · 60분 ${pct(s60.hit)} · 반쪽 ${half(c.xs)}`);
+  console.log(`     ${ver} · ${wfTxt(c.pk, `${c.cat}=${c.v}`)}`);
+}
+/* ---------- [8] 잠자리 도지 + 하락 주의 심층 — docs §7 H1~H5 ---------- */
+console.log('\n■ [8] 잠자리 도지 + 하락 주의 심층');
+const DN = POP.down;
+for (const [lab, xs] of [['대표패턴=잠자리 도지', DN.filter(e => e.F.primary === '잠자리 도지')], ['1봉형태=잠자리 도지', DN.filter(e => e.F.single === '잠자리 도지')]]){
+  const s = hitOf(xs, 15); console.log(`  ${lab} n=${xs.length} 15분 ${pct(s.hit)} ${sg(s.avg)}%`);
+  const byT = {}; xs.forEach(e => byT[e.t] = (byT[e.t] || 0) + 1); const top = Object.entries(byT).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const byD = {}; xs.forEach(e => byD[e.day] = (byD[e.day] || 0) + 1); const maxDay = Math.max(...Object.values(byD));
+  console.log(`   H1 집중: 종목 ${Object.keys(byT).length}개 · 상위3 ${top.map(([t, n]) => `${t} ${n}`).join(', ')} (${pct(top.reduce((a, [, n]) => a + n, 0)/xs.length)}) · 날짜 ${Object.keys(byD).length}일 · 같은 날 최대 ${maxDay}건 · 국장 ${xs.filter(e => e.kr).length}건`);
+  const grp = (key, vals, get) => vals.map(v => { const z = xs.filter(e => (get ? get(e) : e[key]) === v), h = hitOf(z, 15); return `${v} ${pct(h.hit)} n${h.n}`; }).join(' · ');
+  console.log(`   H2 시간대: ${grp('tod', ['장초반', '장중', '마감전'])}`);
+  console.log(`   H3 위치: VWAP ${grp(null, ['아래 멀리', '아래', '위', '위 멀리'], e => bin(e.F.f.vwap, [-1, 0, 1], ['아래 멀리', '아래', '위', '위 멀리']))} · 30분 ${grp(null, ['up', 'flat', 'down'], e => e.F.f.tr30)} · 15분 ${grp(null, ['up', 'down'], e => e.F.f.tr15)} · 직전30분 ${grp(null, ['up', 'flat', 'down'], e => e.F.f.into)}`);
+  console.log(`   H4 블록: ${[0, 1, 2].map(b => { const h = hitOf(xs.filter(e => blk[b].has(e.day)), 15); return `블록${b+1} ${pct(h.hit)} n${h.n}`; }).join(' · ')} · 미장/국장 ${grp(null, [false, true], e => e.kr)}`);
+  const m = k => med(xs.map(e => e.o1[k])); console.log(`   경로: 5분 ${pct(hitOf(xs, 5).hit)} · 15분 ${pct(s.hit)} · 30분 ${pct(hitOf(xs, 30).hit)} · 60분 ${pct(hitOf(xs, 60).hit)} · MFE/MAE15 ${sg(m('mfe15'), 2)}/${sg(m('mae15'), 2)} · 60 ${sg(m('mfe60'), 2)}/${sg(m('mae60'), 2)}`);
+}
+console.log('   H5 비교(하락 주의 1봉형태): ' + ['잠자리 도지', '망치형', '도지', '장족 도지', '비석 도지', '일반 음봉'].map(v => { const h = hitOf(DN.filter(e => e.F.single === v), 15); return `${v} ${pct(h.hit)} n${h.n}`; }).join(' · '));
+console.log('   같은 모양, 다른 신호: ' + ['go', 'E'].map(pk => { const h = hitOf(POP[pk].filter(e => e.F.single === '잠자리 도지'), 15); return `${LAB[pk]} ${pct(h.hit)} n${h.n}`; }).join(' · '));
