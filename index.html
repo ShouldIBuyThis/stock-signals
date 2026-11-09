@@ -5260,7 +5260,7 @@ function patternWidget(list){
       <span class="val"><small>${esc(r.why)}</small>${r.more?` ${r.more}`:""}${(()=>{ /* 2026-11-09 사용자 "승률 작은 글씨로" — 신호판과 같은 10년 실측(signal-stats.json) */
         const up = PAT_INFO[r.code][0]==="bounce" || PAT_INFO[r.code][0]==="theme";
         if (up && LEVERAGED[r.s.ticker]) { const L = LEV_CANDLE_CAND;   /* 레버리지 종목은 레버리지 별도 연구 숫자로 */
-          return `<small class="wstat">🟡 소표본 연구 후보 · ${L.h}일 상승 ${L.hit} · 평소 ${L.base} (${L.n}건·${L.note})</small>`; }
+          return `<small class="wstat">🟡 소표본 연구 후보 · 레버리지 ETF 그룹 전체 통계(이 종목만의 승률 아님) · ${L.h}일 상승 ${L.hit} · 평소 ${L.base} (${L.n}건·${L.note})</small>`; }
         const st = SIGNAL_BT && SIGNAL_BT.stats && SIGNAL_BT.stats[r.code] && SIGNAL_BT.stats[r.code].all; if (!st || st.hit10==null || st.base10==null || st.n < SMALL_MIN) return "";
         return `<small class="wstat">${isSmallCand(st.n, st.hit10, st.base10) ? "🟡 소표본 연구 후보 · " : ""}10일 ${up?"상승":"하락"} ${pctS(st.hit10)} · 평소 ${pctS(st.base10)} (${st.n}건)</small>`; })()}</span>
     </button>`).join("") : `<div class="widget-empty">오늘 뜬 캔들·패턴 신호 없음</div>`;
