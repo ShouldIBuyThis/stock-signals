@@ -1069,6 +1069,7 @@ html[data-theme="dark"] .mkswitch button.on{background:#37456a;box-shadow:none}
 .id-do{margin-top:10px;border-radius:10px;background:var(--navy-soft);padding:9px 11px;font-size:13px;color:var(--ink)}
 .id-do p{margin:4px 0 0;font-size:12.5px;color:var(--muted);line-height:1.6}
 .id-bar .warn{color:var(--sell)}
+.id-card-go{display:block;width:100%;margin-top:10px;border:0;border-radius:10px;background:#2f6fed;color:#fff;font:inherit;font-weight:700;font-size:13.5px;padding:10px 12px;cursor:pointer}
 .id-x:hover{background:var(--neutral-soft);color:var(--ink)}
 .id-sub{font-size:12px;color:var(--muted);margin:6px 0 10px}
 .id-sub b{color:var(--ink)}
@@ -9060,7 +9061,11 @@ document.querySelector(".id-iv").addEventListener("click", ev => {
   document.querySelectorAll(".id-iv [data-iv]").forEach(x => x.classList.toggle("on", x === b));
   if (ID.t && ID.cache.get(ID.t)) idRender();       // 받아 둔 5분봉을 묶어 그린다 — 다시 부르지 않는다
 });
-idOut.addEventListener("click", ev => { if (ev.target.closest("[data-idre]")) idQuery(true); });
+idOut.addEventListener("click", ev => {
+  if (ev.target.closest("[data-idre]")) idQuery(true);
+  const g = ev.target.closest("[data-idcard]");
+  if (g && typeof gotoStock === "function") gotoStock(g.dataset.idcard, "overall");   // 기존 검색창과 같은 이동
+});
 let idRz = 0;
 window.addEventListener("resize", () => { clearTimeout(idRz); idRz = setTimeout(() => { if (ID.on && ID.t && ID.cache.get(ID.t)) idRender(); }, 180); });
 
@@ -9086,13 +9091,15 @@ function idAgg(b5, N, t0, lastDay, cut, off){
 function idMtf(d, now){
   const off = d.gmtoffset || 0, reg = d.reg || {};
   /* 야후는 마지막 날에 정규장 끝 시각(미장 16:00)에 시작하는 봉을 하나 더 붙여 준다 — 정규장 밖이라 뺀다 */
+  const endM = reg.end ? idLocal(reg.end, off).m : null;
   const b5 = d.bars.filter(b => !(reg.end && b[0] >= reg.end && b[0] < reg.end + 3600))
-    .map(b => { const L = idLocal(b[0], off); return { ts:b[0], o:b[1], h:b[2], l:b[3], c:b[4], v:b[5]||0, day:L.day, m:L.m }; });
+    .map(b => { const L = idLocal(b[0], off); return { ts:b[0], o:b[1], h:b[2], l:b[3], c:b[4], v:b[5]||0, day:L.day, m:L.m }; })
+    .filter((b, i, a) => !(endM != null && b.m === endM && (i === a.length-1 || a[i+1].day !== b.day)));   // 지난 거래일의 마감 시각 봉도(장 종료 뒤 조회 시)
   if (!b5.length) return null;
   let day = null, pv = 0, vv = 0;
   b5.forEach(r => { if (r.day !== day){ day = r.day; pv = 0; vv = 0; } pv += (r.h + r.l + r.c)/3 * r.v; vv += r.v; r.vw = vv > 0 ? pv/vv : null; });
   const lastDay = b5[b5.length-1].day, lastTrade = d.lastTrade || (b5[b5.length-1].ts + 300);
-  const open = !!(reg.start && reg.end && now >= reg.start && now <= reg.end);
+  const open = !!(reg.start && reg.end && now >= reg.start && now <= reg.end && lastTrade >= reg.start);
   /* 마감 직후 — 국장처럼 시세가 늦게 오면 마감 뒤에도 마지막 봉이 덜 끝났을 수 있다.
      마감 30분이 지나거나 마지막 체결이 마감 1분 전까지 왔을 때만 그날 봉을 전부 확정으로 본다. */
   const settling = !open && !!(reg.end && now >= reg.end && now < reg.end + 1800 && lastTrade < reg.end - 60);
@@ -9207,12 +9214,15 @@ function idRender(){
   const chg = prevClose ? price - prevClose : null, chgP = prevClose ? chg / prevClose * 100 : null;
   const reg = d.reg || {}, P$ = p => idPx(t, p);
   const dm = Math.round((now - A.lastTrade)/60);
-  let pill;
+  let pill = "";
   if (A.open) pill = `<span class="id-pill open">장중 · 지연 ${dm < 1 ? "1분 미만" : "약 " + dm + "분"}</span>`;
   else if (A.settling) pill = `<span class="id-pill">장 마감 직후 · 자료 지연 약 ${dm}분</span>`;
-  else pill = `<span class="id-pill">${reg.start && now < reg.start ? "장 시작 전" : "장 마감"}</span>`;
+  const preOpen = !A.open && !A.settling && reg.start && now < reg.start;
+  const closed = !A.open && !A.settling;
+  if (closed) pill = `<span class="id-pill">${preOpen ? "장 시작 전" : "장 종료"}</span>`;
   const lt = idLocal(A.lastTrade, off), lb = all[all.length-1];
   const D5 = b5.filter(r => r.done), L5 = D5[D5.length-1];
+  const WD = "일월화수목금토", wd = day => WD[new Date(day + "T00:00:00Z").getUTCDay()];
   const got = new Date((d.fetchedAt || c.at) * 1000), hm2 = x => String(x).padStart(2,"0");
   const gotTxt = `${hm2(got.getHours())}:${hm2(got.getMinutes())}`;
   const st = ID_STATE[A.state], act = ID_ACT[A.state], T = A.T, P = A.P, E = A.E;
@@ -9287,6 +9297,15 @@ function idRender(){
       </details>`;
   }
 
+  /* 2026-11-09 사용자 지시 — 장중이 아니면 '현재 상태 = 장 종료'를 먼저 보이고 일봉 종가 기준 종목 카드로 안내한다.
+     장중 판정은 '마지막 장 마감 시점 분석'으로 접어 둔다(두 모드 공통). */
+  if (closed){
+    let inSite = false; try { inSite = allStocks().some(s => s.ticker.toUpperCase() === t); } catch(e){}
+    const lastBar = L5 ? `${idMD(L5.day)}(${wd(L5.day)}) ${idHM(L5.m + 5)}` : "—";
+    sum = `<div class="id-big id-easy"><b>${preOpen ? "⏰ 장 시작 전" : "🌙 장 종료"} — 지금은 장중 신호를 보지 않아요</b><span>마지막 거래일 ${lastBar} 장 마감까지의 자료예요. 차트도 그날 장중 흐름이에요.</span></div>
+      ${inSite ? `<button type="button" class="id-card-go" data-idcard="${esc(t)}">📊 일봉 종가 기준 종목 카드 보기</button>` : `<div class="id-sub" style="margin-top:8px">이 종목은 사이트의 일봉 종가 목록에 없어요.</div>`}
+      <details class="id-more"><summary>마지막 장 마감 시점 분석 보기</summary>${sum}</details>`;
+  }
   idOut.innerHTML = `<div class="id-res">
     <div class="id-card">
       <div class="id-top">
