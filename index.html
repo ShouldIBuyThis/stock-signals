@@ -9072,18 +9072,23 @@ function idAgg(b5, N, t0, lastDay, cut, off){
 /* 다중 시간대 판정 — 정의는 docs/2026-11-09-intraday-mtf.md §2~§4 그대로 */
 function idMtf(d, now){
   const off = d.gmtoffset || 0, reg = d.reg || {};
-  const b5 = d.bars.map(b => { const L = idLocal(b[0], off); return { ts:b[0], o:b[1], h:b[2], l:b[3], c:b[4], v:b[5]||0, day:L.day, m:L.m }; });
+  /* 야후는 마지막 날에 정규장 끝 시각(미장 16:00)에 시작하는 봉을 하나 더 붙여 준다 — 정규장 밖이라 뺀다 */
+  const b5 = d.bars.filter(b => !(reg.end && b[0] >= reg.end && b[0] < reg.end + 3600))
+    .map(b => { const L = idLocal(b[0], off); return { ts:b[0], o:b[1], h:b[2], l:b[3], c:b[4], v:b[5]||0, day:L.day, m:L.m }; });
   if (!b5.length) return null;
   let day = null, pv = 0, vv = 0;
   b5.forEach(r => { if (r.day !== day){ day = r.day; pv = 0; vv = 0; } pv += (r.h + r.l + r.c)/3 * r.v; vv += r.v; r.vw = vv > 0 ? pv/vv : null; });
   const lastDay = b5[b5.length-1].day, lastTrade = d.lastTrade || (b5[b5.length-1].ts + 300);
   const open = !!(reg.start && reg.end && now >= reg.start && now <= reg.end);
-  const cut = open ? lastTrade : Infinity;
+  /* 마감 직후 — 국장처럼 시세가 늦게 오면 마감 뒤에도 마지막 봉이 덜 끝났을 수 있다.
+     마감 30분이 지나거나 마지막 체결이 마감 1분 전까지 왔을 때만 그날 봉을 전부 확정으로 본다. */
+  const settling = !open && !!(reg.end && now >= reg.end && now < reg.end + 1800 && lastTrade < reg.end - 60);
+  const cut = open || settling ? lastTrade : Infinity;
   const t0 = {}; b5.forEach(b => { if (t0[b.day] === undefined) t0[b.day] = b.ts; });
   if (reg.start && idLocal(reg.start, off).day === lastDay && reg.start <= t0[lastDay]) t0[lastDay] = reg.start;
   const tf = { 5: idAgg(b5, 5, t0, lastDay, cut, off), 15: idAgg(b5, 15, t0, lastDay, cut, off), 30: idAgg(b5, 30, t0, lastDay, cut, off) };
   const D5 = tf[5].filter(r => r.done), D15 = tf[15].filter(r => r.done), D30 = tf[30].filter(r => r.done);
-  const r = { open, lastTrade, lastDay, t0: t0[lastDay], tf, T:null, P:{}, E:{ ok:false, bars:[] }, state:"hold" };
+  const r = { open, settling, lastTrade, lastDay, t0: t0[lastDay], tf, T:null, P:{}, E:{ ok:false, bars:[] }, state:"hold" };
   const today15 = D15.filter(x => x.day === lastDay);
   if (!D5.length) return r;
   r.cref = D5[D5.length-1].c;
@@ -9162,6 +9167,7 @@ function idRender(){
   const reg = d.reg || {};
   let pill;
   if (A.open){ const dm = Math.round((now - A.lastTrade)/60); pill = `<span class="id-pill open">장중 · 지연 ${dm < 1 ? "1분 미만" : "약 " + dm + "분"}</span>`; }
+  else if (A.settling){ const dm = Math.round((now - A.lastTrade)/60); pill = `<span class="id-pill">장 마감 직후 · 자료 지연 약 ${dm}분</span>`; }
   else pill = `<span class="id-pill">${reg.start && now < reg.start ? "장 시작 전" : "장 마감"}</span>`;
   const lt = idLocal(A.lastTrade, off), lb = all[all.length-1];
   const got = new Date((d.fetchedAt || c.at) * 1000), hm2 = x => String(x).padStart(2,"0");
@@ -9216,7 +9222,7 @@ function idRender(){
           <tr><td>거래량</td><td>${vr == null ? "비교 불가" : `마지막 확정 5분봉이 앞 20봉 평균의 ${vr.toFixed(1)}배`}</td></tr>
           <tr><td>오늘 교차</td><td style="font-weight:500">${evTxt}</td></tr>
         </table>
-        <div class="id-ref"><b>ⓘ 참고하세요</b><br>· 판정은 <b>확정된 봉만</b> 써요. 진행 중인 봉은 차트에만 흐리게 그려요<br>· 야후 시세 기반이라 늦거나 빠질 수 있어요. 봉 시각은 봉이 <b>시작한</b> 시각이에요<br>· 매수 등급·TOP 5·캔들 신호와 별개이고, <b>승률 검증 전</b> 참고 신호예요 — 매수 확정이 아니에요<br>· 판정 기준: 30분 추세 → 15분 지지 → 5분 재돌파 순서 (기준은 미리 정해 두고 결과에 맞춰 바꾸지 않아요)</div>
+        <div class="id-ref"><b>ⓘ 참고하세요</b><br>· 판정은 <b>확정된 봉만</b> 써요. 진행 중인 봉은 차트에만 흐리게 그려요<br>· 야후 시세 기반이라 늦거나 빠질 수 있어요. 봉 시각은 봉이 <b>시작한</b> 시각이에요<br>· 매수 등급·TOP 5·캔들 신호와 별개이고, <b>승률 검증 전</b> 참고 신호예요 — 매수 확정이 아니에요<br>· 판정 기준: 30분 추세 → 15분 지지 → 5분 재돌파 순서 (기준은 미리 정해 두고 결과에 맞춰 바꾸지 않아요)<br>· 과거 60일 시험(88종목): 각 표시 뒤 30분·60분 흐름이 평소와 뚜렷이 다르지 않았어요 — 앞날 예측이 아니라 <b>지금 위치 요약</b>으로 보세요</div>
       </details>
     </div>
   </div>
