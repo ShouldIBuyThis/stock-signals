@@ -59,7 +59,7 @@ console.log(`  15건 미만이라 판단 불가 칸 ${out.filter(o => o.s.n < 15
 /* 2026-11-09 추가(결과 확인 뒤 '보고 항목'만 늘림 · 칸·기준·숫자 불변): 61% 이상 칸의 상세 — 사용자 요청 항목
    +5·+15분 평균과 비용 차감 순수익, 블록·반쪽별, 같은 상태 이웃 캔들·같은 캔들 다른 상태(§3 고원/절벽), 종목·날짜 쏠림,
    그리고 기준선만으로 우연히 61%를 넘을 기대 칸 수(이항). */
-const binTail = (n, k, p) => { let s = 0, c = 1; for (let i = 0; i <= n; i++){ if (i > 0) c = c*(n - i + 1)/i; if (i >= k) s += c*Math.pow(p, i)*Math.pow(1 - p, n - i); } return s; };
+const binTail = (n, k, p) => { let s = 0, lc = 0; for (let i = 0; i <= n; i++){ if (i > 0) lc += Math.log(n - i + 1) - Math.log(i); if (i >= k) s += Math.exp(lc + i*Math.log(p) + (n - i)*Math.log(1 - p)); } return s; };   // 로그로 계산(n 수천에서 넘침 방지)
 const exp61 = out.filter(o => o.s.n >= 15).reduce((a, o) => a + binTail(o.s.n, Math.ceil(0.61*o.s.n), bAll.hit), 0);
 console.log(`  기준선(${pct(bAll.hit)})만으로 15건 이상 칸 ${n15}개 중 우연히 61% 이상이 나올 기대 개수 ≈ ${exp61.toFixed(2)}개`);
 for (const o of cands){
