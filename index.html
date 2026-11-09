@@ -9303,7 +9303,9 @@ function idStarEvents(d, now, cands){
     if (F) for (const c of cands){
       const hitPat = c.match === "primary" ? F.primary === c.pat : F.names.includes(c.pat);
       const hitState = !c.when || (At.state === c.when && (!c.newState || prev !== c.when));
-      if (hitPat && hitState) items.push(c);
+      /* 선택 조건(상승 연구용 · 없으면 무시): 그 봉 저가가 VWAP 아래(vwap:"below") · 30분 추세(tr30) — 모두 그 시점 값 */
+      const hitCtx = (!c.vwap || (c.vwap === "below" ? (L.vw != null && L.l < L.vw) : true)) && (!c.tr30 || (At.T && At.T.dir === c.tr30));
+      if (hitPat && hitState && hitCtx) items.push(c);
     }
     if (items.length){
       const dirs = [...new Set(items.map(c => c.dir))];
