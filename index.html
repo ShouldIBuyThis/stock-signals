@@ -1052,10 +1052,23 @@ html[data-theme="dark"] .mkswitch button.on{background:#37456a;box-shadow:none}
 .id-sw.on .id-track::after{left:16px}
 .id-panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:14px;margin:0 0 14px}
 .id-panel[hidden]{display:none}
-.id-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;position:relative;padding-right:34px}
+.id-head{display:flex;align-items:center;gap:8px}
 .id-title{font-size:16px;color:var(--ink)}
 .id-note{font-size:11px;color:var(--muted);background:var(--neutral-soft);border-radius:999px;padding:2px 8px}
-.id-x{position:absolute;right:-4px;top:-2px;border:0;background:transparent;color:var(--muted);font-size:18px;line-height:1;padding:4px 6px;cursor:pointer;border-radius:8px}
+.id-x{flex:none;border:0;background:transparent;color:var(--muted);font-size:18px;line-height:1;padding:4px 6px;cursor:pointer;border-radius:8px}
+.id-mode{margin-left:auto;display:flex;border:1px solid var(--line);border-radius:999px;padding:2px;background:var(--surface2);flex:none}
+.id-mode button{border:0;background:transparent;color:var(--muted);font:inherit;font-size:11.5px;font-weight:700;padding:4px 9px;border-radius:999px;cursor:pointer;white-space:nowrap}
+.id-mode button.on{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+.id-easy b{font-size:17.5px !important;line-height:1.4}
+.id-elines{list-style:none;margin:10px 0 0;padding:0;font-size:13px;line-height:1.55;color:var(--ink)}
+.id-elines li{padding:5px 0;border-top:1px solid var(--line)}
+.id-elines li:first-child{border-top:0}
+.id-lv{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;font-size:11.5px;color:var(--muted)}
+.id-lv span{background:var(--neutral-soft);border-radius:8px;padding:3px 8px}
+.id-lv b{color:var(--ink)}
+.id-do{margin-top:10px;border-radius:10px;background:var(--navy-soft);padding:9px 11px;font-size:13px;color:var(--ink)}
+.id-do p{margin:4px 0 0;font-size:12.5px;color:var(--muted);line-height:1.6}
+.id-bar .warn{color:var(--sell)}
 .id-x:hover{background:var(--neutral-soft);color:var(--ink)}
 .id-sub{font-size:12px;color:var(--muted);margin:6px 0 10px}
 .id-sub b{color:var(--ink)}
@@ -1222,10 +1235,10 @@ html[data-theme="dark"] .strategy-info{color:var(--muted)}
     <div class="id-head">
       <span class="id-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h4l3-7 4 14 3-7h6"/></svg></span>
       <b class="id-title">장중 신호 탐지</b>
-      <span class="id-note">ⓘ 실시간이 아닌 지연 데이터예요</span>
+      <div class="id-mode" role="group" aria-label="보기 방식"><button type="button" data-mode="easy" class="on" aria-pressed="true">🟢 초보자</button><button type="button" data-mode="pro" aria-pressed="false">🔵 전문가</button></div>
       <button type="button" class="id-x" id="idClose" aria-label="장중 신호 탐지 닫기">✕</button>
     </div>
-    <div class="id-sub">30분 추세 → 15분 지지 → 5분 진입 조건 순서로 봐요. <b>조회 버튼을 눌러야</b> 데이터를 불러와요.</div>
+    <div class="id-sub"><span class="id-note">ⓘ 실시간이 아닌 지연 데이터예요</span> 30분 추세 → 15분 지지 → 5분 진입 조건 순서로 봐요. <b>조회 버튼을 눌러야</b> 데이터를 불러와요.</div>
     <div class="id-row">
       <form class="id-q" id="idForm" autocomplete="off">
         <label class="id-in"><span aria-hidden="true">🔍</span><input id="idInput" list="idList" placeholder="티커 또는 종목명 (예: NVDA)" enterkeyhint="search" aria-label="종목"><button type="button" class="id-clr" id="idClr" aria-label="입력 지우기">✕</button></label>
@@ -9133,6 +9146,7 @@ function idMtf(d, now){
   r.E.ok = last3.some(z => z.ok);
   r.E.hit = last3.filter(z => z.ok).pop() || null;
   r.E.near = last3.filter(z => z.cross).pop() || null;
+  r.E.last3 = last3;   // 화면 표시용(판정에는 안 씀)
   /* 종합 */
   if (today15.length < 2 || D30.length < 20 || !r.T || r.P.atr == null) r.state = "hold";
   else if (r.T.dir === "down" || r.P.broken) r.state = "down";
@@ -9155,6 +9169,33 @@ const ID_STATE = {
 function idPx(t, p){ if (p == null || !isFinite(p)) return "—"; const kr = /\.(KS|KQ)$/.test(t) || /^\^KS/.test(t); return p.toLocaleString("en-US", { minimumFractionDigits: kr ? 0 : 2, maximumFractionDigits: kr ? 0 : 2 }); }
 function idTzName(tz){ return ({ "America/New_York":"뉴욕", "Asia/Seoul":"서울", "Asia/Tokyo":"도쿄", "Europe/London":"런던" })[tz] || (tz || "거래소"); }
 
+/* 초보자/전문가 모드 — 2026-11-09 사용자 지시. 판정(A.state)은 idMtf() 하나에서 나오고 두 모드는 '보여주는 말'만 다르다.
+   행동 문구(ID_ACT)도 상태 하나에 하나 — 두 모드가 같은 표를 쓴다. 모드는 이 기기에만 저장(localStorage). */
+const ID_ACT = { hold:"관망 (판단 보류)", down:"매수 보류 · 하락 주의", flat:"관망", go:"매수 검토 (참고 신호)", wait:"관망", pull:"관망", up:"관망 (추격 매수 자제)" };
+const ID_EASY = {
+  hold:{ t:"⏳ 아직 판단하기 일러요", g:"장 시작 후 30분이 지나 봉이 몇 개 확정되면 다시 조회해 보세요." },
+  down:{ t:"🔵 지금은 하락 흐름이라 조심할 때예요", g:"30분봉 흐름이 다시 위로 돌아서기 전까지는 새로 사지 않는 편이 안전해요. 이미 갖고 있다면 내 손절 기준을 확인하세요." },
+  flat:{ t:"⚪ 아직 매수 타이밍이 아니에요", g:"30분봉 방향이 위로 정해지고, 5분봉이 단기 이동평균선을 다시 돌파해 확정되면 매수 진입 조건을 재확인하세요." },
+  go:{ t:"🟢 진입 조건이 모두 맞았어요 (참고 신호)", g:"세 조건이 맞았지만 확정 매수 신호는 아니에요. 산다면 작게 나눠서, 재돌파 봉의 저가가 깨지면 신호가 무효예요." },
+  wait:{ t:"🟡 거의 다 왔지만 아직 매수 타이밍은 아니에요", g:"5분봉이 단기 이동평균선을 다시 돌파하고 그 봉이 확정되면 매수 진입 조건을 재확인하세요." },
+  pull:{ t:"🟡 오르던 주가가 잠시 쉬는 중이에요", g:"주가가 지지선 근처에서 버티는지 먼저 보세요. 버틴 뒤 5분봉이 단기 이동평균선을 다시 넘으면 진입 조건을 재확인하세요." },
+  up:{ t:"🔴 오르는 흐름이에요 — 따라 사기엔 늦을 수 있어요", g:"이미 오른 자리예요. 지지선 근처까지 잠시 내려올 때를 기다리는 편이 좋아요." },
+};
+/* 과거 60일 시험(docs/2026-11-09-intraday-mtf.md §6) — 표시 전용 고정 숫자 [사건 수, +60분 평균%, 상승 비율%] */
+const ID_BT = { period:"2026-08-18~11-09 · 88종목", base:[117357, -0.032, 48],
+  go:[580, -0.091, 48], wait:[5133, -0.026, 48], pull:[3957, 0.051, 51], up:[2989, 0.043, 51], down:[6864, -0.075, 48], flat:[7586, -0.061, 47],
+  fakeGo:[158, 491], fakeR:[1793, 3728] };
+function idModeGet(){ try { return localStorage.getItem("id_mode") === "pro" ? "pro" : "easy"; } catch(e){ return "easy"; } }
+function idModeSet(m){ try { localStorage.setItem("id_mode", m); } catch(e){} }
+ID.mode = idModeGet();
+function idModeSync(){ document.querySelectorAll(".id-mode [data-mode]").forEach(b => { const on = b.dataset.mode === ID.mode; b.classList.toggle("on", on); b.setAttribute("aria-pressed", on ? "true" : "false"); }); }
+idModeSync();
+document.querySelector(".id-mode").addEventListener("click", ev => {
+  const b = ev.target.closest("[data-mode]"); if (!b || b.dataset.mode === ID.mode) return;
+  ID.mode = b.dataset.mode; idModeSet(ID.mode); idModeSync();
+  if (ID.t && ID.cache.get(ID.t)) idRender();          // 다시 부르지 않고 같은 자료로 다시 그린다
+});
+
 function idRender(){
   const c = ID.cache.get(ID.t); if (!c) return;
   const d = c.d, t = ID.t, now = Date.now()/1000, tzn = idTzName(d.tz), off = d.gmtoffset || 0;
@@ -9164,69 +9205,101 @@ function idRender(){
   const price = (typeof d.price === "number") ? d.price : all[all.length-1].c;
   const b5 = A.tf[5], prev = b5.filter(b => b.day !== lastDay), prevClose = prev.length ? prev[prev.length-1].c : null;
   const chg = prevClose ? price - prevClose : null, chgP = prevClose ? chg / prevClose * 100 : null;
-  const reg = d.reg || {};
+  const reg = d.reg || {}, P$ = p => idPx(t, p);
+  const dm = Math.round((now - A.lastTrade)/60);
   let pill;
-  if (A.open){ const dm = Math.round((now - A.lastTrade)/60); pill = `<span class="id-pill open">장중 · 지연 ${dm < 1 ? "1분 미만" : "약 " + dm + "분"}</span>`; }
-  else if (A.settling){ const dm = Math.round((now - A.lastTrade)/60); pill = `<span class="id-pill">장 마감 직후 · 자료 지연 약 ${dm}분</span>`; }
+  if (A.open) pill = `<span class="id-pill open">장중 · 지연 ${dm < 1 ? "1분 미만" : "약 " + dm + "분"}</span>`;
+  else if (A.settling) pill = `<span class="id-pill">장 마감 직후 · 자료 지연 약 ${dm}분</span>`;
   else pill = `<span class="id-pill">${reg.start && now < reg.start ? "장 시작 전" : "장 마감"}</span>`;
   const lt = idLocal(A.lastTrade, off), lb = all[all.length-1];
+  const D5 = b5.filter(r => r.done), L5 = D5[D5.length-1];
   const got = new Date((d.fetchedAt || c.at) * 1000), hm2 = x => String(x).padStart(2,"0");
   const gotTxt = `${hm2(got.getHours())}:${hm2(got.getMinutes())}`;
-  const st = ID_STATE[A.state], T = A.T, P = A.P, E = A.E;
-  const Tline = !T ? "자료 부족" : T.dir === "up" ? `<span class="up">상승</span> · ${T.vw == null ? "" : "VWAP 위 · "}9EMA &gt; 20EMA` : T.dir === "down" ? `<span class="down">하락</span> · ${T.vw == null ? "" : "VWAP 아래 · "}9EMA &lt; 20EMA` : "중립 · 신호가 엇갈려요";
-  const Sx = P.S != null ? `${P.Sname} ${idPx(t, P.S)}` : null;
-  const Pline = P.atr == null ? "자료 부족" : P.broken ? `<span class="down">지지 이탈</span>` : P.held ? `${Sx} 지지 확인` : P.pull ? `눌림 진행 중${Sx ? ` · 지지 ${Sx}` : ""}` : Sx ? `지지 ${Sx} 위` : "현재가 아래 지지 없음";
-  const Eline = E.early ? "장 시작 30분 동안은 보지 않아요" : E.ok ? `<span class="up">충족</span> ${idHM(E.hit.m)} · 9EMA 재돌파·캔들·거래량 ${E.hit.vr.toFixed(1)}배` : E.near ? `대기 · ${idHM(E.near.m)} 재돌파했지만 ${[!E.near.candle && "캔들", !E.near.vol && "거래량"].filter(Boolean).join("·")} 미충족` : "대기 · 9EMA 재돌파 전";
-  /* 상세 — 마지막 확정 봉 기준 */
-  const L5 = b5.filter(r => r.done).pop();
-  const prior = b5.filter(r => r.done).slice(-21, -1), avgV = prior.length ? prior.reduce((a, r) => a + r.v, 0) / prior.length : 0;
+  const st = ID_STATE[A.state], act = ID_ACT[A.state], T = A.T, P = A.P, E = A.E;
+  /* 확정·지연 줄 — 두 모드 공통 */
+  const timeLine = `마지막 확정 5분봉 <b>${L5 ? `${idHM(L5.m)}~${idHM(L5.m + 5)}` : "—"}</b> · 지금 ${ID.iv}분봉 ${idHM(lb.m)}~${idHM(lb.m + ID.iv)} ${lb.done ? "확정" : "<b class=\"warn\">진행 중 (판정 제외)</b>"}`;
+  /* 오늘 교차 시각 */
+  const crosses = (tfRows, lab) => { const out = []; const D = tfRows.filter(r => r.done);
+    for (let i = 1; i < D.length; i++){ const a = D[i-1], b = D[i]; if (b.day !== lastDay || a.day !== b.day) continue;
+      if (a.e9 <= a.e20 && b.e9 > b.e20) out.push(`<b>${idHM(b.m)}</b> <span class="up">골든</span>`);
+      if (a.e9 >= a.e20 && b.e9 < b.e20) out.push(`<b>${idHM(b.m)}</b> <span class="down">데드</span>`); }
+    return `${lab} ${out.length ? out.slice(-3).join(" · ") : "없음"}`; };
+  const vwX = []; for (let i = 1; i < D5.length; i++){ const a = D5[i-1], b = D5[i]; if (b.day !== lastDay || a.day !== b.day || a.vw == null || b.vw == null) continue;
+    if (a.c <= a.vw && b.c > b.vw) vwX.push(`<b>${idHM(b.m)}</b> <span class="up">위로</span>`); if (a.c >= a.vw && b.c < b.vw) vwX.push(`<b>${idHM(b.m)}</b> <span class="down">아래로</span>`); }
+  const prior = D5.slice(-21, -1), avgV = prior.length ? prior.reduce((a, r) => a + r.v, 0) / prior.length : 0;
   const vr = L5 && avgV > 0 && L5.v > 0 ? L5.v / avgV : null;
-  const ev = [], D5 = b5.filter(r => r.done);
-  for (let i = 1; i < D5.length; i++){
-    const a = D5[i-1], b = D5[i];
-    if (b.day !== lastDay || a.day !== b.day) continue;
-    if (a.vw != null && b.vw != null){
-      if (a.c <= a.vw && b.c > b.vw) ev.push({ m:b.m, s:"VWAP 위로", cls:"up" });
-      if (a.c >= a.vw && b.c < b.vw) ev.push({ m:b.m, s:"VWAP 아래로", cls:"down" });
-    }
-    if (a.e9 <= a.e20 && b.e9 > b.e20) ev.push({ m:b.m, s:"9EMA↑20EMA", cls:"up" });
-    if (a.e9 >= a.e20 && b.e9 < b.e20) ev.push({ m:b.m, s:"9EMA↓20EMA", cls:"down" });
-  }
-  const evTxt = ev.length ? ev.slice(-3).reverse().map(x => `<b>${idHM(x.m)}</b> <span class="${x.cls}">${x.s}</span>`).join(" · ") : "오늘 아직 없음";
   const gap = L5 && L5.vw ? (L5.c / L5.vw - 1) * 100 : null;
+  const levels = `<div class="id-lv"><span>현재가 <b>${P$(price)}</b></span><span>지지 <b>${P.S != null ? P$(P.S) : "—"}</b></span><span>저항 <b>${P.R != null ? P$(P.R) : "—"}</b></span></div>`;
+
+  let sum;
+  if (ID.mode === "easy"){
+    const ez = ID_EASY[A.state];
+    const l30 = !T ? "📊 30분봉: 아직 자료가 부족해요." : T.dir === "up" ? "📈 30분봉: 큰 흐름은 위쪽이에요. (가격이 오늘 평균 거래가격 위 · 짧은 평균선이 긴 평균선 위)"
+      : T.dir === "down" ? "📉 30분봉: 큰 흐름이 아래쪽이에요. (가격이 오늘 평균 거래가격 아래 · 짧은 평균선이 긴 평균선 아래)" : "📊 30분봉: 상승과 하락 방향이 아직 불분명해요.";
+    const sTxt = P.S != null ? `지지선 ${P$(P.S)}` : null;
+    const l15 = P.atr == null ? "📊 15분봉: 아직 자료가 부족해요." : P.broken ? `📉 15분봉: 받쳐 주던 선 아래로 내려왔어요.${sTxt ? ` (${sTxt})` : ""}`
+      : P.held ? `✅ 15분봉: 조정 뒤 ${sTxt} 근처에서 버텼어요.` : P.pull ? `📉 15분봉: 주가가 조정받으며 지지선을 확인하고 있어요.${sTxt ? ` (${sTxt})` : ""}`
+      : sTxt ? `📊 15분봉: ${sTxt} 위에서 움직이고 있어요.` : "📊 15분봉: 지금 가격 아래에 받쳐 줄 선이 없어요.";
+    const l5 = E.early ? "⏳ 5분봉: 장 시작 30분은 흔들림이 커서 지켜보는 중이에요."
+      : E.ok ? `🟢 5분봉: ${idHM(E.hit.m)} 봉이 단기 이동평균선을 다시 넘었고 거래량도 늘었어요. (확정된 봉)`
+      : E.near ? `⏳ 5분봉: ${idHM(E.near.m)}에 단기 이동평균선을 넘었지만 ${[!E.near.candle && "봉 모양", !E.near.vol && "거래량"].filter(Boolean).join("·")}이 부족해요.`
+      : "⏳ 5분봉: 다시 상승하려는 신호를 기다리는 중이에요.";
+    sum = `<div class="id-big ${st.cls} id-easy"><b>${ez.t}</b></div>
+      <ul class="id-elines"><li>${l30}</li><li>${l15}</li><li>${l5}</li></ul>
+      ${levels}
+      <div class="id-do"><div>💬 지금 할 일: <b>${act}</b></div><p>“${ez.g}”</p></div>
+      <details class="id-more"><summary>쉬운 말 풀이</summary>
+        <div class="id-ref">· <b>오늘 평균 거래가격(VWAP)</b>: 오늘 거래된 가격을 거래량으로 평균 낸 값이에요. 이 위면 오늘 산 사람 대부분이 이익이에요.<br>
+        · <b>단기·장기 이동평균선(9·20 EMA)</b>: 최근 봉 9개·20개의 평균 흐름이에요. 짧은 선이 긴 선 위면 오르는 흐름이에요.<br>
+        · <b>지지선 / 저항선</b>: 주가를 받쳐 주는 가격 / 오늘 위에서 막혔던 가격이에요.<br>
+        · <b>확정된 봉</b>: 시간이 다 끝난 봉이에요. 진행 중인 봉은 모양이 바뀔 수 있어서 판단에 쓰지 않아요.<br>
+        · 이 판정은 <b>승률 검증 전 참고 신호</b>예요. 과거 60일 시험에서는 표시 뒤 흐름이 평소와 크게 다르지 않았어요.</div>
+      </details>`;
+  } else {
+    const ok = v => v ? `<span class="up">✓</span>` : `<span class="down">✗</span>`;
+    const l3 = (E.last3 || []).map(z => `<tr><td>${idHM(z.m)} 봉</td><td>재돌파 ${ok(z.cross)} · 캔들 ${ok(z.candle)} · 거래량 ${z.vr == null ? "—" : z.vr.toFixed(2) + "배"} ${ok(z.vol)}</td></tr>`).join("");
+    const bt = ID_BT[A.state], btTxt = bt ? `이 상태 사건 <b>${bt[0].toLocaleString()}건</b> · 60분 뒤 평균 ${bt[1] > 0 ? "+" : ""}${bt[1].toFixed(3)}% (상승 ${bt[2]}%)` : "판단 보류 상태는 집계 대상 아님";
+    sum = `<div class="id-big ${st.cls}"><b>${st.t}</b><span>${st.s} · 판정: ${act}</span></div>
+      <ul class="id-lines">
+        <li><em>30분 추세</em><span>${!T ? "자료 부족 (확정 30분봉 20개 미만)" : `<span class="${T.dir === "up" ? "up" : T.dir === "down" ? "down" : ""}">${T.dir === "up" ? "상승" : T.dir === "down" ? "하락" : "중립"}</span> · 종가 ${P$(T.c)} · VWAP ${T.vw == null ? "—" : P$(T.vw)} · EMA9 ${P$(T.e9)} / EMA20 ${P$(T.e20)}`}</span></li>
+        <li><em>15분 지지</em><span>${P.atr == null ? "자료 부족" : `${P.broken ? '<span class="down">이탈</span>' : P.held ? '<span class="up">지지 확인</span>' : P.pull ? "눌림 진행" : "눌림 아님"} · S ${P.S != null ? `${P$(P.S)} (${P.Sname})` : "없음"} · R ${P.R != null ? P$(P.R) : "—"}${P.breakout ? ' <span class="up">돌파</span>' : ""} · ATR ${P$(P.atr)}`}</span></li>
+        <li><em>5분 진입</em><span>${E.early ? "장 시작 30분 제외" : E.ok ? `<span class="up">충족</span> ${idHM(E.hit.m)} 확정 봉 · 무효화 기준 저가 ${P$(E.hit.low)}` : "미충족 (최근 확정 3봉)"}</span></li>
+      </ul>
+      ${levels}
+      <details class="id-more" open><summary>정밀 지표</summary>
+        <table class="id-tbl">
+          <tr><td>VWAP (5분 누적)</td><td>${!L5 || L5.vw == null ? "계산 불가 (거래량 없음)" : `${P$(L5.vw)} · 괴리 ${gap > 0 ? "+" : ""}${gap.toFixed(2)}%`}</td></tr>
+          <tr><td>15분 눌림</td><td>${P.atr == null ? "—" : `6봉 고점 ${P$(P.hh6)} − 종가 ${P$(P.c)} = ${((P.hh6 - P.c)/P.atr).toFixed(2)} ATR (0.5~2.5면 눌림)`}</td></tr>
+          ${l3 || `<tr><td>5분 최근 3봉</td><td>대상 없음</td></tr>`}
+          <tr><td>거래량 배수</td><td>${vr == null ? "비교 불가" : `마지막 확정 5분봉 ${vr.toFixed(2)}배 (앞 20봉 평균)`}</td></tr>
+          <tr><td>EMA 9/20 교차</td><td style="font-weight:500">${crosses(A.tf[5], "5분")}<br>${crosses(A.tf[15], "15분")}<br>${crosses(A.tf[30], "30분")}</td></tr>
+          <tr><td>VWAP 교차(5분)</td><td style="font-weight:500">${vwX.length ? vwX.slice(-3).join(" · ") : "없음"}</td></tr>
+        </table>
+        <div class="id-ref"><b>발생 조건</b><br>
+          · 30분 상승 = 종가 &gt; VWAP ∧ EMA9 &gt; EMA20 ∧ EMA20 ≥ 3봉 전 / 하락 = 종가 &lt; VWAP ∧ EMA9 &lt; EMA20<br>
+          · 15분 S = 현재가 아래 VWAP·EMA20 중 큰 값 · R = 직전 확정 봉까지 오늘 고점 · 지지 확인 = 최근 2봉 저가 ≤ S+0.25ATR ∧ 종가 ≥ S ∧ 6봉 고점−저가 ≥ 0.5ATR<br>
+          · 5분 = 종가가 EMA9 재돌파 ∧ (양봉 몸통 ≥ 50% ∨ 아랫꼬리 ≥ 몸통 2배·진폭 50%) ∧ 거래량 ≥ 1.2배 · 장 시작 30분 제외 · 최근 확정 3봉<br>
+          <b>무효화</b> · 5분: 재돌파 봉 저가 아래 마감 · 15분: 종가 &lt; min(VWAP, EMA20) − 0.25ATR → 하락 주의 · 30분 추세가 바뀌면 판정도 바뀜<br>
+          <b>과거 60일 실측</b> (${ID_BT.period}, 다음 5분봉 시가 진입, 비용 미반영)<br>
+          · ${btTxt} · 기준선 ${ID_BT.base[1].toFixed(3)}% (상승 ${ID_BT.base[2]}%)<br>
+          · 5분 재돌파 뒤 30분 안 저가 이탈 ${ID_BT.fakeGo[0]}/${ID_BT.fakeGo[1]} = ${Math.round(ID_BT.fakeGo[0]/ID_BT.fakeGo[1]*100)}% · 15분 저항 돌파 뒤 45분 안 복귀 ${ID_BT.fakeR[0].toLocaleString()}/${ID_BT.fakeR[1].toLocaleString()} = ${Math.round(ID_BT.fakeR[0]/ID_BT.fakeR[1]*100)}%<br>
+          · 승률 검증 전 참고 신호 — 매수 확정이 아니에요. 정의: docs/2026-11-09-intraday-mtf.md</div>
+      </details>`;
+  }
 
   idOut.innerHTML = `<div class="id-res">
     <div class="id-card">
       <div class="id-top">
         <div><span class="id-tk">${esc(t)}</span><span class="id-nm">${esc(ID.name||"")}</span>
-          <div class="id-px">${idPx(t, price)}${chg != null ? `<span class="chg ${chg > 0 ? "up" : chg < 0 ? "down" : ""}">${chg > 0 ? "+" : ""}${idPx(t, chg)} (${chgP > 0 ? "+" : ""}${chgP.toFixed(2)}%)</span>` : ""}</div></div>
+          <div class="id-px">${P$(price)}${chg != null ? `<span class="chg ${chg > 0 ? "up" : chg < 0 ? "down" : ""}">${chg > 0 ? "+" : ""}${P$(chg)} (${chgP > 0 ? "+" : ""}${chgP.toFixed(2)}%)</span>` : ""}</div></div>
         <div class="id-st">${pill}<br>마지막 체결 <b>${A.open ? "" : idMD(lt.day) + " "}${idHM(lt.m)}</b> (${tzn})</div>
       </div>
-      <div class="id-bar">마지막 ${ID.iv}분봉: ${idMD(lb.day)} ${idHM(lb.m)}~${idHM(lb.m + ID.iv)} ${lb.done ? "확정" : "<b>진행 중</b> (판정에서 제외)"}</div>
+      <div class="id-bar">${timeLine}</div>
       <div class="id-chart" id="idChart"></div>
     </div>
-    <div class="id-card id-sum">
-      <div class="id-big ${st.cls}"><b>${st.t}</b><span>${st.s}</span></div>
-      <ul class="id-lines">
-        <li><em>30분 추세</em><span>${Tline}</span></li>
-        <li><em>15분 지지</em><span>${Pline}</span></li>
-        <li><em>5분 진입 조건</em><span>${Eline}</span></li>
-      </ul>
-      <details class="id-more"><summary>상세 지표 보기</summary>
-        <table class="id-tbl">
-          <tr><td>VWAP</td><td>${!L5 || L5.vw == null ? "계산 불가 (거래량 없음)" : `${idPx(t, L5.vw)} · 가격이 <span class="${gap > 0 ? "up" : "down"}">${gap > 0 ? "위" : "아래"}</span> (${gap > 0 ? "+" : ""}${gap.toFixed(2)}%)`}</td></tr>
-          <tr><td>30분 EMA 9/20</td><td>${T ? `${idPx(t, T.e9)} / ${idPx(t, T.e20)}` : "—"}</td></tr>
-          <tr><td>15분 지지</td><td>${Sx || "현재가 아래 유효한 VWAP·20EMA 없음"}</td></tr>
-          <tr><td>15분 저항</td><td>${P.R != null ? `${idPx(t, P.R)} (직전 확정 봉까지 오늘 고점)${P.breakout ? ` · <span class="up">돌파</span>` : ""}` : "—"}</td></tr>
-          <tr><td>15분 ATR</td><td>${P.atr != null ? idPx(t, P.atr) : "—"}</td></tr>
-          <tr><td>거래량</td><td>${vr == null ? "비교 불가" : `마지막 확정 5분봉이 앞 20봉 평균의 ${vr.toFixed(1)}배`}</td></tr>
-          <tr><td>오늘 교차</td><td style="font-weight:500">${evTxt}</td></tr>
-        </table>
-        <div class="id-ref"><b>ⓘ 참고하세요</b><br>· 판정은 <b>확정된 봉만</b> 써요. 진행 중인 봉은 차트에만 흐리게 그려요<br>· 야후 시세 기반이라 늦거나 빠질 수 있어요. 봉 시각은 봉이 <b>시작한</b> 시각이에요<br>· 매수 등급·TOP 5·캔들 신호와 별개이고, <b>승률 검증 전</b> 참고 신호예요 — 매수 확정이 아니에요<br>· 판정 기준: 30분 추세 → 15분 지지 → 5분 재돌파 순서 (기준은 미리 정해 두고 결과에 맞춰 바꾸지 않아요)<br>· 과거 60일 시험(88종목): 각 표시 뒤 30분·60분 흐름이 평소와 뚜렷이 다르지 않았어요 — 앞날 예측이 아니라 <b>지금 위치 요약</b>으로 보세요</div>
-      </details>
-    </div>
+    <div class="id-card id-sum">${sum}</div>
   </div>
-  <div class="id-foot"><button type="button" class="id-re" data-idre="1">↻ 새로 조회</button><span>서버가 자료 받은 시각 ${gotTxt} (내 기기 시각)</span></div>`;
+  <div class="id-foot"><button type="button" class="id-re" data-idre="1">↻ 새로 조회</button><span>서버가 자료 받은 시각 ${gotTxt} (내 기기 시각) · 봉 시각은 봉이 시작한 시각</span></div>`;
   idDraw(document.getElementById("idChart"), rows, t, ID.iv === 15 ? P : null, ID.iv === 5 ? E.bars.map(z => z.ts) : null);
 }
 
