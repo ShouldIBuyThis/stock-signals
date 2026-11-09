@@ -9190,6 +9190,63 @@ function idCandle(A, bar){
   else if (shape === "장대음봉" || (shape === "긴 윗꼬리" && (aboveVw === false || atR)) || (shape === "음봉" && aboveVw === false && T === "down")) light = "🔴";
   return { shape, light, body, up, lo, big, vr, aboveVw, atR, T };
 }
+/* 5분봉 캔들 패턴·수치 변수·위치 — 2026-11-09 광범위 연구용(화면 미연결). 정의: docs/2026-11-09-intraday-candle-wide.md (결과 전 고정).
+   names = 맞는 패턴 전부(3봉 → 2봉 → 1봉 순), primary = 첫 번째(중복 집계 방지용 대표), single = 1봉 형태(항상 하나). 판정·점수와 별개. */
+function idCandleFeat(A, bar){
+  const D5 = A.tf[5].filter(r => r.done), j = D5.findIndex(r => r.ts === bar.ts);
+  if (j < 0) return null;
+  const B = k => { const r = D5[j - k]; if (!r || r.day !== bar.day) return null; const rg = r.h - r.l;
+    return { o:r.o, h:r.h, l:r.l, c:r.c, v:r.v, rg, b: rg > 0 ? Math.abs(r.c - r.o)/rg : 0, u: rg > 0 ? (r.h - Math.max(r.o, r.c))/rg : 0, lo: rg > 0 ? (Math.min(r.o, r.c) - r.l)/rg : 0, bull: r.c > r.o, bear: r.c < r.o }; };
+  const t = B(0), p = B(1), q = B(2);
+  const prior = D5.slice(Math.max(0, j - 20), j);
+  const rs = prior.map(r => r.h - r.l).sort((a, b) => a - b), medR = rs.length ? rs[rs.length >> 1] : null;
+  const avgV = prior.length ? prior.reduce((s, r) => s + r.v, 0)/prior.length : 0;
+  const r6 = D5[j - 6], pc = D5[j - 1];
+  const into = r6 && pc ? (pc.c > r6.c ? "up" : pc.c < r6.c ? "down" : "flat") : null;   // 이 봉 직전까지 30분 흐름
+  const names = [], mid = x => (x.o + x.c)/2;
+  if (q && p){
+    if (q.bear && q.b >= 0.6 && p.b <= 0.3 && Math.max(p.o, p.c) <= q.c + 0.1*q.rg && t.bull && t.c > mid(q)) names.push("샛별형");
+    if (q.bull && q.b >= 0.6 && p.b <= 0.3 && Math.min(p.o, p.c) >= q.c - 0.1*q.rg && t.bear && t.c < mid(q)) names.push("석별형");
+    if ([q, p, t].every(x => x.bull && x.b >= 0.5) && p.c > q.c && t.c > p.c) names.push("적삼병");
+    if ([q, p, t].every(x => x.bear && x.b >= 0.5) && p.c < q.c && t.c < p.c) names.push("흑삼병");
+    if (q.bear && q.b >= 0.5 && p.bull && Math.max(p.o, p.c) <= q.o && Math.min(p.o, p.c) >= q.c && t.bull && t.c > q.o) names.push("상승 확인 잉태(3봉)");
+    if (q.bull && q.b >= 0.5 && p.bear && Math.max(p.o, p.c) <= q.c && Math.min(p.o, p.c) >= q.o && t.bear && t.c < q.o) names.push("하락 확인 잉태(3봉)");
+  }
+  if (p){
+    const pb = Math.abs(p.c - p.o), tb = Math.abs(t.c - t.o), tol = 0.1*(medR || t.rg || 1);
+    if (p.bear && t.bull && t.o <= p.c && t.c >= p.o && tb > pb) names.push("상승장악형");
+    if (p.bull && t.bear && t.o >= p.c && t.c <= p.o && tb > pb) names.push("하락장악형");
+    if (p.bear && p.b >= 0.5 && t.bull && Math.max(t.o, t.c) <= p.o && Math.min(t.o, t.c) >= p.c && tb <= 0.5*pb) names.push("상승잉태형");
+    if (p.bull && p.b >= 0.5 && t.bear && Math.max(t.o, t.c) <= p.c && Math.min(t.o, t.c) >= p.o && tb <= 0.5*pb) names.push("하락잉태형");
+    if (p.bear && p.b >= 0.5 && t.bull && t.o < p.c && t.c > mid(p) && t.c < p.o) names.push("관통형");
+    if (p.bull && p.b >= 0.5 && t.bear && t.o > p.c && t.c < mid(p) && t.c > p.o) names.push("먹구름형");
+    if (p.bear && t.bull && Math.abs(t.l - p.l) <= tol) names.push("집게바닥");
+    if (p.bull && t.bear && Math.abs(t.h - p.h) <= tol) names.push("집게천장");
+    if (t.h <= p.h && t.l >= p.l) names.push("인사이드바");
+    if (t.h > p.h && t.l < p.l) names.push("아웃사이드바");
+  }
+  let single;
+  if (!(t.rg > 0)) single = "도지";
+  else if (t.b <= 0.1) single = t.lo >= 0.6 && t.u <= 0.1 ? "잠자리 도지" : t.u >= 0.6 && t.lo <= 0.1 ? "비석 도지" : t.u >= 0.3 && t.lo >= 0.3 ? "장족 도지" : "도지";
+  else if (t.lo >= 0.6 && t.b <= 0.3 && t.u <= 0.15) single = into === "up" ? "교수형" : "망치형";
+  else if (t.u >= 0.6 && t.b <= 0.3 && t.lo <= 0.15) single = into === "up" ? "유성형" : "역망치형";
+  else if (t.b <= 0.3 && t.u >= 0.25 && t.lo >= 0.25) single = "팽이";
+  else if (t.b >= 0.9) single = t.bull ? "양봉 마루보주" : "음봉 마루보주";
+  else if (t.b >= 0.7 && medR && t.rg >= 1.5*medR) single = t.bull ? "장대양봉" : "장대음봉";
+  else single = t.bull ? "일반 양봉" : t.bear ? "일반 음봉" : "도지";
+  names.push(single);
+  let consec = 0; for (let k = 0; ; k++){ const x = B(k); if (!x || !(t.bull ? x.bull : t.bear ? x.bear : false)) break; consec++; }
+  const dayRows = D5.filter(r => r.day === bar.day), dayOpen = dayRows.length ? dayRows[0].o : t.o;
+  const L15 = A.tf[15].filter(r => r.done).pop();
+  const atr = A.P && A.P.atr ? A.P.atr : null;
+  return { names, primary: names[0], single,
+    f: { body: t.b, upper: t.u, lower: t.lo, clv: t.rg > 0 ? (t.c - t.l)/t.rg : 0.5, consec: t.bull ? consec : -consec,
+         gap: p && medR ? (t.o - p.c)/medR : 0, vr: avgV > 0 ? t.v/avgV : null, rngMult: medR ? t.rg/medR : null,
+         vwap: bar.vw == null ? null : (t.c - bar.vw)/(medR || t.rg || 1), ema: t.c > bar.e9 ? (bar.e9 > bar.e20 ? "위·정배열" : "위·역배열") : (bar.e9 > bar.e20 ? "아래·정배열" : "아래·역배열"),
+         open: t.c >= dayOpen ? "시가 위" : "시가 아래",
+         toR: A.P && A.P.R != null && atr ? (A.P.R - t.c)/atr : null, toS: A.P && A.P.S != null && atr ? (t.c - A.P.S)/atr : null,
+         tr15: L15 ? (L15.e9 > L15.e20 ? "up" : "down") : null, tr30: A.T ? A.T.dir : null, into } };
+}
 const ID_STATE = {
   hold:{ t:"⏳ 판단 보류", cls:"", s:"장 시작 직후거나 자료가 부족해요" },
   down:{ t:"🔵 하락 주의", cls:"down", s:"30분 추세가 아래거나 15분 지지를 깼어요" },
