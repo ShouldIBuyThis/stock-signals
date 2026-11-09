@@ -9164,6 +9164,32 @@ function idMtf(d, now){
   else r.state = "up";
   return r;
 }
+/* 5분봉 캔들 형태·신호등 — 2026-11-09 연구용(아직 화면에 연결 안 함). 판정(A.state)·점수와 별개.
+   정의: docs/2026-11-09-intraday-candle.md (결과 전 고정). 캔들 하나로 상승·하락을 단정하지 않는다 — 위치(VWAP·저항)·거래량·30분 추세를 같이 본다. */
+function idCandle(A, bar){
+  const D5 = A.tf[5].filter(r => r.done), j = D5.findIndex(r => r.ts === bar.ts);
+  const rng = bar.h - bar.l;
+  const body = rng > 0 ? Math.abs(bar.c - bar.o)/rng : 0, up = rng > 0 ? (bar.h - Math.max(bar.o, bar.c))/rng : 0, lo = rng > 0 ? (Math.min(bar.o, bar.c) - bar.l)/rng : 0;
+  const prior = D5.slice(Math.max(0, j - 20), Math.max(0, j));
+  const rs = prior.map(r => r.h - r.l).sort((a, b) => a - b), medR = rs.length ? rs[Math.floor(rs.length/2)] : null;
+  const big = !!(medR && rng >= 1.5*medR);
+  const avgV = prior.length ? prior.reduce((s, r) => s + r.v, 0)/prior.length : 0, vr = avgV > 0 ? bar.v/avgV : null;
+  const bull = bar.c > bar.o, bear = bar.c < bar.o;
+  let shape;
+  if (!(rng > 0) || body <= 0.1) shape = "도지";
+  else if (body <= 0.3 && up >= 0.3 && lo >= 0.3) shape = "위아래 긴 꼬리";
+  else if (lo >= 0.5 && up <= 0.2) shape = "긴 아랫꼬리";
+  else if (up >= 0.5 && lo <= 0.2) shape = "긴 윗꼬리";
+  else if (bull && body >= 0.7 && big) shape = "장대양봉";
+  else if (bear && body >= 0.7 && big) shape = "장대음봉";
+  else shape = bull ? "양봉" : bear ? "음봉" : "도지";
+  const aboveVw = bar.vw == null ? null : bar.c > bar.vw;
+  const T = A.T ? A.T.dir : null, R = A.P ? A.P.R : null, atR = R != null && bar.h >= R;
+  let light = "🟡";
+  if (["장대양봉", "양봉", "긴 아랫꼬리"].includes(shape) && aboveVw !== false && T !== "down" && (vr == null || vr >= 1)) light = "🟢";
+  else if (shape === "장대음봉" || (shape === "긴 윗꼬리" && (aboveVw === false || atR)) || (shape === "음봉" && aboveVw === false && T === "down")) light = "🔴";
+  return { shape, light, body, up, lo, big, vr, aboveVw, atR, T };
+}
 const ID_STATE = {
   hold:{ t:"⏳ 판단 보류", cls:"", s:"장 시작 직후거나 자료가 부족해요" },
   down:{ t:"🔵 하락 주의", cls:"down", s:"30분 추세가 아래거나 15분 지지를 깼어요" },
