@@ -9492,7 +9492,8 @@ function idDraw(box, rows, t, lv, marks, closeDot){
     if (x2 - x1 > 70) g += `<text x="${((x1 + x2)/2).toFixed(1)}" y="${(PH/2).toFixed(1)}" font-size="10" fill="var(--faint)" text-anchor="middle">15:00~15:30 미제공</text>`;
     g += `<line x1="${xd.toFixed(1)}" x2="${xd.toFixed(1)}" y1="${(yd - 9).toFixed(1)}" y2="${(yd + 9).toFixed(1)}" stroke="var(--ink)" stroke-width="1"/>`;
     g += `<circle cx="${xd.toFixed(1)}" cy="${yd.toFixed(1)}" r="4" fill="var(--ink)" stroke="var(--surface)" stroke-width="1.5"/>`;
-    g += `<text x="${xd.toFixed(1)}" y="${(yd - 12).toFixed(1)}" font-size="10" fill="var(--ink)" font-weight="700" text-anchor="end">종가 ${idPx(t, closeDot.price)}</text>`;
+    const ly = yd - 12 < 10 ? yd + 22 : yd - 12;   // 점이 위 끝이면 글자를 아래로
+    g += `<text x="${(xd + 6).toFixed(1)}" y="${ly.toFixed(1)}" font-size="10" fill="var(--ink)" font-weight="700" text-anchor="end">종가 ${idPx(t, closeDot.price)}</text>`;
     g += `<text x="${xd.toFixed(1)}" y="${H-4}" font-size="10.5" fill="var(--muted)" text-anchor="middle">15:30</text>`;
   }
   const z = rows[n-1];
