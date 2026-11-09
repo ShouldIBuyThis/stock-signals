@@ -1,6 +1,6 @@
 /**
  * 장중 차트 중계 서버 (Cloudflare Worker) — 야후 5분봉을 받아 사이트(shouldibuythis.github.io)에 넘겨준다.
- * 2026-11-09 사용자 지시: Worker 방식 · 5분봉 하나로 30분봉도 만든다(30분 합치기는 사이트에서) · 같은 티커 10분 캐시.
+ * 2026-11-09 사용자 지시: Worker 방식 · 5분봉 하나로 30분봉도 만든다(30분 합치기는 사이트에서) · 같은 티커 90초 캐시(처음 10분에서 단축).
  *
  * 쓰는 법: Cloudflare 대시보드 → Workers & Pages → Create → Hello World → Deploy → Edit code → 이 파일 내용 전체 붙여넣기 → Deploy
  * 주소 예: https://stock-intraday.<계정이름>.workers.dev/?t=NVDA
@@ -9,7 +9,7 @@
  * ⚠ 야후 차트 주소는 공식 API가 아니다 — 예고 없이 막히거나 바뀔 수 있다. 실패하면 { error } 를 돌려주고 사이트는 안내만 띄운다.
  */
 const ALLOW = ["https://shouldibuythis.github.io"];
-const TTL = 600;   // 10분
+const TTL = 90;    // 90초 (2026-11-09 사용자 지시: 10분 → 1~2분)
 
 function json(body, status, headers) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json; charset=utf-8", ...headers } });

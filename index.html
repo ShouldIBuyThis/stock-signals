@@ -1096,6 +1096,15 @@ html[data-theme="dark"] .mkswitch button.on{background:#37456a;box-shadow:none}
 .id-big span{font-size:11.5px;color:var(--muted)}
 .id-big.up{background:color-mix(in srgb,var(--up) 10%,var(--surface))} .id-big.up b{color:var(--up)}
 .id-big.down{background:color-mix(in srgb,var(--down) 10%,var(--surface))} .id-big.down b{color:var(--down)}
+.id-big.wait{background:var(--sell-soft)} .id-big.wait b{color:var(--sell)}
+.id-lines{list-style:none;margin:8px 0 0;padding:0;font-size:12.5px}
+.id-lines li{display:flex;gap:8px;padding:6px 0;border-top:1px solid var(--line);line-height:1.45}
+.id-lines li:first-child{border-top:0}
+.id-lines em{font-style:normal;color:var(--muted);flex:none;width:84px}
+.id-lines span{color:var(--ink);min-width:0}
+.id-lines .up,.id-bar .up{color:var(--up);font-weight:700} .id-lines .down{color:var(--down);font-weight:700}
+.id-bar{font-size:11px;color:var(--faint);margin-top:4px}
+.id-bar b{color:var(--sell)}
 .id-more{margin-top:8px}
 .id-more>summary{cursor:pointer;font-size:12px;color:var(--muted);font-weight:700;padding:6px 0;list-style:none}
 .id-more>summary::-webkit-details-marker{display:none}
@@ -1206,7 +1215,7 @@ html[data-theme="dark"] .strategy-info{color:var(--muted)}
     <span class="id-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h4l3-7 4 14 3-7h6"/></svg></span>
     <b class="id-name">장중 신호 탐지</b>
     <span class="id-chip">수동 조회</span>
-    <span class="id-desc">5분봉·30분봉으로 장중 흐름을 확인해요</span>
+    <span class="id-desc">30·15·5분봉으로 장중 흐름을 확인해요</span>
     <button type="button" class="id-sw" id="idToggle" role="switch" aria-checked="false" aria-label="장중 신호 탐지 모드"><span class="id-sw-t">OFF</span><span class="id-track"></span></button>
   </div>
   <section class="id-panel" id="idPanel" hidden aria-label="장중 신호 탐지">
@@ -1216,13 +1225,13 @@ html[data-theme="dark"] .strategy-info{color:var(--muted)}
       <span class="id-note">ⓘ 실시간이 아닌 지연 데이터예요</span>
       <button type="button" class="id-x" id="idClose" aria-label="장중 신호 탐지 닫기">✕</button>
     </div>
-    <div class="id-sub">오늘 장중 흐름을 확인해요. <b>조회 버튼을 눌러야</b> 데이터를 불러와요.</div>
+    <div class="id-sub">30분 추세 → 15분 지지 → 5분 진입 조건 순서로 봐요. <b>조회 버튼을 눌러야</b> 데이터를 불러와요.</div>
     <div class="id-row">
       <form class="id-q" id="idForm" autocomplete="off">
         <label class="id-in"><span aria-hidden="true">🔍</span><input id="idInput" list="idList" placeholder="티커 또는 종목명 (예: NVDA)" enterkeyhint="search" aria-label="종목"><button type="button" class="id-clr" id="idClr" aria-label="입력 지우기">✕</button></label>
         <button type="submit" class="id-go" id="idGo">조회</button>
       </form>
-      <div class="id-iv" role="group" aria-label="봉 간격"><button type="button" data-iv="5" class="on">5분봉</button><button type="button" data-iv="30">30분봉</button></div>
+      <div class="id-iv" role="group" aria-label="봉 간격"><button type="button" data-iv="5" class="on">5분</button><button type="button" data-iv="15">15분</button><button type="button" data-iv="30">30분</button></div>
     </div>
     <datalist id="idList"></datalist>
     <div class="id-msg" id="idMsg" role="status"></div>
@@ -8954,11 +8963,12 @@ boot();
 /* ===== 장중 신호 탐지 모드 (2026-11-09 사용자 지시) =====
    · 기본 OFF. ON/OFF 스위치와 패널의 X가 같은 상태(ID.on) 하나만 쓴다 — X로 닫으면 스위치도 OFF.
    · 패널을 여는 것만으로는 아무것도 부르지 않는다. [조회]/[새로 조회]를 누를 때만 중계 서버(cloudflare/intraday-worker.mjs)를 부른다.
-   · 같은 종목은 10분 동안 받아 둔 결과를 다시 쓴다(서버도 10분 캐시).
-   · 종가 기준 신호·점수·등급·차트·원장과 완전히 분리 — evaluate()·state·signals.json을 읽거나 쓰지 않는다(종목명 자동완성만 allStocks()에서 읽는다).
-   · 판정이 아니라 VWAP·EMA·거래량의 '현재 위치'를 사실대로 보여준다. 승률 검증 전 정보다. */
-const INTRADAY_API = (typeof window !== "undefined" && window.__INTRADAY_API) || "";   // Worker 주소(https://….workers.dev/) — 배포 후 채운다
-const ID_TTL = 600;
+   · 15·30분봉은 받아 둔 5분봉을 정규장 시작 시각 기준으로 묶어 만든다 — 추가 호출 없음.
+   · 판정 정의는 docs/2026-11-09-intraday-mtf.md(결과 보기 전 사전 등록). 과거 시험 tools/intraday-mtf-lab.js는
+     아래 idMtf()를 문자열로 꺼내 쓴다 — 재구현 금지. 승률 검증 전 참고 신호이며 매수 확정이 아니다.
+   · 종가 기준 evaluate()·점수·등급·차트·원장과 완전히 분리(종목명 자동완성만 allStocks()에서 읽는다). */
+const INTRADAY_API = (typeof window !== "undefined" && window.__INTRADAY_API) || "https://stock-intraday.zzz797911.workers.dev/";
+const ID_TTL = 90;   // 같은 종목 재조회 간격(초) — 중계 서버 캐시도 90초
 const ID = { on:false, iv:5, t:null, name:"", cache:new Map(), seq:0, busy:false };
 const idSw = document.getElementById("idToggle"), idPanel = document.getElementById("idPanel");
 const idInput = document.getElementById("idInput"), idOut = document.getElementById("idOut"), idMsgEl = document.getElementById("idMsg");
@@ -9020,7 +9030,7 @@ async function idQuery(force){
     if (my !== ID.seq || !ID.on) return;
     ID.t = pick.t; ID.name = pick.name;
     if (!force) idInput.value = pick.t;
-    idMsg(force && fresh ? `↻ 받은 지 10분이 안 돼서 같은 결과를 보여드려요 (서버도 10분 동안 같은 자료를 줘요)` : "");
+    idMsg(force && fresh ? `↻ 방금 받은 자료라 같은 결과예요 (같은 종목은 90초 뒤 새로 받아요)` : "");
     idRender();
   } catch(e){
     if (my !== ID.seq || !ID.on) return;
@@ -9035,120 +9045,193 @@ document.querySelector(".id-iv").addEventListener("click", ev => {
   const b = ev.target.closest("[data-iv]"); if (!b) return;
   ID.iv = +b.dataset.iv;
   document.querySelectorAll(".id-iv [data-iv]").forEach(x => x.classList.toggle("on", x === b));
-  if (ID.t && ID.cache.get(ID.t)) idRender();       // 30분봉은 받아 둔 5분봉을 묶어 만든다 — 다시 부르지 않는다
+  if (ID.t && ID.cache.get(ID.t)) idRender();       // 받아 둔 5분봉을 묶어 그린다 — 다시 부르지 않는다
 });
 idOut.addEventListener("click", ev => { if (ev.target.closest("[data-idre]")) idQuery(true); });
 let idRz = 0;
 window.addEventListener("resize", () => { clearTimeout(idRz); idRz = setTimeout(() => { if (ID.on && ID.t && ID.cache.get(ID.t)) idRender(); }, 180); });
 
-/* --- 계산: 전부 받아 둔 5분봉에서 --- */
-function idLocal(ts, off){ const d = new Date((ts + (off||0)) * 1000); return { day: d.toISOString().slice(0,10), m: d.getUTCHours()*60 + d.getUTCMinutes(), d }; }
+/* --- 계산(순수 함수 — DOM 없음. 과거 시험 도구가 그대로 꺼내 쓴다) --- */
+function idLocal(ts, off){ const d = new Date((ts + (off||0)) * 1000); return { day: d.toISOString().slice(0,10), m: d.getUTCHours()*60 + d.getUTCMinutes() }; }
 function idHM(m){ return String(Math.floor(m/60)).padStart(2,"0") + ":" + String(m%60).padStart(2,"0"); }
 function idMD(day){ return (+day.slice(5,7)) + "/" + (+day.slice(8,10)); }
-function idBars(d){
-  return d.bars.map(b => { const L = idLocal(b[0], d.gmtoffset); return { ts:b[0], o:b[1], h:b[2], l:b[3], c:b[4], v:b[5]||0, day:L.day, m:L.m }; });
-}
-function idAgg30(bars){
-  const out = [], first = {};
-  for (const b of bars){
-    if (first[b.day] === undefined) first[b.day] = b.m;
-    const k = b.day + "|" + Math.floor((b.m - first[b.day]) / 30);
-    const L = out[out.length-1];
-    if (L && L.k === k){ L.h = Math.max(L.h, b.h); L.l = Math.min(L.l, b.l); L.c = b.c; L.v += b.v; L.end = b.ts + 300; }
-    else out.push({ k, ts:b.ts, o:b.o, h:b.h, l:b.l, c:b.c, v:b.v, day:b.day, m:first[b.day] + Math.floor((b.m - first[b.day]) / 30) * 30, end:b.ts + 300 });
+function idEma(rows, n){ const k = 2/(n+1); let e = null; return rows.map(r => (e = e === null ? r.c : r.c*k + e*(1-k))); }
+/* N분봉 묶기 — 날짜별 기준 시각 t0[day]에서 N분 단위. 확정 = 시작+N분 ≤ cut(그날이 마지막 날일 때만 적용). */
+function idAgg(b5, N, t0, lastDay, cut, off){
+  const out = [], S = N*60;
+  for (const b of b5){
+    const k = Math.floor((b.ts - t0[b.day]) / S), st = t0[b.day] + k*S, L = out[out.length-1];
+    if (L && L.day === b.day && L.k === k){ L.h = Math.max(L.h, b.h); L.l = Math.min(L.l, b.l); L.c = b.c; L.v += b.v; L.vw = b.vw; }
+    else out.push({ k, ts:st, o:b.o, h:b.h, l:b.l, c:b.c, v:b.v, vw:b.vw, day:b.day, m:idLocal(st, off).m });
   }
+  out.forEach(r => { r.done = r.day !== lastDay || r.ts + S <= cut; });
+  const e9 = idEma(out, 9), e20 = idEma(out, 20);
+  out.forEach((r, i) => { r.e9 = e9[i]; r.e20 = e20[i]; });
   return out;
 }
-function idEma(rows, n){ const k = 2/(n+1); let e = null; return rows.map(r => (e = e === null ? r.c : r.c*k + e*(1-k))); }
-function idVwap(rows){
+/* 다중 시간대 판정 — 정의는 docs/2026-11-09-intraday-mtf.md §2~§4 그대로 */
+function idMtf(d, now){
+  const off = d.gmtoffset || 0, reg = d.reg || {};
+  const b5 = d.bars.map(b => { const L = idLocal(b[0], off); return { ts:b[0], o:b[1], h:b[2], l:b[3], c:b[4], v:b[5]||0, day:L.day, m:L.m }; });
+  if (!b5.length) return null;
   let day = null, pv = 0, vv = 0;
-  return rows.map(r => { if (r.day !== day){ day = r.day; pv = 0; vv = 0; } pv += (r.h + r.l + r.c)/3 * r.v; vv += r.v; return vv > 0 ? pv/vv : null; });
+  b5.forEach(r => { if (r.day !== day){ day = r.day; pv = 0; vv = 0; } pv += (r.h + r.l + r.c)/3 * r.v; vv += r.v; r.vw = vv > 0 ? pv/vv : null; });
+  const lastDay = b5[b5.length-1].day, lastTrade = d.lastTrade || (b5[b5.length-1].ts + 300);
+  const open = !!(reg.start && reg.end && now >= reg.start && now <= reg.end);
+  const cut = open ? lastTrade : Infinity;
+  const t0 = {}; b5.forEach(b => { if (t0[b.day] === undefined) t0[b.day] = b.ts; });
+  if (reg.start && idLocal(reg.start, off).day === lastDay && reg.start <= t0[lastDay]) t0[lastDay] = reg.start;
+  const tf = { 5: idAgg(b5, 5, t0, lastDay, cut, off), 15: idAgg(b5, 15, t0, lastDay, cut, off), 30: idAgg(b5, 30, t0, lastDay, cut, off) };
+  const D5 = tf[5].filter(r => r.done), D15 = tf[15].filter(r => r.done), D30 = tf[30].filter(r => r.done);
+  const r = { open, lastTrade, lastDay, t0: t0[lastDay], tf, T:null, P:{}, E:{ ok:false, bars:[] }, state:"hold" };
+  const today15 = D15.filter(x => x.day === lastDay);
+  if (!D5.length) return r;
+  r.cref = D5[D5.length-1].c;
+  /* T — 30분 추세 */
+  if (D30.length >= 20){
+    const j = D30.length-1, x = D30[j], vOk = x.vw == null;
+    const up = (vOk || x.c > x.vw) && x.e9 > x.e20 && x.e20 >= D30[j-3].e20;
+    const dn = (vOk || x.c < x.vw) && x.e9 < x.e20;
+    r.T = { dir: up ? "up" : dn ? "down" : "flat", c:x.c, vw:x.vw, e9:x.e9, e20:x.e20, ts:x.ts };
+  }
+  /* P — 15분 지지·저항·눌림 */
+  if (D15.length >= 15 && today15.length >= 1){
+    const i = D15.length-1, x = D15[i], prv = D15[i-1];
+    const trs = D15.slice(-14).map((b, k, a) => { const pc = k ? a[k-1].c : (D15[D15.length-15] || b).c; return Math.max(b.h - b.l, Math.abs(b.h - pc), Math.abs(b.l - pc)); });
+    const atr = trs.reduce((a, b) => a + b, 0) / trs.length;
+    const cand = [["VWAP", x.vw], ["20EMA", x.e20]].filter(c => c[1] != null && c[1] < r.cref);
+    const S = cand.length ? cand.reduce((a, b) => b[1] > a[1] ? b : a) : null;
+    const before = today15.slice(0, -1);
+    const R = before.length ? Math.max(...before.map(b => b.h)) : null;
+    const hh6 = Math.max(...D15.slice(-6).map(b => b.h)), lowMin = Math.min(prv.l, x.l);
+    const floor = Math.min(x.vw == null ? x.e20 : x.vw, x.e20);
+    const broken = x.c < floor - 0.25*atr;
+    const pull = hh6 - x.c >= 0.5*atr && hh6 - x.c <= 2.5*atr;
+    const held = !!S && lowMin <= S[1] + 0.25*atr && x.c >= S[1] && hh6 - lowMin >= 0.5*atr;
+    r.P = { atr, S: S ? S[1] : null, Sname: S ? S[0] : null, R, breakout: R != null && x.c > R, broken, pull, held, hh6, c:x.c, ts:x.ts };
+  }
+  /* E — 5분 진입 조건 (오늘, 장 시작 30분 이후) */
+  const chk = j => {
+    const a = D5[j-1], b = D5[j];
+    if (!a || b.day !== lastDay || b.ts < t0[lastDay] + 1800) return null;
+    const cross = a.c <= a.e9 && b.c > b.e9;
+    const rng = b.h - b.l, body = Math.abs(b.c - b.o), lw = Math.min(b.o, b.c) - b.l;
+    const candle = rng > 0 && ((b.c > b.o && body >= 0.5*rng) || (lw >= 2*body && lw >= 0.5*rng));
+    const prior = D5.slice(Math.max(0, j-20), j), avg = prior.length ? prior.reduce((s, z) => s + z.v, 0) / prior.length : 0;
+    const vr = avg > 0 ? b.v / avg : null, vol = vr != null && vr >= 1.2;
+    return { j, ts:b.ts, m:b.m, cross, candle, vol, vr, low:b.l, ok: cross && candle && vol };
+  };
+  const todayIdx = []; D5.forEach((b, j) => { if (b.day === lastDay) todayIdx.push(j); });
+  r.E.bars = todayIdx.map(chk).filter(z => z && z.ok);
+  const last3 = [D5.length-3, D5.length-2, D5.length-1].filter(j => j >= 1).map(chk).filter(Boolean);
+  r.E.early = !last3.length;
+  r.E.ok = last3.some(z => z.ok);
+  r.E.hit = last3.filter(z => z.ok).pop() || null;
+  r.E.near = last3.filter(z => z.cross).pop() || null;
+  /* 종합 */
+  if (today15.length < 2 || D30.length < 20 || !r.T || r.P.atr == null) r.state = "hold";
+  else if (r.T.dir === "down" || r.P.broken) r.state = "down";
+  else if (r.T.dir === "flat") r.state = "flat";
+  else if (r.P.held && r.E.ok) r.state = "go";
+  else if (r.P.held) r.state = "wait";
+  else if (r.P.pull) r.state = "pull";
+  else r.state = "up";
+  return r;
 }
+const ID_STATE = {
+  hold:{ t:"⏳ 판단 보류", cls:"", s:"장 시작 직후거나 자료가 부족해요" },
+  down:{ t:"🔵 하락 주의", cls:"down", s:"30분 추세가 아래거나 15분 지지를 깼어요" },
+  flat:{ t:"⚪ 방향 탐색 중", cls:"", s:"30분 추세가 뚜렷하지 않아요" },
+  go:{ t:"🟢 5분 재돌파 확인", cls:"up", s:"세 시간봉 조건이 모두 맞았어요 — 참고 신호예요" },
+  wait:{ t:"🟡 진입 조건 대기", cls:"wait", s:"추세·지지는 맞고, 5분봉 재돌파를 기다리는 중" },
+  pull:{ t:"🟡 눌림목 관찰", cls:"wait", s:"상승 추세 속 되돌림 — 지지 확인 전" },
+  up:{ t:"🔴 상승 흐름", cls:"up", s:"30분 추세가 위 — 지금은 눌림 구간이 아니에요" },
+};
 function idPx(t, p){ if (p == null || !isFinite(p)) return "—"; const kr = /\.(KS|KQ)$/.test(t) || /^\^KS/.test(t); return p.toLocaleString("en-US", { minimumFractionDigits: kr ? 0 : 2, maximumFractionDigits: kr ? 0 : 2 }); }
 function idTzName(tz){ return ({ "America/New_York":"뉴욕", "Asia/Seoul":"서울", "Asia/Tokyo":"도쿄", "Europe/London":"런던" })[tz] || (tz || "거래소"); }
 
 function idRender(){
   const c = ID.cache.get(ID.t); if (!c) return;
-  const d = c.d, t = ID.t, now = Date.now()/1000, tzn = idTzName(d.tz);
-  const b5 = idBars(d), days = [...new Set(b5.map(b => b.day))], lastDay = days[days.length-1];
-  const all = ID.iv === 30 ? idAgg30(b5) : b5.map(b => ({ ...b, end: b.ts + 300 }));
-  const e9 = idEma(all, 9), e20 = idEma(all, 20), vw = idVwap(all);
-  all.forEach((r, i) => { r.e9 = e9[i]; r.e20 = e20[i]; r.vw = vw[i]; });
-  const rows = ID.iv === 30 ? all : all.filter(r => r.day === lastDay);   // 5분봉은 마지막 거래일, 30분봉은 받은 5일 전체
-  const reg = d.reg || {}, open = reg.start && reg.end && now >= reg.start && now <= reg.end;
-  const lastTrade = d.lastTrade || b5[b5.length-1].ts;
-  /* 진행 중인 봉은 신호·거래량 비교에서 뺀다(장중에 마지막 봉이 아직 안 끝났을 수 있다) */
-  const doneIdx = (!open || all[all.length-1].end <= lastTrade) ? all.length-1 : all.length-2;
-  const L = all[doneIdx] || all[all.length-1], last = all[all.length-1];
-  const price = (typeof d.price === "number") ? d.price : last.c;
-  const prevBars = b5.filter(b => b.day !== lastDay), prevClose = prevBars.length ? prevBars[prevBars.length-1].c : null;
+  const d = c.d, t = ID.t, now = Date.now()/1000, tzn = idTzName(d.tz), off = d.gmtoffset || 0;
+  const A = idMtf(d, now); if (!A) return;
+  const all = A.tf[ID.iv], lastDay = A.lastDay;
+  const rows = ID.iv === 5 ? all.filter(r => r.day === lastDay) : ID.iv === 15 ? all.filter(r => r.day >= ([...new Set(all.map(z => z.day))].slice(-2)[0])) : all;
+  const price = (typeof d.price === "number") ? d.price : all[all.length-1].c;
+  const b5 = A.tf[5], prev = b5.filter(b => b.day !== lastDay), prevClose = prev.length ? prev[prev.length-1].c : null;
   const chg = prevClose ? price - prevClose : null, chgP = prevClose ? chg / prevClose * 100 : null;
-  const lt = idLocal(lastTrade, d.gmtoffset), lb = idLocal(last.ts, d.gmtoffset);
+  const reg = d.reg || {};
   let pill;
-  if (open){ const dm = Math.round((now - lastTrade)/60); pill = `<span class="id-pill open">장중 · 지연 ${dm < 1 ? "1분 미만" : "약 " + dm + "분"}</span>`; }
+  if (A.open){ const dm = Math.round((now - A.lastTrade)/60); pill = `<span class="id-pill open">장중 · 지연 ${dm < 1 ? "1분 미만" : "약 " + dm + "분"}</span>`; }
   else pill = `<span class="id-pill">${reg.start && now < reg.start ? "장 시작 전" : "장 마감"}</span>`;
-  const got = new Date(c.d.fetchedAt ? c.d.fetchedAt*1000 : c.at*1000);
-  const gotTxt = `${String(got.getHours()).padStart(2,"0")}:${String(got.getMinutes()).padStart(2,"0")}`;
-
-  /* 지금 상태 — 사실만 */
-  const above = L.vw != null ? L.c > L.vw : null, emaUp = L.e9 > L.e20;
-  let big;
-  if (above === true && emaUp) big = { cls:"up", t:"상승 흐름 유지", s:"가격이 VWAP 위 · 9EMA가 20EMA 위" };
-  else if (above === false && !emaUp) big = { cls:"down", t:"하락 흐름", s:"가격이 VWAP 아래 · 9EMA가 20EMA 아래" };
-  else if (above === null) big = { cls: emaUp ? "up" : "down", t: emaUp ? "단기 이평 상승 배열" : "단기 이평 하락 배열", s:"거래량 정보가 없어 VWAP은 계산하지 않았어요" };
-  else big = { cls:"", t:"방향 혼조", s:`가격이 VWAP ${above ? "위" : "아래"} · 9EMA가 20EMA ${emaUp ? "위" : "아래"}` };
-  const prior = all.slice(Math.max(0, doneIdx-20), doneIdx).filter(r => r.v > 0);
-  const avgV = prior.length >= 5 ? prior.reduce((a, r) => a + r.v, 0) / prior.length : null;
-  const vr = avgV && L.v > 0 ? L.v / avgV : null;
-  const gap = L.vw ? (L.c / L.vw - 1) * 100 : null;
-  /* 최근 교차 — 마지막 거래일, 완성된 봉만 */
-  const ev = [];
-  for (let i = 1; i <= doneIdx; i++){
-    const a = all[i-1], b = all[i];
+  const lt = idLocal(A.lastTrade, off), lb = all[all.length-1];
+  const got = new Date((d.fetchedAt || c.at) * 1000), hm2 = x => String(x).padStart(2,"0");
+  const gotTxt = `${hm2(got.getHours())}:${hm2(got.getMinutes())}`;
+  const st = ID_STATE[A.state], T = A.T, P = A.P, E = A.E;
+  const Tline = !T ? "자료 부족" : T.dir === "up" ? `<span class="up">상승</span> · ${T.vw == null ? "" : "VWAP 위 · "}9EMA &gt; 20EMA` : T.dir === "down" ? `<span class="down">하락</span> · ${T.vw == null ? "" : "VWAP 아래 · "}9EMA &lt; 20EMA` : "중립 · 신호가 엇갈려요";
+  const Sx = P.S != null ? `${P.Sname} ${idPx(t, P.S)}` : null;
+  const Pline = P.atr == null ? "자료 부족" : P.broken ? `<span class="down">지지 이탈</span>` : P.held ? `${Sx} 지지 확인` : P.pull ? `눌림 진행 중${Sx ? ` · 지지 ${Sx}` : ""}` : Sx ? `지지 ${Sx} 위` : "현재가 아래 지지 없음";
+  const Eline = E.early ? "장 시작 30분 동안은 보지 않아요" : E.ok ? `<span class="up">충족</span> ${idHM(E.hit.m)} · 9EMA 재돌파·캔들·거래량 ${E.hit.vr.toFixed(1)}배` : E.near ? `대기 · ${idHM(E.near.m)} 재돌파했지만 ${[!E.near.candle && "캔들", !E.near.vol && "거래량"].filter(Boolean).join("·")} 미충족` : "대기 · 9EMA 재돌파 전";
+  /* 상세 — 마지막 확정 봉 기준 */
+  const L5 = b5.filter(r => r.done).pop();
+  const prior = b5.filter(r => r.done).slice(-21, -1), avgV = prior.length ? prior.reduce((a, r) => a + r.v, 0) / prior.length : 0;
+  const vr = L5 && avgV > 0 && L5.v > 0 ? L5.v / avgV : null;
+  const ev = [], D5 = b5.filter(r => r.done);
+  for (let i = 1; i < D5.length; i++){
+    const a = D5[i-1], b = D5[i];
     if (b.day !== lastDay || a.day !== b.day) continue;
     if (a.vw != null && b.vw != null){
-      if (a.c <= a.vw && b.c > b.vw) ev.push({ m:b.m, s:"VWAP 위로 올라섬", cls:"up" });
-      if (a.c >= a.vw && b.c < b.vw) ev.push({ m:b.m, s:"VWAP 아래로 내려감", cls:"down" });
+      if (a.c <= a.vw && b.c > b.vw) ev.push({ m:b.m, s:"VWAP 위로", cls:"up" });
+      if (a.c >= a.vw && b.c < b.vw) ev.push({ m:b.m, s:"VWAP 아래로", cls:"down" });
     }
-    if (a.e9 <= a.e20 && b.e9 > b.e20) ev.push({ m:b.m, s:"9EMA가 20EMA 위로 교차", cls:"up" });
-    if (a.e9 >= a.e20 && b.e9 < b.e20) ev.push({ m:b.m, s:"9EMA가 20EMA 아래로 교차", cls:"down" });
+    if (a.e9 <= a.e20 && b.e9 > b.e20) ev.push({ m:b.m, s:"9EMA↑20EMA", cls:"up" });
+    if (a.e9 >= a.e20 && b.e9 < b.e20) ev.push({ m:b.m, s:"9EMA↓20EMA", cls:"down" });
   }
-  const evTxt = ev.length ? ev.slice(-3).reverse().map(x => `<b>${idHM(x.m)}</b> <span class="${x.cls}">${x.s}</span>`).join("<br>") : "오늘 아직 교차 없음";
-  const wide = window.innerWidth > 640;
+  const evTxt = ev.length ? ev.slice(-3).reverse().map(x => `<b>${idHM(x.m)}</b> <span class="${x.cls}">${x.s}</span>`).join(" · ") : "오늘 아직 없음";
+  const gap = L5 && L5.vw ? (L5.c / L5.vw - 1) * 100 : null;
 
   idOut.innerHTML = `<div class="id-res">
     <div class="id-card">
       <div class="id-top">
         <div><span class="id-tk">${esc(t)}</span><span class="id-nm">${esc(ID.name||"")}</span>
-          <div class="id-px">${idPx(t, price)}${chg != null ? `<span class="chg ${chg > 0 ? "up" : chg < 0 ? "down" : ""}">${chg > 0 ? "+" : ""}${idPx(t, chg)} (${chgP > 0 ? "+" : ""}${chgP.toFixed(2)}%)</span><span class="bas">전 거래일 마지막 봉 대비</span>` : ""}</div></div>
-        <div class="id-st">${pill}<br>마지막 봉 ${idMD(lb.day)} ${idHM(lb.m)} (${tzn})${open ? `<br>마지막 체결 ${idHM(lt.m)}` : ""}</div>
+          <div class="id-px">${idPx(t, price)}${chg != null ? `<span class="chg ${chg > 0 ? "up" : chg < 0 ? "down" : ""}">${chg > 0 ? "+" : ""}${idPx(t, chg)} (${chgP > 0 ? "+" : ""}${chgP.toFixed(2)}%)</span>` : ""}</div></div>
+        <div class="id-st">${pill}<br>마지막 체결 <b>${A.open ? "" : idMD(lt.day) + " "}${idHM(lt.m)}</b> (${tzn})</div>
       </div>
+      <div class="id-bar">마지막 ${ID.iv}분봉: ${idMD(lb.day)} ${idHM(lb.m)}~${idHM(lb.m + ID.iv)} ${lb.done ? "확정" : "<b>진행 중</b> (판정에서 제외)"}</div>
       <div class="id-chart" id="idChart"></div>
     </div>
     <div class="id-card id-sum">
-      <h4>장중 신호 요약 <span style="font-weight:500;color:var(--faint);font-size:11px">· ${ID.iv}분봉 · 완성된 봉 기준</span></h4>
-      <div class="id-big ${big.cls}"><b>${big.t}</b><span>${big.s}</span></div>
-      <details class="id-more"${wide ? " open" : ""}><summary>상세 지표 보기</summary>
+      <div class="id-big ${st.cls}"><b>${st.t}</b><span>${st.s}</span></div>
+      <ul class="id-lines">
+        <li><em>30분 추세</em><span>${Tline}</span></li>
+        <li><em>15분 지지</em><span>${Pline}</span></li>
+        <li><em>5분 진입 조건</em><span>${Eline}</span></li>
+      </ul>
+      <details class="id-more"><summary>상세 지표 보기</summary>
         <table class="id-tbl">
-          <tr><td>VWAP</td><td>${L.vw == null ? "계산 불가 (거래량 없음)" : `<span class="${above ? "up" : "down"}">${above ? "위에 위치" : "아래에 위치"}</span> (${gap > 0 ? "+" : ""}${gap.toFixed(2)}%)`}</td></tr>
-          <tr><td>EMA 9/20</td><td><span class="${emaUp ? "up" : "down"}">9EMA가 20EMA ${emaUp ? "위" : "아래"}</span></td></tr>
-          <tr><td>거래량</td><td>${vr == null ? "비교 불가" : `직전 봉이 앞 20봉 평균의 <b>${vr.toFixed(1)}배</b>`}</td></tr>
-          <tr><td>최근 교차</td><td style="font-weight:500">${evTxt}</td></tr>
+          <tr><td>VWAP</td><td>${!L5 || L5.vw == null ? "계산 불가 (거래량 없음)" : `${idPx(t, L5.vw)} · 가격이 <span class="${gap > 0 ? "up" : "down"}">${gap > 0 ? "위" : "아래"}</span> (${gap > 0 ? "+" : ""}${gap.toFixed(2)}%)`}</td></tr>
+          <tr><td>30분 EMA 9/20</td><td>${T ? `${idPx(t, T.e9)} / ${idPx(t, T.e20)}` : "—"}</td></tr>
+          <tr><td>15분 지지</td><td>${Sx || "현재가 아래 유효한 VWAP·20EMA 없음"}</td></tr>
+          <tr><td>15분 저항</td><td>${P.R != null ? `${idPx(t, P.R)} (직전 확정 봉까지 오늘 고점)${P.breakout ? ` · <span class="up">돌파</span>` : ""}` : "—"}</td></tr>
+          <tr><td>15분 ATR</td><td>${P.atr != null ? idPx(t, P.atr) : "—"}</td></tr>
+          <tr><td>거래량</td><td>${vr == null ? "비교 불가" : `마지막 확정 5분봉이 앞 20봉 평균의 ${vr.toFixed(1)}배`}</td></tr>
+          <tr><td>오늘 교차</td><td style="font-weight:500">${evTxt}</td></tr>
         </table>
-        <div class="id-ref"><b>ⓘ 참고하세요</b><br>· 야후 시세 기반이라 늦거나 빠질 수 있어요<br>· 매수 등급·TOP 5·캔들 신호와 별개이고, <b>승률 검증 전</b> 정보예요<br>· 매매 추천이 아니에요 — 판단은 본인 몫이에요</div>
+        <div class="id-ref"><b>ⓘ 참고하세요</b><br>· 판정은 <b>확정된 봉만</b> 써요. 진행 중인 봉은 차트에만 흐리게 그려요<br>· 야후 시세 기반이라 늦거나 빠질 수 있어요. 봉 시각은 봉이 <b>시작한</b> 시각이에요<br>· 매수 등급·TOP 5·캔들 신호와 별개이고, <b>승률 검증 전</b> 참고 신호예요 — 매수 확정이 아니에요<br>· 판정 기준: 30분 추세 → 15분 지지 → 5분 재돌파 순서 (기준은 미리 정해 두고 결과에 맞춰 바꾸지 않아요)</div>
       </details>
     </div>
   </div>
-  <div class="id-foot"><button type="button" class="id-re" data-idre="1">↻ 새로 조회</button><span>자료 받은 시각 ${gotTxt} (내 기기 시각) · 같은 종목은 10분 동안 같은 결과</span></div>`;
-  idDraw(document.getElementById("idChart"), rows, t, d.gmtoffset);
+  <div class="id-foot"><button type="button" class="id-re" data-idre="1">↻ 새로 조회</button><span>서버가 자료 받은 시각 ${gotTxt} (내 기기 시각)</span></div>`;
+  idDraw(document.getElementById("idChart"), rows, t, ID.iv === 15 ? P : null, ID.iv === 5 ? E.bars.map(z => z.ts) : null);
 }
 
-function idDraw(box, rows, t, off){
+function idDraw(box, rows, t, lv, marks){
   if (!box || !rows.length) return;
   const W = Math.max(260, box.clientWidth || 600), narrow = W < 420;
   const padL = 4, padR = narrow ? 42 : 52, PH = narrow ? 170 : 210, VG = 6, VH = narrow ? 34 : 44, AX = 18;
   const H = PH + VG + VH + AX, n = rows.length, cw = (W - padL - padR) / n;
   const vals = []; rows.forEach(r => { vals.push(r.h, r.l, r.e9, r.e20); if (r.vw != null) vals.push(r.vw); });
+  const lines = lv ? [lv.S != null && { p:lv.S, c:"var(--buy)", s:"지지" }, lv.R != null && { p:lv.R, c:"var(--sell)", s:"저항" }].filter(Boolean) : [];
+  lines.forEach(x => vals.push(x.p));
   let lo = Math.min(...vals), hi = Math.max(...vals); const pad = (hi - lo) * 0.06 || hi * 0.01 || 1; lo -= pad; hi += pad;
   const Y = p => 6 + (hi - p) / (hi - lo) * (PH - 12), X = i => padL + cw * (i + 0.5);
   const raw = (hi - lo) / 4, mag = Math.pow(10, Math.floor(Math.log10(raw))), step = [1,2,2.5,5,10].map(k => k*mag).find(s => s >= raw);
@@ -9157,35 +9240,36 @@ function idDraw(box, rows, t, off){
     const y = Y(p).toFixed(1);
     g += `<line x1="${padL}" x2="${W-padR}" y1="${y}" y2="${y}" stroke="var(--line)" stroke-width="1"/><text x="${W-padR+5}" y="${+y+3.5}" font-size="10.5" fill="var(--muted)">${idPx(t, p)}</text>`;
   }
-  /* 날짜 경계(30분봉) · 시각 눈금 */
-  const every = n > 60 ? (narrow ? 120 : 60) : 60;
+  const oneDay = rows[0].day === rows[n-1].day, every = n > 60 ? (narrow ? 120 : 60) : 60;
   rows.forEach((r, i) => {
     const x = X(i).toFixed(1);
     if (i > 0 && r.day !== rows[i-1].day){
       g += `<line x1="${(padL + cw*i).toFixed(1)}" x2="${(padL + cw*i).toFixed(1)}" y1="0" y2="${PH+VG+VH}" stroke="var(--faint)" stroke-dasharray="3 3" stroke-width="1"/>`;
       g += `<text x="${x}" y="${H-4}" font-size="10.5" fill="var(--muted)" text-anchor="middle">${idMD(r.day)}</text>`;
-    } else if (rows.length && rows[0].day === rows[n-1].day && r.m % every === 0){
+    } else if (oneDay && r.m % every === 0){
       g += `<text x="${x}" y="${H-4}" font-size="10.5" fill="var(--muted)" text-anchor="middle">${idHM(r.m)}</text>`;
     }
   });
-  if (rows[0].day !== rows[n-1].day) g += `<text x="${X(0)}" y="${H-4}" font-size="10.5" fill="var(--muted)">${idMD(rows[0].day)}</text>`;
-  /* 캔들 · 거래량 */
-  const vmax = Math.max(...rows.map(r => r.v), 1), bw = Math.max(1, Math.min(9, cw * 0.62));
+  const firstCut = rows.findIndex((r, i) => i > 0 && r.day !== rows[i-1].day);
+  if (!oneDay && cw * firstCut > 44) g += `<text x="${X(0)}" y="${H-4}" font-size="10.5" fill="var(--muted)">${idMD(rows[0].day)}</text>`;
+  const vmax = Math.max(...rows.map(r => r.v), 1), bw = Math.max(1, Math.min(9, cw * 0.62)), mk = new Set(marks || []);
   rows.forEach((r, i) => {
-    const x = X(i), col = r.c >= r.o ? "var(--up)" : "var(--down)";
+    const x = X(i), col = r.c >= r.o ? "var(--up)" : "var(--down)", op = r.done ? "" : ` opacity=".35"`;
     const yo = Y(r.o), yc = Y(r.c), top = Math.min(yo, yc), hb = Math.max(1, Math.abs(yo - yc));
-    g += `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${Y(r.h).toFixed(1)}" y2="${Y(r.l).toFixed(1)}" stroke="${col}" stroke-width="1"/>`;
-    g += `<rect x="${(x - bw/2).toFixed(1)}" y="${top.toFixed(1)}" width="${bw.toFixed(1)}" height="${hb.toFixed(1)}" fill="${col}"/>`;
+    g += `<g${op}><line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${Y(r.h).toFixed(1)}" y2="${Y(r.l).toFixed(1)}" stroke="${col}" stroke-width="1"/>`;
+    g += `<rect x="${(x - bw/2).toFixed(1)}" y="${top.toFixed(1)}" width="${bw.toFixed(1)}" height="${hb.toFixed(1)}" fill="${col}"/></g>`;
     const vh = r.v / vmax * VH;
-    g += `<rect x="${(x - bw/2).toFixed(1)}" y="${(PH + VG + VH - vh).toFixed(1)}" width="${bw.toFixed(1)}" height="${vh.toFixed(1)}" fill="${col}" opacity=".45"/>`;
+    g += `<rect x="${(x - bw/2).toFixed(1)}" y="${(PH + VG + VH - vh).toFixed(1)}" width="${bw.toFixed(1)}" height="${vh.toFixed(1)}" fill="${col}" opacity="${r.done ? .45 : .2}"/>`;
+    if (mk.has(r.ts)) g += `<text x="${x.toFixed(1)}" y="${Math.min(PH - 2, Y(r.l) + 13).toFixed(1)}" font-size="11" fill="var(--buy)" text-anchor="middle">▲</text>`;
   });
+  lines.forEach(z => { const y = Y(z.p).toFixed(1); g += `<line x1="${padL}" x2="${W-padR}" y1="${y}" y2="${y}" stroke="${z.c}" stroke-width="1.3" stroke-dasharray="2 3"/><text x="${W-padR-3}" y="${(+y-3).toFixed(1)}" font-size="10" fill="${z.c}" text-anchor="end">${z.s}</text>`; });
   const path = k => { let s = "", pen = false; rows.forEach((r, i) => { if (r[k] == null){ pen = false; return; } s += (pen ? "L" : "M") + X(i).toFixed(1) + " " + Y(r[k]).toFixed(1); pen = true; }); return s; };
   g += `<path d="${path("vw")}" fill="none" stroke="#8b5cf6" stroke-width="1.6" stroke-dasharray="5 3"/>`;
   g += `<path d="${path("e9")}" fill="none" stroke="#0ea5e9" stroke-width="1.6"/>`;
   g += `<path d="${path("e20")}" fill="none" stroke="#f59e0b" stroke-width="1.6"/>`;
   const z = rows[n-1];
   box.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t)} 장중 ${ID.iv}분봉 차트">${g}</svg>
-    <div class="id-leg"><i style="background:#8b5cf6"></i>VWAP <b>${z.vw == null ? "—" : idPx(t, z.vw)}</b><br><i style="background:#0ea5e9"></i>EMA 9 <b>${idPx(t, z.e9)}</b><br><i style="background:#f59e0b"></i>EMA 20 <b>${idPx(t, z.e20)}</b></div>`;
+    <div class="id-leg"><i style="background:#8b5cf6"></i>VWAP <b>${z.vw == null ? "—" : idPx(t, z.vw)}</b><br><i style="background:#0ea5e9"></i>EMA 9 <b>${idPx(t, z.e9)}</b><br><i style="background:#f59e0b"></i>EMA 20 <b>${idPx(t, z.e20)}</b>${marks ? `<br><span style="color:var(--buy)">▲</span> 5분 재돌파` : ""}</div>`;
 }
 </script>
 </body>
