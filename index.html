@@ -320,6 +320,7 @@ html[data-theme="dark"] .rkitem.top b{color:#a9c6ff}
 .modal-actions{display:flex;gap:8px;margin-top:14px}
 .modal-actions button{flex:1;height:42px;border-radius:10px;font-size:13.5px;font-weight:700;border:1px solid var(--line);background:var(--surface2)}
 .modal-actions button.primary{background:var(--navy);color:#fff;border-color:var(--navy)}
+.modal-actions.md-sticky{position:sticky;bottom:-20px;background:var(--surface);padding:10px 0 4px;margin-bottom:-4px;z-index:2}
 
 .c-light{font-size:.85em;margin-right:3px}
 .edu-link{cursor:pointer;text-decoration:underline;text-underline-offset:3px;color:inherit}
@@ -7556,6 +7557,18 @@ async function addHeart(){
 /* ══════════ 모달 ══════════ */
 const modal = document.getElementById("modal"), modalBox = document.getElementById("modalBox");
 /* 캔들 팝업(교육용 그림 + 실제 일봉) — 본문 클릭과 팝업 안 링크·선택 팝업이 같은 함수를 쓴다(2026-11-08 연결 오류 수정: 팝업 안 링크가 죽어 있었다). */
+/* 최근 20거래일 신호 기록 — 원장(hist)에 그날 기록된 pat 코드만 읽는다(새 판정 없음). 2026-11-09 사용자 지시: 캔들 팝업 아래 접어서. */
+function signalHistory20(st){
+  const F = histFields(), iD = F.indexOf("date"), iPat = F.indexOf("pat");
+  const rows = (st._hist || []).filter(r => Array.isArray(r)).slice(-20).reverse();
+  const nameOf = c => (RARE_FACTS[c] && RARE_FACTS[c].title) || SB_NAMES[c] || (PAT_INFO[c] && PAT_INFO[c][1]) || c;
+  const iconOf = c => { const k = (RARE_FACTS[c] && RARE_FACTS[c].kind) || sbKindOf(c); return k && SB_KIND[k] ? SB_KIND[k].icon : "•"; };
+  const lines = iPat < 0 ? [] : rows.map(r => { const cs = String(r[iPat] || "").split(",").filter(c => c && !c.startsWith("C_"));
+    return cs.length ? `<div class="sb-note"><b>${esc(String(r[iD]))}</b> ${cs.map(c => `${iconOf(c)} ${esc(nameOf(c))}`).join(" · ")}</div>` : ""; }).filter(Boolean);
+  return `<details class="sb-sec2" style="margin-top:8px"><summary>🗓 최근 20거래일 신호 기록 (${lines.length}일)</summary>
+    ${lines.length ? lines.join("") : `<div class="sb-note">최근 20거래일 동안 기록된 캔들·패턴 신호가 없어요.</div>`}
+    <div class="sb-note" style="color:var(--muted);font-size:11px">그날 사이트가 실제로 기록한 신호(원장)예요. 신호 코드는 2026-11-05 이후부터 쌓였어요.</div></details>`;
+}
 function openCandleModal(n, tk){ const st = tk ? allStocks().find(z=>z.ticker===tk) : null; const rc = st ? realChartSvg(st, true) : "";
     /* 2026-11-06 사용자 지적 "교육용이면 견본이야? 실제여야지" — 종목에서 열면 맨 위를 실제 일봉으로 둔다.
        교육용 견본 그림은 접힌 칸으로만 남긴다(갤러리처럼 종목 없이 열 때만 견본이 주인공). */
@@ -7574,7 +7587,8 @@ function openCandleModal(n, tk){ const st = tk ? allStocks().find(z=>z.ticker===
         : `실제 마지막 봉 정보가 없어요.`; })()}${(()=>{ const CL = candleLabel(st); return CL && CL.link!==n && CL.label!==n ? `<br><span style="font-size:12.5px;color:var(--muted)">‘${esc(n)}’는 신호 규칙이 보는 모양 이름입니다(마지막 봉 하나가 아니라 며칠 흐름).</span>` : ""; })()}</p>
       <details class="sb-sec2" style="margin-bottom:8px"><summary>📘 같은 모양의 교육용 견본 그림 보기</summary>${eduPart}</details>` : eduPart}
       ${rc ? `<div class="md-tag md-real">실제 일봉 — 최근 40거래일 실측 가격</div>${rc}<div style="font-size:11px;color:var(--muted)">▼ = 마지막 거래일 · 주황 선 = 볼린저(20, 2σ) · 아래 막대 = 거래량</div>` : (tk ? `<div style="font-size:12px;color:var(--muted)">이 종목의 실제 일봉 데이터는 다음 갱신부터 보여요.</div>` : "")}
-      <div class="modal-actions"><button class="primary" onclick="closeModal()">닫기</button></div>`);
+      ${st ? signalHistory20(st) : ""}
+      <div class="modal-actions md-sticky"><button class="primary" onclick="closeModal()">닫기</button></div>`);
 }
 function openRealChartModal(tk){ const st = allStocks().find(z=>z.ticker===tk); if(st) openModal(`<h3>📈 ${esc(st.name||st.ticker)} (${esc(st.ticker)}) <small style="font-size:12px;color:var(--muted)">실제 발생 사례 · 최근 40거래일</small></h3>${realChartSvg(st, true)}<div class="modal-actions"><button class="primary" onclick="closeModal()">닫기</button></div>`); }
 function openModal(html){ modalBox.innerHTML = html; modal.classList.add("on"); }
