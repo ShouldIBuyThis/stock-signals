@@ -1,7 +1,7 @@
 /**
  * 장중 다중 시간대 판정 과거 시험 — docs/2026-11-09-intraday-mtf.md §5 (결과 보기 전 사전 등록).
  * 판정은 index.html의 idMtf()를 문자열로 꺼내 그대로 쓴다(재구현 금지). 임계값은 바꾸지 않는다.
- * 사용: node tools/intraday-mtf-lab.js i5.json
+ * 사용: node tools/intraday-mtf-lab.js i5.json [--last-day]   (--last-day = 마지막 거래일만 · 종목별 시간표)
  */
 const fs = require('fs'), vm = require('vm'), H = require('./_harness');
 const ctx = { Math, Date, Number, Array, Object, Set, Map, String, Infinity, isFinite };
@@ -9,6 +9,7 @@ vm.createContext(ctx);
 vm.runInContext(['idLocal','idEma','idAgg','idMtf'].map(H.extractFunction).join('\n') + '\nthis.idMtf = idMtf; this.idLocal = idLocal;', ctx);
 
 const data = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const LAST = process.argv.includes('--last-day'), tl = {};
 const pts = [], ev = [], bo = [];
 const ORDER = ['hold','down','flat','up','pull','wait','go'];
 for (const [t, D] of Object.entries(data)){
@@ -19,7 +20,7 @@ for (const [t, D] of Object.entries(data)){
     if (!cur || cur.day !== day){ cur = { day, off: b[6], bars: [] }; days.push(cur); }
     cur.bars.push(b);
   }
-  for (let di = 4; di < days.length; di++){
+  for (let di = LAST ? days.length-1 : 4; di < days.length; di++){
     const today = days[di], t0 = today.bars[0][0], end = today.bars[today.bars.length-1][0] + 300;
     const hist = days.slice(di-4, di).flatMap(x => x.bars.map(b => b.slice(0, 6)));
     let prev = null, prevBo = false;
@@ -37,7 +38,7 @@ for (const [t, D] of Object.entries(data)){
         r60: c60 != null && fut.length >= 13 ? (c60/entry - 1)*100 : null,
         rE: (cE/entry - 1)*100,
         mfe: (Math.max(...fut.map(b => b[2]))/entry - 1)*100, mae: (Math.min(...fut.map(b => b[3]))/entry - 1)*100 };
-      pts.push(o);
+      pts.push(o); if (LAST) (tl[t] = tl[t] || []).push(`${new Date((tau + today.off)*1000).toISOString().slice(11,16)} ${A.state.padEnd(4)} +30분 ${o.r30 == null ? '  —  ' : (o.r30 >= 0 ? '+' : '') + o.r30.toFixed(2) + '%'} · 종가까지 ${(o.rE >= 0 ? '+' : '') + o.rE.toFixed(2)}%`);
       if (A.state !== prev && A.state !== 'hold'){
         const e = { ...o };
         if (A.state === 'go' && A.E.hit){
@@ -86,3 +87,5 @@ const g = ev.filter(e => e.state === 'go' && e.fake != null);
 console.log(`  5분 재돌파 확인 뒤 30분 안에 재돌파 봉 저가 아래 마감: ${g.filter(e => e.fake).length}/${g.length} = ${(g.filter(e => e.fake).length/Math.max(1,g.length)*100).toFixed(0)}%`);
 console.log(`  15분 저항 돌파 뒤 45분 안에 저항 아래 마감: ${bo.filter(b => b.fake).length}/${bo.length} = ${(bo.filter(b => b.fake).length/Math.max(1,bo.length)*100).toFixed(0)}%`);
 console.log(`    앞 반 ${(()=>{const a=bo.filter(b=>b.day<mid);return `${a.filter(b=>b.fake).length}/${a.length}`})()} · 뒤 반 ${(()=>{const a=bo.filter(b=>b.day>=mid);return `${a.filter(b=>b.fake).length}/${a.length}`})()}`);
+if (LAST){ console.log('\n[5] 마지막 거래일 종목별 시간표 (15분마다 판정 · 진입=다음 5분봉 시가)');
+  for (const [t, a] of Object.entries(tl)){ console.log(`  ${t}`); a.forEach(x => console.log('    ' + x)); } }

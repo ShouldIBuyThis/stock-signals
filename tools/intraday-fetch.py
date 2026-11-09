@@ -9,13 +9,15 @@ import yfinance as yf
 ap = argparse.ArgumentParser()
 ap.add_argument("--out", required=True)
 ap.add_argument("--signals", default="signals.json")
+ap.add_argument("--tickers", default="", help="쉼표 구분 — 주면 signals.json 대신 이 목록")
+ap.add_argument("--period", default="60d")
 a = ap.parse_args()
 
-tickers = [s["ticker"] for s in json.load(open(a.signals, encoding="utf-8"))["stocks"]]
+tickers = a.tickers.split(",") if a.tickers else [s["ticker"] for s in json.load(open(a.signals, encoding="utf-8"))["stocks"]]
 out, miss = {}, []
 for t in tickers:
     try:
-        df = yf.Ticker(t).history(period="60d", interval="5m", prepost=False, auto_adjust=False)
+        df = yf.Ticker(t).history(period=a.period, interval="5m", prepost=False, auto_adjust=False)
     except Exception as e:
         miss.append(t); continue
     if df is None or df.empty:
@@ -26,7 +28,7 @@ for t in tickers:
         if any(math.isnan(x) for x in (o, h, l, c)):
             continue
         bars.append([int(ts.timestamp()), o, h, l, c, 0 if math.isnan(v) else v, int(ts.utcoffset().total_seconds())])
-    if len(bars) > 400:
+    if len(bars) > 300:
         out[t] = {"tz": str(df.index.tz), "bars": bars}
     else:
         miss.append(t)
