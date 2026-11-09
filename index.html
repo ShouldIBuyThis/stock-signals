@@ -9251,6 +9251,11 @@ function idCandleFeat(A, bar){
   else if (t.b >= 0.7 && medR && t.rg >= 1.5*medR) single = t.bull ? "장대양봉" : "장대음봉";
   else single = t.bull ? "일반 양봉" : t.bear ? "일반 음봉" : "도지";
   names.push(single);
+  /* 2026-11-09 상승 패턴 연구 추가분 — 기존 이름 뒤에만 붙인다(primary·single 불변 → 앞선 연구 재현 유지) */
+  if (t.bull && t.lo >= 0.5 && t.b >= 0.2) names.push("긴 아랫꼬리 양봉");
+  if (p && t.bull && t.l > p.l && t.c > p.h && p.bear) names.push("저점 상승형");
+  if (q && p && q.bear && q.b >= 0.6 && p.b <= 0.1 && Math.max(p.o, p.c) <= q.c + 0.1*q.rg && t.bull && t.c > mid(q)) names.push("십자샛별형");
+  if (q && p && q.bear && p.bull && p.o <= q.c && p.c >= q.o && Math.abs(p.c - p.o) > Math.abs(q.o - q.c) && t.bull && t.c > p.c) names.push("상승 확인 장악(3봉)");
   let consec = 0; for (let k = 0; ; k++){ const x = B(k); if (!x || !(t.bull ? x.bull : t.bear ? x.bear : false)) break; consec++; }
   const dayRows = D5.filter(r => r.day === bar.day), dayOpen = dayRows.length ? dayRows[0].o : t.o;
   const L15 = A.tf[15].filter(r => r.done).pop();
