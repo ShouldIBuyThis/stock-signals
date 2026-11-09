@@ -9090,25 +9090,41 @@ function idAgg(b5, N, t0, lastDay, cut, off){
 /* 다중 시간대 판정 — 정의는 docs/2026-11-09-intraday-mtf.md §2~§4 그대로 */
 function idMtf(d, now){
   const off = d.gmtoffset || 0, reg = d.reg || {};
+  let raw = d.bars.map(b => { const L = idLocal(b[0], off); return { ts:b[0], o:b[1], h:b[2], l:b[3], c:b[4], v:b[5]||0, day:L.day, m:L.m }; });
+  /* 국장(2026-11-09 사용자 지시): 야후 정규장 메타는 09:00~15:00이지만 실제 거래소 정규장은 15:30까지다.
+     야후는 15:00~15:30 5분봉을 주지 않고, 마감 뒤에만 '15:00 시작 · 거래량 0 · 시=고=저=종 = 공식 종가' 봉 하나를 붙인다
+     (7종목×60거래일 교차 검증: 당일에만 존재, 7/7 일봉 종가와 일치 — docs/2026-11-09-kr-intraday-audit.md).
+     그 봉은 5분봉이 아니므로 VWAP·EMA·거래량·캔들·재돌파 어디에도 넣지 않고, 아래 조건을 모두 만족할 때만 '15:30 공식 종가 점'으로 따로 넘긴다:
+     마지막 날 마지막 봉 · 15:00 시작 · 거래량 0 · 시=고=저=종 · 마지막 체결(regularMarketTime) ≥ 15:30 · 지금 시각 ≥ 15:30 · regularMarketPrice와 일치.
+     15:00~15:30 구간은 채우지 않는다(직전 가격 복사 금지). 미장은 그대로. */
+  const kr = d.tz ? d.tz === "Asia/Seoul" : off === 32400;
+  let regEnd = reg.end || null, closeInfo = null;
+  if (kr && reg.start){
+    regEnd = reg.start + 23400;
+    const last = raw[raw.length-1], cb = last && last.m === 900 ? last : null;
+    if (cb && !(cb.v > 0) && cb.o === cb.c && cb.h === cb.c && cb.l === cb.c && (d.lastTrade || 0) >= regEnd && now >= regEnd
+        && typeof d.price === "number" && Math.abs(d.price - cb.c) < 1e-9)
+      closeInfo = { price: cb.c, asOf: regEnd, barTs: cb.ts, receivedAt: d.fetchedAt || null };
+    raw = raw.filter(b => b.m < 900);
+  }
   /* 야후는 마지막 날에 정규장 끝 시각(미장 16:00)에 시작하는 봉을 하나 더 붙여 준다 — 정규장 밖이라 뺀다 */
   const endM = reg.end ? idLocal(reg.end, off).m : null;
-  const b5 = d.bars.filter(b => !(reg.end && b[0] >= reg.end && b[0] < reg.end + 3600))
-    .map(b => { const L = idLocal(b[0], off); return { ts:b[0], o:b[1], h:b[2], l:b[3], c:b[4], v:b[5]||0, day:L.day, m:L.m }; })
+  const b5 = raw.filter(b => !(reg.end && b.ts >= reg.end && b.ts < reg.end + 3600))
     .filter((b, i, a) => !(endM != null && b.m === endM && (i === a.length-1 || a[i+1].day !== b.day)));   // 지난 거래일의 마감 시각 봉도(장 종료 뒤 조회 시)
   if (!b5.length) return null;
   let day = null, pv = 0, vv = 0;
   b5.forEach(r => { if (r.day !== day){ day = r.day; pv = 0; vv = 0; } pv += (r.h + r.l + r.c)/3 * r.v; vv += r.v; r.vw = vv > 0 ? pv/vv : null; });
   const lastDay = b5[b5.length-1].day, lastTrade = d.lastTrade || (b5[b5.length-1].ts + 300);
-  const open = !!(reg.start && reg.end && now >= reg.start && now <= reg.end && lastTrade >= reg.start);
+  const open = !!(reg.start && regEnd && now >= reg.start && now <= regEnd && lastTrade >= reg.start);
   /* 마감 직후 — 국장처럼 시세가 늦게 오면 마감 뒤에도 마지막 봉이 덜 끝났을 수 있다.
      마감 30분이 지나거나 마지막 체결이 마감 1분 전까지 왔을 때만 그날 봉을 전부 확정으로 본다. */
-  const settling = !open && !!(reg.end && now >= reg.end && now < reg.end + 1800 && lastTrade < reg.end - 60);
+  const settling = !open && !!(regEnd && now >= regEnd && now < regEnd + 1800 && lastTrade < regEnd - 60);
   const cut = open || settling ? lastTrade : Infinity;
   const t0 = {}; b5.forEach(b => { if (t0[b.day] === undefined) t0[b.day] = b.ts; });
   if (reg.start && idLocal(reg.start, off).day === lastDay && reg.start <= t0[lastDay]) t0[lastDay] = reg.start;
   const tf = { 5: idAgg(b5, 5, t0, lastDay, cut, off), 15: idAgg(b5, 15, t0, lastDay, cut, off), 30: idAgg(b5, 30, t0, lastDay, cut, off) };
   const D5 = tf[5].filter(r => r.done), D15 = tf[15].filter(r => r.done), D30 = tf[30].filter(r => r.done);
-  const r = { open, settling, lastTrade, lastDay, t0: t0[lastDay], tf, T:null, P:{}, E:{ ok:false, bars:[] }, state:"hold" };
+  const r = { open, settling, lastTrade, lastDay, t0: t0[lastDay], tf, T:null, P:{}, E:{ ok:false, bars:[] }, state:"hold", kr, regEnd, closeInfo };
   const today15 = D15.filter(x => x.day === lastDay);
   if (!D5.length) return r;
   r.cref = D5[D5.length-1].c;
@@ -9292,8 +9308,13 @@ function idRender(){
   const A = idMtf(d, now); if (!A) return;
   const all = A.tf[ID.iv], lastDay = A.lastDay;
   const rows = ID.iv === 5 ? all.filter(r => r.day === lastDay) : ID.iv === 15 ? all.filter(r => r.day >= ([...new Set(all.map(z => z.day))].slice(-2)[0])) : all;
-  const price = (typeof d.price === "number") ? d.price : all[all.length-1].c;
-  const b5 = A.tf[5], prev = b5.filter(b => b.day !== lastDay), prevClose = prev.length ? prev[prev.length-1].c : null;
+  const CI = A.closeInfo;
+  const price = CI ? CI.price : (typeof d.price === "number") ? d.price : all[all.length-1].c;
+  const b5 = A.tf[5], prev = b5.filter(b => b.day !== lastDay);
+  /* 전일 종가: 국장은 전일 14:55봉이 아니라 공식 종가(원장 일봉)로 — 없으면 Worker의 previousClose, 그것도 없으면 근사라고 적는다 */
+  let prevClose = prev.length ? prev[prev.length-1].c : null, prevSrc = "";
+  if (A.kr){ const pd = prev.length ? prev[prev.length-1].day : null, lc = pd ? idLedgerClose(t, pd) : null;
+    if (lc != null){ prevClose = lc; prevSrc = "전일 공식 종가 대비"; } else if (typeof d.prevClose === "number"){ prevClose = d.prevClose; prevSrc = "전일 종가 대비"; } else if (prevClose != null) prevSrc = "전일 14:55봉 대비(근사)"; }
   const chg = prevClose ? price - prevClose : null, chgP = prevClose ? chg / prevClose * 100 : null;
   const reg = d.reg || {}, P$ = p => idPx(t, p);
   const dm = Math.round((now - A.lastTrade)/60);
@@ -9310,7 +9331,9 @@ function idRender(){
   const gotTxt = `${hm2(got.getHours())}:${hm2(got.getMinutes())}`;
   const st = ID_STATE[A.state], act = ID_ACT[A.state], T = A.T, P = A.P, E = A.E;
   /* 확정·지연 줄 — 두 모드 공통 */
-  const timeLine = `마지막 확정 5분봉 <b>${L5 ? `${idHM(L5.m)}~${idHM(L5.m + 5)}` : "—"}</b> · 지금 ${ID.iv}분봉 ${idHM(lb.m)}~${idHM(lb.m + ID.iv)} ${lb.done ? "확정" : "<b class=\"warn\">진행 중 (판정 제외)</b>"}`;
+  const krNote = !A.kr ? "" : CI ? ` · <b>15:00~15:30 5분봉 미제공</b> · 공식 종가 15:30 <b>${P$(CI.price)}</b>${CI.receivedAt ? ` (서버 수신 ${idHM(idLocal(CI.receivedAt, 32400).m)})` : ""}`
+    : (now >= A.regEnd - 1800 ? " · 15:00~15:30 5분봉 미제공 · 공식 종가는 마감 뒤 야후 반영 후 표시" : "");
+  const timeLine = `마지막 확정 5분봉 <b>${L5 ? `${idHM(L5.m)}~${idHM(L5.m + 5)}` : "—"}</b> · 지금 ${ID.iv}분봉 ${idHM(lb.m)}~${idHM(lb.m + ID.iv)} ${lb.done ? "확정" : "<b class=\"warn\">진행 중 (판정 제외)</b>"}${krNote}`;
   /* 오늘 교차 시각 */
   const crosses = (tfRows, lab) => { const out = []; const D = tfRows.filter(r => r.done);
     for (let i = 1; i < D.length; i++){ const a = D[i-1], b = D[i]; if (b.day !== lastDay || a.day !== b.day) continue;
@@ -9385,7 +9408,8 @@ function idRender(){
   if (closed){
     let inSite = false; try { inSite = allStocks().some(s => s.ticker.toUpperCase() === t); } catch(e){}
     const lastBar = L5 ? `${idMD(L5.day)}(${wd(L5.day)}) ${idHM(L5.m + 5)}` : "—";
-    sum = `<div class="id-big id-easy"><b>${preOpen ? "⏰ 장 시작 전" : "🌙 장 종료"} — 지금은 장중 신호를 보지 않아요</b><span>마지막 거래일 ${lastBar} 장 마감까지의 자료예요. 차트도 그날 장중 흐름이에요.</span></div>
+    const closeTxt = CI ? `마지막 거래일 ${L5 ? idMD(L5.day) + "(" + wd(L5.day) + ")" : ""} 15:30 공식 종가 <b>${P$(CI.price)}</b> · 5분봉은 ${L5 ? idHM(L5.m + 5) : "—"}까지만 제공돼요(15:00~15:30 미제공).` : `마지막 거래일 ${lastBar}${A.kr ? "까지의 5분봉이에요(15:00~15:30 미제공 · 공식 종가는 야후 반영 뒤 표시)" : " 장 마감까지의 자료예요"}. 차트도 그날 장중 흐름이에요.`;
+    sum = `<div class="id-big id-easy"><b>${preOpen ? "⏰ 장 시작 전" : "🌙 장 종료"} — 지금은 장중 신호를 보지 않아요</b><span>${closeTxt}</span></div>
       ${inSite ? `<button type="button" class="id-card-go" data-idcard="${esc(t)}">📊 일봉 종가 기준 종목 카드 보기</button>` : `<div class="id-sub" style="margin-top:8px">이 종목은 사이트의 일봉 종가 목록에 없어요.</div>`}
       <details class="id-more"><summary>마지막 장 마감 시점 분석 보기</summary>${sum}</details>`;
   }
@@ -9393,7 +9417,7 @@ function idRender(){
     <div class="id-card">
       <div class="id-top">
         <div><span class="id-tk">${esc(t)}</span><span class="id-nm">${esc(ID.name||"")}</span>
-          <div class="id-px">${P$(price)}${chg != null ? `<span class="chg ${chg > 0 ? "up" : chg < 0 ? "down" : ""}">${chg > 0 ? "+" : ""}${P$(chg)} (${chgP > 0 ? "+" : ""}${chgP.toFixed(2)}%)</span>` : ""}</div></div>
+          <div class="id-px">${P$(price)}${chg != null ? `<span class="chg ${chg > 0 ? "up" : chg < 0 ? "down" : ""}">${chg > 0 ? "+" : ""}${P$(chg)} (${chgP > 0 ? "+" : ""}${chgP.toFixed(2)}%)</span>` : ""}${CI ? `<span class="bas">15:30 공식 종가</span>` : ""}${prevSrc ? `<span class="bas">${prevSrc}</span>` : ""}</div></div>
         <div class="id-st">${pill}<br>마지막 체결 <b>${A.open ? "" : idMD(lt.day) + " "}${idHM(lt.m)}</b> (${tzn})</div>
       </div>
       <div class="id-bar">${timeLine}</div>
@@ -9402,15 +9426,29 @@ function idRender(){
     <div class="id-card id-sum">${sum}</div>
   </div>
   <div class="id-foot"><button type="button" class="id-re" data-idre="1">↻ 새로 조회</button><span>서버가 자료 받은 시각 ${gotTxt} (내 기기 시각) · 봉 시각은 봉이 시작한 시각</span></div>`;
-  idDraw(document.getElementById("idChart"), rows, t, ID.iv === 15 ? P : null, ID.iv === 5 ? E.bars.map(z => z.ts) : null);
+  const lastRow = rows[rows.length-1];
+  const closeDot = CI && lastRow && lastRow.day === lastDay ? { price: CI.price, slots: Math.round((A.regEnd - (lastRow.ts + ID.iv*60)) / (ID.iv*60)) + 1 } : null;
+  idDraw(document.getElementById("idChart"), rows, t, ID.iv === 15 ? P : null, ID.iv === 5 ? E.bars.map(z => z.ts) : null, closeDot);
+}
+/* 원장(signals.json)에서 그날 공식 종가(yfinance 일봉) — 국장 전일 종가 대비 표시용. 없으면 null */
+function idLedgerClose(tk, day){
+  try {
+    const s = allStocks().find(x => String(x.ticker).toUpperCase() === tk); if (!s) return null;
+    if (s.last_date === day && has(s.price)) return +s.price;
+    const F = histFields(), di = F.indexOf("date"), pi = F.indexOf("price");
+    const row = (s._hist || []).find(h => h[di] === day);
+    return row && has(row[pi]) ? +row[pi] : null;
+  } catch(e){ return null; }
 }
 
-function idDraw(box, rows, t, lv, marks){
+function idDraw(box, rows, t, lv, marks, closeDot){
   if (!box || !rows.length) return;
   const W = Math.max(260, box.clientWidth || 600), narrow = W < 420;
   const padL = 4, padR = narrow ? 42 : 52, PH = narrow ? 170 : 210, VG = 6, VH = narrow ? 34 : 44, AX = 18;
-  const H = PH + VG + VH + AX, n = rows.length, cw = (W - padL - padR) / n;
+  const extra = closeDot && closeDot.slots > 0 ? closeDot.slots : 0;   // 국장: 15:00~15:30 빈 칸 + 15:30 종가 점 자리
+  const H = PH + VG + VH + AX, n = rows.length, cw = (W - padL - padR) / (n + extra);
   const vals = []; rows.forEach(r => { vals.push(r.h, r.l, r.e9, r.e20); if (r.vw != null) vals.push(r.vw); });
+  if (extra) vals.push(closeDot.price);
   const lines = lv ? [lv.S != null && { p:lv.S, c:"var(--buy)", s:"지지" }, lv.R != null && { p:lv.R, c:"var(--sell)", s:"저항" }].filter(Boolean) : [];
   lines.forEach(x => vals.push(x.p));
   let lo = Math.min(...vals), hi = Math.max(...vals); const pad = (hi - lo) * 0.06 || hi * 0.01 || 1; lo -= pad; hi += pad;
@@ -9448,9 +9486,18 @@ function idDraw(box, rows, t, lv, marks){
   g += `<path d="${path("vw")}" fill="none" stroke="#8b5cf6" stroke-width="1.6" stroke-dasharray="5 3"/>`;
   g += `<path d="${path("e9")}" fill="none" stroke="#0ea5e9" stroke-width="1.6"/>`;
   g += `<path d="${path("e20")}" fill="none" stroke="#f59e0b" stroke-width="1.6"/>`;
+  if (extra){
+    const x1 = padL + cw*n, x2 = padL + cw*(n + extra - 0.5), xd = X(n - 1 + extra), yd = Y(closeDot.price);
+    g += `<rect x="${x1.toFixed(1)}" y="0" width="${(x2 - x1).toFixed(1)}" height="${PH+VG+VH}" fill="var(--neutral-soft)" opacity=".55"/>`;
+    if (x2 - x1 > 70) g += `<text x="${((x1 + x2)/2).toFixed(1)}" y="${(PH/2).toFixed(1)}" font-size="10" fill="var(--faint)" text-anchor="middle">15:00~15:30 미제공</text>`;
+    g += `<line x1="${xd.toFixed(1)}" x2="${xd.toFixed(1)}" y1="${(yd - 9).toFixed(1)}" y2="${(yd + 9).toFixed(1)}" stroke="var(--ink)" stroke-width="1"/>`;
+    g += `<circle cx="${xd.toFixed(1)}" cy="${yd.toFixed(1)}" r="4" fill="var(--ink)" stroke="var(--surface)" stroke-width="1.5"/>`;
+    g += `<text x="${xd.toFixed(1)}" y="${(yd - 12).toFixed(1)}" font-size="10" fill="var(--ink)" font-weight="700" text-anchor="end">종가 ${idPx(t, closeDot.price)}</text>`;
+    g += `<text x="${xd.toFixed(1)}" y="${H-4}" font-size="10.5" fill="var(--muted)" text-anchor="middle">15:30</text>`;
+  }
   const z = rows[n-1];
   box.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t)} 장중 ${ID.iv}분봉 차트">${g}</svg>
-    <div class="id-leg"><i style="background:#8b5cf6"></i>VWAP <b>${z.vw == null ? "—" : idPx(t, z.vw)}</b><br><i style="background:#0ea5e9"></i>EMA 9 <b>${idPx(t, z.e9)}</b><br><i style="background:#f59e0b"></i>EMA 20 <b>${idPx(t, z.e20)}</b>${marks ? `<br><span style="color:var(--buy)">▲</span> 5분 재돌파` : ""}</div>`;
+    <div class="id-leg"><i style="background:#8b5cf6"></i>VWAP <b>${z.vw == null ? "—" : idPx(t, z.vw)}</b><br><i style="background:#0ea5e9"></i>EMA 9 <b>${idPx(t, z.e9)}</b><br><i style="background:#f59e0b"></i>EMA 20 <b>${idPx(t, z.e20)}</b>${marks ? `<br><span style="color:var(--buy)">▲</span> 5분 재돌파` : ""}${extra ? `<br>● 15:30 공식 종가 <b>${idPx(t, closeDot.price)}</b>` : ""}</div>`;
 }
 </script>
 </body>

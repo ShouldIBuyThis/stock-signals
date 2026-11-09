@@ -47,7 +47,8 @@ export default {
     }
     const m = r.meta || {}, tp = (m.currentTradingPeriod || {}).regular || {};
     const body = { t, tz: m.exchangeTimezoneName, gmtoffset: m.gmtoffset, reg: { start: tp.start, end: tp.end },
-                   lastTrade: m.regularMarketTime, price: m.regularMarketPrice, fetchedAt: Math.floor(Date.now() / 1000), bars };
+                   lastTrade: m.regularMarketTime, price: m.regularMarketPrice, prevClose: m.chartPreviousClose ?? m.previousClose ?? null,
+                   fetchedAt: Math.floor(Date.now() / 1000), bars };
     const resp = json(body, 200, { ...cors, "Cache-Control": `public, max-age=${TTL}`, "X-Cache": "MISS" });
     if (cache) ctx.waitUntil(cache.put(key, resp.clone()));
     return resp;

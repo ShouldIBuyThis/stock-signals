@@ -32,7 +32,7 @@ for (const [t, D] of Object.entries(data)){
       if (!fut.length) continue;
       const entry = fut[0][1];
       const closeAt = s => { const z = fut.filter(b => b[0] + 300 <= s); return z.length ? z[z.length-1][4] : null; };
-      const c30 = closeAt(tau + 1800 + 300), c60 = closeAt(tau + 3600 + 300), cE = fut[fut.length-1][4];
+      const c30 = closeAt(tau + 1800 + 300), c60 = closeAt(tau + 3600 + 300), cE = (D.daily && D.daily[today.day]) || fut[fut.length-1][4];   // 당일 종가 = 공식 일봉 종가(없으면 마지막 관측 봉)
       const o = { t, kr, day: today.day, state: A.state,
         r30: c30 != null && fut.length >= 7 ? (c30/entry - 1)*100 : null,
         r60: c60 != null && fut.length >= 13 ? (c60/entry - 1)*100 : null,

@@ -11,7 +11,8 @@
  * - ① 봉 시각 기준(지표 예측력): 진입 = τ에 시작하는 5분봉 시가.
  *   ② 사용자 확인 시각 기준(실전): 야후 국장 지연 D분(기본 20 — Worker 실측) 뒤 화면에 보인다고 보고, 진입 = τ+D에 시작하는 5분봉 시가.
  *     ②-보수: D+10(중계 서버 캐시 최대 10분)도 따로 본다.
- * - 평가: 진입 뒤 +5·+15·+30·+60분(그 시각에 끝나는 봉의 종가)과 장 마감(그날 마지막 봉 종가). 장이 끝나 그 시각이 없으면 '미평가'.
+ * - 평가: 진입 뒤 +5·+15·+30·+60분(그 시각에 끝나는 봉의 종가)과 장 마감(**공식 종가 = 일봉 종가(15:30)**, 없으면 마지막 관측 봉 종가로 표기). 장이 끝나 그 시각이 없으면 '미평가'.
+ *   국장은 15:00~15:30 5분봉이 없으므로 그 구간의 경로·MFE·MAE는 추정하지 않는다(관측 봉까지만).
  *   방향 적중 = 매수 쪽은 상승, 매도 쪽은 하락. 수익률은 매수 = 상승분, 매도 = 하락분(공매도·회피 관점, 부호를 뒤집음).
  * - MFE/MAE = 진입부터 장 마감까지 신호 방향 기준 최대 유리/불리 폭(고가·저가).
  * - 거래비용: 왕복 0.05%(수수료+호가 1틱 근사, ETF 매도세 면제) 기본 · 0.10% 민감도.
@@ -33,8 +34,9 @@ for (const [t, Dt] of Object.entries(data)){
   const want = arg('day') || days[days.length-1].day, di = days.findIndex(x => x.day === want);
   if (di < 4){ console.log(`${t}: ${want} 자료 없음 또는 앞선 4거래일 부족`); continue; }
   const today = days[di], off = today.off, B = today.bars, t0 = B[0][0], end = B[B.length-1][0] + 300;
+  const offClose = (Dt.daily || {})[want], closeSrc = offClose != null ? '공식 종가(일봉 15:30)' : '마지막 관측 봉 종가';
   const hist = days.slice(di-4, di).flatMap(x => x.bars.map(b => b.slice(0, 6)));
-  console.log(`\n■ ${t} ${want} · 5분봉 ${B.length}개 (${hm(t0, off)}~${hm(end, off)}) · 재계산(실제 표시 기록 아님)`);
+  console.log(`\n■ ${t} ${want} · 5분봉 ${B.length}개 (${hm(t0, off)}~${hm(end, off)}) · 재계산(실제 표시 기록 아님) · 마감 = ${closeSrc}${offClose != null ? ' ' + offClose : ''} · MFE/MAE는 ${hm(end, off)}까지 관측 봉만`);
   let prev = null; const counts = {};
   for (let tau = t0 + 300; tau <= end; tau += 300){
     const seen = B.filter(b => b[0] + 300 <= tau).map(b => b.slice(0, 6));
@@ -51,7 +53,7 @@ for (const [t, Dt] of Object.entries(data)){
       const entry = B[ei][1], r = {};
       for (const h of HZ){
         let px = null;
-        if (h === 'close') px = B[B.length-1][4];
+        if (h === 'close') px = offClose != null ? offClose : B[B.length-1][4];
         else { const k = B.findIndex(b => b[0] + 300 === et + h*60); px = k >= 0 ? B[k][4] : null; }
         r[h] = px == null ? null : side * (px/entry - 1) * 100;
       }

@@ -28,8 +28,22 @@ for t in tickers:
         if any(math.isnan(x) for x in (o, h, l, c)):
             continue
         bars.append([int(ts.timestamp()), o, h, l, c, 0 if math.isnan(v) else v, int(ts.utcoffset().total_seconds())])
+    # 정규 5분봉이 아닌 봉 제거: 국장은 15:00 KST 이후(야후는 마감 뒤 '15:00 시작·거래량 0·공식 종가' 봉을 당일에만 붙인다 — 2026-11-09 교차 검증),
+    # 미장은 16:00 ET 이후(종가 체결 봉). 15:00~15:30 구간은 채우지 않는다.
+    def regular(b):
+        m = ((b[0] + b[6]) % 86400) // 60
+        return m < 900 if t.endswith((".KS", ".KQ")) else m < 960
+    bars = [b for b in bars if regular(b)]
+    # 공식 종가(일봉) — '장 마감까지' 평가용. 5분봉에서 만들지 않는다.
+    daily = {}
+    try:
+        dd = yf.Ticker(t).history(period="4mo", interval="1d", auto_adjust=False)
+        for ts, r in dd.iterrows():
+            if not math.isnan(float(r["Close"])): daily[ts.strftime("%Y-%m-%d")] = float(r["Close"])
+    except Exception:
+        pass
     if len(bars) > 300:
-        out[t] = {"tz": str(df.index.tz), "bars": bars}
+        out[t] = {"tz": str(df.index.tz), "bars": bars, "daily": daily}
     else:
         miss.append(t)
 json.dump(out, open(a.out, "w"))
