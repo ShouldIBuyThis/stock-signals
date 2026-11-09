@@ -39,8 +39,7 @@ for t in wl:
     for i in np.nonzero(ok)[0]:
         y = dates[i][:4]
         for k in HS:
-            x = fw[k][i]; base[k][0] += x > 1; base[k][1] += x < -1
-            bh = baseHalf.setdefault(dates[i], {}); 
+            x = fw[k][i]; base[k][0] += int(x > 1); base[k][1] += int(x < -1)
     hit = np.zeros(N, bool); codes_at = {}
     for code in buy_codes:
         if code in ser:
