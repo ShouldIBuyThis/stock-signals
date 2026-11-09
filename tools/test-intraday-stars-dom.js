@@ -1,6 +1,5 @@
-// ⭐ 화면 정합성 시험(Playwright) — 별 마커 · 말풍선 · 요약 줄이 같은 사건(시각·방향)인지. 사용: python3 -m http.server 8765 & node tools/test-intraday-stars-dom.js
 const { chromium, devices } = require('playwright');
-const OUT=require('os').tmpdir()+'/';
+const OUT='/tmp/claude-0/-home-user-stock-signals/44897d7e-d377-5521-a287-9de9da5feee5/scratchpad/';
 const CANDS=[{pat:'일반 양봉',dir:'up',when:null,newState:false,match:'names',hit:62,n:20,verified:false,why:'시험'},
              {pat:'인사이드바',dir:'down',when:null,newState:false,match:'names',hit:62,n:20,verified:false,why:'시험'}];
 function usData(openNow){ const off=-18000; let s=7; const r=()=>{s=(s*16807)%2147483647;return s/2147483647-0.5};
@@ -21,17 +20,22 @@ function usData(openNow){ const off=-18000; let s=7; const r=()=>{s=(s*16807)%21
     for (const mode of ['easy','pro']){
       await pg.click(`.id-mode [data-mode="${mode}"]`); await pg.waitForTimeout(400);
       const r = await pg.evaluate(()=>{ const c=ID.cache.get(ID.t); const evs=c.stars.map(e=>({ts:e.ts,dir:e.dir,m:e.m,e5:e.e5})); 
-        const stars=[...document.querySelectorAll('#idChart .id-star')].map(g=>({ts:+g.dataset.ts,dir:g.dataset.dir}));
+        const stars=[...document.querySelectorAll('#idChart .id-star')].map(g=>({ts:+g.dataset.ts,dir:g.dataset.dir,glyph:g.dataset.glyph}));
+        const dl=document.querySelector('.id-starday'); const day=dl?{up:+dl.dataset.up,down:+dl.dataset.down,text:dl.textContent}:null;
         const arrows=[...document.querySelectorAll('#idChart text')].filter(t=>t.textContent==='▲').length;
-        const sum=document.querySelector('.id-starline'); return {evs,stars,arrows,sum: sum?{ts:+sum.dataset.starsum,dir:sum.dataset.stardir,text:sum.textContent}:null}; });
+        const sum=document.querySelector('.id-starline'); return {evs,stars,arrows,day,sum: sum?{ts:+sum.dataset.starsum,dir:sum.dataset.stardir,text:sum.textContent}:null}; });
       const same = JSON.stringify(r.evs.map(e=>[e.ts,e.dir]))===JSON.stringify(r.stars.map(s=>[s.ts,s.dir]));
       ok(same && r.stars.length>0, `[${nm}/${mode}] 차트 별 ${r.stars.length}개 = 사건 ${r.evs.length}개 (시각·방향 일치) · ▲ ${r.arrows}개 · 같은 봉 ▲+⭐ ${r.evs.filter(e=>e.e5).length}건`);
+      const gOk=r.stars.every(s=>s.glyph===(s.dir==='up'?'star':s.dir==='down'?'warn':'both'));
+      ok(gOk, `[${nm}/${mode}] 마커 모양: 상승=★ ${r.stars.filter(s=>s.glyph==='star').length} · 하락=⚠️ ${r.stars.filter(s=>s.glyph==='warn').length} · 충돌=둘 다 ${r.stars.filter(s=>s.glyph==='both').length}`);
+      const nu=r.evs.filter(e=>e.dir!=='down').length, nd=r.evs.filter(e=>e.dir!=='up').length;
+      ok(r.day && r.day.up===nu && r.day.down===nd && (nu? !/상승 연구 후보 없음/.test(r.day.text) : /상승 연구 후보 없음/.test(r.day.text)) && (nd? !/하락 주의 연구 후보 없음/.test(r.day.text) : /하락 주의 연구 후보 없음/.test(r.day.text)), `[${nm}/${mode}] 하루 요약 줄 상승 ${r.day&&r.day.up}/${nu} · 하락 ${r.day&&r.day.down}/${nd}: ${r.day&&r.day.text.slice(0,80)}`);
       if (nm==='open'){ const last=r.evs[r.evs.length-1]; ok(r.sum ? (r.sum.ts===last.ts && r.sum.dir===last.dir) : true, `[${nm}/${mode}] 요약 줄 ${r.sum? r.sum.text.slice(0,60):'없음(최근 3봉에 별 없음)'} → 마지막 사건과 같은 시각·방향`);
         if (r.sum && r.sum.dir==='down') ok(!/매수 후보(?! 아님)/.test(r.sum.text) || /매수 후보 아님/.test(r.sum.text), `[${nm}/${mode}] 하락 요약에 매수 안내 없음`); }
       else ok(r.sum===null, `[${nm}/${mode}] 장 종료 → 요약 줄 없음`);
       // 별 클릭 → 말풍선이 같은 사건
       const n = Math.min(r.stars.length, 6); let popOk=true;
-      for (let i=0;i<n;i++){ { const bx = await pg.locator('#idChart .id-star').nth(i).locator('text').boundingBox(); await pg.mouse.click(bx.x + bx.width/2, bx.y + bx.height/2); } await pg.waitForTimeout(80);
+      for (let i=0;i<n;i++){ { const bx = await pg.locator('#idChart .id-star').nth(i).locator('rect').boundingBox(); await pg.mouse.click(bx.x + bx.width/2, bx.y + bx.height/2); } await pg.waitForTimeout(80);
         const p = await pg.evaluate(()=>{const p=document.querySelector('#idChart .id-pop'); return {hidden:p.hidden, ts:+p.dataset.ts, dir:p.dataset.dir, text:p.textContent};});
         const ev=r.evs[i]; const hm=String(Math.floor(ev.m/60)).padStart(2,'0')+':'+String(ev.m%60).padStart(2,'0');
         if (p.hidden || p.ts!==ev.ts || p.dir!==ev.dir || !p.text.includes(hm)) { popOk=false; if(!global.__shown){ global.__shown=1; console.log('   상세', JSON.stringify({i, hidden:p.hidden, pts:p.ts, ets:ev.ts, pdir:p.dir, edir:ev.dir, hm, text:p.text.slice(0,120)})); } }

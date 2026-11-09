@@ -1072,6 +1072,8 @@ html[data-theme="dark"] .mkswitch button.on{background:#37456a;box-shadow:none}
 .id-starline{margin-top:8px;font-size:12px;line-height:1.5;color:#854d0e;background:#fef9c3;border-radius:8px;padding:5px 8px}
 html[data-theme="dark"] .id-starline{color:#fde68a;background:#3b3212}
 .id-star{cursor:pointer}
+.id-starday{margin-top:6px;font-size:11px;color:var(--muted);line-height:1.5}
+.id-starday span{color:var(--faint)}
 .id-pop{position:absolute;z-index:3;width:232px;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:8px 26px 8px 10px;font-size:11.5px;line-height:1.55;color:var(--ink)}
 .id-pop[hidden]{display:none}
 .id-pop-t{color:var(--muted);font-size:11px}
@@ -9303,7 +9305,9 @@ function idStarEvents(d, now, cands){
     if (F) for (const c of cands){
       const hitPat = c.match === "primary" ? F.primary === c.pat : F.names.includes(c.pat);
       const hitState = !c.when || (At.state === c.when && (!c.newState || prev !== c.when));
-      if (hitPat && hitState) items.push(c);
+      /* 선택 조건(상승 연구용 · 없으면 무시): 그 봉 저가가 VWAP 아래(vwap:"below") · 30분 추세(tr30) — 모두 그 시점 값 */
+      const hitCtx = (!c.vwap || (c.vwap === "below" ? (L.vw != null && L.l < L.vw) : true)) && (!c.tr30 || (At.T && At.T.dir === c.tr30));
+      if (hitPat && hitState && hitCtx) items.push(c);
     }
     if (items.length){
       const dirs = [...new Set(items.map(c => c.dir))];
@@ -9317,9 +9321,9 @@ function idStarEvents(d, now, cands){
 /* 별 말풍선·요약 문구 — idStarEvents()의 사건 하나만 보고 만든다 */
 function idStarText(ev){
   const st = s => (ID_STATE[s] || {}).t || s;
-  const lines = ev.items.map(c => `${c.dir === "down" ? "🔻 하락" : "🔺 상승"} 연구 후보 · ${c.pat}${c.when ? " + " + st(c.when) : ""} · 15분 ${c.dir === "down" ? "하락" : "상승"} ${c.hit}% (${c.n}건) · ${c.verified ? "검증 통과" : "미검증 — " + c.why}${c.note ? " · " + c.note : ""}`);
+  const lines = ev.items.map(c => `${c.dir === "down" ? "⚠️ 하락 주의" : "⭐ 상승"} 연구 후보 · ${c.pat}${c.when ? " + " + st(c.when) : ""} · 15분 ${c.dir === "down" ? "하락" : "상승"} ${c.hit}% (${c.n}건) · ${c.verified ? "검증 통과" : "미검증 — " + c.why}${c.note ? " · " + c.note : ""}`);
   const notes = [];
-  if (ev.dir === "mixed") notes.push("상승·하락 근거가 함께 나와 방향이 불확실해요");
+  if (ev.dir === "mixed") notes.push("⭐ 상승 후보와 ⚠️ 하락 주의 후보가 같은 봉에 함께 나와 방향이 불확실해요");
   if (ev.items.some(c => c.dir === "up")){
     if (ev.e5) notes.push("▲ 5분 재돌파와 동시 충족 — 매수 판정은 기존 ▲ 조건 기준이에요");
     if (ev.stateAt !== "go") notes.push(`반등 연구 후보 · 기존 매수 조건 미충족${ev.T30 === "down" ? " (30분 하락 추세)" : ""}`);
@@ -9329,7 +9333,8 @@ function idStarText(ev){
     if (ev.e5) notes.push("같은 봉에 ▲ 5분 재돌파도 있어요 — 근거가 엇갈려 불확실해요");
   }
   notes.push("연구 후보 · 매매 신호 아님 · 판정·점수·등급에 쓰지 않아요");
-  return { time: `${idMD(ev.day)} ${idHM(ev.m)}~${idHM(ev.m + 5)} 확정 봉`, dirLabel: ev.dir === "down" ? "하락 연구 후보" : ev.dir === "up" ? "상승 연구 후보" : "방향 불확실", lines, notes };
+  return { time: `${idMD(ev.day)} ${idHM(ev.m)}~${idHM(ev.m + 5)} 확정 봉`, icon: ev.dir === "down" ? "⚠️" : ev.dir === "up" ? "⭐" : "⭐⚠️",
+    dirLabel: ev.dir === "down" ? "하락 주의 연구 후보" : ev.dir === "up" ? "상승 연구 후보" : "방향 충돌 — 상승·하락 후보 함께", lines, notes };
 }
 /* 요약 칸 한 줄 — 장중 · 최근 확정 3봉 안의 사건만 '지금' 문구로. 지연·미확정·장 밖이면 없음 */
 function idStarSummary(evs, A){
@@ -9337,7 +9342,7 @@ function idStarSummary(evs, A){
   const D5 = A.tf[5].filter(r => r.done), recent = new Set(D5.slice(-3).map(r => r.ts)), ev = evs[evs.length - 1];
   if (!recent.has(ev.ts)) return null;
   const T = idStarText(ev);
-  return { ev, text: `⭐ ${T.dirLabel} (${ev.items.map(c => c.pat).join("·")}) · ${idHM(ev.m)} 확정 봉 · ${ev.items.every(c => c.verified) ? "검증 통과" : "미검증"}${ev.dir === "up" ? (A.state === "go" ? " · 기존 매수 조건(▲)도 충족" : " · 기존 매수 조건 미충족") : ev.dir === "down" ? " · 매수 후보 아님" + (A.state === "go" ? " · 현재 판정과 엇갈림(불확실)" : "") : " · 불확실"}` };
+  return { ev, text: `${T.icon} ${T.dirLabel} (${ev.items.map(c => c.pat).join("·")}) · ${idHM(ev.m)} 확정 봉 · ${ev.items.every(c => c.verified) ? "검증 통과" : "미검증"}${ev.dir === "up" ? (A.state === "go" ? " · 기존 매수 조건(▲)도 충족" : " · 기존 매수 조건 미충족") : ev.dir === "down" ? " · 매수 후보 아님" + (A.state === "go" ? " · 현재 판정과 엇갈림(불확실)" : "") : " · 불확실"}` };
 }
 const ID_STATE = {
   hold:{ t:"⏳ 판단 보류", cls:"", s:"장 시작 직후거나 자료가 부족해요" },
@@ -9409,6 +9414,10 @@ function idRender(){
   if (!c.stars || c.starsAt !== now - (now % 60)){ c.stars = idStarEvents(d, now); c.starsAt = now - (now % 60); }
   const SV = c.stars, SS = idStarSummary(SV, A);
   const starLine = SS ? `<div class="id-starline" data-starsum="${SS.ev.ts}" data-stardir="${SS.ev.dir}">${esc(SS.text)}</div>` : "";
+  /* 오늘(마지막 거래일) 상승·하락 후보 각각 — 같은 사건 목록(SV)에서만 센다 */
+  const dayEv = SV.filter(e => e.day === lastDay), upEv = dayEv.filter(e => e.dir !== "down"), dnEv = dayEv.filter(e => e.dir !== "up");
+  const dayWord = A.open ? "오늘" : `${idMD(lastDay)}`;
+  const starDay = `<div class="id-starday" data-up="${upEv.length}" data-down="${dnEv.length}">⭐ ${dayWord} 상승 연구 후보 ${upEv.length ? `${upEv.length}건 (${upEv.map(e => idHM(e.m)).join("·")})` : "없음"} · ⚠️ ${dayWord} 하락 주의 연구 후보 ${dnEv.length ? `${dnEv.length}건 (${dnEv.map(e => idHM(e.m)).join("·")})` : "없음"} <span>· 연구 후보 · 매매 신호 아님</span></div>`;
   /* 확정·지연 줄 — 두 모드 공통 */
   const krNote = !A.kr ? "" : CI ? ` · <b>15:00~15:30 5분봉 미제공</b> · 공식 종가 15:30 <b>${P$(CI.price)}</b>${CI.receivedAt ? ` (서버 수신 ${idHM(idLocal(CI.receivedAt, 32400).m)})` : ""}`
     : (now >= A.regEnd - 1800 ? " · 15:00~15:30 5분봉 미제공 · 공식 종가는 마감 뒤 야후 반영 후 표시" : "");
@@ -9441,7 +9450,7 @@ function idRender(){
       : "⏳ 5분봉: 다시 상승하려는 신호를 기다리는 중이에요.";
     sum = `<div class="id-big ${st.cls} id-easy"><b>${ez.t}</b></div>
       <ul class="id-elines"><li>${l30}</li><li>${l15}</li><li>${l5}</li></ul>
-      ${starLine}
+      ${starLine}${starDay}
       ${levels}
       <div class="id-do"><div>💬 지금 할 일: <b>${act}</b></div><p>“${ez.g}”</p></div>
       <details class="id-more"><summary>쉬운 말 풀이</summary>
@@ -9461,7 +9470,7 @@ function idRender(){
         <li><em>15분 지지</em><span>${P.atr == null ? "자료 부족" : `${P.broken ? '<span class="down">이탈</span>' : P.held ? '<span class="up">지지 확인</span>' : P.pull ? "눌림 진행" : "눌림 아님"} · S ${P.S != null ? `${P$(P.S)} (${P.Sname})` : "없음"} · R ${P.R != null ? P$(P.R) : "—"}${P.breakout ? ' <span class="up">돌파</span>' : ""} · ATR ${P$(P.atr)}`}</span></li>
         <li><em>5분 진입</em><span>${E.early ? "장 시작 30분 제외" : E.ok ? `<span class="up">충족</span> ${idHM(E.hit.m)} 확정 봉 · 무효화 기준 저가 ${P$(E.hit.low)}` : "미충족 (최근 확정 3봉)"}</span></li>
       </ul>
-      ${starLine}
+      ${starLine}${starDay}
       ${levels}
       <details class="id-more" open><summary>정밀 지표</summary>
         <table class="id-tbl">
@@ -9582,11 +9591,15 @@ function idDraw(box, rows, t, lv, marks, closeDot, stars){
   if (ST){
     const idx = new Map(rows.map((r, i) => [r.ts, i]));
     stars.forEach((ev, k) => { const i = idx.get(ev.ts); if (i == null) return; const x = X(i); starX.push({ k, x });
-      g += `<g class="id-star" data-star="${k}" data-ts="${ev.ts}" data-dir="${ev.dir}" role="button" tabindex="0" aria-label="연구 후보 ${idHM(ev.m)}"><rect x="${(x - 8).toFixed(1)}" y="0" width="16" height="15" fill="transparent"/><text x="${x.toFixed(1)}" y="11" font-size="11" text-anchor="middle" fill="#facc15" stroke="#a16207" stroke-width=".6">★</text></g>`; });
+      /* ⭐ = 상승 연구 후보 · ⚠ = 하락 주의 연구 후보 · 둘 다면 나란히(방향 충돌) */
+      const star = cx => `<text x="${cx.toFixed(1)}" y="11" font-size="11" text-anchor="middle" fill="#facc15" stroke="#a16207" stroke-width=".6">★</text>`;
+      const warn = cx => `<path d="M${cx.toFixed(1)} 2 L${(cx + 5.5).toFixed(1)} 12 L${(cx - 5.5).toFixed(1)} 12 Z" fill="#facc15" stroke="#a16207" stroke-width=".7"/><text x="${cx.toFixed(1)}" y="11" font-size="7.5" font-weight="800" text-anchor="middle" fill="#713f12">!</text>`;
+      const glyph = ev.dir === "up" ? star(x) : ev.dir === "down" ? warn(x) : star(x - 5) + warn(x + 5);
+      g += `<g class="id-star" data-star="${k}" data-ts="${ev.ts}" data-dir="${ev.dir}" data-glyph="${ev.dir === "up" ? "star" : ev.dir === "down" ? "warn" : "both"}" role="button" tabindex="0" aria-label="${ev.dir === "down" ? "하락 주의" : ev.dir === "up" ? "상승" : "방향 충돌"} 연구 후보 ${idHM(ev.m)}"><rect x="${(x - 9).toFixed(1)}" y="0" width="18" height="15" fill="transparent"/>${glyph}</g>`; });
   }
   const z = rows[n-1];
   box.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t)} 장중 ${ID.iv}분봉 차트">${g}</svg>
-    <div class="id-leg"${ST ? ` style="top:${ST + 4}px"` : ""}><i style="background:#8b5cf6"></i>VWAP <b>${z.vw == null ? "—" : idPx(t, z.vw)}</b><br><i style="background:#0ea5e9"></i>EMA 9 <b>${idPx(t, z.e9)}</b><br><i style="background:#f59e0b"></i>EMA 20 <b>${idPx(t, z.e20)}</b>${marks ? `<br><span style="color:var(--buy)">▲</span> 5분 재돌파` : ""}${extra ? `<br>● 15:30 공식 종가 <b>${idPx(t, closeDot.price)}</b>` : ""}${ST ? `<br><span style="color:#eab308">★</span> 연구 후보(미검증)` : ""}</div><div class="id-pop" hidden></div>`;
+    <div class="id-leg"${ST ? ` style="top:${ST + 4}px"` : ""}><i style="background:#8b5cf6"></i>VWAP <b>${z.vw == null ? "—" : idPx(t, z.vw)}</b><br><i style="background:#0ea5e9"></i>EMA 9 <b>${idPx(t, z.e9)}</b><br><i style="background:#f59e0b"></i>EMA 20 <b>${idPx(t, z.e20)}</b>${marks ? `<br><span style="color:var(--buy)">▲</span> 5분 재돌파` : ""}${extra ? `<br>● 15:30 공식 종가 <b>${idPx(t, closeDot.price)}</b>` : ""}${ST && stars.some(e => e.dir !== "down") ? `<br><span style="color:#eab308">★</span> 상승 연구 후보` : ""}${ST && stars.some(e => e.dir !== "up") ? `<br><span style="color:#eab308">▲!</span> 하락 주의 연구 후보` : ""}</div><div class="id-pop" hidden></div>`;
   if (ST) box.onclick = ev => {
     const pop = box.querySelector(".id-pop");
     if (ev.target.closest(".id-pop-x")){ pop.hidden = true; return; }
@@ -9597,7 +9610,7 @@ function idDraw(box, rows, t, lv, marks, closeDot, stars){
     const near = starX.reduce((a, z) => Math.abs(z.x - cx) < Math.abs(a.x - cx) ? z : a, starX[0]);
     const gEl = box.querySelector(`.id-star[data-star="${near.k}"]`);
     const e = stars[near.k], T = idStarText(e), bx = box.getBoundingClientRect(), gx = gEl.getBoundingClientRect();
-    pop.innerHTML = `<button type="button" class="id-pop-x" aria-label="닫기">✕</button><b data-poptime="${e.ts}">⭐ ${esc(T.dirLabel)}</b> <span class="id-pop-t">${esc(T.time)}</span>`
+    pop.innerHTML = `<button type="button" class="id-pop-x" aria-label="닫기">✕</button><b data-poptime="${e.ts}">${T.icon} ${esc(T.dirLabel)}</b> <span class="id-pop-t">${esc(T.time)}</span>`
       + T.lines.map(l => `<div class="id-pop-l">${esc(l)}</div>`).join("") + T.notes.map(l => `<div class="id-pop-n">${esc(l)}</div>`).join("");
     pop.dataset.ts = e.ts; pop.dataset.dir = e.dir; pop.hidden = false;
     const left = Math.min(Math.max(4, gx.left - bx.left - 110), bx.width - 236);
