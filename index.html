@@ -9403,8 +9403,11 @@ function idRender(){
   if (A.open) pill = `<span class="id-pill open">장중 · 지연 ${dm < 1 ? "1분 미만" : "약 " + dm + "분"}</span>`;
   else if (A.settling) pill = `<span class="id-pill">장 마감 직후 · 자료 지연 약 ${dm}분</span>`;
   const preOpen = !A.open && !A.settling && reg.start && now < reg.start;
+  /* 2026-11-10 사용자 지적 "장 열렸는데 국장 실시간 왜 안 돼" — 정규장 시간인데 오늘 체결이 아직 안 온 경우(야후 국장 약 20분 지연 → 09:20쯤 첫 봉).
+     예전엔 '장 종료'로 잘못 보였다. 판정(idMtf)은 그대로 — 오늘 봉이 없으니 장중 신호는 여전히 내지 않고 문구만 바로잡는다. */
+  const waitFeed = !A.open && !A.settling && !!reg.start && now >= reg.start && now <= (A.regEnd || reg.end || 0) && A.lastTrade < reg.start;
   const closed = !A.open && !A.settling;
-  if (closed) pill = `<span class="id-pill">${preOpen ? "장 시작 전" : "장 종료"}</span>`;
+  if (closed) pill = `<span class="id-pill">${waitFeed ? "장 열림 · 오늘 시세 대기" : preOpen ? "장 시작 전" : "장 종료"}</span>`;
   const lt = idLocal(A.lastTrade, off), lb = all[all.length-1];
   const D5 = b5.filter(r => r.done), L5 = D5[D5.length-1];
   const WD = "일월화수목금토", wd = day => WD[new Date(day + "T00:00:00Z").getUTCDay()];
@@ -9499,7 +9502,9 @@ function idRender(){
     let inSite = false; try { inSite = allStocks().some(s => s.ticker.toUpperCase() === t); } catch(e){}
     const lastBar = L5 ? `${idMD(L5.day)}(${wd(L5.day)}) ${idHM(L5.m + 5)}` : "—";
     const closeTxt = CI ? `마지막 거래일 ${L5 ? idMD(L5.day) + "(" + wd(L5.day) + ")" : ""} 15:30 공식 종가 <b>${P$(CI.price)}</b> · 5분봉은 ${L5 ? idHM(L5.m + 5) : "—"}까지만 제공돼요(15:00~15:30 미제공).` : `마지막 거래일 ${lastBar}${A.kr ? "까지의 5분봉이에요(15:00~15:30 미제공 · 공식 종가는 야후 반영 뒤 표시)" : " 장 마감까지의 자료예요"}. 차트도 그날 장중 흐름이에요.`;
-    sum = `<div class="id-big id-easy"><b>${preOpen ? "⏰ 장 시작 전" : "🌙 장 종료"} — 지금은 장중 신호를 보지 않아요</b><span>${closeTxt}</span></div>
+    const openAt = idHM(idLocal(reg.start, off).m + (A.kr ? 20 : 0));
+    const waitTxt = `${A.kr ? "야후 국장 시세는 약 20분 늦게 와서" : "제공처 시세가 아직 오지 않아"} 오늘 첫 5분봉은 <b>${openAt}쯤</b>부터 들어와요. 지금 보이는 차트·분석은 지난 거래일(${L5 ? idMD(L5.day) + "(" + wd(L5.day) + ")" : "—"}) 자료예요. 잠시 뒤 다시 조회해 주세요.`;
+    sum = `<div class="id-big id-easy"><b>${waitFeed ? "⏳ 장은 열렸어요 — 오늘 시세가 아직 안 왔어요" : preOpen ? "⏰ 장 시작 전 — 지금은 장중 신호를 보지 않아요" : "🌙 장 종료 — 지금은 장중 신호를 보지 않아요"}</b><span>${waitFeed ? waitTxt : closeTxt}</span></div>
       ${inSite ? `<button type="button" class="id-card-go" data-idcard="${esc(t)}">📊 일봉 종가 기준 종목 카드 보기</button>` : `<div class="id-sub" style="margin-top:8px">이 종목은 사이트의 일봉 종가 목록에 없어요.</div>`}
       <details class="id-more"><summary>마지막 장 마감 시점 분석 보기</summary>${sum}</details>`;
   }
