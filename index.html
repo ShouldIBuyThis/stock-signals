@@ -9290,9 +9290,13 @@ function idCandleFeat(A, bar){
    · 판정(A.state)·▲ 재돌파·일봉 점수·등급과 무관 — 별만으로 매수/매도 판정이 바뀌지 않는다.
    · 상승 패턴은 연구 보고를 사용자가 확인하기 전까지 넣지 않는다. */
 const ID_STAR_CANDS = (typeof window !== "undefined" && window.__ID_STAR_CANDS) || [
-  /* 숫자 = 이 함수(idStarEvents) 사건 그대로 60일 집계(tools/intraday-star-parity.js, run 42589399412 · 백테스트와 75/75 일치) */
-  { pat:"잠자리 도지", dir:"down", when:"down", newState:true, match:"primary", hit:61, n:49, verified:false, why:"워크포워드 학습 표본 부족(1차 n19 · 2차 n38)", note:"미장 69%(36건) · 국장 38%(13건)" },
-  { pat:"석별형", dir:"down", when:"down", newState:true, match:"primary", hit:69, n:26, verified:false, why:"워크포워드 학습 표본 부족(1차 n10 · 2차 n17)", note:"미장 68%(22건) · 국장 4건(판단 불가)" },
+  /* 숫자 = 보존 스냅샷 한 벌(intraday-snapshot run 42730988202 · 2026-11-10 00:48 UTC 수집 · 88종목 60일)에서 이 함수(idStarEvents) 사건 그대로 집계
+     (tools/intraday-star-parity.js --plus-up, run 42731166262 · 백테스트 루프와 129/129 일치). hit = +15분 방향 적중 %, net = +15분 평균 − 비용 0.05%.
+     네 후보 모두 워크포워드 두 번 통과에 실패 → verified:false. 야후 60일 창이 밀리면 숫자가 달라진다(note에 다른 수집 시점 값) — 스냅샷을 바꿀 때만 고친다. */
+  { pat:"잠자리 도지", dir:"down", when:"down", newState:true, match:"primary", hit:63, n:48, net:0.126, verified:false, why:"워크포워드 1차 검증 53%(17건)로 탈락", note:"미장 71%(35건) · 국장 38%(13건)", src:"2026-11-10 수집 60일" },
+  { pat:"석별형", dir:"down", when:"down", newState:true, match:"primary", hit:69, n:26, net:0.367, verified:false, why:"워크포워드 1차 학습 표본 부족(10건)", note:"미장 68%(22건) · 국장 4건(판단 불가) · 다른 수집 시점엔 64%(28건)", src:"2026-11-10 수집 60일" },
+  { pat:"장대양봉", dir:"up", when:"down", newState:true, match:"primary", hit:68, n:28, net:0.338, verified:false, why:"워크포워드 1차 학습 표본 부족(7건) · 구간별 86→67→58%로 낮아짐", note:"미장만 28건 · 국장 0건(판단 불가)", src:"2026-11-10 수집 60일" },
+  { pat:"역망치형", dir:"up", when:"wait", newState:true, match:"primary", hit:65, n:26, net:-0.180, verified:false, why:"워크포워드 1차 학습 표본 부족(4건) · 2차 검증 표본 부족(9건 56%)", note:"미장만 26건 · 국장 0건(판단 불가) · 다른 수집 시점엔 57%(28건)", src:"2026-11-10 수집 60일" },
 ];
 function idStarEvents(d, now, cands){
   cands = cands || ID_STAR_CANDS;
@@ -9453,7 +9457,7 @@ function idUpEvents(d, now, cands){
 function idStarText(ev){
   const st = s => (ID_STATE[s] || {}).t || s;
   /* 2026-11-10 사용자 지시: %는 '과거 관측 비율'이라고 밝히고, 비용 뺀 평균 순수익을 같이 보인다(이겨도 평균은 손실일 수 있다). */
-  const net = c => typeof c.net !== "number" ? "" : ` · 평균 순수익 ${c.net > 0 ? "+" : ""}${c.net.toFixed(3)}%${c.net < 0 ? " (맞힌 횟수는 많아도 평균은 손실)" : ""}`;
+  const net = c => typeof c.net !== "number" ? "" : ` · ${c.dir === "down" ? "하락 방향 평균(비용 차감)" : "평균 순수익"} ${c.net > 0 ? "+" : ""}${c.net.toFixed(3)}%${c.net < 0 ? " (맞힌 횟수는 많아도 평균은 손실)" : ""}`;
   const lines = ev.items.map(c => `${c.dir === "down" ? "⚠️ 하락 주의" : "⭐ 상승"} 연구 후보 · ${c.pat}${c.when ? " + " + st(c.when) : ""} · 과거 60일 관측: 15분 뒤 ${c.dir === "down" ? "하락" : "상승"} ${c.hit}% (${c.n}건)${net(c)} · ${c.verified ? "검증 통과" : "검증 실패 — " + c.why}${c.note ? " · " + c.note : ""}`);
   const notes = [];
   if (ev.dir === "mixed") notes.push("⭐ 상승 후보와 ⚠️ 하락 주의 후보가 같은 봉에 함께 나와 방향이 불확실해요");
