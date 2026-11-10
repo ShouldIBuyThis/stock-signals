@@ -46,6 +46,13 @@ function mk(t, nowBase){ const kr = /\.(KS|KQ)$/.test(t), off = kr ? 32400 : -18
     ok(/미장 장중/.test(r1.head) && /국장 제외/.test(r1.head) && /미장 체결 \d+분 전 · 확정봉 \d+분 전 \(야후 \d+분 \+ 서버 저장 \d+분 \+ 브라우저 \d+분\)/.test(r1.head), `[${nm}] 요약: ${r1.head.replace(/\s+/g, ' ').slice(0, 160)}`);
     const st = await pg.evaluate(() => { const rows = [...document.querySelectorAll('.id-srow')]; const i = rows.findIndex(e => e.dataset.idopen === 'KO');
       return { i, n: rows.length, stale: i >= 0 && rows[i].classList.contains('stale'), lag: i >= 0 ? +rows[i].dataset.lag : null, warn: i >= 0 && /신규 매수 후보로 보지 마세요/.test(rows[i].textContent), after: i >= 0 && rows.slice(i).every(e => e.classList.contains('stale')), fresh: rows.filter(e => !e.classList.contains('stale')).every(e => +e.dataset.lag < 25) }; });
+    const w = await pg.evaluate(() => { const rows = [...document.querySelectorAll('.id-srow')]; let ok = 0, bad = [];
+      for (const e of rows){ const t = e.dataset.idopen, el = e.querySelector('.id-s52'), stk = allStocks({ themeInputs: true }).find(x => x.ticker.toUpperCase() === t), d = ID.cache.get(t).d;
+        if (!el){ if (stk && stk.high_52w > 0) bad.push(t + ' 없음'); continue; }
+        const hi = (d.price/stk.high_52w - 1)*100, lo = (d.price/stk.low_52w - 1)*100;
+        if (Math.abs(hi - +el.dataset.hi) < 0.01 && Math.abs(lo - +el.dataset.lo) < 0.01 && /전일 확정 기준 · 참고/.test(el.textContent)) ok++; else bad.push(t); }
+      return { ok, bad, n: rows.length, sample: (document.querySelector('.id-s52') || {}).textContent }; });
+    ok(w.ok === w.n && !w.bad.length, `[${nm}] 52주 위치 참고 표시 ${w.ok}/${w.n}줄 = signals.json high_52w·low_52w와 일치 · 예: ${w.sample}`);
     ok(st.i >= 0 && st.stale && st.lag >= 25 && st.warn && st.after && st.fresh, `[${nm}] 오래된 자료(KO 체결 ${st.lag}분 전): 흐리게 · 맨 뒤(${st.i + 1}/${st.n}) · '신규 매수 후보로 보지 마세요' · 나머지는 25분 미만`);
     if (OUT) await pg.locator('#idPanel').screenshot({ path: `${OUT}/scan-${nm}.png` });
     // 재시도(실패 종목만)

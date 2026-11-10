@@ -1117,6 +1117,7 @@ html[data-theme="dark"] .id-starline{color:#fde68a;background:#3b3212}
 .id-sev{color:var(--muted);font-size:11.5px}
 .id-sfail{margin-top:10px;font-size:12px;color:var(--muted);line-height:1.6}
 .id-srow.stale{opacity:.6}
+.id-s52 small{color:var(--faint)}
 .id-slag.old,.id-sev.old{color:var(--sell);border-color:var(--sell)}
 .id-pill.old{background:var(--sell-soft);color:var(--sell)}
 .id-oldnote{font-size:11px;color:var(--sell);margin-top:3px;line-height:1.4}
@@ -9143,6 +9144,14 @@ function idLag(t, d, A, now){
   o.why = [o.yahoo != null ? `야후 ${o.yahoo}분` : null, o.server != null ? `서버 저장 ${o.server}분` : null, o.client ? `브라우저 보관 ${o.client}분` : null].filter(Boolean).join(" + ");
   return o;
 }
+/* 52주 위치(2026-11-10 사용자 승인 · 참고 표시만): signals.json에 이미 있는 종목별 high_52w·low_52w(마지막 일봉 갱신 = 전일 확정)를 다시 쓴다 — 추가 호출 0건.
+   ⭐·⚠️ 판정·순위에는 쓰지 않는다(docs/2026-11-10-52w-intraday.md: 48칸 중 검증 통과 0). */
+function id52w(t, price){
+  let s = null; try { s = allStocks({ themeInputs: true }).find(x => (x.ticker || "").toUpperCase() === t); } catch(e){}
+  if (!s || !(s.high_52w > 0) || !(s.low_52w > 0) || !(price > 0)) return null;
+  const hi = (price/s.high_52w - 1)*100, lo = (price/s.low_52w - 1)*100, f = x => (x >= 0 ? "+" : "−") + Math.abs(x).toFixed(1) + "%";
+  return { hi, lo, text: `52주 최고 ${hi > 0 ? "위 " : ""}${f(hi)} · 최저 ${lo < 0 ? "아래 " : ""}${f(lo)}`, asOf: s.last_date || "" };
+}
 function idScanTickers(mkt){ const seen = new Set(), out = []; let list = []; try { list = allStocks(); } catch(e){}
   for (const s of list){ const t = (s.ticker || "").toUpperCase(); if (t && !seen.has(t) && (!mkt || (mkt === "kr") === idIsKr(t))){ seen.add(t); out.push({ t, name: s.name || "" }); } } return out; }
 function idEvidenceAt(d, ts){ const tau = ts + 300, At = idMtf({ ...d, bars: d.bars.filter(b => b[0] + 300 <= tau), lastTrade: tau }, tau); return At ? idUpEvidence(At) : []; }
@@ -9151,7 +9160,7 @@ function idScanRow(t, name, d, now){
   const A = idMtf(d, now); if (!A) return { t, name, kind: "nodata" };
   const reg = d.reg || {}, lg = idLag(t, d, A, now), lag = lg.trade;
   const wait = !A.open && !A.settling && !!reg.start && now >= reg.start && now <= (A.regEnd || reg.end || 0) && A.lastTrade < reg.start;
-  const base = { t, name, kr: !!A.kr, lag, lg, open: A.open, state: A.state };
+  const base = { t, name, kr: !!A.kr, lag, lg, open: A.open, state: A.state, w52: id52w(t, typeof d.price === "number" ? d.price : null) };
   if (!A.open) return { ...base, kind: wait ? "wait" : "closed" };
   const D5 = A.tf[5].filter(r => r.done && r.day === A.lastDay), from = D5.length ? D5[Math.max(0, D5.length - ID_SCAN_BARS)].ts : 0;
   const stars = idStarEvents(d, now, null, ID_SCAN_BARS), rb = (A.E.bars || []).filter(z => z.ts >= from);
@@ -9185,6 +9194,7 @@ function idScanRender(){
       <span class="id-spat"><b>${esc(pat)}</b> · 지금 상태 ${st(r.state)}</span>
       <span class="id-ssum">${sum}</span>
       ${st5 ? `<span class="id-sev old">⚠️ 자료가 ${lg.trade}분 지난 것(${esc(lg.why)}) — 신규 매수 후보로 보지 마세요</span>` : ""}
+      ${r.w52 ? `<span class="id-sev id-s52" data-hi="${r.w52.hi.toFixed(2)}" data-lo="${r.w52.lo.toFixed(2)}">📏 ${r.w52.text} <small>(전일 확정 기준 · 참고)</small></span>` : ""}
       <span class="id-sev">지표 근거(참고 · 성과 검증 실패): ${r.evi.length ? esc(r.evi.slice(0, 4).join(" · ")) + (r.evi.length > 4 ? ` 외 ${r.evi.length - 4}` : "") : "해당 없음"}</span>
     </button>`; };
   const prog = S.running ? `<div class="id-shead">⏳ ${S.mkt === "kr" ? "국장" : "미장"} ${S.done}/${S.total} 조회 중${S.fail.length ? ` · 실패 ${S.fail.length}` : ""}</div><div class="id-prog"><i style="width:${Math.round(S.done/Math.max(1, S.total)*100)}%"></i></div>` : "";
