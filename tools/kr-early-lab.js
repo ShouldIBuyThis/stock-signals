@@ -107,8 +107,9 @@ const outc = (t, X, k, D, dir, sigL, sigH) => {
   if (k0 < 0) return null;
   const p0raw = B[k0][1], tk = tick(t, p0raw), p0 = dir === 'U' ? p0raw + tk : p0raw;
   const r = { k0, obsTs: B[k0][0], p0: p0raw };
-  for (const h of HM){ const i = k0 + h/5 - 1; r['m' + h] = i < B.length ? ((B[i][4] - (dir === 'U' ? tk : 0))/p0 - 1)*100 : null; }
-  r.d1 = X.closeNext != null ? ((X.closeNext - (dir === 'U' ? tk : 0))/p0 - 1)*100 : null;
+  /* 2026-11-10 기준 정정: 방향 적중·보합은 원가(시가 → 종가, 슬리피지 없음)로, 순수익은 n* 키(호가·비용 차감)로 따로 */
+  for (const h of HM){ const i = k0 + h/5 - 1; r['m' + h] = i < B.length ? (B[i][4]/p0raw - 1)*100 : null; r['n' + h] = i < B.length ? ((B[i][4] - (dir === 'U' ? tk : 0))/p0 - 1)*100 : null; }
+  r.d1 = X.closeNext != null ? (X.closeNext/p0raw - 1)*100 : null; r.nd1 = X.closeNext != null ? ((X.closeNext - (dir === 'U' ? tk : 0))/p0 - 1)*100 : null;
   let fl = false; for (let i = k0; i < Math.min(B.length, k0 + 6); i++){ if (dir === 'U' ? B[i][4] < sigL : B[i][4] > sigH){ fl = true; break; } } r.fals = k0 + 5 < B.length || fl ? fl : null;
   /* 지수 ETF 같은 시간 수익률(대형주 초과 수익용) */
   const ix = idxEtf(t); if (ix !== t && DAYS[ix]){ const Y = (DAYS[ix] || []).find(z => z.day === X.day); if (Y){ const j0 = Y.B.findIndex(b => b[0] >= obs), j1 = j0 >= 0 ? j0 + 5 : -1; if (j0 >= 0 && j1 < Y.B.length) r.ix30 = (Y.B[j1][4]/Y.B[j0][1] - 1)*100; } }
@@ -165,9 +166,9 @@ const pc = x => isFinite(x) ? Math.round(x*100) + '%' : '—', sg = (x, d = 3) =
 const mean = a => a.length ? a.reduce((s, v) => s + v, 0)/a.length : NaN;
 /* 상승: hit = 수익>0, val = 수익 − 비용 · 하락: hit = 수익<0, val = 수익(낮을수록 경고가 맞음) */
 const stat = (xs, h, dir) => { const z = xs.filter(e => e[h] != null); const hit = z.filter(e => dir === 'U' ? e[h] > 0 : e[h] < 0).length;
-  const val = mean(z.map(e => dir === 'U' ? e[h] - e.c : e[h])), fz = z.filter(e => e.fals != null);
+  const val = mean(z.map(e => dir === 'U' ? e[(h === 'd1' ? 'nd1' : 'n' + h.slice(1))] - e.c : e[h])), fz = z.filter(e => e.fals != null);
   const byDay = {}; z.forEach(e => { (byDay[e.day] = byDay[e.day] || []).push(dir === 'U' ? e[h] > 0 : e[h] < 0); });
-  return { n: z.length, hit: z.length ? hit/z.length : NaN, val, fals: fz.length ? fz.filter(e => e.fals).length/fz.length : NaN, days: Object.keys(byDay).length, tks: new Set(z.map(e => e.t)).size, dayHit: mean(Object.values(byDay).map(a => a.filter(Boolean).length/a.length)) }; };
+  return { n: z.length, tie: z.length ? z.filter(e => e[h] === 0).length/z.length : NaN, hit: z.length ? hit/z.length : NaN, val, fals: fz.length ? fz.filter(e => e.fals).length/fz.length : NaN, days: Object.keys(byDay).length, tks: new Set(z.map(e => e.t)).size, dayHit: mean(Object.values(byDay).map(a => a.filter(Boolean).length/a.length)) }; };
 const matched = (sig, rnd, h, dir) => { const w = {}; sig.filter(e => e[h] != null).forEach(e => { w[e.st] = (w[e.st] || 0) + 1; }); const N = Object.values(w).reduce((a, b) => a + b, 0);
   let hit = 0, val = 0, fals = 0, ok = 0; for (const [s, c] of Object.entries(w)){ const R = stat(rnd.filter(e => e.st === s), h, dir); if (!R.n) continue; hit += R.hit*c; val += R.val*c; fals += (isFinite(R.fals) ? R.fals : 0)*c; ok += c; }
   return ok ? { hit: hit/ok, val: val/ok, fals: fals/ok, cover: ok/N } : { hit: NaN, val: NaN, fals: NaN, cover: 0 }; };
@@ -192,7 +193,7 @@ for (const dir of ['U', 'D']){
     const later = z.filter(e => !e.already && e.lead != null), never = z.filter(e => !e.already && e.lead == null).length;
     const pass = better(S30, M30, dir) && S30.fals < M30.fals && wf.every(w => w === '유지') && S30.n >= 100 && S30.days >= 20 && S30.tks >= 10;
     RES[dir + cell] = { pass, lead: med(later.map(e => e.lead)), S30 };
-    console.log(`  ${(NAME[cell] || cell).padEnd(22)} n${String(S30.n).padStart(5)}(${S30.days}일·${S30.tks}종목) · +15분 ${pc(S15.hit)} ${sg(S15.val)} [무작위 ${pc(M15.hit)} ${sg(M15.val)}] · +30분 ${pc(S30.hit)} ${sg(S30.val)} [무작위 ${pc(M30.hit)} ${sg(M30.val)}] (D0 ${pc(S0.hit)} ${sg(S0.val)}) · +60분 ${pc(S60.hit)} ${sg(S60.val)} [${pc(M60.hit)}] · 다음날 ${pc(Sd.hit)} ${sg(Sd.val)}`);
+    console.log(`  ${(NAME[cell] || cell).padEnd(22)} n${String(S30.n).padStart(5)}(${S30.days}일·${S30.tks}종목) · +15분 ${pc(S15.hit)} ${sg(S15.val)} [무작위 ${pc(M15.hit)} ${sg(M15.val)}] · +30분 ${pc(S30.hit)}(보합 ${pc(S30.tie)}) ${sg(S30.val)} [무작위 ${pc(M30.hit)} ${sg(M30.val)}] (D0 ${pc(S0.hit)} ${sg(S0.val)}) · +60분 ${pc(S60.hit)} ${sg(S60.val)} [${pc(M60.hit)}] · 다음날 ${pc(Sd.hit)} ${sg(Sd.val)}`);
     console.log(`  ${''.padEnd(22)} 날짜별 평균 적중 ${pc(S30.dayHit)} · 거짓 ${pc(S30.fals)} [무작위 ${pc(M30.fals)}] · 취소(30분 안 반대) ${pc(canc)} · 기존 판정: 이미 같은 방향 ${pc(alr)} · 그날 나중 ${later.length}건 중앙값 ${sg(med(later.map(e => e.lead)), 0)}분 먼저 · 그날 안 나옴 ${never}건 · 장 마감으로 관측 불가 ${late}건 | WF ${wf.join('·')} | ${pass ? '✅ 표시 후보' : '✗'}`);
   }
   const cand = Object.entries(RES).filter(([k, v]) => k[0] === dir && v.pass).sort((a, b) => (b[1].lead || 0) - (a[1].lead || 0));

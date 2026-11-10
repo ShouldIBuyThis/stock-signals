@@ -38,9 +38,10 @@ for (const D of [20, 0]) for (const [t, Dt] of Object.entries(data)){
       let ev = []; try { ev = ctx.UE(A).map(e => e.k); } catch(e){}
       info.push({ end: tau, c: L.c, e9: L.e9, rb: A.E.bars.some(z => z.ts === L.ts), ev });
     }
-    const outc = (k0, p0) => { const tk = tick(t, p0), r = {};
-      for (const h of HM){ const i = k0 + h/5 - 1; r['m' + h] = i < B.length ? ((B[i][4] - tk)/p0 - 1)*100 : null; }
-      for (const h of HD){ const j = di + h; r['d' + h] = j < days.length ? ((closeOf[j] - tick(t, closeOf[j]))/p0 - 1)*100 : null; }
+    /* 2026-11-10 기준 정정: 방향 적중은 원가(r_* 키 · 슬리피지 없음), 순수익은 기존 키(호가·비용 차감) */
+    const outc = (k0, p0) => { const tk = tick(t, p0), r = {}, pr = Math.abs(p0 - (B[k0][1] + tick(t, B[k0][1]))) < 1e-9 ? B[k0][1] : p0;
+      for (const h of HM){ const i = k0 + h/5 - 1; r['m' + h] = i < B.length ? ((B[i][4] - tk)/p0 - 1)*100 : null; r['r_m' + h] = i < B.length ? (B[i][4]/pr - 1)*100 : null; }
+      for (const h of HD){ const j = di + h; r['d' + h] = j < days.length ? ((closeOf[j] - tick(t, closeOf[j]))/p0 - 1)*100 : null; r['r_d' + h] = j < days.length ? (closeOf[j]/pr - 1)*100 : null; }
       return r; };
     const push = (sig, k0, p0, extra) => { if (k0 < 0 || k0 >= B.length || B[k0][0] < t0 + 1800) return; T.push({ t, ix, day: today.day, D, sig, rg, c: cost(t), ...outc(k0, p0), ...(extra || {}) }); };
     const firstAt = ts => B.findIndex(b => b[0] >= ts);
@@ -67,7 +68,7 @@ for (const D of [20, 0]) for (const [t, Dt] of Object.entries(data)){
   }
 }
 const dates = [...new Set(T.map(e => e.day))].sort(), n3 = Math.floor(dates.length/3), blk = [new Set(dates.slice(0, n3)), new Set(dates.slice(n3, 2*n3)), new Set(dates.slice(2*n3))];
-const S = (xs, k) => { const z = xs.map(e => e[k] == null ? null : e[k] - (k[0] === 'm' || k[0] === 'd' ? e.c : 0)).filter(v => v != null), g = xs.map(e => e[k]).filter(v => v != null);
+const S = (xs, k) => { const z = xs.map(e => e[k] == null ? null : e[k] - (k[0] === 'm' || k[0] === 'd' ? e.c : 0)).filter(v => v != null), g = xs.map(e => e['r_' + k]).filter(v => v != null);
   return { n: z.length, hit: g.length ? g.filter(v => v > 0).length/g.length : NaN, net: z.length ? z.reduce((a, b) => a + b, 0)/z.length : NaN, days: new Set(xs.filter(e => e[k] != null).map(e => e.day)).size, tks: new Set(xs.filter(e => e[k] != null).map(e => e.t)).size }; };
 const pc = x => isFinite(x) ? Math.round(x*100) + '%' : '—', sg = x => isFinite(x) ? (x >= 0 ? '+' : '') + x.toFixed(3) : '—';
 console.log(`\n=== 국장 국면 × 장중 진입 — 국장 ${tkN}종목 · ${dates[0]}~${dates[dates.length-1]} (${dates.length}거래일) · 종목·일 ${tkDays} · 화면 함수 idMtf·idUpEvidence ===`);

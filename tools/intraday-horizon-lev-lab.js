@@ -138,12 +138,12 @@ function S(R, dir){
   const z = dir ? R.filter(r => r.dir === dir) : R, nt = z.filter(r => !r.tie), w = z.filter(r => r.net > 0).map(r => r.net), l = z.filter(r => r.net <= 0).map(r => -r.net);
   const byDay = {}, byT = {}; z.forEach(r => { byDay[r.day] = (byDay[r.day] || 0) + 1; byT[r.t] = (byT[r.t] || 0) + 1; });
   return { n: z.length, hitT: z.length ? z.filter(r => r.hit).length/z.length : NaN, hitX: nt.length ? nt.filter(r => r.hit).length/nt.length : NaN, tie: z.length ? 1 - nt.length/z.length : NaN,
-    base: mean(nt.filter(r => r.bh != null).map(r => r.bh)), net: mean(z.map(r => r.net)), mednet: med(z.map(r => r.net)), avgW: mean(w), avgL: mean(l), pr: l.length && w.length ? mean(w)/mean(l) : NaN,
+    base: mean(nt.filter(r => r.bh != null).map(r => r.bh)), net: mean(z.map(r => r.net)), rawm: mean(z.map(r => r.raw)), mednet: med(z.map(r => r.net)), avgW: mean(w), avgL: mean(l), pr: l.length && w.length ? mean(w)/mean(l) : NaN,
     mae: med(z.map(r => r.mae)), mfe: med(z.map(r => r.mfe)), tks: Object.keys(byT).length, days: Object.keys(byDay).length,
     topDay: z.length ? Math.max(...Object.values(byDay))/z.length : NaN, topT: z.length ? Math.max(...Object.values(byT))/z.length : NaN };
 }
 const pc = x => isFinite(x) ? (x*100).toFixed(1) : '—', sg = (x, d = 3) => isFinite(x) ? (x >= 0 ? '+' : '') + x.toFixed(d) : '—';
-const cell = s => s.n ? `${pc(s.hitX)}(${sg((s.hitX - s.base)*100, 1)}) 보합${pc(s.tie)} 순${sg(s.net, 2)} n${s.n}` : '—';
+const cell = s => s.n ? `${pc(s.hitX)}(${sg((s.hitX - s.base)*100, 1)}) 보합포함${pc(s.hitT)} 보합${pc(s.tie)} 평균${sg(s.rawm, 3)} 순${sg(s.net, 2)} n${s.n}` : '—';
 const MODES = { RB: { sig: 'RB' }, '진입대기': { sig: 'wait' }, '눌림': { sig: 'pull' }, '상승흐름': { sig: 'up' }, '재돌파상태': { sig: 'go' }, '하락주의': { sig: 'down' },
   V0: { sig: 'V0' }, V1: { sig: 'V1' }, V2: { sig: 'V2' }, V3: { sig: 'V3', k: 2 }, V4: { sig: 'V4' }, V5: { sig: 'V5' } };
 const MKT = { US: t => !isKR(t), KR: t => isKR(t) };
