@@ -26,7 +26,7 @@ function mk(t, nowBase){ const kr = /\.(KS|KQ)$/.test(t), off = kr ? 32400 : -18
     const pg = await ctx.newPage(); const errs = []; pg.on('pageerror', e => errs.push(e.message));
     await pg.goto('http://localhost:8765/index.html'); await pg.waitForTimeout(1600);
     const N = await pg.evaluate(() => new Set(allStocks().map(s => s.ticker.toUpperCase())).size);
-    ok(/전체종목 모니터링/.test(await pg.textContent('#idBar')), `[${nm}] 바 제목 '📡 전체종목 모니터링'`);
+    ok(/전체종목 장중 모니터링\(실험실\)/.test(await pg.textContent('#idBar')), `[${nm}] 바 제목 '📡 전체종목 장중 모니터링(실험실)'`);
     await pg.click('#idToggle'); await pg.waitForTimeout(300);
     ok(calls === 0, `[${nm}] 패널을 열기만 하면 호출 0건`);
     ok(await pg.isVisible('#idScan') && await pg.isVisible('#idInput') && !(await pg.isVisible('.id-iv')), `[${nm}] 큰 버튼 + 작은 검색창 · 봉 간격 버튼은 종목을 열기 전 숨김`);
