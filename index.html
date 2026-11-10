@@ -1604,6 +1604,7 @@ function normalize(raw){
       ext_pair: num(it.ext_pair), ext_root: num(it.ext_root),   /* 외부 산식 근사 표시(페어 리버설·Root 타격) — 표시 전용 */
       pat: (typeof it.pat === "string") ? it.pat : "",   /* 2026-11-05 패턴 뱃지 코드 — 표시 전용(patternBadges) */
       ohlc60: Array.isArray(it.ohlc60) ? it.ohlc60 : null,   /* 2026-11-06 실제 일봉 차트용(원장 아님) */
+      peak_risk: (it.peak_risk && typeof it.peak_risk === "object") ? it.peak_risk : null,   /* 2026-11-10 고점 위험 3단계 경고 — 표시 전용(pattern_flags.peak_risk_series) */
       /* 진입 위치(Positioning) 파생값 — 빠뜨리면 오늘 카드에서만 관련 로직이 통째로 죽는다 */
       ma20_slope: num(it.ma20_slope), run5_max: num(it.run5_max), run3_sum: num(it.run3_sum),
       range3: num(it.range3), range10: num(it.range10), vol3_ratio: num(it.vol3_ratio),
@@ -6612,8 +6613,23 @@ function patternBadges(s){
   if(b.length) out.push({key:"🔵 저점 반등 후보",text:"🔵 살 만함 · 저점 반등 · "+b.join(" · "),cls:"t-cool",explain:"패턴반등",why:b});
   return out;
 }
+/* 2026-11-10 고점 위험 3단계 경고 — 사용자 지시(NVDA 차트 관찰). 정의는 pattern_flags.peak_risk_series 한 곳,
+   여기서는 main.py가 확정 일봉으로 계산해 넘긴 peak_risk를 '보여 주기만' 한다(점수·등급·판정 불변).
+   최근 5거래일 안에서 가장 높은 단계 하나만 대표로 띄운다(단계를 나열하지 않는다). 검증 전이라 적중률은 쓰지 않는다. */
+const PEAK_TXT = {
+  1: "🟡 고점 경계 — 볼밴 상단에서 윗꼬리가 반복돼 상승 소진 가능성이 있어요.",
+  2: "🔴 하락 반전 경고 — 볼밴 상단에서 석별형이 확인됐어요.",
+  3: "🔴 단기 지지 붕괴 — 단기 지지선 아래로 내려가 하방이 열려 있어요. 추가 하락에 주의하세요."
+};
+function peakPx(s, v){ return !has(v) ? "—" : s.currency === "KRW" ? "₩" + Math.round(v).toLocaleString("ko-KR") : "$" + v.toLocaleString("en-US", {minimumFractionDigits:2, maximumFractionDigits:2}); }
+function peakRiskBadges(s){
+  const p = s && s.peak_risk; if (!p || !PEAK_TXT[p.stage]) return [];
+  const when = p.ago ? ` (${p.date.slice(5)} · ${p.ago}거래일 전 확정 일봉)` : ` (${p.date.slice(5)} 확정 일봉)`;
+  const extra = p.stage === 3 && has(p.support) ? ` · 기준 ${peakPx(s, p.support)}(${p.support_src}) → 종가 ${peakPx(s, p.close)}` : "";
+  return [{key:"고점위험", text: PEAK_TXT[p.stage] + when + extra, cls: p.stage === 1 ? "t-warn" : "t-hot", explain:"고점위험"}];
+}
 function flowBadges(s){
-  const pb = patternBadges(s);
+  const pb = patternBadges(s).concat(peakRiskBadges(s));
   const f = flowSignal(s); if(!f || s.earnings_hold) return pb;
   const out = pb.slice();
   if(has(f.inflow) && f.inflow <= -1)
@@ -7775,6 +7791,18 @@ function explainStyle(kind){
     <p style="font-size:12px;color:var(--muted);line-height:1.75;margin-top:6px">${t}</p></details>`;
   const LIGHTS = `<p style="font-size:12px;line-height:1.9;margin:0 0 6px"><span class="pl-pill pl-red">사지 마</span> <span class="pl-pill pl-orange">비중 줄이기</span> <span class="pl-pill pl-yellow">조금 팔기</span> <span class="pl-pill pl-blue">살 만함</span></p>`;
 
+  if (kind === "고점위험"){
+    openModal(`<h3>⚠ 고점 위험 3단계 경고</h3>` +
+      Big(`높은 단계 하나만 보여 줘요. 🟡는 '주의'이지 하락 확정이 아니에요.`) +
+      P(`<b>🟡 1단계 고점 경계</b> — 최근 3거래일 중 2일 이상, 고가가 볼린저밴드(20일·2σ) 상단 밖까지 올라갔다가(고가 %B ≥ 1.0) 윗꼬리가 그날 고가−저가의 50% 이상 남은 날.
+         강한 상승(밴드 워크) 중에도 나올 수 있어 <b>주의 신호</b>예요.<br>
+         <b>🔴 2단계 하락 반전 경고</b> — 1단계 뒤 3거래일 안에 정식 석별형 완성: ① 큰 양봉(몸통 ≥ 60%) ② 그 위쪽의 작은 몸통 별(몸통 ≤ 30%) ③ 첫 봉 몸통 중간 아래로 마감한 음봉 · 60일 고점 97% 안.
+         도지 하나·음봉 하나만으로는 석별형이 아니에요.<br>
+         <b>🔴 3단계 단기 지지 붕괴</b> — 1·2단계 경고 뒤 10거래일 안에 종가가 단기 지지선 아래. 지지선 = 경고일 기준 최근 스윙 저점(좌우 2봉보다 낮은 저가), 없으면 직전 20거래일 최저가. 경고일에 고정해요.<br><br>
+         모두 <b>장 마감으로 확정된 일봉</b>만 써요. 점수·등급·강한매수 판정에는 들어가지 않아요.`) +
+      More(`과거 성적은 별도 백테스트 결과가 나온 뒤에만 적어요. 지금은 검증 전이에요.`) + close);
+    return;
+  }
   if (kind === "페어리버설"){
     openModal(`<h3>🔀 페어 리버설 돌파</h3>` +
       P(`<b>한 줄 요약 — "누르고 있던 선 두 개를 같은 날 함께 뚫었다"는 표시예요.</b><br><br>

@@ -1654,6 +1654,15 @@ def analyze(ticker, name, category):
                          for k, d in enumerate(tail.index)]
     except Exception as e:
         print(f"  ⚠ {ticker} ohlc60 생성 실패: {e}")
+    # 2026-11-10 고점 위험 3단계 경고(🟡 고점 경계 → 🔴 석별형 → 🔴 단기 지지 붕괴) — 표시 전용.
+    # 정의는 pattern_flags.peak_risk_series 한 곳(docs/2026-11-10-peak-risk.md). 확정 일봉만 쓴다(drop_unclosed 뒤 df).
+    # SNAPSHOT_FIELDS·HIST_FIELDS에 없으므로 원장에는 들어가지 않는다. 점수·등급·판정에는 쓰지 않는다.
+    try:
+        if pat_series is not None and "X_ESTAR" in pat_series:
+            ps = pattern_flags.peak_risk_series(op.values, high.values, low.values, close.values, pat_series["X_ESTAR"])
+            row["peak_risk"] = pattern_flags.peak_risk_now(ps, [d.strftime("%Y-%m-%d") for d in close.index], close.values)
+    except Exception as e:
+        print(f"  ⚠ {ticker} 고점 위험 경고 계산 실패: {e}")
     return row
 
 # evaluate() 재현에 필요한 입력값을 모두 보관한다. 점수 자체는 저장하지 않는다.

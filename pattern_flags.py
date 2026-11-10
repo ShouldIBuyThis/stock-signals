@@ -432,3 +432,73 @@ def research_candles(o, h, l, c):
 def flags_at(series, i):
     """봉 i(음수 허용)의 코드 문자열. 없으면 ''."""
     return ",".join(k for k in CODES if k in series and bool(series[k][i]))
+
+
+# ── 고점 위험 3단계 경고 (2026-11-10 사용자 지시 · NVDA 차트 관찰 동기) ─────────────────
+# 표시 전용 — 점수·등급·강한매수·다중 산식에는 쓰지 않는다. 연구 문서: docs/2026-11-10-peak-risk.md
+# 문턱은 이 저장소의 기존 정의를 그대로 쓴다(새 숫자를 만들지 않음):
+#   윗꼬리 ≥ 범위 50%  — C_UPW·O_TURN·D_SKH(고가만 상단 돌파 + 긴 윗꼬리)와 같은 기준
+#   고가 %B ≥ 1.0     — main.py bb_hi_pos(고가의 볼린저 위치, 100 초과 = 고가가 상단 밖)·D_SKH와 같은 기준
+#   석별형            — 위 flag_series의 X_ESTAR 그대로(큰 양봉 몸통≥60% → 별 몸통≤30% · 첫 봉 종가 근처 위 → 음봉이 첫 봉 몸통 중간 아래 마감 · 60일 고점 97% 안)
+#   단기 지지         — 경고일 기준 최근 스윙 저점(좌우 2봉보다 낮은 저가 · 경고일 직전 20봉 안의 가장 최근 것),
+#                       없으면 main.py sup_short와 같은 '직전 20봉 최저가'. 경고일에 고정하고 이후 값으로 바꾸지 않는다.
+PEAK_UPW, PEAK_BBHI, PEAK_NEED, PEAK_WIN = 0.5, 1.0, 2, 3
+PEAK_STAR_CTX = 3      # 석별형 완성일 기준 이 봉 수 안(완성일 포함)에 1단계가 있었어야 2단계
+PEAK_BREAK_WIN = 10    # 1·2단계 경고 뒤 이 봉 수 안에 종가가 지지 아래면 3단계
+PEAK_SHOW = 5          # 화면: 최근 이 거래일 안의 가장 높은 단계를 대표로 표시
+
+
+def peak_risk_series(o, h, l, c, estar, upw_min=PEAK_UPW, bbhi_min=PEAK_BBHI):
+    """봉마다 단계(0~3)와 그날 고정한 지지선. 입력은 확정 일봉만(오래된 → 최근)."""
+    o, h, l, c = (np.asarray(x, dtype=float) for x in (o, h, l, c))
+    n = len(c); s = pd.Series(c)
+    ma = s.rolling(20).mean().to_numpy(); sd = s.rolling(20).std(ddof=0).to_numpy()
+    up, lo = ma + 2 * sd, ma - 2 * sd
+    rng = np.where(h - l > 0, h - l, np.nan)
+    upw = (h - np.maximum(o, c)) / rng
+    pb_hi = (h - lo) / np.where(up - lo > 0, up - lo, np.nan)
+    q = _gt(upw, upw_min - 1e-9) & _gt(pb_hi, bbhi_min - 1e-9)
+    cnt = pd.Series(q.astype(float)).rolling(PEAK_WIN, min_periods=PEAK_WIN).sum().to_numpy()
+    s1 = np.nan_to_num(cnt) >= PEAK_NEED
+    estar = np.asarray(estar, dtype=bool)
+    s1ctx = pd.Series(s1.astype(float)).rolling(PEAK_STAR_CTX + 1, min_periods=1).max().to_numpy() > 0.5
+    s2 = estar & s1ctx
+    sup = np.full(n, np.nan); src = [""] * n
+    for t in np.nonzero(s1 | s2)[0]:
+        lo_win = max(0, t - 20)
+        piv = [j for j in range(max(lo_win, 2), t - 1) if l[j] < l[j - 1] and l[j] < l[j - 2] and l[j] < l[j + 1] and l[j] < l[j + 2] and l[j] < c[t]]
+        if piv:
+            sup[t], src[t] = l[piv[-1]], "스윙 저점"
+        elif t >= 20:
+            v = float(np.min(l[t - 20:t]))
+            if v < c[t]: sup[t], src[t] = v, "20일 최저가"
+    stage = np.where(s2, 2, np.where(s1, 1, 0)).astype(int)
+    brk = np.full(n, np.nan); bsrc = [""] * n; wday = np.full(n, -1)
+    last_w = -10 ** 9
+    for t in range(n):
+        if t - last_w <= PEAK_BREAK_WIN and t > last_w and np.isfinite(sup[last_w]) and c[t] < sup[last_w]:
+            stage[t] = 3; brk[t] = sup[last_w]; bsrc[t] = src[last_w]; wday[t] = last_w
+        if s1[t] or s2[t]:
+            last_w = t
+    return {"stage": stage, "q": q, "s1": s1, "s2": s2, "sup": sup, "sup_src": src, "brk": brk, "brk_src": bsrc, "warn_day": wday, "upw": upw, "pb_hi": pb_hi}
+
+
+def peak_risk_now(ps, dates, c, show=PEAK_SHOW):
+    """화면용 요약 — 최근 show 거래일 안의 가장 높은 단계(같으면 가장 최근). 없으면 None."""
+    st = ps["stage"]; n = len(st)
+    if not n: return None
+    lo = max(0, n - show)
+    best = max(range(lo, n), key=lambda t: (st[t], t))
+    if st[best] == 0: return None
+    t = best
+    out = {"stage": int(st[t]), "date": dates[t], "ago": int(n - 1 - t),
+           "wick_days": [dates[j] for j in range(max(0, t - PEAK_WIN + 1), t + 1) if ps["q"][j]] if st[t] >= 1 else []}
+    if st[t] == 2:
+        out["star_dates"] = [dates[j] for j in (t - 2, t - 1, t) if j >= 0]
+    if st[t] == 3:
+        w = int(ps["warn_day"][t])
+        out.update({"support": float(ps["brk"][t]), "support_src": ps["brk_src"][t], "close": float(c[t]),
+                    "warn_date": dates[w] if w >= 0 else None, "warn_stage": int(ps["stage"][w]) if w >= 0 else None})
+    elif np.isfinite(ps["sup"][t]):
+        out.update({"support": float(ps["sup"][t]), "support_src": ps["sup_src"][t]})
+    return out
