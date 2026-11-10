@@ -2593,19 +2593,6 @@ function hlSvg(pts, key, color, title){
       <polyline points="${line}" fill="none" stroke="${color}" stroke-width="2"/>
       <circle cx="${x(pts.length-1)}" cy="${y(last[key])}" r="3.5" fill="${color}"/>${dl}</svg></div>`;
 }
-function highLowChartsHtml(){
-  const m = highLowMap(); const ks = Object.keys(m).sort();
-  if(ks.length < 2) return "";
-  const pts = ks.map(k => Object.assign({date:k}, m[k]));
-  const last = pts[pts.length-1], net = last.nh - last.nl;
-  return `<details class="hl-box"><summary>📈📉 <b>52주 신고가 · 신저가 종목 수</b> <span class="sub">눌러서 그래프 보기 · 오늘 신고가 ${last.nh} · 신저가 ${last.nl}</span></summary>
-    <div class="hl-note"><b>${net>=0?"🟢 신고가 종목이 더 많아요":"🔴 신저가 종목이 더 많아요"}</b> (관심종목 미국 ${last.n}개 기준)<br>
-      <small>3년 실측: 신저가가 더 많은 날 나온 강한매수는 +5일 76%, 신고가가 더 많은 날은 63%였어요. 시장 약세 경고로는 맞지 않았고(그때 나스닥은 오히려 덜 빠짐), 바닥 국면 확인에 가까웠어요.
-      NYSE 전체가 아니라 관심종목 안에서 센 값이에요(52주 최고가·최저가의 1% 안).</small></div>
-    ${hlSvg(pts, "nh", "#e5484d", "📈 52주 신고가권 종목 수")}
-    ${hlSvg(pts, "nl", "#3b82f6", "📉 52주 신저가권 종목 수")}
-  </details>`;
-}
 function qqqStreakOn(date){
   const d = state.data;
   if(!d || !date) return null;
@@ -3190,8 +3177,6 @@ function qqqGradeFact(g){
   if(g.tier === 1) return g.streak === 2 ? QQQ_FACTS.down2 : QQQ_FACTS.bottom;
   return null;
 }
-/* 옛 이름을 쓰던 자리(비서 답변 등)를 위한 호환 — 발동 사유 배열만 돌려준다. */
-function qqqGradeNow(){ return qqqGrade().why; }
 
 /* 과거 어느 날의 나스닥 전용 등급. hist 종가로 연속 하락일만 센다.
    ⚠ VXN은 hist에 저장하지 않아 과거 '꺾임'은 되짚을 수 없다 — 그 사실을 화면에 적는다.
@@ -4141,7 +4126,7 @@ function marketBar(){
       <summary><b>🌐 QQQ · 나스닥100 시장 기준</b>${nasdaqEdgeHtml()}<span class="market-bench-summary-main">시장국면 ${esc(levelLabel)}${px}${r20}${highLowSummaryText()}</span></summary>
       <div class="market-bench-body">
         <div class="market-bench-main" style="margin-top:10px"><span>시장국면 <b>${esc(levelLabel)}</b>${px}${r20}</span></div>
-        <div class="market-bench-reason">QQQ 기술점수 준비 중 · 새 main.py 데이터 갱신 후 추세·반등·매수강도가 자동 표시됩니다.</div>
+        <div class="market-bench-reason">QQQ 기술점수 준비 중 · 다음 데이터 갱신 후 추세·반등·매수강도가 자동 표시됩니다.</div>
       </div>
     </details>`;
   }
@@ -4480,11 +4465,6 @@ function marketThemeLine(){
     return `<div class="market-bench-reason" style="margin-top:6px">📊 <b>앞설 테마</b> ${rows.map((t,i)=>`${["🥇","🥈","🥉"][i]} <b data-themefilter="${esc(t.name)}" role="button" tabindex="0" style="cursor:pointer">${esc(t.name)}</b>`).join(" · ")}
       <span class="tkrec-sub">— 네 가지 기준에 동시에 걸린 순서. ${themeRecordText()} 이 테마 안에서 강한매수·매수관심이 뜬 종목을 고르는 용도예요.</span></div>`;
   }catch(e){ return ""; }
-}
-function congressCountFor(themeName){
-  const CH = state.data && state.data.congress_holdings; if(!CH) return 0;
-  const held = new Set([].concat(...["NANC","GOP"].map(e=>((CH[e]||{}).top||[]).map(x=>x.ticker))));
-  return allStocks().filter(s => (s.category||"") === themeName && held.has(s.ticker)).length;
 }
 /* 미국 종가 날짜를 공통 시계로 쓴다. 한국 ETF는 그 시각까지 알려진 종가만 사용한다.
    미래 수익의 유무는 구성종목·순위 선정에 쓰지 않는다. 화면/장기 실험 공용. */
@@ -4932,23 +4912,23 @@ const RARE_FACTS = {
   K_FLAG: {title:"상승 깃발 돌파", kind:"blue", suffix:" (상승 지속 연구 후보)", simple:true, mainOnly:true, h:10,
     one:"크게 오른 뒤 며칠 옆으로 쉬다가(깃발) 다시 위로 뚫고 힘 있는 양봉으로 마감한 날이에요.",
     hit:"10일 뒤 상승 61%", base:"평소 55%", n:"153건", badge:"🔵 연구 후보",
-    detail:"깃대 10봉 +15%↑ → 5~15봉 깃발(깃대 고가 +1% 안 · 상승분 절반 넘게 안 밀림) → 깃발 최고가 첫 돌파 · RSI<70 · 볼밴 상단 밖 아님 · 몸통 50%↑ 양봉. 관심종목 89개 10년 · 다음 날 시가 · 3/5/10/20일 50/55/61/58% (평소 53/54/55/57) · 10일 앞 63%·뒤 59%·최근 20% 64% · 10일 평균 +5.0% (run 42221750347)"},
+    detail:"깃대 10봉 +15%↑ → 5~15봉 깃발(깃대 고가 +1% 안 · 상승분 절반 넘게 안 밀림) → 깃발 최고가 첫 돌파 · RSI<70 · 볼밴 상단 밖 아님 · 몸통 50%↑ 양봉. 관심종목 89개 10년 · 다음 날 시가 · 3/5/10/20일 50/55/61/58% (평소 53/54/55/57) · 10일 앞 63%·뒤 59%·최근 20% 64% · 10일 평균 +5.0%"},
   K_TOP3: {title:"희귀 고점 주의", kind:"caution", suffix:"", simple:true, mainOnly:true, caution:true, h:60,
     one:"크게 오른 종목이 거래량 폭증 뒤 볼밴 위에서 내려오고 전날 저가까지 깬 날이에요.",
     hit:"60일 안 큰 하락 27%(3건)", base:"과열 종목 평소 11%", n:"11건(희귀)", badge:"🟠 희귀 후보",
-    detail:"과열 맥락(최근 10일 RSI≥70 · 52주 고가 5% 안 · 60일 급등 ≥ max(30%, 진폭 8배)) ∧ 직전 5일 거래량 20일 평균 3배↑ ∧ 볼밴 상단 밖→안 ∧ 종가<전일 저가. 큰 하락 = max(20%, 진폭 8배) — 11건 중 3건. 10/20/60일 뒤 종가 하락 82/64/55% · −25% 폭락 0/0/27% · 평균 −3.9/−2.2/−1.3% (run 42225576867). 2중(거래량3배+볼밴 복귀)만으로는 과열 맥락 안 78건 60일 −25% 17%(과열 평소 21%) — 3중일 때만 다름 · 확정 경고 아님 (run 42221750347)"},
+    detail:"과열 맥락(최근 10일 RSI≥70 · 52주 고가 5% 안 · 60일 급등 ≥ max(30%, 진폭 8배)) ∧ 직전 5일 거래량 20일 평균 3배↑ ∧ 볼밴 상단 밖→안 ∧ 종가<전일 저가. 큰 하락 = max(20%, 진폭 8배) — 11건 중 3건. 10/20/60일 뒤 종가 하락 82/64/55% · −25% 폭락 0/0/27% · 평균 −3.9/−2.2/−1.3%. 2중(거래량3배+볼밴 복귀)만으로는 과열 맥락 안 78건 60일 −25% 17%(과열 평소 21%) — 3중일 때만 다름 · 확정 경고 아님"},
   K_SV1: {title:"급등 + 거래량 폭증 · 변동성 주의", kind:"caution", suffix:"", simple:true, mainOnly:true, caution:true, h:60,
     one:"1년 저점보다 2배 넘게 오른 종목에 거래량이 평소 3배 넘게 몰렸어요. 위아래로 크게 출렁일 수 있다는 안내예요 — 매도 신호는 아니에요.",
     hit:"60일 안 −25% 하락 40%", base:"같은 급등 평소 34%", n:"681건", badge:"⚠️ 변동성 주의",
-    detail:"1년(250봉) 최저가 대비 +100%↑ ∧ 오늘 포함 5일 안 거래량이 직전 20일 평균 3배↑ · 일반 주식(레버리지 제외). −25% 하락 10/20/60일 11/19/40% (급등 평소 8/16/34%) · 앞 34%(286)·뒤 44%(395) vs 평소 23·40% · 계속 상승 20/60일 30/30% (run 42222284507)"},
+    detail:"1년(250봉) 최저가 대비 +100%↑ ∧ 오늘 포함 5일 안 거래량이 직전 20일 평균 3배↑ · 일반 주식(레버리지 제외). −25% 하락 10/20/60일 11/19/40% (급등 평소 8/16/34%) · 앞 34%(286)·뒤 44%(395) vs 평소 23·40% · 계속 상승 20/60일 30/30%"},
   K_SV2: {title:"급등 + 거래량 폭증 · 변동성 주의", kind:"caution", suffix:"", simple:true, mainOnly:true, caution:true, h:60,
     one:"1년 저점보다 3배 넘게 오른 종목에 거래량이 몰렸어요. 이 정도 급등이면 거래량과 상관없이 위아래로 크게 출렁인 경우가 많았어요 — 매도 신호는 아니에요.",
     hit:"60일 안 −25% 하락 45%", base:"같은 급등 평소 45%", n:"355건", badge:"⚠️ 변동성 주의",
-    detail:"+200%↑ 구간 · 거래량 3배는 추가 위험 없음(45% vs 45%) — 위험은 급등 폭 자체 (run 42222284507)"},
+    detail:"+200%↑ 구간 · 거래량 3배는 추가 위험 없음(45% vs 45%) — 위험은 급등 폭 자체"},
   K_SV3: {title:"급등 + 거래량 폭증 · 변동성 주의", kind:"caution", suffix:"", simple:true, mainOnly:true, caution:true, h:60,
     one:"1년 저점보다 4배 넘게 오른 종목에 거래량이 몰렸어요. 이 정도 급등이면 거래량과 상관없이 절반은 한 번 크게 빠졌어요 — 매도 신호는 아니에요.",
     hit:"60일 안 −25% 하락 50%", base:"같은 급등 평소 50%", n:"244건", badge:"⚠️ 변동성 주의",
-    detail:"+300%↑ 구간 · 거래량 3배는 추가 위험 없음(50% vs 50%) — 위험은 급등 폭 자체 (run 42222284507)"},
+    detail:"+300%↑ 구간 · 거래량 3배는 추가 위험 없음(50% vs 50%) — 위험은 급등 폭 자체"},
   K_HW_UP: {title:"고파동 캔들 · 상단 근처 상승 지속", kind:"blue", suffix:" (연구 후보)", h:10,
     rule:"볼밴(20일, 2σ) 상단 근처(밴드 80~100% 위치, 상단 안) · RSI14 50~70 · 고파동(위·아래 꼬리 각 30%↑, 몸통 10~30%, 하루 진폭이 14일 평균의 1.3배↑)",
     tr:"76%(43)", va:"—", te:"65%(27)", teW:17, teL:9, base:"55%", lift:"+10%p", avg:"+4.52%", maeMed:"−2.1%", maeWorst:"−37.6%", p:"—", tickers:"관심종목 전체",
@@ -5032,21 +5012,6 @@ function sbItemsFor(s, opts){
   items.forEach(x=>{ x.good = /검증 완료|검증됨|75% 달성/.test(x.verdict); x.research = x.verdict==="연구 후보";
     x.judge = x.research ? "연구 후보 · 관망" : sbJudge(x.kind, x.verdict); });
   return items;
-}
-function sbStars(x){ return x.verdict==="75% 달성" ? "★★★" : x.good ? "★★" : x.research ? "☆" : "★"; }
-/* 사용자 지시 표본 등급 — 전체·최근 20% 모두 75%↑일 때 최근 20%(테스트) 표본으로: 10+ 반복 검증 후보 / 5~9 희귀 고적중(소표본) / 4 이하 참고용 */
-function sbTier(st){
-  if(!st || st.hit10==null || !st.back || st.back.hit10==null) return "";
-  if(!(st.hit10 >= 0.75 && st.back.hit10 >= 0.75)) return "";
-  const n = st.back.n; return n>=10 ? "반복 검증 후보" : n>=5 ? "희귀 고적중 후보 · 소표본 경고" : "참고용(4건 이하)";
-}
-function sbHitText(x){
-  if (x.rare && x.rare.simple) return x.rare.parts ? `주의 조건 ${x.rare.parts.length}개 겹침` : `${x.rare.hit} · ${x.rare.base} · ${x.rare.n}`;
-  if (x.rare && x.rare.period) return `10일 뒤 68% 상승 · 223건`;
-  if (x.rare) return x.rare.va!=="—" ? `테스트 ${x.rare.te} · 검증 ${x.rare.va} · 소표본` : `시험 기간 ${x.rare.te} · 소표본`;
-  const st = x.stat; if(!st) return "과거 실측 준비 중";
-  if (x.site) return `5일 뒤 ${st.hit5==null?"—":pctS(st.hit5)} 적중 · ${st.n}건`;
-  return `10일 뒤 ${pctS(st.hit10)} ${x.kind==="green"||x.kind==="blue"?"상승":"하락"} · ${st.n}건`;
 }
 function sbOneLine(x){
   if (x.rare && x.rare.one) return x.rare.one;
@@ -5251,7 +5216,7 @@ function researchFooterHtml(){
     <details class="sb-sec2"><summary>캔들 연구 자료</summary>
       ${todayCandleHtml(allStocks().filter(s => (state.market==="all" || (state.market==="kr" ? s._kr : !s._kr)) && !state.hidden.includes(s.ticker)))}
       ${themeCandleRankHtml()}</details>
-    <div class="sb-note">${src}. 관심종목을 지금 골랐으므로 과거 성적이 좋아 보일 수 있어요(생존 편향). 전체 연구 보고서는 저장소 docs/ 폴더에 있어요.</div>
+    <div class="sb-note">${src}. 관심종목을 지금 골랐으므로 과거 성적이 좋아 보일 수 있어요(생존 편향).</div>
   </details>`;
 }
 /* 종목 카드 안 — 이 종목에 오늘 뜬 신호(같은 한 줄 형식) */
@@ -5290,15 +5255,6 @@ function hlHistStats(bucket){
   const top = Object.entries(years).sort((a,b)=>b[1]-a[1])[0];
   return {same:st(same), base:st(rows), runs, period:[rows[0][0], rows[rows.length-1][0]], topYear: top ? {y:top[0], share: top[1]/Math.max(1,same.length)} : null};
 }
-function hlState(t, H){
-  const tot = t.hi.length + t.lo.length;
-  if (tot <= 2 && t.n >= 20) return {cls:"pl-grey", label:"중립", why:`신고가·신저가 종목이 ${tot}개뿐이라 이 지표로 방향을 말하기 어려워요.`};
-  if (!H || H.same.days < 30 || H.same.up10==null) return {cls:"pl-grey", label:"중립", why:"과거 비교 자료가 부족해요."};
-  const d = Math.round((H.same.up10 - H.base.up10)*100);
-  if (d >= 5) return {cls:"pl-green", label:"반등 가능성(과거 통계)", why:`과거 같은 상황에서 나스닥이 10일 뒤 오른 비율이 평소보다 ${d}%p 높았어요.`};
-  if (d <= -5) return {cls:"pl-red", label:"약세 주의", why:`과거 같은 상황에서 나스닥이 10일 뒤 오른 비율이 평소보다 ${-d}%p 낮았어요.`};
-  return {cls:"pl-grey", label:"중립", why:"과거 같은 상황의 성적이 평소와 비슷했어요."};
-}
 function hlSeries(){
   const out = []; const seen = new Set();
   (BREADTH_BT ? BREADTH_BT.rows : []).forEach(r=>{ out.push({date:r[0], n:r[1], nh:r[2], nl:r[3], hl:r[4], ll:r[5], src:"bt"}); seen.add(r[0]); });
@@ -5336,18 +5292,6 @@ function hlTrendSentence(pts){
   if (dh >= 1) return "최근 2주 신고가 종목이 늘고 있어요.";
   if (dl >= 1) return "최근 2주 신저가 종목이 늘고 있어요.";
   return "최근 2주 신고가·신저가 수에 뚜렷한 변화가 없어요.";
-}
-function hlStockRow(s, hi){
-  const hs = (s._hist || []), F = histFields(), iP = F.indexOf("price");
-  const p5 = hs.length > 5 && iP >= 0 ? hs[hs.length-6][iP] : null;
-  const r5 = has(p5) && has(s.price) && p5 ? (s.price/p5-1)*100 : null;
-  const st = hi ? ((has(s.ma5) && s.price > s.ma5 && (s.change_1d||0) >= 0) ? "상승 지속" : "숨고르기")
-                : ((has(s.ma20) && s.price > s.ma20) ? "추세전환 가능성" : ((s.change_1d||0) > 0 || (has(s.ma5) && s.price > s.ma5)) ? "반등 시도" : "하락 지속");
-  const ref = hi ? s.high_52w : s.low_52w;
-  return `<button class="hl-stock" data-rankgoto="${esc(s.ticker)}" data-rank-sort="overall">
-    <div class="hl-s1"><b>${esc(s.name||s.ticker)}</b> <small>(${esc(s.ticker)})</small> <span class="pl-pill ${hi?(st==="상승 지속"?"pl-red":"pl-grey"):(st==="하락 지속"?"pl-blue":"pl-green")}">${st}</span></div>
-    <div class="hl-s2">현재가 ${fmtPrice(s)} · 52주 ${hi?"신고가":"신저가"} ${has(ref)?esc(String(ref)):"—"} · 5일 ${r5==null?"—":retS(r5)} · 거래량 ${has(s.vol_ratio)?r1(s.vol_ratio)+"배":"—"}</div>
-    ${sbItemsFor(s).length ? `<div class="hl-s3">오늘 신호: ${sbItemsFor(s).slice(0,3).map(x=>SB_KIND[x.kind].icon+" "+esc(x.name)).join(" · ")}</div>` : ""}</button>`;
 }
 function hlPanelHtml(){
   /* 2026-11-06 사용자 지시 — ① 결론 ② 근거(오늘·5일·20일) ③ 종목 ④ 확인할 것(일반 해석 예시) · 그래프·사례는 접기.
@@ -8113,16 +8057,6 @@ function exitPlan(src){
   const byAvg  = usable.reduce((a,b)=> b.avg >a.avg  ? b : a);
   return {cells, byRate, byAvg};
 }
-function exitTable(src, plan){
-  const pct=x=>x==null?"—":x+"%";
-  const av=x=>x==null?"—":`${x>=0?"+":""}${Number(x).toFixed(2)}%`;
-  const head = `<tr><th>보유</th>${EXIT_HS.map(h=>`<th>+${h}일</th>`).join("")}</tr>`;
-  const body = `<tr><td><b>성적</b></td>${plan.cells.map(c=>{
-    const best = (plan.byAvg && c.h===plan.byAvg.h) ? " ep-best" : "";
-    return `<td class="${best.trim()}"><span class="ep-rate">${pct(c.rate)}</span><span class="ep-avg">${av(c.avg)}</span><span class="ep-n">${c.n}건</span></td>`;
-  }).join("")}</tr>`;
-  return `<table class="cmp exitp">${head}${body}</table>`;
-}
 /* 장바구니에 담긴 종목의 최고 등급에 맞는 실측 표를 고른다. */
 function cartExitBlock(mine){
   let v; try { v = strategyValidation(); } catch(e){ return ""; }
@@ -8488,29 +8422,6 @@ function openLevModal(tk){
     </p>
     <div class="modal-actions"><button class="primary" onclick="document.getElementById('modal').classList.remove('on')">닫기</button></div>`);
 }
-function openAddModal(){
-  openModal(`<h3>➕ 종목추가 <span style="font-size:11.5px;color:var(--muted);font-weight:500">(관리자용)</span></h3>
-    <p style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:12px">
-      실제 관심종목은 관리자가 저장소의 <b>main.py</b>에서 관리합니다.<br>
-      여기서 추가한 종목은 <b>내 기기에만</b> 임시로 표시되며, 데이터가 없으면 신호가 나오지 않아요.</p>
-    <div class="fld"><label>티커</label><input type="text" id="inTk" placeholder="예: NVDA, 069500.KS"></div>
-    <div class="fld"><label>표시 이름 (선택)</label><input type="text" id="inNm" placeholder="예: 엔비디아"></div>
-    <div class="fld"><label>테마 (선택)</label><input type="text" id="inCat" placeholder="예: 반도체"></div>
-    <div class="modal-actions">
-      <button onclick="document.getElementById('modal').classList.remove('on')">취소</button>
-      <button class="primary" id="addSave">추가</button>
-    </div>`);
-  document.getElementById("addSave").onclick = () => {
-    const tk = document.getElementById("inTk").value.trim().toUpperCase();
-    if (!tk){ toast("티커를 입력해 주세요"); return; }
-    const nm = document.getElementById("inNm").value.trim();
-    const cat = document.getElementById("inCat").value.trim();
-    if (nm || cat) state.overrides[tk] = {name: nm||undefined, category: cat||undefined};
-    state.hidden = state.hidden.filter(t=>t!==tk);
-    save(); closeModal(); render();
-    toast(`${tk} 추가됨 — 데이터는 다음 갱신 후 표시돼요`);
-  };
-}
 
 /* ══════════ 내 보유종목 아코디언 ══════════ */
 const holdPanel = document.getElementById("holdPanel");
@@ -8617,34 +8528,6 @@ document.addEventListener("click", e=>{ if(!e.target.closest(".search")) qRes.cl
 
 /* ══════════ 종목으로 이동 ══════════ */
 
-/* 테마 흐름 클릭 시 목적 정렬을 자동 선택한다.
-   다중은 전체 현재시장 유니버스 기준으로만 판정하고,
-   해당 테마에 다중 후보가 없으면 추세/반등/거래량 중
-   그 테마 종목이 가장 상위에 걸리는 축으로 모아본다. */
-function themeBestSort(category){
-  const universe=signalUniverse();
-  const peers=universe.filter(s=>(s.category||"기타")===category);
-  if(!peers.length) return {sort:"category",label:"테마별"};
-
-  const peerSet=new Set(peers.map(s=>s.ticker));
-  const multi=currentMultiRanked().filter(s=>peerSet.has(s.ticker));
-  if(multi.length) return {sort:"signal",label:"다중 신호순"};
-
-  // 목적지 판정도 카드/다중과 완전히 같은 rankMap을 쓴다.
-  const R=rankMapsFor(universe);
-  const axes=[
-    {sort:"pull",label:"추세순",m:R.pull},
-    {sort:"reversal",label:"반등순",m:R.rev},
-    {sort:"volume",label:"거래량순",m:R.vol}
-  ];
-  axes.forEach(a=>{
-    const rs=peers.map(s=>rankOf(a.m,s.ticker));
-    a.best=Math.min(...rs);
-    a.avg=rs.reduce((sum,x)=>sum+x,0)/rs.length;
-  });
-  axes.sort((a,b)=>a.best-b.best || a.avg-b.avg || ({pull:0,reversal:1,volume:2}[a.sort]-({pull:0,reversal:1,volume:2}[b.sort])));
-  return axes[0] || {sort:"category",label:"테마별"};
-}
 
 function searchBestDestination(s){
   if(!s) return {sort:"pull",label:"추세"};
@@ -9805,7 +9688,7 @@ function idRender(){
           <b>과거 60일 실측</b> (${ID_BT.period}, 다음 5분봉 시가 진입, 비용 미반영)<br>
           · ${btTxt} · 기준선 ${ID_BT.base[1].toFixed(3)}% (상승 ${ID_BT.base[2]}%)<br>
           · 5분 재돌파 뒤 30분 안 저가 이탈 ${ID_BT.fakeGo[0]}/${ID_BT.fakeGo[1]} = ${Math.round(ID_BT.fakeGo[0]/ID_BT.fakeGo[1]*100)}% · 15분 저항 돌파 뒤 45분 안 복귀 ${ID_BT.fakeR[0].toLocaleString()}/${ID_BT.fakeR[1].toLocaleString()} = ${Math.round(ID_BT.fakeR[0]/ID_BT.fakeR[1]*100)}%<br>
-          · 승률 검증 전 참고 신호 — 매수 확정이 아니에요. 정의: docs/2026-11-09-intraday-mtf.md</div>
+          · 승률 검증 전 참고 신호 — 매수 확정이 아니에요.</div>
       </details>`;
   }
 
