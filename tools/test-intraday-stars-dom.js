@@ -35,7 +35,7 @@ function usData(openNow){ const off=-18000; let s=7; const r=()=>{s=(s*16807)%21
       else ok(r.sum===null, `[${nm}/${mode}] 장 종료 → 요약 줄 없음`);
       // 별 클릭 → 말풍선이 같은 사건
       const n = Math.min(r.stars.length, 6); let popOk=true;
-      for (let i=0;i<n;i++){ { const bx = await pg.locator('#idChart .id-star').nth(i).locator('rect').boundingBox(); await pg.mouse.click(bx.x + bx.width/2, bx.y + bx.height/2); } await pg.waitForTimeout(80);
+      for (let i=0;i<n;i++){ { await pg.locator('#idChart .id-star').nth(i).scrollIntoViewIfNeeded(); const bx = await pg.locator('#idChart .id-star').nth(i).locator('rect').boundingBox(); await pg.mouse.click(bx.x + bx.width/2, bx.y + bx.height/2); } await pg.waitForTimeout(80);
         const p = await pg.evaluate(()=>{const p=document.querySelector('#idChart .id-pop'); return {hidden:p.hidden, ts:+p.dataset.ts, dir:p.dataset.dir, text:p.textContent};});
         const ev=r.evs[i]; const hm=String(Math.floor(ev.m/60)).padStart(2,'0')+':'+String(ev.m%60).padStart(2,'0');
         if (p.hidden || p.ts!==ev.ts || p.dir!==ev.dir || !p.text.includes(hm)) { popOk=false; if(!global.__shown){ global.__shown=1; console.log('   상세', JSON.stringify({i, hidden:p.hidden, pts:p.ts, ets:ev.ts, pdir:p.dir, edir:ev.dir, hm, text:p.text.slice(0,120)})); } }
