@@ -1,0 +1,56 @@
+name: 장중 5분봉 원본 스냅샷 (보존 · 실험 재현용)
+
+# 2026-11-10 사용자 지시. 야후 5분봉은 60일 창이 날마다 밀리고 지난 봉 값도 고쳐져서,
+# 받을 때마다 같은 실험의 숫자가 달라졌다(석별형 64%↔69%, 역망치형 57%↔65%).
+# 여기서 한 번 받은 원본을 수집 시각·해시와 함께 보관하고, 실험(lab-quick.yml의 snapshot_run)은 이 사본만 읽는다.
+# 저장소 파일은 바꾸지 않는다. 보관 기간은 GitHub 아티팩트 한도인 90일.
+on:
+  workflow_dispatch:
+    inputs:
+      period:
+        description: '야후 조회 기간 (5분봉 한도 60d)'
+        required: false
+        default: '60d'
+
+permissions:
+  contents: read
+
+jobs:
+  snap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: 의존성 설치
+        run: pip install -q yfinance pandas
+      - name: 원본 수집 (정규봉 필터 전 그대로)
+        run: |
+          mkdir -p /tmp/snap
+          start=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          python tools/intraday-fetch.py --keep-extra --period "${{ inputs.period || '60d' }}" --out /tmp/snap/i5-raw.json
+          end=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          sha=$(sha256sum /tmp/snap/i5-raw.json | cut -d' ' -f1)
+          python - "$start" "$end" "$sha" <<'PY'
+          import json, sys, datetime as dt
+          start, end, sha = sys.argv[1:4]
+          d = json.load(open('/tmp/snap/i5-raw.json'))
+          bars = sum(len(v['bars']) for v in d.values())
+          days = sorted({dt.datetime.utcfromtimestamp(b[0] + b[6]).strftime('%Y-%m-%d') for v in d.values() for b in v['bars']})
+          last = {t: max(b[0] for b in v['bars']) for t, v in d.items()}
+          import yfinance
+          meta = {'collected_from_utc': start, 'collected_to_utc': end, 'sha256_raw_json': sha, 'source': 'Yahoo Finance (yfinance %s) 5m prepost=False auto_adjust=False' % yfinance.__version__,
+                  'tickers': len(d), 'bars': bars, 'first_day': days[0], 'last_day': days[-1], 'trading_days': len(days),
+                  'last_bar_utc_max': dt.datetime.utcfromtimestamp(max(last.values())).strftime('%Y-%m-%dT%H:%M:%SZ'), 'commit': '${{ github.sha }}', 'run_id': '${{ github.run_id }}'}
+          json.dump(meta, open('/tmp/snap/meta.json', 'w'), ensure_ascii=False, indent=1)
+          print(json.dumps(meta, ensure_ascii=False, indent=1))
+          PY
+          gzip -9 /tmp/snap/i5-raw.json
+          ls -la /tmp/snap
+      - uses: actions/upload-artifact@v4
+        with:
+          name: i5-snapshot
+          path: /tmp/snap/
+          retention-days: 90
+          compression-level: 0
