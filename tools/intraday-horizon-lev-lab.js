@@ -159,7 +159,7 @@ for (const mk of ['US', 'KR']){
   console.log(`\n■1 ${mk} 신호별 · 기간별 (전 상품군 · 전 기간) — A(신호 봉 종가 기준) / B(표시 시각 기준${mk === 'KR' ? ' · 지연 20분' : ' · 지연 0분'})`);
   for (const [nm, mode] of Object.entries(MODES)){
     for (const dir of nm === 'RB' || ['진입대기', '눌림', '상승흐름', '재돌파상태'].includes(nm) ? ['U'] : nm === '하락주의' ? ['D'] : ['U', 'D']){
-      const line = [5, 15, 30, 60].map(h => { const a = S(run(MKT[mk], mode, 'A', 0, h), dir), b = S(run(MKT[mk], mode, 'B', Ds[0], h), dir); return `+${h} A ${pc(a.hitX)}(${sg((a.hitX - a.base)*100, 1)}) B ${pc(b.hitX)}(${sg((b.hitX - b.base)*100, 1)}) 순${sg(b.net, 2)}`; });
+      const line = [5, 15, 30, 60].map(h => { const a = S(run(MKT[mk], mode, 'A', 0, h), dir), b = S(run(MKT[mk], mode, 'B', Ds[0], h), dir); return `+${h} A ${pc(a.hitX)}(${sg((a.hitX - a.base)*100, 1)}) B ${pc(b.hitX)}(${sg((b.hitX - b.base)*100, 1)}) 보합포함${pc(b.hitT)} 보합${pc(b.tie)} 평균${sg(b.rawm, 3)} 순${sg(b.net, 2)}`; });
       const b90 = S(run(MKT[mk], mode, 'B', Ds[0], 90), dir), beod = S(run(MKT[mk], mode, 'B', Ds[0], 'EOD'), dir);
       console.log(`  ${(nm + (dir === 'U' ? '↑' : '↓')).padEnd(8)} ` + line.join(' | ') + ` | 참고 +90 ${pc(b90.hitX)} · 마감 ${pc(beod.hitX)} | n(B60) ${S(run(MKT[mk], mode, 'B', Ds[0], 60), dir).n}`);
     }
