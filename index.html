@@ -1116,6 +1116,10 @@ html[data-theme="dark"] .id-starline{color:#fde68a;background:#3b3212}
 .id-spat,.id-ssum,.id-sev{grid-column:2 / span 2;font-size:12px;line-height:1.5}
 .id-sev{color:var(--muted);font-size:11.5px}
 .id-sfail{margin-top:10px;font-size:12px;color:var(--muted);line-height:1.6}
+.id-srow.stale{opacity:.6}
+.id-slag.old,.id-sev.old{color:var(--sell);border-color:var(--sell)}
+.id-pill.old{background:var(--sell-soft);color:var(--sell)}
+.id-oldnote{font-size:11px;color:var(--sell);margin-top:3px;line-height:1.4}
 .id-back{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;font:inherit;font-size:12.5px;font-weight:700;padding:6px 12px;cursor:pointer;margin:10px 0 0}
 .id-iv{display:flex;gap:4px;flex:none}
 .id-iv button{border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:10px;font:inherit;font-weight:700;font-size:13px;padding:8px 14px;cursor:pointer}
@@ -9065,7 +9069,9 @@ async function idFetch(t){
   if (!INTRADAY_API) throw new Error("장중 중계 서버가 아직 연결되지 않았어요");
   const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 12000);
   let r;
-  try { r = await fetch(INTRADAY_API + (INTRADAY_API.includes("?") ? "&" : "?") + "t=" + encodeURIComponent(t), { signal: ctl.signal }); }
+  /* cache:"no-store" (2026-11-10 지연 분해 실측): Worker 응답의 Cache-Control max-age 동안 브라우저가 옛 응답을 다시 쓰던 것을 막는다.
+     야후 호출은 늘지 않는다 — Worker 캐시 키는 티커뿐이라 같은 저장본을 준다. 같은 종목 재조회 간격(ID_TTL)은 그대로. */
+  try { r = await fetch(INTRADAY_API + (INTRADAY_API.includes("?") ? "&" : "?") + "t=" + encodeURIComponent(t), { signal: ctl.signal, cache: "no-store" }); }
   catch(e){ throw new Error(e.name === "AbortError" ? "응답이 너무 늦어요" : "중계 서버에 연결하지 못했어요"); }
   finally { clearTimeout(tm); }
   let d; try { d = await r.json(); } catch(e){ throw new Error("응답 형식 오류"); }
@@ -9125,15 +9131,27 @@ function idMarketNow(ms){
   if (wk(u.wd) && u.m >= 570 && u.m < 970) return "us";
   return null;
 }
+/* 지연 분해(2026-11-10 사용자 지시) — 지금 시각 기준으로
+   체결 = 지금 − 마지막 체결 · 확정봉 = 지금 − 마지막 확정 5분봉 끝 · 그 안의 몫: 야후(Worker가 받을 때 이미 늦은 만큼) · 서버 저장(Worker 캐시) · 브라우저 보관(ID_TTL).
+   ID_STALE분 이상이면 '오래된 자료' — 신규 매수 후보로 강조하지 않는다. 야후 자체 지연(국장 약 20분)은 여기서 줄일 수 없다. */
+const ID_STALE = 25;
+function idLag(t, d, A, now){
+  const c = ID.cache.get(t) || {}, rcv = c.at || now, fa = typeof d.fetchedAt === "number" ? d.fetchedAt : null, lt = A.lastTrade;
+  const D5 = A.tf[5].filter(r => r.done), lb = D5.length ? D5[D5.length-1].ts + 300 : null, mn = x => Math.max(0, Math.round(x/60));
+  const o = { trade: mn(now - lt), bar: lb ? mn(now - lb) : null, yahoo: fa ? mn(fa - lt) : null, server: fa ? mn(rcv - fa) : null, client: mn(now - rcv) };
+  o.stale = o.trade >= ID_STALE;
+  o.why = [o.yahoo != null ? `야후 ${o.yahoo}분` : null, o.server != null ? `서버 저장 ${o.server}분` : null, o.client ? `브라우저 보관 ${o.client}분` : null].filter(Boolean).join(" + ");
+  return o;
+}
 function idScanTickers(mkt){ const seen = new Set(), out = []; let list = []; try { list = allStocks(); } catch(e){}
   for (const s of list){ const t = (s.ticker || "").toUpperCase(); if (t && !seen.has(t) && (!mkt || (mkt === "kr") === idIsKr(t))){ seen.add(t); out.push({ t, name: s.name || "" }); } } return out; }
 function idEvidenceAt(d, ts){ const tau = ts + 300, At = idMtf({ ...d, bars: d.bars.filter(b => b[0] + 300 <= tau), lastTrade: tau }, tau); return At ? idUpEvidence(At) : []; }
 /* 한 종목 → 목록 한 줄(없으면 장중 아님/신호 없음). 계산만 — DOM 없음 */
 function idScanRow(t, name, d, now){
   const A = idMtf(d, now); if (!A) return { t, name, kind: "nodata" };
-  const reg = d.reg || {}, lag = Math.max(0, Math.round((now - A.lastTrade)/60));
+  const reg = d.reg || {}, lg = idLag(t, d, A, now), lag = lg.trade;
   const wait = !A.open && !A.settling && !!reg.start && now >= reg.start && now <= (A.regEnd || reg.end || 0) && A.lastTrade < reg.start;
-  const base = { t, name, kr: !!A.kr, lag, open: A.open, state: A.state };
+  const base = { t, name, kr: !!A.kr, lag, lg, open: A.open, state: A.state };
   if (!A.open) return { ...base, kind: wait ? "wait" : "closed" };
   const D5 = A.tf[5].filter(r => r.done && r.day === A.lastDay), from = D5.length ? D5[Math.max(0, D5.length - ID_SCAN_BARS)].ts : 0;
   const stars = idStarEvents(d, now, null, ID_SCAN_BARS), rb = (A.E.bars || []).filter(z => z.ts >= from);
@@ -9145,11 +9163,13 @@ function idScanRow(t, name, d, now){
 }
 function idScanRender(){
   const S = ID.scan; if (!S.at && !S.running) return;
-  const hits = S.rows.filter(r => r.kind === "hit").sort((a, b) => (a.dir === "rb") - (b.dir === "rb") || b.ts - a.ts);
+  /* 오래된 자료(체결 ID_STALE분 이상)는 뒤로 — 신규 매수 후보로 강조하지 않는다 */
+  const hits = S.rows.filter(r => r.kind === "hit").sort((a, b) => (!!(a.lg && a.lg.stale)) - (!!(b.lg && b.lg.stale)) || (a.dir === "rb") - (b.dir === "rb") || b.ts - a.ts);
   const openN = S.rows.filter(r => r.open).length, waitN = S.rows.filter(r => r.kind === "wait").length, closedN = S.rows.filter(r => r.kind === "closed" || r.kind === "nodata").length;
   const med = a => { a = a.slice().sort((x, y) => x - y); return a.length ? a[a.length >> 1] : null; };
-  const lagK = med(S.rows.filter(r => r.open && r.kr).map(r => r.lag)), lagU = med(S.rows.filter(r => r.open && !r.kr).map(r => r.lag));
-  const lagTxt = [lagU != null ? `미장 지연 약 ${lagU < 1 ? "1분 미만" : lagU + "분"}` : null, lagK != null ? `<b class="down">국장 지연 약 ${lagK}분</b>` : null].filter(Boolean).join(" · ");
+  const lagOf = kr => { const z = S.rows.filter(r => r.open && !!r.kr === kr && r.lg); if (!z.length) return null; const m = k => med(z.map(r => r.lg[k]).filter(v => v != null));
+    return `${kr ? "국장" : "미장"} 체결 ${m("trade")}분 전 · 확정봉 ${m("bar")}분 전 (야후 ${m("yahoo") ?? "—"}분 + 서버 저장 ${m("server") ?? "—"}분 + 브라우저 ${m("client")}분)`; };
+  const lagTxt = [lagOf(false), lagOf(true)].filter(Boolean).map((x, i) => /국장/.test(x) ? `<b class="down">${x}</b>` : x).join("<br>") + (S.dur ? `<br>조회에 ${S.dur.toFixed(1)}초 걸렸어요` : "");
   const st = s => (ID_STATE[s] || {}).t || s;
   const row = (r, i) => {
     const icon = r.dir === "up" ? "⭐" : r.dir === "down" ? "⚠️" : r.dir === "mixed" ? "⭐⚠️" : "▲";
@@ -9157,12 +9177,14 @@ function idScanRender(){
     const obs = r.dir === "rb" ? "" : r.items.map(c => `${c.dir === "down" ? "하락" : "상승"} ${c.hit}%(${c.n}건) 관측${typeof c.net === "number" && c.net < 0 ? " · 평균은 손실" : ""}`).join(" · ");
     const sum = r.dir === "rb" ? `${idHM(r.m + 5)} 재돌파 발생 · 신호 경과 ${r.age}분${r.age > 5 ? ' · <b class="down">추격 주의</b>' : ""} · 과거 시험에서 평소와 차이 없음`
       : `${idHM(r.m + 5)} 확정 · ${r.age}분 전 · ${obs} · <b>검증 실패</b>${r.dir === "down" ? " · 매수 후보 아님" : ""}${r.rbToo && r.dir !== "rb" ? ` · ▲ ${idHM(r.rbM + 5)} 재돌파도 있음` : ""}`;
-    return `<button type="button" class="id-srow" data-idopen="${esc(r.t)}" data-kind="${r.dir}" data-ts="${r.ts}">
+    const lg = r.lg || {}, st5 = lg.stale;
+    return `<button type="button" class="id-srow${st5 ? " stale" : ""}" data-idopen="${esc(r.t)}" data-kind="${r.dir}" data-ts="${r.ts}" data-lag="${lg.trade}" data-barlag="${lg.bar}">
       <span class="id-srank">${i + 1}</span>
       <span class="id-stk">${icon} ${esc(r.t)}<small>${esc(r.name)}</small></span>
-      <span class="id-slag${r.kr ? " kr" : ""}">지연 약 ${r.lag < 1 ? "1분 미만" : r.lag + "분"}</span>
+      <span class="id-slag${r.kr ? " kr" : ""}${st5 ? " old" : ""}">체결 ${lg.trade < 1 ? "1분 미만" : lg.trade + "분"} 전${lg.bar != null ? ` · 확정봉 ${lg.bar}분 전` : ""}</span>
       <span class="id-spat"><b>${esc(pat)}</b> · 지금 상태 ${st(r.state)}</span>
       <span class="id-ssum">${sum}</span>
+      ${st5 ? `<span class="id-sev old">⚠️ 자료가 ${lg.trade}분 지난 것(${esc(lg.why)}) — 신규 매수 후보로 보지 마세요</span>` : ""}
       <span class="id-sev">지표 근거(참고 · 성과 검증 실패): ${r.evi.length ? esc(r.evi.slice(0, 4).join(" · ")) + (r.evi.length > 4 ? ` 외 ${r.evi.length - 4}` : "") : "해당 없음"}</span>
     </button>`; };
   const prog = S.running ? `<div class="id-shead">⏳ ${S.mkt === "kr" ? "국장" : "미장"} ${S.done}/${S.total} 조회 중${S.fail.length ? ` · 실패 ${S.fail.length}` : ""}</div><div class="id-prog"><i style="width:${Math.round(S.done/Math.max(1, S.total)*100)}%"></i></div>` : "";
@@ -9184,7 +9206,7 @@ async function idScan(retryOnly){
   S.mkt = mkt;
   const my = ++S.seq; ID.seq++; ID.t = null; idIvShow(); idMsg("");
   if (!retryOnly){ S.rows = []; S.fail = []; S.total = list.length; S.done = 0; } else { S.fail = []; S.total = S.rows.length + list.length; S.done = S.rows.length; }
-  S.running = true; idScanBtn(); idScanRender();
+  S.running = true; S.t0 = Date.now()/1000; idScanBtn(); idScanRender();
   let next = 0, lastPaint = 0, fromCache = 0;
   const worker = async () => {
     while (next < list.length){
@@ -9198,7 +9220,7 @@ async function idScan(retryOnly){
   };
   await Promise.all([...Array(Math.min(ID_SCAN_CONC, list.length))].map(worker));
   if (my !== S.seq || !ID.on) return;
-  S.running = false; S.at = Date.now()/1000; idScanBtn(); idScanRender();
+  S.running = false; S.at = Date.now()/1000; S.dur = S.at - S.t0; idScanBtn(); idScanRender();
   if (fromCache === list.length && !retryOnly) idMsg("↻ 방금 받은 자료라 같은 결과예요 (같은 종목은 90초 뒤 새로 받아요)");
 }
 document.getElementById("idScan").addEventListener("click", () => idScan(false));
@@ -9670,9 +9692,9 @@ function idRender(){
     if (lc != null){ prevClose = lc; prevSrc = "전일 공식 종가 대비"; } else if (typeof d.prevClose === "number"){ prevClose = d.prevClose; prevSrc = "전일 종가 대비"; } else if (prevClose != null) prevSrc = "전일 14:55봉 대비(근사)"; }
   const chg = prevClose ? price - prevClose : null, chgP = prevClose ? chg / prevClose * 100 : null;
   const reg = d.reg || {}, P$ = p => idPx(t, p);
-  const dm = Math.round((now - A.lastTrade)/60);
+  const dm = Math.round((now - A.lastTrade)/60), LG = idLag(t, d, A, now);
   let pill = "";
-  if (A.open) pill = `<span class="id-pill open">장중 · 지연 ${dm < 1 ? "1분 미만" : "약 " + dm + "분"}</span>`;
+  if (A.open) pill = `<span class="id-pill open${LG.stale ? " old" : ""}" data-lag="${LG.trade}" data-barlag="${LG.bar}" title="${esc(LG.why)}">장중 · 체결 ${dm < 1 ? "1분 미만" : dm + "분"} 전${LG.bar != null ? ` · 확정봉 ${LG.bar}분 전` : ""}</span>${LG.stale ? `<div class="id-oldnote">⚠️ ${dm}분 지난 자료예요(${esc(LG.why)}). 지금 가격과 다를 수 있어 신규 매수 판단에 쓰지 마세요.</div>` : ""}`;
   else if (A.settling) pill = `<span class="id-pill">장 마감 직후 · 자료 지연 약 ${dm}분</span>`;
   const preOpen = !A.open && !A.settling && reg.start && now < reg.start;
   /* 2026-11-10 사용자 지적 "장 열렸는데 국장 실시간 왜 안 돼" — 정규장 시간인데 오늘 체결이 아직 안 온 경우(야후 국장 약 20분 지연 → 09:20쯤 첫 봉).

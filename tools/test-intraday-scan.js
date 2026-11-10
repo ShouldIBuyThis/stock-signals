@@ -5,7 +5,8 @@ const OUT = process.env.SHOT_DIR || '';
 function mk(t, nowBase){ const kr = /\.(KS|KQ)$/.test(t), off = kr ? 32400 : -18000; let s = 1; for (const ch of t) s = (s*131 + ch.charCodeAt(0)) % 2147483647;
   const r = () => { s = (s*16807) % 2147483647; return s/2147483647 - 0.5; };
   const nb = kr ? 72 : 78, st = nowBase.usStart, bars = []; let p = 50 + Math.abs(r())*200;
-  for (let d = 4; d >= 0; d--) for (let i = 0; i < nb; i++){ const ts = st - d*86400 + i*300; if (d === 0 && i > 50) break; const o = p; p *= 1 + r()*0.006;
+  const cut = t === 'KO' ? 44 : 50;   // KO: 마지막 체결이 35분 전인 '오래된 자료' 종목
+  for (let d = 4; d >= 0; d--) for (let i = 0; i < nb; i++){ const ts = st - d*86400 + i*300; if (d === 0 && i > cut) break; const o = p; p *= 1 + r()*0.006;
     if (d === 0 && [39, 45, 49].includes(i)) p = o*0.993; if (d === 0 && [40, 46, 50].includes(i)) p = o*1.01;
     let h = Math.max(o, p)*1.002, l = Math.min(o, p)*0.998, v = Math.round(1e4*(1 + Math.abs(r())*3)); if (d === 0 && [40, 46, 50].includes(i)){ v = 9e4; h = p*1.0005; l = o*0.9995; }
     bars.push([ts, o, h, l, p, v]); }
@@ -42,7 +43,10 @@ function mk(t, nowBase){ const kr = /\.(KS|KQ)$/.test(t), off = kr ? 32400 : -18
     ok(r1.rows.length === r1.hits.length && r1.rows.length > 0 && r1.rows.every(x => r1.hits.some(h => h.t === x.t && h.dir === x.kind && h.ts === x.ts)), `[${nm}] 목록 ${r1.rows.length}줄 = 계산 결과 ${r1.hits.length}건(티커·종류·시각 일치) · 분류 ${JSON.stringify(r1.kinds)}`);
     const ord = r1.rows.map(x => [x.kind === 'rb' ? 1 : 0, -x.ts]); ok(ord.every((v, i) => !i || ord[i-1][0] < v[0] || (ord[i-1][0] === v[0] && ord[i-1][1] <= v[1])), `[${nm}] 순서: ⭐·⚠️ 먼저 → ▲, 그 안에서 최근 발생 순`);
     ok(r1.rows.every(x => !/강한 매수|매수 추천|매수 확정/.test(x.text)) && /매매 신호 아님/.test(await pg.textContent('.id-stitle')), `[${nm}] '강한 매수' 표현 없음 · '매매 신호 아님' 표기`);
-    ok(/미장 장중/.test(r1.head) && /국장 제외/.test(r1.head) && /미장 지연/.test(r1.head), `[${nm}] 요약: ${r1.head.replace(/\s+/g, ' ').slice(0, 110)}`);
+    ok(/미장 장중/.test(r1.head) && /국장 제외/.test(r1.head) && /미장 체결 \d+분 전 · 확정봉 \d+분 전 \(야후 \d+분 \+ 서버 저장 \d+분 \+ 브라우저 \d+분\)/.test(r1.head), `[${nm}] 요약: ${r1.head.replace(/\s+/g, ' ').slice(0, 160)}`);
+    const st = await pg.evaluate(() => { const rows = [...document.querySelectorAll('.id-srow')]; const i = rows.findIndex(e => e.dataset.idopen === 'KO');
+      return { i, n: rows.length, stale: i >= 0 && rows[i].classList.contains('stale'), lag: i >= 0 ? +rows[i].dataset.lag : null, warn: i >= 0 && /신규 매수 후보로 보지 마세요/.test(rows[i].textContent), after: i >= 0 && rows.slice(i).every(e => e.classList.contains('stale')), fresh: rows.filter(e => !e.classList.contains('stale')).every(e => +e.dataset.lag < 25) }; });
+    ok(st.i >= 0 && st.stale && st.lag >= 25 && st.warn && st.after && st.fresh, `[${nm}] 오래된 자료(KO 체결 ${st.lag}분 전): 흐리게 · 맨 뒤(${st.i + 1}/${st.n}) · '신규 매수 후보로 보지 마세요' · 나머지는 25분 미만`);
     if (OUT) await pg.locator('#idPanel').screenshot({ path: `${OUT}/scan-${nm}.png` });
     // 재시도(실패 종목만)
     failSet.clear(); const c0 = calls; await pg.click('[data-idretry]'); await pg.waitForFunction(() => !ID.scan.running, null, { timeout: 30000 });
