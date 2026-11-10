@@ -1177,6 +1177,9 @@ html[data-theme="dark"] .id-starline{color:#fde68a;background:#3b3212}
 .id-ev b{color:var(--ink)}
 .id-ref{margin-top:8px;border-radius:10px;background:var(--navy-soft);padding:8px 10px;font-size:11px;color:var(--muted);line-height:1.7}
 .id-ref b{color:var(--ink)}
+.id-flow{margin-top:10px;padding:8px 10px;border:1px dashed var(--line);border-radius:10px;font-size:12.5px;line-height:1.6;color:var(--ink)}
+.id-flow span{color:var(--faint);font-size:11px}
+.id-flow a{color:#2f6fed;font-weight:700;text-decoration:none}
 .id-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;font-size:11px;color:var(--faint)}
 .id-re{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;font:inherit;font-size:12.5px;font-weight:700;padding:7px 12px;cursor:pointer}
 @media (max-width:640px){
@@ -9572,6 +9575,8 @@ document.querySelector(".id-mode").addEventListener("click", ev => {
   if (ID.t && ID.cache.get(ID.t)) idRender();          // 다시 부르지 않고 같은 자료로 다시 그린다
 });
 
+/* 국장 전용 외부 수급 링크(2026-11-10 사용자 지시) — 링크만 두고 수치는 가져오지 않는다. 미장 화면에는 없음. */
+const ID_FLOW_LINKS = [["지표담 · 기관별 장중 수급", "https://stock.minemelon.com/?indicator=UBM"], ["Market Signals", "https://signals.kr/market/"]];
 function idRender(){
   const c = ID.cache.get(ID.t); if (!c) return;
   const d = c.d, t = ID.t, now = Date.now()/1000, tzn = idTzName(d.tz), off = d.gmtoffset || 0;
@@ -9718,6 +9723,7 @@ function idRender(){
     </div>
     <div class="id-card id-sum">${sum}</div>
   </div>
+  ${A && A.kr ? `<div class="id-flow">🔗 외국인·기관 수급은 외부 사이트에서 확인하세요 <span>(새 창 · 수치·집계 시각은 각 사이트 기준 · 우리 판정에는 쓰지 않아요)</span><br>${ID_FLOW_LINKS.map(([n, u]) => `<a href="${u}" target="_blank" rel="noopener noreferrer">${n} ↗</a>`).join(" · ")}</div>` : ""}
   <div class="id-foot"><button type="button" class="id-re" data-idre="1">↻ 새로 조회</button><span>서버가 자료 받은 시각 ${gotTxt} (내 기기 시각) · 봉 시각은 봉이 시작한 시각</span></div>`;
   const lastRow = rows[rows.length-1];
   const closeDot = CI && lastRow && lastRow.day === lastDay ? { price: CI.price, slots: Math.round((A.regEnd - (lastRow.ts + ID.iv*60)) / (ID.iv*60)) + 1 } : null;
