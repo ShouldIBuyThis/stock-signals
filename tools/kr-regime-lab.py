@@ -13,6 +13,7 @@ import yfinance as yf
 ap = argparse.ArgumentParser()
 ap.add_argument("--years", type=int, default=3)
 ap.add_argument("--signals", default="")
+ap.add_argument("--dump", default="", help="날짜별 국면(그날 종가까지 확정)을 JSON으로 — 장중 연구용")
 args = ap.parse_args()
 
 KOSPI_BIG = ["005930", "000660", "373220", "207940", "005380", "000270", "068270", "005490", "035420", "105560", "055550", "012330", "028260",
@@ -22,7 +23,7 @@ KOSDAQ_BIG = ["247540", "086520", "196170", "028300", "263750", "293490", "14502
               "277810", "112040", "357780", "240810", "036930", "403870"]
 PAIRS = [("코스피", "^KS11", "069500.KS", [t + ".KS" for t in KOSPI_BIG]), ("코스닥", "^KQ11", "229200.KS", [t + ".KQ" for t in KOSDAQ_BIG])]
 VOLS = ["^VKOSPI", "VKOSPI.KS", "^KSVKOSPI"]
-need = sorted({p[1] for p in PAIRS} | {p[2] for p in PAIRS} | {t for p in PAIRS for t in p[3]} | set(VOLS) | {"^VXN"})
+need = sorted({p[1] for p in PAIRS} | {p[2] for p in PAIRS} | {t for p in PAIRS for t in p[3]} | set(VOLS) | {"^VXN", "^VIX"})
 print(f"■ 국장 전용 시장 국면 연구 · {args.years}년 · 받을 종목 {len(need)}개")
 px = yf.download(need, period=f"{args.years}y", auto_adjust=True, progress=False, group_by="ticker", threads=True)
 
@@ -37,7 +38,8 @@ for v in VOLS:
     s = col(v)
     if s is not None and len(s) >= 500: vk, vkName = s, v; break
 print(f"  VKOSPI: {'있음 ' + vkName + f' {len(vk)}일' if vk is not None else '야후에 없음(또는 500일 미만) → 실현 변동성만 쓴다'} · " + " · ".join(f"{v}={len(col(v)) if col(v) is not None else 0}" for v in VOLS))
-vxn = col("^VXN")
+vxn = col("^VXN"); vix = col("^VIX")
+DUMP = {}
 
 SIGS = {}
 if args.signals:
@@ -79,12 +81,35 @@ for name, idx, etf, big in PAIRS:
         x = vxn.reindex(df.index).ffill(); df["vxnCopy"] = (x >= 28) & (x < x.shift(1))
     else:
         df["vxnCopy"] = False
+    def us_prev(s):
+        """한국 날짜 d에 '미국 d−1 이하' 마지막 종가를 붙인다 — 국장 개장 전에 확정된 값."""
+        if s is None: return pd.Series(np.nan, index=df.index), pd.Series(np.nan, index=df.index)
+        s = s.copy(); s.index = pd.to_datetime(s.index).tz_localize(None).normalize()
+        kidx = pd.to_datetime(df.index).tz_localize(None).normalize() if getattr(df.index, "tz", None) is not None else pd.to_datetime(df.index).normalize()
+        pos = s.index.searchsorted(kidx - pd.Timedelta(days=0), side="left") - 1   # d보다 앞선 마지막 미국 거래일
+        v = pd.Series([s.iloc[i] if i >= 0 else np.nan for i in pos], index=df.index)
+        v2 = pd.Series([s.iloc[i-1] if i >= 1 else np.nan for i in pos], index=df.index)
+        return v, v2
+    for nm_, ser in (("vix", vix), ("vxn", vxn)):
+        a, b = us_prev(ser); df[nm_ + "U"] = a; df[nm_ + "Ud"] = a < b
+        df[nm_ + "UP"] = pct_rank_prev(a)
     above = pd.DataFrame(index=df.index); got = 0
+    above5 = pd.DataFrame(index=df.index)
     for tk in big:
         c = col(tk)
         if c is None or len(c) < 120: continue
-        c = c.reindex(df.index); above[tk] = (c > c.rolling(20).mean()).astype(float).where(c.notna()); got += 1
-    df["br"] = above.mean(axis=1)*100; df["brN"] = above.notna().sum(axis=1)
+        c = c.reindex(df.index); above[tk] = (c > c.rolling(20).mean()).astype(float).where(c.notna()); above5[tk] = (c > c.rolling(5).mean()).astype(float).where(c.notna()); got += 1
+    df["br"] = above.mean(axis=1)*100; df["brN"] = above.notna().sum(axis=1); df["br5"] = above5.mean(axis=1)*100
+    volS = df.vk if vk is not None else rv
+    df["fearOff"] = (volS.shift(1) >= volS.shift(1).rolling(5).max()) & (volS < volS.shift(1))
+    df["crashThenCool"] = df.crash5.rolling(5).max().fillna(0).astype(bool) & (volS < volS.shift(1))
+    df["rsiExit"] = (df.rsi.shift(1) <= 30) & (df.rsi > 30); df["bbExit"] = (df.bb.shift(1) <= 0) & (df.bb > 0)
+    if args.dump:
+        vD = volS < volS.shift(1); vP = df.vkP if vk is not None else df.rvP
+        for ix in df.index:
+            dd = str(ix.date()); r = df.loc[ix]
+            DUMP.setdefault(name, {})[dd] = {"dn3": bool(r.dn3), "volHi": bool((vP.loc[ix] or 0) >= 80), "crashCool": bool(r.crashThenCool),
+                "bottom": bool((r.br < 30) or (r.br5 < 20)) if pd.notna(r.br) else False, "vxnTurn": bool(r.vxnUd) if pd.notna(r.vxnU) else False}
     for h in HS: df[f"f{h}"] = (df.e.shift(-h)/df.e - 1)*100
     W = df.dropna(subset=["rsi", "f10", "rvP"]).copy(); W = W[W.brN >= 15]
     W["d"] = [str(x.date()) for x in W.index]; MID = W.d.iloc[len(W)//2]
@@ -99,7 +124,13 @@ for name, idx, etf, big in PAIRS:
          ("실현변동성 80백분위 & 꺾임", (W.rvP >= 80) & W.rvDown), ("VKOSPI 80백분위", W.vkP >= 80), ("VKOSPI 80백분위 & 꺾임", (W.vkP >= 80) & W.vkDown),
          ("VKOSPI 20일평균×1.15 & 꺾임", W.vkHot & W.vkDown),
          ("K1 3일하락∪변동성꺾임∪(바닥권&변동성↓)", K1), ("K2 K1 ∪ 2일 하락", K1 | W.dn2), ("K3 강한 축 2개 이상", sum(s.astype(int) for s in strong) >= 2),
-         ("대조군: VXN≥28 & 꺾임 그대로 복사", W.vxnCopy)]
+         ("대조군: VXN≥28 & 꺾임 그대로 복사", W.vxnCopy),
+         # ── v2 (2026-11-10 추가 등록 · v1 결과 보기 전) ──
+         ("VIX 전일 80백분위", W.vixUP >= 80), ("VIX 전일 하락 전환", W.vixUd.astype(bool)), ("VIX 전일 높음 & 하락 전환", (W.vixUP >= 80) & W.vixUd.astype(bool)),
+         ("VXN 전일 80백분위", W.vxnUP >= 80), ("VXN 전일 하락 전환", W.vxnUd.astype(bool)), ("VXN 전일 높음 & 하락 전환", (W.vxnUP >= 80) & W.vxnUd.astype(bool)),
+         ("5일선 위 < 20%", W.br5 < 20), ("5일선 위 < 30%", W.br5 < 30),
+         ("RSI 30 아래→위 탈출", W.rsiExit), ("%B 0 아래→위 탈출", W.bbExit),
+         ("공포 완화: 변동성 5일 고점 뒤 꺾임", W.fearOff), ("급락 뒤 5일 안 변동성 꺾임", W.crashThenCool)]
     def st(sub, h):
         a = sub[f"f{h}"].dropna(); return {"n": len(a), "r": round(float((a > 0).mean()*100)) if len(a) else None, "a": round(float(a.mean()), 2) if len(a) else None}
     B = {h: st(W, h) for h in HS}
@@ -112,7 +143,7 @@ for name, idx, etf, big in PAIRS:
         f, b = sub[sub.d < MID], sub[sub.d >= MID]; s3, f3, b3 = st(sub, 3), st(f, 3), st(b, 3)
         ok = len(sub) >= 15 and s3["r"] - B[3]["r"] >= 5 and f3["r"] is not None and b3["r"] is not None and f3["r"] > B[3]["r"] and b3["r"] > B[3]["r"]
         if ok: allpass.append(f"{name} · {nm} ({len(sub)}건 · +3일 {s3['r']-B[3]['r']:+d}%p)")
-        print(f"  {'✅' if ok else '  '}{nm:<32} [{grade(len(sub))}] " + " ".join(cellf(st(sub, h), B[h]) for h in HS) + f" | n{len(sub)} · 전반 +3일 {f3['r']}%(n{f3['n']}) · 후반 {b3['r']}%(n{b3['n']})")
+        print(f"  {'✅' if ok else '  '}{nm:<32} [{grade(len(sub))}] " + " ".join(cellf(st(sub, h), B[h]) for h in HS) + f" | n{len(sub)}(서로 다른 날 {sub.d.nunique()}) · 전반 +3일 {f3['r']}%(n{f3['n']}) · 후반 {b3['r']}%(n{b3['n']})")
     # ── 기존 국장 신호가 국면으로 나아지는가 ──
     if SIGS:
         print(f"  ▸ 기존 사이트 신호({etf})를 국장 국면으로 나눔 — +1/+3/+5일 상승비율 · 평균 (전체 대비 %p)")
@@ -129,3 +160,6 @@ for name, idx, etf, big in PAIRS:
 print(f"\n── 세 관문(+3일 +5%p · 전·후반 모두 기준선 위 · 15건+) 통과: {len(allpass)}칸 / 훑은 칸 {cells}칸")
 for p in allpass: print("  ✅ " + p)
 print("※ 칸이 많으면 우연히 한두 칸은 통과한다 — 다음 측정에서 같은 칸이 다시 통과해야 실전 후보. 화면 반영은 사용자 승인 뒤.")
+
+if args.dump:
+    json.dump(DUMP, open(args.dump, "w")); print(f"국면 하루치 내보냄: {args.dump} · " + " · ".join(f"{k} {len(v)}일" for k, v in DUMP.items()))
