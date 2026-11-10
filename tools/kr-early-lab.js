@@ -153,7 +153,8 @@ for (const [t, XS] of Object.entries(DAYS)) for (const X of XS){
     const w3 = [k-2, k-1, k].filter(i => I[i]).some(i => { const z = I[i], rg = z.h - z.l, lw = Math.min(z.o, z.c) - z.l; return rg > 0 && lw >= 0.5*rg && z.vr >= 1.5; });
     const prevLow6 = Math.min(...[1, 2, 3, 4, 5, 6].map(q => I[k-q] ? I[k-q].l : Infinity));
     OLD.push({ t, day: X.day, k, from: pc, tau: L.tau, off: X.off, px: L.c, r, r0, ext, reb, minsSinceLow: (L.tau - (B[lowK][0] + 300))/60, done: hiSoFar > lowSoFar ? (hiSoFar - L.c)/(hiSoFar - lowSoFar) : null,
-      afterDayLow: X.dayLowK < k, f: { aboveE9: L.c > L.e9, kLow: L.K1 != null && L.K1 < 20, wick: w3, hl: L.l > prevLow6, bounce3: k - lowK >= 3 } });
+      afterDayLow: X.dayLowK < k, upAt: [k-3, k-2, k-1, k].filter(i => i >= 0 && AT[i]).flatMap(i => [...AT[i]].filter(x => x[0] === 'U').map(x => x + '@' + hhmm(I[i].tau, X.off))),
+      f: { aboveE9: L.c > L.e9, kLow: L.K1 != null && L.K1 < 20, wick: w3, hl: L.l > prevLow6, bounce3: k - lowK >= 3, upAtom: [k-3, k-2, k-1, k].some(i => i >= 0 && AT[i] && [...AT[i]].some(x => x[0] === 'U')) } });
   }
 }
 
@@ -215,7 +216,7 @@ console.log(`  관측 뒤 60분 추가 하락 중앙값 ${sg(med(ob.map(e => e.e
 const wfB = [[0], [1], [2]].map(bs => { const z = ob.filter(e => bs.some(x => blk[x].has(e.day))), a = upR(z, 'm30'), b = rU(rDown.filter(e => bs.some(x => blk[x].has(e.day))), 'm30'); return `${pc(a.up)}/${pc(b.up)}(n${a.n})`; });
 console.log(`  블록별 +30분 상승 비율 사건/하락 상태 무작위: ${wfB.join(' · ')}`);
 console.log('  판정 시점 특징별 +30분 상승 비율(있음 / 없음):');
-for (const [f, nm] of [['aboveE9', 'EMA9 위로 이미 회복'], ['kLow', '%K<20 과매도'], ['wick', '최근 3봉 긴 아랫꼬리+거래량'], ['hl', '저점 상승(직전 6봉 최저 위)'], ['bounce3', '저점 뒤 3봉↑ 경과']]){
+for (const [f, nm] of [['upAtom', '최근 20분 조기 상승 원자 있음'], ['aboveE9', 'EMA9 위로 이미 회복'], ['kLow', '%K<20 과매도'], ['wick', '최근 3봉 긴 아랫꼬리+거래량'], ['hl', '저점 상승(직전 6봉 최저 위)'], ['bounce3', '저점 뒤 3봉↑ 경과']]){
   const y = upR(ob.filter(e => e.f[f]), 'm30'), n = upR(ob.filter(e => !e.f[f]), 'm30'); console.log(`    ${nm.padEnd(22)} ${pc(y.up)} ${sg(y.avg)} (n${y.n}) / ${pc(n.up)} ${sg(n.avg)} (n${n.n})`); }
 for (const cell of ['D1', 'K1']){ const z = EV.filter(e => e.dir === 'D' && e.cell === cell && e.D === 20 && !e.late && e.m30 != null);
   console.log(`  비교: 조기 ${NAME[cell]} 관측 뒤 +30분 상승 ${pc(mean(z.map(e => e.m30 > 0 ? 1 : 0)))} 평균 ${sg(mean(z.map(e => e.m30)))} (n${z.length})`); }
@@ -245,5 +246,6 @@ else {
   const dnOldK = scan(peakFrom, k => I[k].st === 'down');
   console.log(`  요약 · 첫 EMA20 회복·지지: ${T(eUpK)} · 기존 상승 판정 첫 등장: ${T(upOldK)}${eUpK != null && upOldK != null ? ` · ${Math.round((I[upOldK].tau - I[eUpK].tau)/60)}분 차이` : ''}`);
   console.log(`         첫 EMA9·EMA20 이탈: ${T(eDnK)} · 기존 하락 판정 첫 등장: ${T(dnOldK)}${eDnK != null && dnOldK != null ? ` · ${Math.round((I[dnOldK].tau - I[eDnK].tau)/60)}분 차이` : ''}`);
-  for (const o of OLD.filter(e => e.t === RP[0] && e.day === RP[1])) console.log(`  기존 하락 전환 ${hhmm(o.tau, off)}(가격 ${o.px}) → 확인 가능 ${hhmm(o.tau + 1200, off)} 관측가 ${o.r ? o.r.p0 : '—'} · +5/15/30/60분 ${o.r ? HM.map(h => sg(o.r['m' + h], 2)).join('/') : '—'}% · 다음날 ${o.r && o.r.d1 != null ? sg(o.r.d1, 2) : '미정'} · 그때까지 저점 뒤 ${Math.round(o.minsSinceLow)}분 · 하락폭 진행 ${pc(o.done)} · 추가 하락 ${sg(o.ext, 2)}% · 반등 ${sg(o.reb, 2)}%`);
+  for (const o of OLD.filter(e => e.t === RP[0] && e.day === RP[1])){ console.log(`  기존 하락 전환 ${hhmm(o.tau, off)}(가격 ${o.px}) → 확인 가능 ${hhmm(o.tau + 1200, off)} 관측가 ${o.r ? o.r.p0 : '—'} · +5/15/30/60분 ${o.r ? HM.map(h => sg(o.r['m' + h], 2)).join('/') : '—'}% · 다음날 ${o.r && o.r.d1 != null ? sg(o.r.d1, 2) : '미정'} · 그때까지 저점 뒤 ${Math.round(o.minsSinceLow)}분 · 하락폭 진행 ${pc(o.done)} · 추가 하락 ${sg(o.ext, 2)}% · 반등 ${sg(o.reb, 2)}%`);
+    console.log(`    그 순간 5분봉: 그날 최종 저점(${hhmm(X.B[X.dayLowK][0], off)} 봉)보다 ${X.dayLowK < o.k ? '뒤' : X.dayLowK === o.k ? '같은 봉' : '앞'} · EMA9 위 ${o.f.aboveE9 ? '예' : '아니오'} · 저점 상승 ${o.f.hl ? '예' : '아니오'} · 저점 뒤 3봉↑ ${o.f.bounce3 ? '예' : '아니오'} · %K<20 ${o.f.kLow ? '예' : '아니오'} · 긴 아랫꼬리+거래량 ${o.f.wick ? '예' : '아니오'} · 직전 20분 조기 상승 원자 ${o.upAt.length ? o.upAt.join(', ') : '없음'}`); }
 }
