@@ -9322,6 +9322,133 @@ function idStarEvents(d, now, cands){
   }
   return out;
 }
+/* ⭐ 종합 상승 근거 — docs/2026-11-10-up-evidence.md (사전 등록 정의 그대로). 2026-11-10 현재 화면 미연결(사용자 승인 전 · 연구 도구만 추출해 쓴다).
+   판정(A.state)·▲·점수·등급과 무관. At = '그 봉이 끝난 시각까지 확정된 봉만' 넣어 계산한 idMtf 결과 → 미래 봉을 볼 수 없다.
+   반환 = 마지막 확정 5분봉 L에서 성립한 근거 목록 { k, fam(계열), name, why, once? }. once가 있으면 idUpEvents가 하루 한 번만 통과시킨다. */
+function idUpEvidence(At){
+  const D = At.tf[5].filter(r => r.done), n = D.length;
+  if (n < 20) return [];
+  const L = D[n-1], P = D[n-2];
+  if (L.day !== At.lastDay) return [];
+  const atr = At.P && At.P.atr ? At.P.atr : null, out = [], f2 = x => (Math.round(x*100)/100).toString();
+  const add = (k, fam, name, why, once) => out.push({ k, fam, name, why, once: once || null });
+  const t0i = D.findIndex(r => r.day === L.day), T = D.slice(t0i), tn = T.length, li = tn - 1, sameDay = P.day === L.day;
+  /* 캔들 */
+  const F = idCandleFeat(At, L);
+  if (F) for (const [k, nm] of [["C1", "샛별형"], ["C2", "상승장악형"], ["C3", "망치형"], ["C4", "긴 아랫꼬리 양봉"]]) if (F.names.includes(nm)) add(k, "캔들", nm, "확정 봉 모양");
+  /* 스토캐스틱 14·3·3 (확정 5분봉 연속) */
+  if (n >= 45){
+    const memo = {}, raw = i => { if (memo[i] !== undefined) return memo[i]; let hh = -Infinity, ll = Infinity; for (let j = i - 13; j <= i; j++){ if (D[j].h > hh) hh = D[j].h; if (D[j].l < ll) ll = D[j].l; } return memo[i] = hh > ll ? (D[i].c - ll)/(hh - ll)*100 : 50; };
+    const K = i => (raw(i) + raw(i-1) + raw(i-2))/3, Dd = i => (K(i) + K(i-1) + K(i-2))/3;
+    const k1 = K(n-1), d1 = Dd(n-1), k0 = K(n-2), d0 = Dd(n-2), gc = k0 <= d0 && k1 > d1 && Math.min(k0, d0) < 50;
+    if (gc) add("S1", "스토캐스틱", "스토캐스틱 골든크로스", `%K ${f2(k0)}→${f2(k1)} · %D ${f2(d1)}`);
+    if (k0 < 20 && k1 >= 20) add("S2", "스토캐스틱", "스토캐스틱 과매도 탈출", `%K ${f2(k0)}→${f2(k1)}`);
+    if (gc && n - 24 >= t0i){
+      let lr = Infinity, lp = Infinity, kr = Infinity, kp = Infinity;
+      for (let i = n - 6; i < n; i++){ if (D[i].l < lr) lr = D[i].l; const k = K(i); if (k < kr) kr = k; }
+      for (let i = n - 24; i < n - 6; i++){ if (D[i].l < lp) lp = D[i].l; const k = K(i); if (k < kp) kp = k; }
+      if (lr < lp && kr > kp && kp < 30) add("S3", "스토캐스틱", "스토캐스틱 상승 다이버전스 후보", `가격 저점 낮아짐 · %K 저점 ${f2(kp)}→${f2(kr)}`);
+    }
+  }
+  /* 스윙(오늘 확정 봉 지그재그 · 되돌림 1.0 ATR) → 피보나치 · 엘리어트 */
+  if (atr && tn >= 3){
+    const th = atr, piv = [];
+    const mx = (a, b) => { let r = { p: T[b].h, i: b }; for (let j = a; j <= b; j++) if (T[j].h > r.p) r = { p: T[j].h, i: j }; return r; };
+    const mn = (a, b) => { let r = { p: T[b].l, i: b }; for (let j = a; j <= b; j++) if (T[j].l < r.p) r = { p: T[j].l, i: j }; return r; };
+    let dir = 0, hi = { p: T[0].h, i: 0 }, lo = { p: T[0].l, i: 0 };
+    for (let i = 1; i < tn; i++){ const b = T[i];
+      if (dir === 0){ if (b.h > hi.p) hi = { p: b.h, i }; if (b.l < lo.p) lo = { p: b.l, i };
+        if (b.c - lo.p >= th && lo.i < i){ piv.push({ t: "L", p: lo.p, i: lo.i, at: i }); dir = 1; hi = mx(lo.i + 1, i); }
+        else if (hi.p - b.c >= th && hi.i < i){ piv.push({ t: "H", p: hi.p, i: hi.i, at: i }); dir = -1; lo = mn(hi.i + 1, i); } }
+      else if (dir === 1){ if (b.h > hi.p) hi = { p: b.h, i };
+        if (hi.p - b.c >= th){ piv.push({ t: "H", p: hi.p, i: hi.i, at: i }); dir = -1; lo = hi.i < i ? mn(hi.i + 1, i) : { p: b.l, i }; } }
+      else { if (b.l < lo.p) lo = { p: b.l, i };
+        if (b.c - lo.p >= th){ piv.push({ t: "L", p: lo.p, i: lo.i, at: i }); dir = 1; hi = lo.i < i ? mx(lo.i + 1, i) : { p: b.h, i }; } }
+    }
+    const np = piv.length, z = k => piv[np - k];
+    /* 피보나치: 확정 고점 뒤 눌림 중 · 그 앞 확정 저점 · 상승폭 ≥ 3 ATR · 수준 첫 접촉 */
+    if (dir === -1 && np >= 2 && z(1).t === "H" && z(2).t === "L"){
+      const PH = z(1), PL = z(2), W = PH.p - PL.p;
+      if (W >= 3*atr) for (const [k, r, nm] of [["F62", 0.618, "61.8%"], ["F50", 0.5, "50%"], ["F38", 0.382, "38.2%"]]){
+        const lv = PH.p - r*W;
+        if (!(L.l <= lv + 0.25*atr && L.c >= lv && lo.p >= lv - 0.25*atr)) continue;
+        let first = true; for (let j = PH.i + 1; j < li; j++) if (T[j].l <= lv + 0.25*atr){ first = false; break; }
+        if (first){ add(k, "파동", `피보나치 ${nm} 되돌림 지지`, `스윙 ${f2(PL.p)}→${f2(PH.p)} · 수준 ${f2(lv)}`, `${k}@${T[PH.i].ts}`); break; }
+      }
+    }
+    /* 엘리어트(기계적): 1파 PL0→PH1 ≥ 2 ATR · 2파 저점 PL2 > PL0 · 되돌림 38.2~78.6% */
+    if (np >= 3 && z(1).t === "L" && z(2).t === "H" && z(3).t === "L"){
+      const PL2 = z(1), PH1 = z(2), PL0 = z(3), W1 = PH1.p - PL0.p, rt = W1 > 0 ? (PH1.p - PL2.p)/W1 : 0;
+      if (W1 >= 2*atr && PL2.p > PL0.p && rt >= 0.382 && rt <= 0.786){
+        const why = `1파 ${f2(PL0.p)}→${f2(PH1.p)} · 2파 저점 ${f2(PL2.p)} (되돌림 ${Math.round(rt*100)}%)`;
+        if (PL2.at === li) add("E3a", "파동", "엘리어트 3파 시작 후보", why, `E3a@${T[PL2.i].ts}`);
+        if (dir === 1 && L.c > PH1.p){
+          let ok = true; for (let j = PL2.i + 1; j < li; j++) if (T[j].c > PH1.p || T[j].l < PL2.p){ ok = false; break; }
+          if (ok && L.l >= PL2.p) add("E3b", "파동", "엘리어트 1파 고점 돌파", why, `E3b@${T[PL2.i].ts}`);
+        }
+      }
+    }
+  }
+  /* VWAP */
+  if (atr && L.vw != null){
+    if (n - 7 >= t0i){ let above = true; for (let j = n - 7; j <= n - 2; j++) if (D[j].vw == null || !(D[j].c > D[j].vw)){ above = false; break; }
+      if (above && L.l <= L.vw + 0.25*atr && L.c >= L.vw) add("V1", "VWAP", "VWAP 첫 지지 접촉", `저가 ${f2(L.l)} · VWAP ${f2(L.vw)}`, "V1"); }
+    if (sameDay && P.vw != null && P.c < P.vw && L.c >= L.vw){
+      let dep = 0; for (let j = n - 2; j >= t0i && D[j].vw != null && D[j].c < D[j].vw; j--) dep = Math.max(dep, D[j].vw - D[j].l);
+      if (dep >= 0.5*atr) add("V2", "VWAP", "VWAP 아래 눌림 뒤 회복", `눌림 깊이 ${f2(dep/atr)} ATR`);
+    }
+  }
+  /* EMA */
+  if (sameDay){
+    if (P.c <= P.e9 && L.c > L.e9) add("M1", "EMA", "9EMA 재돌파", `종가 ${f2(L.c)} · 9EMA ${f2(L.e9)}`);
+    if (P.e9 <= P.e20 && L.e9 > L.e20) add("M2", "EMA", "9·20EMA 골든크로스", `9EMA ${f2(L.e9)} · 20EMA ${f2(L.e20)}`);
+  }
+  /* 갭상승 첫 눌림 재상승 */
+  if (atr && t0i >= 1 && tn >= 4){
+    const pc = D[t0i-1].c;
+    if (T[0].o >= pc*1.005){
+      let hI = 0, mnAll = Infinity; for (let j = 0; j < tn; j++){ if (T[j].h > T[hI].h) hI = j; if (T[j].l < mnAll) mnAll = T[j].l; }
+      if (mnAll >= pc && li - hI >= 2){
+        let m2 = Infinity; for (let j = hI + 1; j <= li; j++) if (T[j].l < m2) m2 = T[j].l;
+        if (T[hI].h - m2 >= 0.5*atr && L.c > P.h) add("G1", "갭", "갭상승 첫 눌림 재상승", `갭 +${f2((T[0].o/pc - 1)*100)}% · 눌림 ${f2((T[hI].h - m2)/atr)} ATR`, "G1");
+      }
+    }
+  }
+  return out;
+}
+/* 오늘 확정 5분봉마다 그 시점까지의 봉만으로 다시 계산해 ⭐ 근거 사건을 만든다(화면 미연결). 기존 ⭐ 후보(상태 새 진입 × 대표 캔들)도 같은 목록에 넣는다.
+   win* = 최근 3봉(15분) 안의 근거 합집합(조합 판정용) · epi = 15분 이내로 이어지는 묶음 번호 · first = 묶음의 첫 봉. */
+function idUpEvents(d, now, cands){
+  cands = (cands || ID_STAR_CANDS).filter(c => c.dir === "up");
+  const A = idMtf(d, now); if (!A) return [];
+  const today = A.tf[5].filter(r => r.done && r.day === A.lastDay), out = [], seen = new Set(), hist = [];
+  let prev = null, epi = -1, lastTs = -1e12;
+  for (const bar of today){
+    const tau = bar.ts + 300;
+    const At = idMtf({ ...d, bars: d.bars.filter(b => b[0] + 300 <= tau), lastTrade: tau }, tau);
+    if (!At) continue;
+    const L = At.tf[5].filter(r => r.done).pop();
+    if (!L || L.ts !== bar.ts){ prev = At.state; continue; }
+    const ev = idUpEvidence(At).filter(e => !e.once || !seen.has(e.once));
+    ev.forEach(e => { if (e.once) seen.add(e.once); });
+    const F = idCandleFeat(At, L);
+    if (F) for (const c of cands){
+      const hitPat = c.match === "primary" ? F.primary === c.pat : F.names.includes(c.pat);
+      const hitState = !c.when || (At.state === c.when && (!c.newState || prev !== c.when));
+      if (hitPat && hitState) ev.push({ k: "A:" + c.pat, fam: "캔들", name: c.pat + (c.when ? " + " + c.when + " 새 진입" : ""), why: "기존 상승 연구 후보", once: null, cand: c });
+    }
+    hist.push({ ts: bar.ts, ev });
+    if (ev.length){
+      const win = hist.filter(h => bar.ts - h.ts <= 600).flatMap(h => h.ev), first = bar.ts - lastTs > 900;
+      if (first) epi++;
+      out.push({ ts: bar.ts, m: bar.m, day: bar.day, ev, fams: [...new Set(ev.map(e => e.fam))], winKeys: [...new Set(win.map(e => e.k))], winFams: [...new Set(win.map(e => e.fam))],
+        stateAt: At.state, e5: !!At.E.bars.find(z => z.ts === bar.ts), T30: At.T ? At.T.dir : null, epi, first });
+      lastTs = bar.ts;
+    }
+    prev = At.state;
+  }
+  return out;
+}
 /* 별 말풍선·요약 문구 — idStarEvents()의 사건 하나만 보고 만든다 */
 function idStarText(ev){
   const st = s => (ID_STATE[s] || {}).t || s;
