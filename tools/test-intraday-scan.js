@@ -25,24 +25,24 @@ function mk(t, nowBase){ const kr = /\.(KS|KQ)$/.test(t), off = kr ? 32400 : -18
       x.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mk(t, { usStart })) }); });
     const pg = await ctx.newPage(); const errs = []; pg.on('pageerror', e => errs.push(e.message));
     await pg.goto('http://localhost:8765/index.html'); await pg.waitForTimeout(1600);
-    const N = await pg.evaluate(() => new Set(allStocks().map(s => s.ticker.toUpperCase())).size);
+    const N = await pg.evaluate(() => idScanTickers('us').length), NK = await pg.evaluate(() => idScanTickers('kr').length);
     ok(/전체종목 장중 모니터링\(실험실\)/.test(await pg.textContent('#idBar')), `[${nm}] 바 제목 '📡 전체종목 장중 모니터링(실험실)'`);
     await pg.click('#idToggle'); await pg.waitForTimeout(300);
     ok(calls === 0, `[${nm}] 패널을 열기만 하면 호출 0건`);
     ok(await pg.isVisible('#idScan') && await pg.isVisible('#idInput') && !(await pg.isVisible('.id-iv')), `[${nm}] 큰 버튼 + 작은 검색창 · 봉 간격 버튼은 종목을 열기 전 숨김`);
-    const tks = await pg.evaluate(() => [...new Set(allStocks().map(s => s.ticker.toUpperCase()))]); failSet.add(tks[3]); failSet.add(tks[10]);
+    const tks = await pg.evaluate(() => idScanTickers('us').map(x => x.t)); failSet.add(tks[3]); failSet.add(tks[10]);
     await pg.click('#idScan');
     await pg.waitForTimeout(120); const mid = await pg.evaluate(() => ({ btn: document.getElementById('idScan').textContent, dis: document.getElementById('idScan').disabled, prog: !!document.querySelector('.id-prog') }));
     ok(mid.dis && /조회 중/.test(mid.btn) && mid.prog, `[${nm}] 진행 중: 버튼 "${mid.btn}" · 진행 막대`);
     await pg.waitForFunction(() => !ID.scan.running, null, { timeout: 60000 });
-    ok(calls === N && maxCur <= 4 && new Set(seen).size === N, `[${nm}] 종목 ${N}개 = 호출 ${calls}건(종목당 1번) · 동시 요청 최대 ${maxCur}`);
+    ok(calls === N && maxCur <= 4 && new Set(seen).size === N && !seen.some(t => /\.(KS|KQ)$/.test(t)), `[${nm}] 미장 장중: 미장 ${N}종목만 = 호출 ${calls}건(국장 ${NK}종목 제외) · 동시 요청 최대 ${maxCur}`);
     const r1 = await pg.evaluate(() => { const S = ID.scan, h = document.querySelector('.id-shead'); const rows = [...document.querySelectorAll('.id-srow')].map(e => ({ t: e.dataset.idopen, kind: e.dataset.kind, ts: +e.dataset.ts, text: e.textContent.replace(/\s+/g, ' ') }));
       const hits = S.rows.filter(r => r.kind === 'hit'); return { total: +h.dataset.scanTotal, hit: +h.dataset.scanHit, failN: +h.dataset.scanFail, head: h.textContent, rows, hits: hits.map(r => ({ t: r.t, dir: r.dir, ts: r.ts })), failTxt: (document.querySelector('.id-sfail') || {}).textContent || '', kinds: S.rows.reduce((a, r) => (a[r.kind] = (a[r.kind] || 0) + 1, a), {}) }; });
     ok(r1.failN === 2 && /조회 실패 2종목/.test(r1.failTxt) && r1.failTxt.includes(tks[3]), `[${nm}] 일부 실패: ${r1.failTxt.slice(0, 60)}`);
     ok(r1.rows.length === r1.hits.length && r1.rows.length > 0 && r1.rows.every(x => r1.hits.some(h => h.t === x.t && h.dir === x.kind && h.ts === x.ts)), `[${nm}] 목록 ${r1.rows.length}줄 = 계산 결과 ${r1.hits.length}건(티커·종류·시각 일치) · 분류 ${JSON.stringify(r1.kinds)}`);
     const ord = r1.rows.map(x => [x.kind === 'rb' ? 1 : 0, -x.ts]); ok(ord.every((v, i) => !i || ord[i-1][0] < v[0] || (ord[i-1][0] === v[0] && ord[i-1][1] <= v[1])), `[${nm}] 순서: ⭐·⚠️ 먼저 → ▲, 그 안에서 최근 발생 순`);
     ok(r1.rows.every(x => !/강한 매수|매수 추천|매수 확정/.test(x.text)) && /매매 신호 아님/.test(await pg.textContent('.id-stitle')), `[${nm}] '강한 매수' 표현 없음 · '매매 신호 아님' 표기`);
-    ok(/장 종료 \d+/.test(r1.head) && /미장 지연/.test(r1.head), `[${nm}] 요약: ${r1.head.replace(/\s+/g, ' ').slice(0, 90)}`);
+    ok(/미장 장중/.test(r1.head) && /국장 제외/.test(r1.head) && /미장 지연/.test(r1.head), `[${nm}] 요약: ${r1.head.replace(/\s+/g, ' ').slice(0, 110)}`);
     if (OUT) await pg.locator('#idPanel').screenshot({ path: `${OUT}/scan-${nm}.png` });
     // 재시도(실패 종목만)
     failSet.clear(); const c0 = calls; await pg.click('[data-idretry]'); await pg.waitForFunction(() => !ID.scan.running, null, { timeout: 30000 });
@@ -62,8 +62,29 @@ function mk(t, nowBase){ const kr = /\.(KS|KQ)$/.test(t), off = kr ? 32400 : -18
     // 끄면 초기화 · 자동 조회 없음
     const c2 = calls; await pg.click('#idClose'); await pg.waitForTimeout(1500);
     ok(calls === c2 && await pg.evaluate(() => !ID.on && ID.scan.rows.length === 0 && document.getElementById('idOut').innerHTML === ''), `[${nm}] 닫으면 초기화 · 그 뒤 호출 0`);
+    const mkt = await pg.evaluate(() => [['2026-11-10T02:00:00Z'], ['2026-11-10T06:50:00Z'], ['2026-11-10T07:05:00Z'], ['2026-11-09T18:00:00Z'], ['2026-11-09T21:05:00Z'], ['2026-11-09T21:15:00Z'], ['2026-11-08T02:00:00Z'], ['2026-07-14T13:40:00Z']].map(([iso]) => idMarketNow(Date.parse(iso))));
+    ok(JSON.stringify(mkt) === JSON.stringify(['kr', 'kr', null, 'us', 'us', null, null, 'us']), `[${nm}] 시장 판정(국장 11:00·15:50 / 16:05 / 미장 13:00·16:05 / 16:15 / 일요일 / 서머타임 09:40) = ${JSON.stringify(mkt)}`);
     ok(!errs.length, `[${nm}] 페이지 오류 ${errs.length}건 ${errs[0] || ''}`);
     await ctx.close();
   }
-  await b.close(); process.exit(fail ? 1 : 0);
+  await b.close(); process.exitCode = fail ? 1 : 0;
 })();
+
+/* 국장 장중(11:00 KST) · 장 없는 시각(토요일) — 부르는 종목 수만 본다 */
+async function scenario(label, nowSec, expect){
+  const { chromium } = require('playwright'); const b = await chromium.launch(); const ctx = await b.newContext({ viewport: { width: 1000, height: 800 } });
+  const seen = [];
+  await ctx.addInitScript(([n]) => { window.__INTRADAY_API = 'https://fake.test/'; const RD = Date; const F = function(...a){ return a.length ? new RD(...a) : new RD(n*1000); }; F.now = () => n*1000; F.UTC = RD.UTC; F.parse = RD.parse; F.prototype = RD.prototype; window.Date = F; }, [nowSec]);
+  await ctx.route('https://fake.test/**', x => { const t = new URL(x.request().url()).searchParams.get('t'); seen.push(t); x.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mk(t, { usStart: Date.UTC(2026, 10, 9, 14, 30)/1000 })) }); });
+  const pg = await ctx.newPage(); await pg.goto('http://localhost:8765/index.html'); await pg.waitForTimeout(1500);
+  await pg.click('#idToggle'); await pg.click('#idScan'); await pg.waitForTimeout(400); await pg.waitForFunction(() => !ID.scan.running, null, { timeout: 30000 });
+  const msg = (await pg.textContent('#idMsg')) + ' ' + ((await pg.$('.id-shead')) ? await pg.textContent('.id-shead') : '');
+  const ok = expect(seen, msg); console.log((ok ? '✅ ' : '❌ ') + `[${label}] 호출 ${seen.length}건 ${JSON.stringify(seen.slice(0, 4))} · ${msg.replace(/\s+/g, ' ').trim().slice(0, 90)}`);
+  await b.close(); return ok;
+}
+process.on('beforeExit', async () => {
+  if (global.__scDone) return; global.__scDone = true;
+  const a = await scenario('국장 장중 11:00 KST', Date.UTC(2026, 10, 10, 2, 0)/1000, (s, m) => s.length === 2 && s.every(t => /\.KS$/.test(t)) && /국장 장중/.test(m) && /미장 제외/.test(m));
+  const c = await scenario('토요일 · 장 없음', Date.UTC(2026, 10, 7, 2, 0)/1000, (s, m) => s.length === 0 && /열린 시장이 없어서/.test(m));
+  process.exitCode = (process.exitCode || 0) || (a && c ? 0 : 1);
+});

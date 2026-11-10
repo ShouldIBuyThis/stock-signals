@@ -9025,7 +9025,7 @@ boot();
    · 종가 기준 evaluate()·점수·등급·차트·원장과 완전히 분리(종목명 자동완성만 allStocks()에서 읽는다). */
 const INTRADAY_API = (typeof window !== "undefined" && window.__INTRADAY_API) || "https://stock-intraday.zzz797911.workers.dev/";
 const ID_TTL = 90;   // 같은 종목 재조회 간격(초) — 중계 서버 캐시도 90초
-const ID = { on:false, iv:5, t:null, name:"", cache:new Map(), seq:0, busy:false, scan:{ seq:0, running:false, at:0, rows:[], idle:[], fail:[], total:0 } };
+const ID = { on:false, iv:5, t:null, name:"", cache:new Map(), seq:0, busy:false, scan:{ seq:0, running:false, at:0, rows:[], idle:[], fail:[], total:0, mkt:null } };
 const ID_SCAN_CONC = 4, ID_SCAN_BARS = 12;   // 동시 요청 4개 · 장중 종목의 최근 확정 12봉(60분)만 마커 계산 — 실측(docs/2026-11-10-monitoring-design.md)
 const idSw = document.getElementById("idToggle"), idPanel = document.getElementById("idPanel");
 const idInput = document.getElementById("idInput"), idOut = document.getElementById("idOut"), idMsgEl = document.getElementById("idMsg");
@@ -9113,8 +9113,20 @@ document.querySelector(".id-iv").addEventListener("click", ev => {
 function idIvShow(){ const iv = document.querySelector(".id-iv"); if (iv) iv.hidden = !ID.t; }
 function idScanBtn(){ const b = document.getElementById("idScan"); if (!b) return; const S = ID.scan;
   b.disabled = S.running; b.textContent = S.running ? `조회 중 ${S.done || 0}/${S.total}…` : "📡 전체종목 신호 조회"; }
-function idScanTickers(){ const seen = new Set(), out = []; let list = []; try { list = allStocks(); } catch(e){}
-  for (const s of list){ const t = (s.ticker || "").toUpperCase(); if (t && !seen.has(t)){ seen.add(t); out.push({ t, name: s.name || "" }); } } return out; }
+/* 2026-11-10 사용자 지시: 지금 열린 시장 종목만 부른다 — 국장 장중엔 국장 종목만, 미장 장중엔 국장을 뺀 나머지만.
+   시계로만 판단(휴장일은 모른다 → 그날은 결과가 '장 종료'로 나온다). 국장은 야후 약 20분 지연이라 15:30 마감 뒤 30분(16:00)까지 국장으로 본다.
+   미장은 뉴욕 시각 09:30~16:10. 둘 다 아니면 부르지 않는다. */
+const idIsKr = t => /\.(KS|KQ)$/.test(t) || /^\^K/.test(t);
+function idMarketNow(ms){
+  const part = tz => { const f = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(ms));
+    const g = k => (f.find(x => x.type === k) || {}).value; return { wd: g("weekday"), m: +g("hour")*60 + +g("minute") }; };
+  const wk = d => d !== "Sat" && d !== "Sun", k = part("Asia/Seoul"), u = part("America/New_York");
+  if (wk(k.wd) && k.m >= 540 && k.m < 960) return "kr";
+  if (wk(u.wd) && u.m >= 570 && u.m < 970) return "us";
+  return null;
+}
+function idScanTickers(mkt){ const seen = new Set(), out = []; let list = []; try { list = allStocks(); } catch(e){}
+  for (const s of list){ const t = (s.ticker || "").toUpperCase(); if (t && !seen.has(t) && (!mkt || (mkt === "kr") === idIsKr(t))){ seen.add(t); out.push({ t, name: s.name || "" }); } } return out; }
 function idEvidenceAt(d, ts){ const tau = ts + 300, At = idMtf({ ...d, bars: d.bars.filter(b => b[0] + 300 <= tau), lastTrade: tau }, tau); return At ? idUpEvidence(At) : []; }
 /* 한 종목 → 목록 한 줄(없으면 장중 아님/신호 없음). 계산만 — DOM 없음 */
 function idScanRow(t, name, d, now){
@@ -9153,8 +9165,9 @@ function idScanRender(){
       <span class="id-ssum">${sum}</span>
       <span class="id-sev">지표 근거(참고 · 성과 검증 실패): ${r.evi.length ? esc(r.evi.slice(0, 4).join(" · ")) + (r.evi.length > 4 ? ` 외 ${r.evi.length - 4}` : "") : "해당 없음"}</span>
     </button>`; };
-  const prog = S.running ? `<div class="id-shead">⏳ ${S.done}/${S.total} 조회 중${S.fail.length ? ` · 실패 ${S.fail.length}` : ""}</div><div class="id-prog"><i style="width:${Math.round(S.done/Math.max(1, S.total)*100)}%"></i></div>` : "";
-  const head = S.running ? "" : `<div class="id-shead" data-scan-total="${S.total}" data-scan-hit="${hits.length}" data-scan-fail="${S.fail.length}">조회 <b>${S.total}종목</b> · 장중 <b>${openN}</b>${waitN ? ` · 장 열림·시세 대기 ${waitN}` : ""} · 장 종료 ${closedN}${S.fail.length ? ` · <b class="down">실패 ${S.fail.length}</b>` : ""} · ${idHM(idLocal(S.at, 32400).m)} (서울) 기준${lagTxt ? "<br>" + lagTxt : ""}</div>`;
+  const prog = S.running ? `<div class="id-shead">⏳ ${S.mkt === "kr" ? "국장" : "미장"} ${S.done}/${S.total} 조회 중${S.fail.length ? ` · 실패 ${S.fail.length}` : ""}</div><div class="id-prog"><i style="width:${Math.round(S.done/Math.max(1, S.total)*100)}%"></i></div>` : "";
+  const mk = S.mkt === "kr" ? "국장" : "미장", other = S.mkt === "kr" ? "미장" : "국장";
+  const head = S.running ? "" : `<div class="id-shead" data-scan-total="${S.total}" data-scan-hit="${hits.length}" data-scan-fail="${S.fail.length}" data-scan-mkt="${S.mkt}"><b>${mk} 장중</b>이라 ${mk} 종목만 조회했어요(${other} 제외) · 조회 <b>${S.total}종목</b> · 장중 <b>${openN}</b>${waitN ? ` · 장 열림·시세 대기 ${waitN}` : ""} · 장 종료 ${closedN}${S.fail.length ? ` · <b class="down">실패 ${S.fail.length}</b>` : ""} · ${idHM(idLocal(S.at, 32400).m)} (서울) 기준${lagTxt ? "<br>" + lagTxt : ""}</div>`;
   const body = S.running ? "" : hits.length
     ? `<div class="id-stitle">최근 60분 안에 발생한 연구 후보 ${hits.length}종목 <span>· 매매 신호 아님 · 순위는 승률이 아니라 종류(⭐·⚠️ → ▲)와 최근 발생 순</span></div>${hits.map(row).join("")}`
     : `<div class="id-stitle">${openN ? "지금 장중인 종목에서 최근 60분 안에 ⭐·⚠️·▲가 없어요" : waitN ? "장은 열렸지만 오늘 시세가 아직 안 왔어요 (국장은 약 20분 뒤부터)" : "지금 장중인 시장이 없어요"} <span>· 개별 종목은 위 검색창에서 열 수 있어요</span></div>`;
@@ -9163,8 +9176,12 @@ function idScanRender(){
 }
 async function idScan(retryOnly){
   const S = ID.scan; if (S.running || ID.busy) return;
-  const all = idScanTickers(), list = retryOnly ? all.filter(x => S.fail.some(f => f.t === x.t)) : all;
+  const mkt = retryOnly ? S.mkt : idMarketNow(Date.now());
+  if (!mkt){ ID.seq++; ID.t = null; idIvShow(); S.at = 0; S.rows = []; idOut.innerHTML = "";
+    idMsg("🌙 지금 열린 시장이 없어서 조회하지 않았어요 — 국장 09:00~15:30 · 미장 23:30~06:00(서머타임 22:30~05:00, 한국 시각). 개별 종목은 아래 검색창에서 열 수 있어요."); return; }
+  const all = idScanTickers(mkt), list = retryOnly ? all.filter(x => S.fail.some(f => f.t === x.t)) : all;
   if (!list.length){ idMsg("⚠️ 관심종목 목록을 아직 불러오지 못했어요. 잠시 뒤 다시 눌러 주세요.", true); return; }
+  S.mkt = mkt;
   const my = ++S.seq; ID.seq++; ID.t = null; idIvShow(); idMsg("");
   if (!retryOnly){ S.rows = []; S.fail = []; S.total = list.length; S.done = 0; } else { S.fail = []; S.total = S.rows.length + list.length; S.done = S.rows.length; }
   S.running = true; idScanBtn(); idScanRender();
