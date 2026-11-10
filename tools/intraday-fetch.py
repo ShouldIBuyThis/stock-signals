@@ -11,6 +11,7 @@ ap.add_argument("--out", required=True)
 ap.add_argument("--signals", default="signals.json")
 ap.add_argument("--tickers", default="", help="쉼표 구분 — 주면 signals.json 대신 이 목록")
 ap.add_argument("--period", default="60d")
+ap.add_argument("--keep-extra", action="store_true", help="비교 전용: 정규 5분봉이 아닌 봉(국장 15:00·미장 16:00)을 지우지 않는다 — 2026-11-09 07시 이전 수집과 같은 원본")
 a = ap.parse_args()
 
 tickers = a.tickers.split(",") if a.tickers else [s["ticker"] for s in json.load(open(a.signals, encoding="utf-8"))["stocks"]]
@@ -33,7 +34,8 @@ for t in tickers:
     def regular(b):
         m = ((b[0] + b[6]) % 86400) // 60
         return m < 900 if t.endswith((".KS", ".KQ")) else m < 960
-    bars = [b for b in bars if regular(b)]
+    if not a.keep_extra:
+        bars = [b for b in bars if regular(b)]
     # 공식 종가(일봉) — '장 마감까지' 평가용. 5분봉에서 만들지 않는다.
     daily = {}
     try:
