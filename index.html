@@ -9325,7 +9325,9 @@ function idStarEvents(d, now, cands){
 /* 별 말풍선·요약 문구 — idStarEvents()의 사건 하나만 보고 만든다 */
 function idStarText(ev){
   const st = s => (ID_STATE[s] || {}).t || s;
-  const lines = ev.items.map(c => `${c.dir === "down" ? "⚠️ 하락 주의" : "⭐ 상승"} 연구 후보 · ${c.pat}${c.when ? " + " + st(c.when) : ""} · 15분 ${c.dir === "down" ? "하락" : "상승"} ${c.hit}% (${c.n}건) · ${c.verified ? "검증 통과" : "미검증 — " + c.why}${c.note ? " · " + c.note : ""}`);
+  /* 2026-11-10 사용자 지시: %는 '과거 관측 비율'이라고 밝히고, 비용 뺀 평균 순수익을 같이 보인다(이겨도 평균은 손실일 수 있다). */
+  const net = c => typeof c.net !== "number" ? "" : ` · 평균 순수익 ${c.net > 0 ? "+" : ""}${c.net.toFixed(3)}%${c.net < 0 ? " (맞힌 횟수는 많아도 평균은 손실)" : ""}`;
+  const lines = ev.items.map(c => `${c.dir === "down" ? "⚠️ 하락 주의" : "⭐ 상승"} 연구 후보 · ${c.pat}${c.when ? " + " + st(c.when) : ""} · 과거 60일 관측: 15분 뒤 ${c.dir === "down" ? "하락" : "상승"} ${c.hit}% (${c.n}건)${net(c)} · ${c.verified ? "검증 통과" : "검증 실패 — " + c.why}${c.note ? " · " + c.note : ""}`);
   const notes = [];
   if (ev.dir === "mixed") notes.push("⭐ 상승 후보와 ⚠️ 하락 주의 후보가 같은 봉에 함께 나와 방향이 불확실해요");
   if (ev.items.some(c => c.dir === "up")){
@@ -9336,6 +9338,8 @@ function idStarText(ev){
     notes.push("하락 쪽 연구 후보 — 매수 후보가 아니에요");
     if (ev.e5) notes.push("같은 봉에 ▲ 5분 재돌파도 있어요 — 근거가 엇갈려 불확실해요");
   }
+  const srcs = [...new Set(ev.items.map(c => c.src).filter(Boolean))].join(" · ");
+  if (!ev.items.every(c => c.verified)) notes.push(`이 %는 과거 60일에 관측된 비율이에요 — 앞으로 맞을 확률로 검증된 숫자가 아니에요${srcs ? ` (집계 자료: ${srcs})` : ""}`);
   notes.push("연구 후보 · 매매 신호 아님 · 판정·점수·등급에 쓰지 않아요");
   return { time: `${idMD(ev.day)} ${idHM(ev.m)}~${idHM(ev.m + 5)} 확정 봉`, icon: ev.dir === "down" ? "⚠️" : ev.dir === "up" ? "⭐" : "⭐⚠️",
     dirLabel: ev.dir === "down" ? "하락 주의 연구 후보" : ev.dir === "up" ? "상승 연구 후보" : "방향 충돌 — 상승·하락 후보 함께", lines, notes };
@@ -9346,7 +9350,7 @@ function idStarSummary(evs, A){
   const D5 = A.tf[5].filter(r => r.done), recent = new Set(D5.slice(-3).map(r => r.ts)), ev = evs[evs.length - 1];
   if (!recent.has(ev.ts)) return null;
   const T = idStarText(ev);
-  return { ev, text: `${T.icon} ${T.dirLabel} (${ev.items.map(c => c.pat).join("·")}) · ${idHM(ev.m)} 확정 봉 · ${ev.items.every(c => c.verified) ? "검증 통과" : "미검증"}${ev.dir === "up" ? (A.state === "go" ? " · 기존 매수 조건(▲)도 충족" : " · 기존 매수 조건 미충족") : ev.dir === "down" ? " · 매수 후보 아님" + (A.state === "go" ? " · 현재 판정과 엇갈림(불확실)" : "") : " · 불확실"}` };
+  return { ev, text: `${T.icon} ${T.dirLabel} (${ev.items.map(c => c.pat).join("·")}) · ${idHM(ev.m)} 확정 봉 · ${ev.items.every(c => c.verified) ? "검증 통과" : "검증 실패 · 과거 관측"}${ev.dir === "up" ? (A.state === "go" ? " · 기존 매수 조건(▲)도 충족" : " · 기존 매수 조건 미충족") : ev.dir === "down" ? " · 매수 후보 아님" + (A.state === "go" ? " · 현재 판정과 엇갈림(불확실)" : "") : " · 불확실"}` };
 }
 const ID_STATE = {
   hold:{ t:"⏳ 판단 보류", cls:"", s:"장 시작 직후거나 자료가 부족해요" },
