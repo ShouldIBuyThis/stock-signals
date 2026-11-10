@@ -990,6 +990,43 @@ def _quote_bar(t, expected, prev_close, tz=None):
             "Volume": float(v) if isinstance(v, (int, float)) and v >= 0 else None}
 
 
+def kr_official_close_gate(results, expected, quote=None):
+    """국장 '그날' 행이 15:30 공식 종가로 확정됐는지 야후 quote로 확인한다 (2026-11-10 사용자 지시).
+
+    국장 첫 갱신을 16:00 KST로 당기면서 넣은 안전장치다. 야후 국장 시세는 약 20분 늦어서
+    마감 직후에는 일봉 종가가 종가 단일가(15:20~15:30) 전 가격일 수 있다. 원장은 append-only라
+    한 번 잘못 쓰면 고칠 수 없으므로, 아래를 모두 만족하지 않으면 그 실행을 실패시켜 원장에 쓰지 않는다
+    (실패 → 17:00 KST 점검 작업이 한 번 더 돌린다).
+      · quote의 마지막 체결(regularMarketTime)이 expected 거래일 15:30 KST 이후
+      · 우리가 쓸 종가(row['price'])가 quote의 regularMarketPrice와 같음(0.5원 이내)
+    이전 실행에서 이미 기록돼 그대로 넘겨받은 행(data_status 있음)은 건드리지 않는다.
+    반환: 문제 목록(비면 통과)."""
+    bad = []
+    for r in results:
+        tk = str(r.get("ticker") or "")
+        if not is_kr_ticker(tk) or str(r.get("last_date") or "") != expected or r.get("data_status"):
+            continue
+        try:
+            if quote is not None:
+                info = quote(tk)
+            else:
+                t = yf.Ticker(tk)
+                info = t.get_info() if hasattr(t, "get_info") else t.info
+        except Exception as e:
+            bad.append(f"{tk} quote 조회 실패({e})"); continue
+        info = info if isinstance(info, dict) else {}
+        ts, qp = info.get("regularMarketTime"), info.get("regularMarketPrice")
+        if not isinstance(ts, (int, float)) or not isinstance(qp, (int, float)):
+            bad.append(f"{tk} quote에 마지막 체결 시각·가격 없음"); continue
+        qt = datetime.fromtimestamp(ts, _KST)
+        if qt.strftime("%Y-%m-%d") != expected or qt.time() < dtime(15, 30):
+            bad.append(f"{tk} 마지막 체결 {qt:%m-%d %H:%M} — {expected} 15:30 공식 종가 전"); continue
+        px = r.get("price")
+        if not isinstance(px, (int, float)) or abs(float(px) - float(qp)) > 0.5 + 1e-6 * abs(float(qp)):
+            bad.append(f"{tk} 일봉 종가 {px} ≠ 공식 종가 {qp}")
+    return bad
+
+
 def _patch_last_session(df, t, ticker, expected):
     """expected 거래일 일봉이 비었거나 없으면 quote 확정값으로 그 한 행만 채운다.
     과거 행은 절대 건드리지 않는다. 채우지 못하면 원래 df를 그대로 돌려준다."""
@@ -2323,6 +2360,10 @@ def main():
                        and str(r.get("last_date") or "") < expected_kr]
         if outdated_kr:
             raise RuntimeError(f"국장 종가 미갱신 ({expected_kr} 필요): {', '.join(outdated_kr)}")
+        # 16:00 첫 갱신 안전장치: 그날 종가가 15:30 공식 종가로 확인될 때만 저장한다.
+        unconfirmed = kr_official_close_gate(results, expected_kr)
+        if unconfirmed:
+            raise RuntimeError(f"국장 공식 종가 미확정 ({expected_kr}) — 원장에 쓰지 않음: {'; '.join(unconfirmed)}")
 
     # 신뢰도 검증의 실적 제외일도 과거 기록처럼 append-only로 고정한다.
     freeze_validation_earnings_dates(results, prev_rows)
