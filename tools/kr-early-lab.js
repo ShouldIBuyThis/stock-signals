@@ -152,7 +152,7 @@ for (const [t, XS] of Object.entries(DAYS)) for (const X of XS){
       let mx = -Infinity; for (let i = mi; i < Math.min(B.length, r.k0 + 12); i++) mx = Math.max(mx, B[i][2]); ext = (mn/r.p0 - 1)*100; reb = (mx/mn - 1)*100; }
     const w3 = [k-2, k-1, k].filter(i => I[i]).some(i => { const z = I[i], rg = z.h - z.l, lw = Math.min(z.o, z.c) - z.l; return rg > 0 && lw >= 0.5*rg && z.vr >= 1.5; });
     const prevLow6 = Math.min(...[1, 2, 3, 4, 5, 6].map(q => I[k-q] ? I[k-q].l : Infinity));
-    OLD.push({ t, day: X.day, k, from: pc, tau: L.tau, off: X.off, px: L.c, r, r0, ext, reb, minsSinceLow: (L.tau - (B[lowK][0] + 300))/60, done: hiSoFar > lowSoFar ? (hiSoFar - L.c)/(hiSoFar - lowSoFar) : null,
+    OLD.push({ t, day: X.day, k, from: pc, tau: L.tau, off: X.off, px: L.c, e9: L.e9, e20: L.e20, vw: L.vw, r, r0, ext, reb, minsSinceLow: (L.tau - (B[lowK][0] + 300))/60, done: hiSoFar > lowSoFar ? (hiSoFar - L.c)/(hiSoFar - lowSoFar) : null,
       afterDayLow: X.dayLowK < k, upAt: [k-3, k-2, k-1, k].filter(i => i >= 0 && AT[i]).flatMap(i => [...AT[i]].filter(x => x[0] === 'U').map(x => x + '@' + hhmm(I[i].tau, X.off))),
       f: { aboveE9: L.c > L.e9, kLow: L.K1 != null && L.K1 < 20, wick: w3, hl: L.l > prevLow6, bounce3: k - lowK >= 3, upAtom: [k-3, k-2, k-1, k].some(i => i >= 0 && AT[i] && [...AT[i]].some(x => x[0] === 'U')) } });
   }
@@ -231,11 +231,14 @@ else {
   let prev = null; const firsts = {};
   for (let k = 0; k < I.length; k++){ const L = I[k]; if (!L) continue;
     const C = k >= 2 && I[k-1] && I[k-2] ? cellsAt(I, k, AT, first) : { U: new Set(), D: new Set() };
+    const NA = '아직 관측 불가';
+    const perf = (dir) => { const r = outc(RP[0], X, k, 20, dir, L.l, L.h); if (!r) return `확인 가능 시각에 봉 없음(${NA})`; return [15, 30, 60].map(h => `+${h}분 ${r['m' + h] == null ? NA : sg(r['m' + h], 2) + '%'}`).join(' · '); };
     const ev = [...C.U].map(x => '🟢' + x).concat([...C.D].map(x => '🟠' + x));
+    const perfTxt = (C.U.size ? ' | 🟢 관측가 기준 ' + perf('U') : '') + (C.D.size ? ' | 🟠 관측가 기준 ' + perf('D') : '');
     const chg = prev !== L.st;
     for (const x of [...C.U].map(c => 'U' + c).concat([...C.D].map(c => 'D' + c))) if (!(x in firsts)) firsts[x] = k;
     if (chg) firsts['st:' + L.st] = firsts['st:' + L.st] ?? k;
-    if (chg || ev.length) console.log(`  ${hhmm(X.B[k][0], off)}~${hhmm(L.tau, off)} 확인 ${hhmm(L.tau + 1200, off)} · 종가 ${L.c} · EMA9 ${Math.round(L.e9)} · EMA20 ${Math.round(L.e20)} · VWAP ${L.vw == null ? '—' : Math.round(L.vw)} · 기존 ${SN[L.st] || L.st}${chg ? '(전환)' : ''}${ev.length ? ' · ' + ev.join(' ') : ''}`);
+    if (chg || ev.length) console.log(`  ${hhmm(X.B[k][0], off)}~${hhmm(L.tau, off)} 확인 ${hhmm(L.tau + 1200, off)} · 종가 ${L.c} · EMA9 ${Math.round(L.e9)} · EMA20 ${Math.round(L.e20)} · VWAP ${L.vw == null ? '—' : Math.round(L.vw)} · 기존 ${SN[L.st] || L.st}${chg ? '(전환)' : ''}${ev.length ? ' · ' + ev.join(' ') + perfTxt : ''}`);
     prev = L.st; }
   const T = k => k == null ? '없음' : `${hhmm(I[k].tau, off)} 발생 → ${hhmm(I[k].tau + 1200, off)} 확인 가능 (가격 ${I[k].c})`;
   const scan = (from, f) => { for (let k = Math.max(0, from); k < I.length; k++) if (I[k] && f(k)) return k; return null; };
@@ -246,6 +249,6 @@ else {
   const dnOldK = scan(peakFrom, k => I[k].st === 'down');
   console.log(`  요약 · 첫 EMA20 회복·지지: ${T(eUpK)} · 기존 상승 판정 첫 등장: ${T(upOldK)}${eUpK != null && upOldK != null ? ` · ${Math.round((I[upOldK].tau - I[eUpK].tau)/60)}분 차이` : ''}`);
   console.log(`         첫 EMA9·EMA20 이탈: ${T(eDnK)} · 기존 하락 판정 첫 등장: ${T(dnOldK)}${eDnK != null && dnOldK != null ? ` · ${Math.round((I[dnOldK].tau - I[eDnK].tau)/60)}분 차이` : ''}`);
-  for (const o of OLD.filter(e => e.t === RP[0] && e.day === RP[1])){ console.log(`  기존 하락 전환 ${hhmm(o.tau, off)}(가격 ${o.px}) → 확인 가능 ${hhmm(o.tau + 1200, off)} 관측가 ${o.r ? o.r.p0 : '—'} · +5/15/30/60분 ${o.r ? HM.map(h => sg(o.r['m' + h], 2)).join('/') : '—'}% · 다음날 ${o.r && o.r.d1 != null ? sg(o.r.d1, 2) : '미정'} · 그때까지 저점 뒤 ${Math.round(o.minsSinceLow)}분 · 하락폭 진행 ${pc(o.done)} · 추가 하락 ${sg(o.ext, 2)}% · 반등 ${sg(o.reb, 2)}%`);
+  for (const o of OLD.filter(e => e.t === RP[0] && e.day === RP[1])){ console.log(`  기존 하락 전환 ${hhmm(o.tau, off)}(가격 ${o.px}) → 확인 가능 ${hhmm(o.tau + 1200, off)} 관측가 ${o.r ? o.r.p0 : '—'} · EMA9 ${Math.round(o.e9)} · EMA20 ${Math.round(o.e20)} · VWAP ${o.vw == null ? '—' : Math.round(o.vw)} · +5/15/30/60분 ${o.r ? HM.map(h => o.r['m' + h] == null ? '아직 관측 불가' : sg(o.r['m' + h], 2) + '%').join(' / ') : '확인 가능 시각에 봉 없음'} · 다음날 ${o.r && o.r.d1 != null ? sg(o.r.d1, 2) : '아직 관측 불가'} · 그때까지 저점 뒤 ${Math.round(o.minsSinceLow)}분 · 하락폭 진행 ${pc(o.done)} · 추가 하락 ${sg(o.ext, 2)}% · 반등 ${sg(o.reb, 2)}%`);
     console.log(`    그 순간 5분봉: 그날 최종 저점(${hhmm(X.B[X.dayLowK][0], off)} 봉)보다 ${X.dayLowK < o.k ? '뒤' : X.dayLowK === o.k ? '같은 봉' : '앞'} · EMA9 위 ${o.f.aboveE9 ? '예' : '아니오'} · 저점 상승 ${o.f.hl ? '예' : '아니오'} · 저점 뒤 3봉↑ ${o.f.bounce3 ? '예' : '아니오'} · %K<20 ${o.f.kLow ? '예' : '아니오'} · 긴 아랫꼬리+거래량 ${o.f.wick ? '예' : '아니오'} · 직전 20분 조기 상승 원자 ${o.upAt.length ? o.upAt.join(', ') : '없음'}`); }
 }
