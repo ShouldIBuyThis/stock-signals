@@ -9576,7 +9576,7 @@ document.querySelector(".id-mode").addEventListener("click", ev => {
 });
 
 /* 국장 전용 외부 수급 링크(2026-11-10 사용자 지시) — 링크만 두고 수치는 가져오지 않는다. 미장 화면에는 없음. */
-const ID_FLOW_LINKS = [["지표담 · 기관별 장중 수급", "https://stock.minemelon.com/?indicator=UBM"], ["Market Signals", "https://signals.kr/market/"]];
+const ID_FLOW_LINKS = [["지표담 · 기관별 장중 수급", "https://stock.minemelon.com/?indicator=UBM"], ["Market Signals · 시장 전체", "https://signals.kr/market/"], ["국장지도 · 전일 종목별", "https://www.mijangmap.com/korea/flow"]];
 function idRender(){
   const c = ID.cache.get(ID.t); if (!c) return;
   const d = c.d, t = ID.t, now = Date.now()/1000, tzn = idTzName(d.tz), off = d.gmtoffset || 0;
