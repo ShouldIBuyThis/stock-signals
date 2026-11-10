@@ -17,9 +17,14 @@ on:
         description: '야후 조회 기간(년) — 3이면 약 690거래일까지 (느림)'
         required: false
         default: '1'
+      snapshot_run:
+        description: '보존한 5분봉 스냅샷의 run id (intraday-snapshot.yml) — 주면 /tmp/i5.json(정규봉)·/tmp/i5-raw.json으로 풀어 준다'
+        required: false
+        default: ''
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   lab:
@@ -34,7 +39,25 @@ jobs:
           node-version: '20'
       - name: 의존성 설치
         run: pip install -q yfinance pandas numpy exchange_calendars
+      - name: 5분봉 스냅샷 받기 (지정 시 · 야후를 다시 부르지 않는다)
+        if: ${{ inputs.snapshot_run != '' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: i5-snapshot
+          run-id: ${{ inputs.snapshot_run }}
+          github-token: ${{ github.token }}
+          path: /tmp/snap
+      - name: 5분봉 스냅샷 풀기
+        if: ${{ inputs.snapshot_run != '' }}
+        run: |
+          gunzip -c /tmp/snap/i5-raw.json.gz > /tmp/i5-raw.json
+          want=$(python -c "import json; print(json.load(open('/tmp/snap/meta.json'))['sha256_raw_json'])")
+          got=$(sha256sum /tmp/i5-raw.json | cut -d' ' -f1)
+          [ "$want" = "$got" ] || { echo "::error::스냅샷 해시 불일치"; exit 1; }
+          echo "스냅샷 run ${{ inputs.snapshot_run }} · sha256 $got"; cat /tmp/snap/meta.json; echo
+          python tools/intraday-regular.py /tmp/i5-raw.json /tmp/i5.json
       - name: 장기 원본 수집 (야후 1년)
+        if: ${{ inputs.snapshot_run == '' }}
         run: python tools/backfill_backtest.py --years "${{ inputs.years || '1' }}" --days "${{ inputs.days || '180' }}" --out backtest/raw.json
       - name: 실험 실행
         run: ${{ inputs.cmd || 'node tools/v13-lab.js backtest/raw.json --only=E' }}
