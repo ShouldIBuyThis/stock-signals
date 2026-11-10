@@ -1063,8 +1063,8 @@ html[data-theme="dark"] .mkswitch button.on{background:#37456a;box-shadow:none}
 .id-elines{list-style:none;margin:10px 0 0;padding:0;font-size:13px;line-height:1.55;color:var(--ink)}
 .id-elines li{padding:5px 0;border-top:1px solid var(--line)}
 .id-elines li:first-child{border-top:0}
-.id-elines mark.id-hl{background:linear-gradient(transparent 52%,#ffe45c 52%);color:inherit;font-weight:700;padding:0 1px;border-radius:2px}
-html[data-theme="dark"] .id-elines mark.id-hl{background:linear-gradient(transparent 52%,rgba(255,214,0,.38) 52%)}
+.id-elines mark.id-hl,.id-lines mark.id-hl{background:linear-gradient(transparent 52%,#ffe45c 52%);color:inherit;font-weight:700;padding:0 1px;border-radius:2px}
+html[data-theme="dark"] .id-elines mark.id-hl,html[data-theme="dark"] .id-lines mark.id-hl{background:linear-gradient(transparent 52%,rgba(255,214,0,.38) 52%)}
 .id-lv{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;font-size:11.5px;color:var(--muted)}
 .id-lv span{background:var(--neutral-soft);border-radius:8px;padding:3px 8px}
 .id-lv b{color:var(--ink)}
@@ -9667,9 +9667,9 @@ function idRender(){
     const bt = ID_BT[A.state], btTxt = bt ? `이 상태 사건 <b>${bt[0].toLocaleString()}건</b> · 60분 뒤 평균 ${bt[1] > 0 ? "+" : ""}${bt[1].toFixed(3)}% (상승 ${bt[2]}%)` : "판단 보류 상태는 집계 대상 아님";
     sum = `<div class="id-big ${st.cls}"><b>${st.t}</b><span>${st.s} · 판정: ${act}</span>${rbWarn}</div>
       <ul class="id-lines">
-        <li><em>30분 추세</em><span>${!T ? "자료 부족 (확정 30분봉 20개 미만)" : `<span class="${T.dir === "up" ? "up" : T.dir === "down" ? "down" : ""}">${T.dir === "up" ? "상승" : T.dir === "down" ? "하락" : "중립"}</span> · 종가 ${P$(T.c)} · VWAP ${T.vw == null ? "—" : P$(T.vw)} · EMA9 ${P$(T.e9)} / EMA20 ${P$(T.e20)}`}</span></li>
-        <li><em>15분 지지</em><span>${P.atr == null ? "자료 부족" : `${P.broken ? '<span class="down">이탈</span>' : P.held ? '<span class="up">지지 확인</span>' : P.pull ? "눌림 진행" : "눌림 아님"} · S ${P.S != null ? `${P$(P.S)} (${P.Sname})` : "없음"} · R ${P.R != null ? P$(P.R) : "—"}${P.breakout ? ' <span class="up">돌파</span>' : ""} · ATR ${P$(P.atr)}`}</span></li>
-        <li><em>5분 진입</em><span>${E.early ? "장 시작 30분 제외" : E.ok ? `<span class="up">충족</span> ${idHM(E.hit.m)} 확정 봉 · 무효화 기준 저가 ${P$(E.hit.low)}` : "미충족 (최근 확정 3봉)"}</span></li>
+        <li><em>30분 추세</em><span>${!T ? "자료 부족 (확정 30분봉 20개 미만)" : `<mark class="id-hl"><span class="${T.dir === "up" ? "up" : T.dir === "down" ? "down" : ""}">${T.dir === "up" ? "상승" : T.dir === "down" ? "하락" : "중립"}</span></mark> · 종가 ${P$(T.c)} · VWAP ${T.vw == null ? "—" : P$(T.vw)} · EMA9 ${P$(T.e9)} / EMA20 ${P$(T.e20)}`}</span></li>
+        <li><em>15분 지지</em><span>${P.atr == null ? "자료 부족" : `<mark class="id-hl">${P.broken ? '<span class="down">이탈</span>' : P.held ? '<span class="up">지지 확인</span>' : P.pull ? "눌림 진행" : "눌림 아님"}</mark> · S ${P.S != null ? `${P$(P.S)} (${P.Sname})` : "없음"} · R ${P.R != null ? P$(P.R) : "—"}${P.breakout ? ' <span class="up">돌파</span>' : ""} · ATR ${P$(P.atr)}`}</span></li>
+        <li><em>5분 진입</em><span>${E.early ? '<mark class="id-hl">장 시작 30분 제외</mark>' : E.ok ? `<mark class="id-hl"><span class="up">충족</span></mark> ${idHM(E.hit.m)} 확정 봉 · 무효화 기준 저가 ${P$(E.hit.low)}` : '<mark class="id-hl">미충족</mark> (최근 확정 3봉)'}</span></li>
       </ul>
       ${rbLine}${starLine}${starDay}
       ${levels}
