@@ -1095,6 +1095,28 @@ html[data-theme="dark"] .id-starline{color:#fde68a;background:#3b3212}
 .id-clr{border:0;background:transparent;color:var(--faint);font-size:13px;padding:4px 6px;cursor:pointer}
 .id-go{border:0;border-radius:10px;background:#2f6fed;color:#fff;font:inherit;font-weight:700;font-size:13.5px;padding:0 16px;cursor:pointer;white-space:nowrap}
 .id-go:disabled{opacity:.6;cursor:wait}
+.id-scan{flex:1 1 220px;min-height:40px;font-size:14px}
+.id-q{flex:1 1 200px}
+.id-go-s{background:var(--surface);color:var(--ink);border:1px solid var(--line);padding:0 12px;font-size:12.5px}
+.id-iv[hidden]{display:none}
+.id-prog{height:4px;border-radius:999px;background:var(--line);overflow:hidden;margin-top:6px}
+.id-prog i{display:block;height:100%;background:#2f6fed;transition:width .15s}
+.id-slist{margin-top:10px}
+.id-shead{font-size:12px;color:var(--muted);line-height:1.6}
+.id-shead b{color:var(--ink)}
+.id-stitle{margin:10px 0 4px;font-size:13.5px;font-weight:800;color:var(--ink)}
+.id-stitle span{font-weight:500;font-size:11px;color:var(--muted)}
+.id-srow{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:2px 8px;align-items:start;width:100%;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 10px;margin-top:6px;font:inherit;color:var(--ink);cursor:pointer}
+.id-srow:hover{border-color:#2f6fed}
+.id-srank{grid-row:1 / span 3;font-size:13px;font-weight:800;color:var(--muted);padding-top:1px}
+.id-stk{font-size:13.5px;font-weight:800}
+.id-stk small{font-weight:500;color:var(--muted);font-size:11.5px;margin-left:5px}
+.id-slag{font-size:10.5px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:1px 7px;white-space:nowrap}
+.id-slag.kr{color:var(--sell);border-color:var(--sell)}
+.id-spat,.id-ssum,.id-sev{grid-column:2 / span 2;font-size:12px;line-height:1.5}
+.id-sev{color:var(--muted);font-size:11.5px}
+.id-sfail{margin-top:10px;font-size:12px;color:var(--muted);line-height:1.6}
+.id-back{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;font:inherit;font-size:12.5px;font-weight:700;padding:6px 12px;cursor:pointer;margin:10px 0 0}
 .id-iv{display:flex;gap:4px;flex:none}
 .id-iv button{border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:10px;font:inherit;font-weight:700;font-size:13px;padding:8px 14px;cursor:pointer}
 .id-iv button.on{background:#2f6fed;border-color:#2f6fed;color:#fff}
@@ -1155,6 +1177,8 @@ html[data-theme="dark"] .id-starline{color:#fde68a;background:#3b3212}
   .id-panel{padding:12px}
   .id-res{grid-template-columns:1fr}
   .id-iv{width:100%} .id-iv button{flex:1}
+  .id-head .id-ic{display:none} .id-title{font-size:14.5px;white-space:nowrap}
+  .id-scan{flex-basis:100%}
   .id-px{font-size:18px}
 }
 </style>
@@ -1242,25 +1266,27 @@ html[data-theme="dark"] .strategy-info{color:var(--muted)}
   <!-- 장중 신호 탐지 모드 (2026-11-09) — 기본 OFF. 종가 기준 신호·점수·등급·차트와 완전히 분리. 조회 버튼을 눌러야만 데이터를 받는다. -->
   <div class="idbar" id="idBar">
     <span class="id-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h4l3-7 4 14 3-7h6"/></svg></span>
-    <b class="id-name">장중 신호 탐지</b>
-    <span class="id-chip">수동 조회</span>
-    <span class="id-desc">30·15·5분봉으로 장중 흐름을 확인해요</span>
-    <button type="button" class="id-sw" id="idToggle" role="switch" aria-checked="false" aria-label="장중 신호 탐지 모드"><span class="id-sw-t">OFF</span><span class="id-track"></span></button>
+    <b class="id-name">📡 전체종목 모니터링</b>
+    <span class="id-chip">버튼 조회</span>
+    <span class="id-desc">버튼을 누르면 관심종목 전체의 장중 흐름을 한 번에 살펴봐요</span>
+    <button type="button" class="id-sw" id="idToggle" role="switch" aria-checked="false" aria-label="전체종목 모니터링"><span class="id-sw-t">OFF</span><span class="id-track"></span></button>
   </div>
-  <section class="id-panel" id="idPanel" hidden aria-label="장중 신호 탐지">
+  <section class="id-panel" id="idPanel" hidden aria-label="전체종목 모니터링">
     <div class="id-head">
       <span class="id-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h4l3-7 4 14 3-7h6"/></svg></span>
-      <b class="id-title">장중 신호 탐지</b>
+      <b class="id-title">📡 전체종목 모니터링</b>
       <div class="id-mode" role="group" aria-label="보기 방식"><button type="button" data-mode="easy" class="on" aria-pressed="true">🟢 초보자</button><button type="button" data-mode="pro" aria-pressed="false">🔵 전문가</button></div>
-      <button type="button" class="id-x" id="idClose" aria-label="장중 신호 탐지 닫기">✕</button>
+      <button type="button" class="id-x" id="idClose" aria-label="전체종목 모니터링 닫기">✕</button>
     </div>
-    <div class="id-sub"><span class="id-note">ⓘ 실시간이 아닌 지연 데이터예요</span> 30분 추세 → 15분 지지 → 5분 진입 조건 순서로 봐요. <b>조회 버튼을 눌러야</b> 데이터를 불러와요.</div>
+    <div class="id-sub"><span class="id-note">ⓘ 실시간이 아닌 지연 데이터예요 · 미장 약 1분 · 국장 약 20분</span> <b>버튼을 눌렀을 때만</b> 불러와요(자동 조회 없음). 연구 후보는 매매 신호가 아니에요.</div>
+    <!-- 2026-11-10 사용자 지시: 새 메뉴 없이 기존 수동 조회 자리를 전체종목 모니터링으로 재구성. 큰 버튼 = 전체 조회, 개별 종목 검색은 같은 줄의 작은 검색창으로 유지 -->
     <div class="id-row">
+      <button type="button" class="id-go id-scan" id="idScan">📡 전체종목 신호 조회</button>
       <form class="id-q" id="idForm" autocomplete="off">
-        <label class="id-in"><span aria-hidden="true">🔍</span><input id="idInput" list="idList" placeholder="티커 또는 종목명 (예: NVDA)" enterkeyhint="search" aria-label="종목"><button type="button" class="id-clr" id="idClr" aria-label="입력 지우기">✕</button></label>
-        <button type="submit" class="id-go" id="idGo">조회</button>
+        <label class="id-in"><span aria-hidden="true">🔍</span><input id="idInput" list="idList" placeholder="개별 종목 (예: NVDA)" enterkeyhint="search" aria-label="개별 종목 검색"><button type="button" class="id-clr" id="idClr" aria-label="입력 지우기">✕</button></label>
+        <button type="submit" class="id-go id-go-s" id="idGo" aria-label="개별 종목 조회">열기</button>
       </form>
-      <div class="id-iv" role="group" aria-label="봉 간격"><button type="button" data-iv="5" class="on">5분</button><button type="button" data-iv="15">15분</button><button type="button" data-iv="30">30분</button></div>
+      <div class="id-iv" role="group" aria-label="봉 간격" hidden><button type="button" data-iv="5" class="on">5분</button><button type="button" data-iv="15">15분</button><button type="button" data-iv="30">30분</button></div>
     </div>
     <datalist id="idList"></datalist>
     <div class="id-msg" id="idMsg" role="status"></div>
@@ -8998,7 +9024,8 @@ boot();
    · 종가 기준 evaluate()·점수·등급·차트·원장과 완전히 분리(종목명 자동완성만 allStocks()에서 읽는다). */
 const INTRADAY_API = (typeof window !== "undefined" && window.__INTRADAY_API) || "https://stock-intraday.zzz797911.workers.dev/";
 const ID_TTL = 90;   // 같은 종목 재조회 간격(초) — 중계 서버 캐시도 90초
-const ID = { on:false, iv:5, t:null, name:"", cache:new Map(), seq:0, busy:false };
+const ID = { on:false, iv:5, t:null, name:"", cache:new Map(), seq:0, busy:false, scan:{ seq:0, running:false, at:0, rows:[], idle:[], fail:[], total:0 } };
+const ID_SCAN_CONC = 4, ID_SCAN_BARS = 12;   // 동시 요청 4개 · 장중 종목의 최근 확정 12봉(60분)만 마커 계산 — 실측(docs/2026-11-10-monitoring-design.md)
 const idSw = document.getElementById("idToggle"), idPanel = document.getElementById("idPanel");
 const idInput = document.getElementById("idInput"), idOut = document.getElementById("idOut"), idMsgEl = document.getElementById("idMsg");
 function idMsg(html, err){ idMsgEl.innerHTML = html || ""; idMsgEl.classList.toggle("err", !!err); }
@@ -9009,7 +9036,8 @@ function setIdMode(on){
   idSw.querySelector(".id-sw-t").textContent = ID.on ? "ON" : "OFF";
   idPanel.hidden = !ID.on;
   if (ID.on){ idFillList(); }
-  else { ID.seq++; ID.t = null; ID.busy = false; idOut.innerHTML = ""; idMsg(""); document.getElementById("idGo").disabled = false; }
+  else { ID.seq++; ID.t = null; ID.busy = false; idOut.innerHTML = ""; idMsg(""); document.getElementById("idGo").disabled = false;
+    ID.scan.seq++; ID.scan.running = false; ID.scan.at = 0; ID.scan.rows = []; idScanBtn(); idIvShow(); }
 }
 idSw.addEventListener("click", () => setIdMode(!ID.on));
 document.getElementById("idClose").addEventListener("click", () => { setIdMode(false); idSw.focus(); });
@@ -9057,7 +9085,7 @@ async function idQuery(force){
   try {
     await idFetch(pick.t);
     if (my !== ID.seq || !ID.on) return;
-    ID.t = pick.t; ID.name = pick.name;
+    ID.t = pick.t; ID.name = pick.name; idIvShow();
     if (!force) idInput.value = pick.t;
     idMsg(force && fresh ? `↻ 방금 받은 자료라 같은 결과예요 (같은 종목은 90초 뒤 새로 받아요)` : "");
     idRender();
@@ -9076,7 +9104,91 @@ document.querySelector(".id-iv").addEventListener("click", ev => {
   document.querySelectorAll(".id-iv [data-iv]").forEach(x => x.classList.toggle("on", x === b));
   if (ID.t && ID.cache.get(ID.t)) idRender();       // 받아 둔 5분봉을 묶어 그린다 — 다시 부르지 않는다
 });
+/* ===== 📡 전체종목 모니터링 (2026-11-10 사용자 지시) =====
+   · 버튼을 눌렀을 때만 실행(자동·주기 조회 없음). 종목별 조회를 동시 ID_SCAN_CONC개로 제한하고 종목별 90초 캐시(idFetch)를 그대로 쓴다.
+   · 판정은 기존 함수 그대로: idMtf(현재 상태·▲) + idStarEvents(⭐·⚠️ 연구 후보, 최근 ID_SCAN_BARS봉만). 새 산식 없음 — 점수·등급·원장과 무관.
+   · 지표 근거 칸은 idUpEvidence()의 그 봉 상태를 '참고'로만 적는다(2026-11-10 시험에서 성과 검증 실패 — 순위·마커에 쓰지 않는다).
+   · 순위는 승률이 아니다(검증 통과 신호 없음): ⭐·⚠️ 연구 후보 → ▲ 순, 그 안에서 최근 발생 순. */
+function idIvShow(){ const iv = document.querySelector(".id-iv"); if (iv) iv.hidden = !ID.t; }
+function idScanBtn(){ const b = document.getElementById("idScan"); if (!b) return; const S = ID.scan;
+  b.disabled = S.running; b.textContent = S.running ? `조회 중 ${S.done || 0}/${S.total}…` : "📡 전체종목 신호 조회"; }
+function idScanTickers(){ const seen = new Set(), out = []; let list = []; try { list = allStocks(); } catch(e){}
+  for (const s of list){ const t = (s.ticker || "").toUpperCase(); if (t && !seen.has(t)){ seen.add(t); out.push({ t, name: s.name || "" }); } } return out; }
+function idEvidenceAt(d, ts){ const tau = ts + 300, At = idMtf({ ...d, bars: d.bars.filter(b => b[0] + 300 <= tau), lastTrade: tau }, tau); return At ? idUpEvidence(At) : []; }
+/* 한 종목 → 목록 한 줄(없으면 장중 아님/신호 없음). 계산만 — DOM 없음 */
+function idScanRow(t, name, d, now){
+  const A = idMtf(d, now); if (!A) return { t, name, kind: "nodata" };
+  const reg = d.reg || {}, lag = Math.max(0, Math.round((now - A.lastTrade)/60));
+  const wait = !A.open && !A.settling && !!reg.start && now >= reg.start && now <= (A.regEnd || reg.end || 0) && A.lastTrade < reg.start;
+  const base = { t, name, kr: !!A.kr, lag, open: A.open, state: A.state };
+  if (!A.open) return { ...base, kind: wait ? "wait" : "closed" };
+  const D5 = A.tf[5].filter(r => r.done && r.day === A.lastDay), from = D5.length ? D5[Math.max(0, D5.length - ID_SCAN_BARS)].ts : 0;
+  const stars = idStarEvents(d, now, null, ID_SCAN_BARS), rb = (A.E.bars || []).filter(z => z.ts >= from);
+  const ev = stars.length ? stars[stars.length - 1] : null, r = rb.length ? rb[rb.length - 1] : null;
+  if (!ev && !r) return { ...base, kind: "none" };
+  const useStar = !!ev, ts = useStar ? ev.ts : r.ts, m = useStar ? ev.m : r.m, age = Math.max(0, Math.round((now - (ts + 300))/60));
+  let evi = []; try { evi = idEvidenceAt(d, ts).map(e => e.name.replace("첫 ", "")); } catch(e){}
+  return { ...base, kind: "hit", ts, m, age, dir: useStar ? ev.dir : "rb", items: useStar ? ev.items : [], rbToo: !!r, rbM: r ? r.m : null, rbAge: r ? Math.max(0, Math.round((now - (r.ts + 300))/60)) : null, evi, off: d.gmtoffset || 0 };
+}
+function idScanRender(){
+  const S = ID.scan; if (!S.at && !S.running) return;
+  const hits = S.rows.filter(r => r.kind === "hit").sort((a, b) => (a.dir === "rb") - (b.dir === "rb") || b.ts - a.ts);
+  const openN = S.rows.filter(r => r.open).length, waitN = S.rows.filter(r => r.kind === "wait").length, closedN = S.rows.filter(r => r.kind === "closed" || r.kind === "nodata").length;
+  const med = a => { a = a.slice().sort((x, y) => x - y); return a.length ? a[a.length >> 1] : null; };
+  const lagK = med(S.rows.filter(r => r.open && r.kr).map(r => r.lag)), lagU = med(S.rows.filter(r => r.open && !r.kr).map(r => r.lag));
+  const lagTxt = [lagU != null ? `미장 지연 약 ${lagU < 1 ? "1분 미만" : lagU + "분"}` : null, lagK != null ? `<b class="down">국장 지연 약 ${lagK}분</b>` : null].filter(Boolean).join(" · ");
+  const st = s => (ID_STATE[s] || {}).t || s;
+  const row = (r, i) => {
+    const icon = r.dir === "up" ? "⭐" : r.dir === "down" ? "⚠️" : r.dir === "mixed" ? "⭐⚠️" : "▲";
+    const pat = r.dir === "rb" ? "5분 재돌파" : r.items.map(c => `${c.pat}${c.when ? " + " + st(c.when) : ""}`).join(" · ");
+    const obs = r.dir === "rb" ? "" : r.items.map(c => `${c.dir === "down" ? "하락" : "상승"} ${c.hit}%(${c.n}건) 관측${typeof c.net === "number" && c.net < 0 ? " · 평균은 손실" : ""}`).join(" · ");
+    const sum = r.dir === "rb" ? `${idHM(r.m + 5)} 재돌파 발생 · 신호 경과 ${r.age}분${r.age > 5 ? ' · <b class="down">추격 주의</b>' : ""} · 과거 시험에서 평소와 차이 없음`
+      : `${idHM(r.m + 5)} 확정 · ${r.age}분 전 · ${obs} · <b>검증 실패</b>${r.dir === "down" ? " · 매수 후보 아님" : ""}${r.rbToo && r.dir !== "rb" ? ` · ▲ ${idHM(r.rbM + 5)} 재돌파도 있음` : ""}`;
+    return `<button type="button" class="id-srow" data-idopen="${esc(r.t)}" data-kind="${r.dir}" data-ts="${r.ts}">
+      <span class="id-srank">${i + 1}</span>
+      <span class="id-stk">${icon} ${esc(r.t)}<small>${esc(r.name)}</small></span>
+      <span class="id-slag${r.kr ? " kr" : ""}">지연 약 ${r.lag < 1 ? "1분 미만" : r.lag + "분"}</span>
+      <span class="id-spat"><b>${esc(pat)}</b> · 지금 상태 ${st(r.state)}</span>
+      <span class="id-ssum">${sum}</span>
+      <span class="id-sev">지표 근거(참고 · 성과 검증 실패): ${r.evi.length ? esc(r.evi.slice(0, 4).join(" · ")) + (r.evi.length > 4 ? ` 외 ${r.evi.length - 4}` : "") : "해당 없음"}</span>
+    </button>`; };
+  const prog = S.running ? `<div class="id-shead">⏳ ${S.done}/${S.total} 조회 중${S.fail.length ? ` · 실패 ${S.fail.length}` : ""}</div><div class="id-prog"><i style="width:${Math.round(S.done/Math.max(1, S.total)*100)}%"></i></div>` : "";
+  const head = S.running ? "" : `<div class="id-shead" data-scan-total="${S.total}" data-scan-hit="${hits.length}" data-scan-fail="${S.fail.length}">조회 <b>${S.total}종목</b> · 장중 <b>${openN}</b>${waitN ? ` · 장 열림·시세 대기 ${waitN}` : ""} · 장 종료 ${closedN}${S.fail.length ? ` · <b class="down">실패 ${S.fail.length}</b>` : ""} · ${idHM(idLocal(S.at, 32400).m)} (서울) 기준${lagTxt ? "<br>" + lagTxt : ""}</div>`;
+  const body = S.running ? "" : hits.length
+    ? `<div class="id-stitle">최근 60분 안에 발생한 연구 후보 ${hits.length}종목 <span>· 매매 신호 아님 · 순위는 승률이 아니라 종류(⭐·⚠️ → ▲)와 최근 발생 순</span></div>${hits.map(row).join("")}`
+    : `<div class="id-stitle">${openN ? "지금 장중인 종목에서 최근 60분 안에 ⭐·⚠️·▲가 없어요" : waitN ? "장은 열렸지만 오늘 시세가 아직 안 왔어요 (국장은 약 20분 뒤부터)" : "지금 장중인 시장이 없어요"} <span>· 개별 종목은 위 검색창에서 열 수 있어요</span></div>`;
+  const fail = !S.running && S.fail.length ? `<div class="id-sfail">⚠️ 조회 실패 ${S.fail.length}종목: ${esc(S.fail.slice(0, 12).map(f => f.t).join(", "))}${S.fail.length > 12 ? " …" : ""} <button type="button" class="id-re" data-idretry>실패 종목만 다시 조회</button></div>` : "";
+  idOut.innerHTML = `<div class="id-slist">${prog}${head}${body}${fail}</div>`;
+}
+async function idScan(retryOnly){
+  const S = ID.scan; if (S.running || ID.busy) return;
+  const all = idScanTickers(), list = retryOnly ? all.filter(x => S.fail.some(f => f.t === x.t)) : all;
+  if (!list.length){ idMsg("⚠️ 관심종목 목록을 아직 불러오지 못했어요. 잠시 뒤 다시 눌러 주세요.", true); return; }
+  const my = ++S.seq; ID.seq++; ID.t = null; idIvShow(); idMsg("");
+  if (!retryOnly){ S.rows = []; S.fail = []; S.total = list.length; S.done = 0; } else { S.fail = []; S.total = S.rows.length + list.length; S.done = S.rows.length; }
+  S.running = true; idScanBtn(); idScanRender();
+  let next = 0, lastPaint = 0, fromCache = 0;
+  const worker = async () => {
+    while (next < list.length){
+      const { t, name } = list[next++];
+      const c0 = ID.cache.get(t); if (c0 && Date.now()/1000 - c0.at < ID_TTL) fromCache++;
+      try { const c = await idFetch(t); if (my !== S.seq || !ID.on) return; S.rows.push(idScanRow(t, name, c.d, Date.now()/1000)); }
+      catch(e){ if (my !== S.seq || !ID.on) return; S.fail.push({ t, msg: e.message }); }
+      S.done++;
+      if (Date.now() - lastPaint > 150){ lastPaint = Date.now(); idScanBtn(); idScanRender(); await new Promise(r => setTimeout(r, 0)); }
+    }
+  };
+  await Promise.all([...Array(Math.min(ID_SCAN_CONC, list.length))].map(worker));
+  if (my !== S.seq || !ID.on) return;
+  S.running = false; S.at = Date.now()/1000; idScanBtn(); idScanRender();
+  if (fromCache === list.length && !retryOnly) idMsg("↻ 방금 받은 자료라 같은 결과예요 (같은 종목은 90초 뒤 새로 받아요)");
+}
+document.getElementById("idScan").addEventListener("click", () => idScan(false));
 idOut.addEventListener("click", ev => {
+  const op = ev.target.closest("[data-idopen]");
+  if (op){ idInput.value = op.dataset.idopen; idQuery(false); return; }           // 기존 개별 종목 화면 재사용(90초 안이면 다시 부르지 않는다)
+  if (ev.target.closest("[data-idback]")){ ID.seq++; ID.t = null; ID.busy = false; document.getElementById("idGo").disabled = false; idIvShow(); idMsg(""); idScanRender(); return; }
+  if (ev.target.closest("[data-idretry]")){ idScan(true); return; }
   if (ev.target.closest("[data-idre]")) idQuery(true);
   const g = ev.target.closest("[data-idcard]");
   if (g && typeof gotoStock === "function") gotoStock(g.dataset.idcard, "overall");   // 기존 검색창과 같은 이동
@@ -9298,15 +9410,18 @@ const ID_STAR_CANDS = (typeof window !== "undefined" && window.__ID_STAR_CANDS) 
   { pat:"장대양봉", dir:"up", when:"down", newState:true, match:"primary", hit:68, n:28, net:0.338, verified:false, why:"워크포워드 1차 학습 표본 부족(7건) · 구간별 86→67→58%로 낮아짐", note:"미장만 28건 · 국장 0건(판단 불가)", src:"2026-11-10 수집 60일" },
   { pat:"역망치형", dir:"up", when:"wait", newState:true, match:"primary", hit:65, n:26, net:-0.180, verified:false, why:"워크포워드 1차 학습 표본 부족(4건) · 2차 검증 표본 부족(9건 56%)", note:"미장만 26건 · 국장 0건(판단 불가) · 다른 수집 시점엔 57%(28건)", src:"2026-11-10 수집 60일" },
 ];
-function idStarEvents(d, now, cands){
+function idStarEvents(d, now, cands, lastN){
   cands = cands || ID_STAR_CANDS;
   const A = idMtf(d, now); if (!A) return [];
-  const today = A.tf[5].filter(r => r.done && r.day === A.lastDay), out = [];
-  let prev = null;
+  const all = A.tf[5].filter(r => r.done && r.day === A.lastDay), out = [];
+  /* lastN(전체종목 조회용): 마지막 N봉만 평가. 그 앞 1봉은 '직전 상태'만 구하고 사건은 내지 않는다 → 전체 계산의 마지막 N봉과 같은 결과 */
+  const skip = lastN && all.length > lastN ? all.length - lastN - 1 : -1, today = skip >= 0 ? all.slice(skip) : all;
+  let prev = null, warm = skip >= 0;
   for (const bar of today){
     const tau = bar.ts + 300;
     const At = idMtf({ ...d, bars: d.bars.filter(b => b[0] + 300 <= tau), lastTrade: tau }, tau);
     if (!At) continue;
+    if (warm){ warm = false; prev = At.state; continue; }
     const L = At.tf[5].filter(r => r.done).pop();
     if (!L || L.ts !== bar.ts){ prev = At.state; continue; }
     const F = idCandleFeat(At, L), items = [];
@@ -9656,7 +9771,7 @@ function idRender(){
       ${inSite ? `<button type="button" class="id-card-go" data-idcard="${esc(t)}">📊 일봉 종가 기준 종목 카드 보기</button>` : `<div class="id-sub" style="margin-top:8px">이 종목은 사이트의 일봉 종가 목록에 없어요.</div>`}
       <details class="id-more"><summary>마지막 장 마감 시점 분석 보기</summary>${sum}</details>`;
   }
-  idOut.innerHTML = `<div class="id-res">
+  idOut.innerHTML = `${ID.scan.at ? `<button type="button" class="id-back" data-idback>← 전체종목 목록으로</button>` : ""}<div class="id-res">
     <div class="id-card">
       <div class="id-top">
         <div><span class="id-tk">${esc(t)}</span><span class="id-nm">${esc(ID.name||"")}</span>
