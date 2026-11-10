@@ -1063,6 +1063,8 @@ html[data-theme="dark"] .mkswitch button.on{background:#37456a;box-shadow:none}
 .id-elines{list-style:none;margin:10px 0 0;padding:0;font-size:13px;line-height:1.55;color:var(--ink)}
 .id-elines li{padding:5px 0;border-top:1px solid var(--line)}
 .id-elines li:first-child{border-top:0}
+.id-elines mark.id-hl{background:linear-gradient(transparent 52%,#ffe45c 52%);color:inherit;font-weight:700;padding:0 1px;border-radius:2px}
+html[data-theme="dark"] .id-elines mark.id-hl{background:linear-gradient(transparent 52%,rgba(255,214,0,.38) 52%)}
 .id-lv{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;font-size:11.5px;color:var(--muted)}
 .id-lv span{background:var(--neutral-soft);border-radius:8px;padding:3px 8px}
 .id-lv b{color:var(--ink)}
@@ -9636,17 +9638,17 @@ function idRender(){
 
   let sum;
   if (ID.mode === "easy"){
-    const ez = ID_EASY[A.state];
-    const l30 = !T ? "📊 30분봉: 아직 자료가 부족해요." : T.dir === "up" ? "📈 30분봉: 큰 흐름은 위쪽이에요. (가격이 오늘 평균 거래가격 위 · 짧은 평균선이 긴 평균선 위)"
-      : T.dir === "down" ? "📉 30분봉: 큰 흐름이 아래쪽이에요. (가격이 오늘 평균 거래가격 아래 · 짧은 평균선이 긴 평균선 아래)" : "📊 30분봉: 상승과 하락 방향이 아직 불분명해요.";
+    const ez = ID_EASY[A.state], hl = x => `<mark class="id-hl">${x}</mark>`;
+    const l30 = !T ? `📊 30분봉: 아직 자료가 ${hl("부족해요")}.` : T.dir === "up" ? `📈 30분봉: 큰 흐름은 ${hl("위쪽")}이에요. (가격이 오늘 평균 거래가격 위 · 짧은 평균선이 긴 평균선 위)`
+      : T.dir === "down" ? `📉 30분봉: 큰 흐름이 ${hl("아래쪽")}이에요. (가격이 오늘 평균 거래가격 아래 · 짧은 평균선이 긴 평균선 아래)` : `📊 30분봉: 상승과 하락 방향이 아직 ${hl("불분명해요")}.`;
     const sTxt = P.S != null ? `지지선 ${P$(P.S)}` : null;
-    const l15 = P.atr == null ? "📊 15분봉: 아직 자료가 부족해요." : P.broken ? `📉 15분봉: 받쳐 주던 선 아래로 내려왔어요.${sTxt ? ` (${sTxt})` : ""}`
-      : P.held ? `✅ 15분봉: 조정 뒤 ${sTxt} 근처에서 버텼어요.` : P.pull ? `📉 15분봉: 주가가 조정받으며 지지선을 확인하고 있어요.${sTxt ? ` (${sTxt})` : ""}`
-      : sTxt ? `📊 15분봉: ${sTxt} 위에서 움직이고 있어요.` : "📊 15분봉: 지금 가격 아래에 받쳐 줄 선이 없어요.";
-    const l5 = E.early ? "⏳ 5분봉: 장 시작 30분은 흔들림이 커서 지켜보는 중이에요."
-      : E.ok ? `🟢 5분봉: ${idHM(E.hit.m)} 봉이 단기 이동평균선을 다시 넘었고 거래량도 늘었어요. (확정된 봉)`
-      : E.near ? `⏳ 5분봉: ${idHM(E.near.m)}에 단기 이동평균선을 넘었지만 ${[!E.near.candle && "봉 모양", !E.near.vol && "거래량"].filter(Boolean).join("·")}이 부족해요.`
-      : "⏳ 5분봉: 다시 상승하려는 신호를 기다리는 중이에요.";
+    const l15 = P.atr == null ? `📊 15분봉: 아직 자료가 ${hl("부족해요")}.` : P.broken ? `📉 15분봉: 받쳐 주던 선 ${hl("아래로 내려왔어요")}.${sTxt ? ` (${sTxt})` : ""}`
+      : P.held ? `✅ 15분봉: 조정 뒤 ${sTxt} 근처에서 ${hl("버텼어요")}.` : P.pull ? `📉 15분봉: 주가가 조정받으며 ${hl("지지선을 확인하고 있어요")}.${sTxt ? ` (${sTxt})` : ""}`
+      : sTxt ? `📊 15분봉: ${sTxt} ${hl("위에서 움직이고 있어요")}.` : `📊 15분봉: 지금 가격 아래에 ${hl("받쳐 줄 선이 없어요")}.`;
+    const l5 = E.early ? `⏳ 5분봉: 장 시작 30분은 흔들림이 커서 ${hl("지켜보는 중이에요")}.`
+      : E.ok ? `🟢 5분봉: ${idHM(E.hit.m)} 봉이 단기 이동평균선을 ${hl("다시 넘었고 거래량도 늘었어요")}. (확정된 봉)`
+      : E.near ? `⏳ 5분봉: ${idHM(E.near.m)}에 단기 이동평균선을 넘었지만 ${[!E.near.candle && "봉 모양", !E.near.vol && "거래량"].filter(Boolean).join("·")}이 ${hl("부족해요")}.`
+      : `⏳ 5분봉: 다시 상승하려는 신호를 ${hl("기다리는 중이에요")}.`;
     sum = `<div class="id-big ${st.cls} id-easy"><b>${ez.t}</b></div>
       <ul class="id-elines"><li>${l30}</li><li>${l15}</li><li>${l5}</li></ul>
       ${rbLine}${starLine}${starDay}
