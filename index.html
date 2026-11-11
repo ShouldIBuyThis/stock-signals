@@ -5197,7 +5197,8 @@ function sbGoldCands(list){
     const items = sbItemsFor(s, {main:true});
     const pats = items.filter(x => !x.site && (x.kind === "green" || x.kind === "blue"));
     if (!pats.length) return;
-    out.push({ s, tier, pats: [...new Set(pats.map(x => x.name))], red: items.some(x => x.kind === "red") });
+    /* 국장(2026-11-11 사용자 결정): 3년 백테스트에서 일봉 등급 ∩ 캔들만으로 3일 71%(14건)·10일 71% — 장중 ▲ 없이 황금으로 본다(▲은 참고 표시) */
+    out.push({ s, tier, kr: !!(s._kr || /\.(KS|KQ)$/.test(s.ticker)), pats: [...new Set(pats.map(x => x.name))], red: items.some(x => x.kind === "red") });
   });
   return out;
 }
@@ -5214,15 +5215,15 @@ function sbIdText(r){
 function sbGoldInner(cands){
   if (!cands.length) return "";
   const res = c => SB_GOLD.m.get(sbGoldKey(c.s));
-  const gold = cands.filter(c => { const r = res(c); return r && r.ok; });
-  const wait = cands.filter(c => !res(c)).length;
+  const gold = cands.filter(c => { const r = res(c); return c.kr || (r && r.ok); });
+  const wait = cands.filter(c => !c.kr && !res(c)).length;
   const bt = " 60거래일 소급 기준으로 이 조합(일봉∩캔들∩그날 ▲)은 3일 뒤 상승 55%(20건), ▲ 없던 날은 15%(13건)였어요.";
-  const row = c => { const r = res(c), s = c.s;
-    return `<div class="sb-goldrow${r && r.ok ? " on" : ""}"><button class="sb-go" data-rankgoto="${esc(s.ticker)}" data-rank-sort="overall">${r && r.ok ? "🏆" : "·"} <b>${esc(s.ticker)}</b> <small>${esc(s.name || "")}</small></button>
+  const row = c => { const r = res(c), s = c.s, on = c.kr || (r && r.ok);
+    return `<div class="sb-goldrow${on ? " on" : ""}"><button class="sb-go" data-rankgoto="${esc(s.ticker)}" data-rank-sort="overall">${on ? "🏆" : "·"} <b>${esc(s.ticker)}</b> <small>${esc(s.name || "")}</small></button>
       <div class="sb-goldl">📅 일봉 <b>${esc(c.tier)}</b> · 🕯 ${esc(c.pats.slice(0, 2).join(", "))}${c.pats.length > 2 ? ` 외 ${c.pats.length - 2}` : ""}${c.red ? ` · <span class="down">🔴 위험 패턴도 함께</span>` : ""}</div>
-      <div class="sb-goldl">⏱ 장중(${esc(idMDsafe(s.last_date))}) ${sbIdText(r && r.r ? r.r : r && r.err ? r : null)}</div></div>`; };
+      <div class="sb-goldl">${c.kr ? `🇰🇷 국장은 일봉 등급 ∩ 캔들만으로 황금(3년 백테스트 3일 71%) · 장중 참고: ` : `⏱ 장중(${esc(idMDsafe(s.last_date))}) `}${sbIdText(r && r.r ? r.r : r && r.err ? r : null)}</div></div>`; };
   const rest = cands.filter(c => !gold.includes(c));
-  return `<div class="sb-group sb-gold"><div class="sb-gh">🏆 <b>황금신호</b>  <small>일봉 강한매수 · 캔들패턴 · 그날 장중 5분 ▲ 겹침 · ${wait ? `장중 확인 중 ${wait}종목` : `${gold.length}종목`}</small></div>
+  return `<div class="sb-group sb-gold"><div class="sb-gh">🏆 <b>황금신호</b>  <small>일봉 강한매수 · 캔들패턴 · 그날 장중 5분 ▲ 겹침(국장은 장중 조건 없이) · ${wait ? `장중 확인 중 ${wait}종목` : `${gold.length}종목`}</small></div>
     ${gold.length ? gold.map(row).join("") : `<div class="sb-empty">${wait ? "장중 5분봉을 확인하고 있어요…" : "오늘은 셋이 모두 겹친 종목이 없어요."}</div>`}
     ${rest.length ? `<details class="sb-rest"${gold.length ? "" : " open"}><summary>${gold.length ? `나머지 ${rest.length}종목` : `일봉 강한매수 ∩ 캔들패턴 ${rest.length}종목`} — 장중 조건이 덜 맞았거나 확인 중</summary>${rest.map(row).join("")}</details>` : ""}
     <div class="sb-note">셋이 겹친 '참고 표시'예요.${bt} 표본이 적고 약세장 한 구간이라 매수 확정 신호가 아니에요. 등급·점수는 바꾸지 않아요.</div></div>`;
@@ -7645,7 +7646,7 @@ function goldHelpHtml(){
       ${esc(idMDsafe(dmin))}~${esc(idMDsafe(dmax))} · 실시간 기록 ${nLive}건 + 소급 재현 ${nBack}건 · 신호 다음 날 시가에 사서 n거래일 뒤 종가 기준${base3 != null ? ` · 같은 기간 아무 날 매수 3일 후 상승 ${base3}%` : ""}<br>
       ${allGood ? `대표 사례는 전체 ${ev.length}건 중 골라 보여주는 예시예요. 실패 사례도 위 통계에 모두 들어 있어요.<br>` : ""}
       아직 표본이 적어 참고용 통계예요. 이 기간은 약세장이라 신호 전반의 성적이 평소보다 낮게 나왔어요.<br>
-      황금신호 = 일봉 강한매수·💡 강한다중·다중신호 ∩ 같은 날 상승 캔들패턴 ∩ 그날 장중 5분 재돌파(▲) 1회 이상. ‘소급 재현’은 캔들패턴 기록(11/5~)이 시작되기 전 날짜를 같은 함수로 다시 계산한 것이라 그날 화면에 실제로 보였던 신호는 아니에요.
+      황금신호 = 일봉 강한매수·💡 강한다중·다중신호 ∩ 같은 날 상승 캔들패턴 ∩ 그날 장중 5분 재돌파(▲) 1회 이상. 국장은 3년 백테스트(3일 71%)를 근거로 장중 조건 없이 일봉 등급 ∩ 캔들만으로 봐요. ‘소급 재현’은 캔들패턴 기록(11/5~)이 시작되기 전 날짜를 같은 함수로 다시 계산한 것이라 그날 화면에 실제로 보였던 신호는 아니에요.
     </div></details>
   </div>`;
 }
