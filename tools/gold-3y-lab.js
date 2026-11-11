@@ -25,7 +25,7 @@ page.runInPage(`this.__run = j => { const RAW = JSON.parse(j); state.data = norm
     uni.forEach(r => { const hs = r._hs, i = r._i, o1 = hs[i+1] && has(hs[i+1].open) ? hs[i+1].open : null;
       const f = n => o1 && hs[i+n] && has(hs[i+n].price) ? (hs[i+n].price/o1 - 1)*100 : null;
       let tier = null, bull = false; if (!r._blk){ tier = sbDailyTier(r, mm); try { bull = sbItemsFor(r, {main:true}).some(x => !x.site && (x.kind === 'green' || x.kind === 'blue')); } catch(e){} }
-      out.push({ d, t: r.ticker, kr: /\\.(KS|KQ)$/.test(r.ticker), blk: r._blk, g: r.sig.grade, tier, bull, qt: QT[d] ?? null, f3: f(3), f5: f(5), f10: f(10) }); }); });
+      out.push({ d, t: r.ticker, kr: /\\.(KS|KQ)$/.test(r.ticker), blk: r._blk, g: r.sig.grade, tier, bull, qt: QT[d] ?? null, atr: has(r.atr_pct) ? r.atr_pct : null, f3: f(3), f5: f(5), f10: f(10) }); }); });
   return out; };`);
 const R = page.__run(raw);
 const days = [...new Set(R.map(r => r.d))].sort(), MID = days[Math.floor(days.length/2)];
@@ -52,4 +52,14 @@ for (const [mn, mf] of [['전체', () => true], ['미장', r => !r.kr], ['국장
     row('  └ 같은 조합, 나스닥 💡만', Q.filter(r => r.qt === 3 && r.tier && r.bull));
     row('  └ 지워지는 쪽 (나스닥 중립)', Q.filter(r => r.qt === 0 && r.tier && r.bull));
   }
+  /* 변동성(신호일 ATR% — 그날까지의 값, 미래 참조 없음) 3분위: 이 시장 모든 행의 ATR% 기준 */
+  const at = A.map(r => r.atr).filter(v => v != null).sort((a, b) => a - b), c1 = at[Math.floor(at.length/3)], c2 = at[Math.floor(at.length*2/3)];
+  console.log(`  · 변동성 3분위 경계(ATR%): ${c1?.toFixed(2)} / ${c2?.toFixed(2)}`);
+  const G = A.filter(r => r.tier && r.bull);
+  row('🏆 변동성 하(저)', G.filter(r => r.atr != null && r.atr <= c1)); row('🏆 변동성 중', G.filter(r => r.atr != null && r.atr > c1 && r.atr <= c2)); row('🏆 변동성 상(고)', G.filter(r => r.atr != null && r.atr > c2));
+  row('  참고: 기준선 변동성 상', A.filter(r => r.atr != null && r.atr > c2)); row('  참고: 강한매수 변동성 상', A.filter(r => r.g === 5 && r.atr != null && r.atr > c2));
+  /* 종목 개별 승률(이 3년 표본 안 강한매수 3일 상승 비율 — 사후 집계라 낙관적) 65% 컷 */
+  const TR = {}; A.filter(r => r.g === 5 && r.f3 != null && r.f3 !== 0).forEach(r => { const x = TR[r.t] = TR[r.t] || [0, 0]; x[0] += r.f3 > 0 ? 1 : 0; x[1]++; });
+  const tr = t => TR[t] && TR[t][1] >= 5 ? TR[t][0]/TR[t][1] : null;
+  row('🏆 종목 승률 > 65%', G.filter(r => tr(r.t) != null && tr(r.t) > 0.65)); row('🏆 종목 승률 ≤ 65% (빼는 쪽)', G.filter(r => tr(r.t) != null && tr(r.t) <= 0.65)); row('🏆 종목 승률 표본 부족(<5)', G.filter(r => tr(r.t) == null));
 }

@@ -709,6 +709,7 @@ html[data-theme="dark"] .badge.gOh,html[data-theme="dark"] .c-badge.gOh,html[dat
 .gh-title{font-size:20px;margin:4px 0 12px;letter-spacing:-.01em}
 .gh-kpis{display:flex;gap:10px}.gh-kpi{flex:1;background:var(--surface,#fff);border-radius:16px;padding:12px 14px;box-shadow:0 2px 10px rgba(0,0,0,.05)}
 .gh-kpi b{display:block;font-size:30px;line-height:1.1;color:#b8860b;font-weight:800}.gh-kpi b small{font-size:15px;margin-left:1px}.gh-kpi span{font-size:12px;color:var(--muted)}
+.gh-freq{font-size:12.5px;color:var(--muted);margin:-6px 2px 12px}.gh-freq b{color:#b8860b}
 .gh-note{font-size:10.5px;color:var(--faint,#999);margin:8px 2px 0}
 .gh-cases-h{font-size:14px;font-weight:800;margin:18px 2px 8px}
 .gold-cases{display:grid;grid-template-columns:1fr;gap:14px}@media(min-width:900px){.gold-cases{grid-template-columns:repeat(3,1fr)}}
@@ -5189,11 +5190,15 @@ function sbDailyTier(s, mm){
   const m = mm && mm.get(s.ticker), t = m ? m._multiTier : 0;
   return t === 1 ? "💡 강한다중" : t === 2 ? "다중신호" : (s.sig && s.sig.grade === 5 ? "강한매수" : null);
 }
+/* 2026-11-11 사용자 결정: 🎯 적중률 순위의 종목 개별 승률이 65% 이하인 종목은 황금신호에서 뺀다(순위가 없는 종목은 남긴다).
+   개별 승률 = tickerHitRanks()의 rate(backtest/ticker-record.json · 화면 적중률 순위와 같은 값). */
+const GOLD_MIN_TICKER_RATE = 65;
+function goldRankOk(tk){ try { const R = tickerHitRanks()[tk]; return !(R && R.rate != null && R.rate <= GOLD_MIN_TICKER_RATE); } catch(e){ return true; } }
 function sbGoldCands(list){
   let mm = null; try { mm = new Map(currentMultiRanked().map(x => [x.ticker, x])); } catch(e){}
   const out = [];
   (list || []).forEach(s => {
-    const tier = sbDailyTier(s, mm); if (!tier) return;
+    const tier = sbDailyTier(s, mm); if (!tier || !goldRankOk(s.ticker)) return;
     const items = sbItemsFor(s, {main:true});
     const pats = items.filter(x => !x.site && (x.kind === "green" || x.kind === "blue"));
     if (!pats.length) return;
@@ -7602,7 +7607,8 @@ function goldChartSvg(s, o){
 function goldHelpHtml(){
   const G = GOLD_CASES; if (!G || !G.events || !G.events.length) return "";
   const pct = v => v == null ? "측정 대기" : `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
-  const ev = G.events.map(e => { const s = allStocks().find(x => x.ticker === e.ticker); return s ? { e, s, o: goldOutcome(s, e.date) } : null; }).filter(Boolean);
+  const ev = G.events.filter(e => goldRankOk(e.ticker)).map(e => { const s = allStocks().find(x => x.ticker === e.ticker); return s ? { e, s, o: goldOutcome(s, e.date) } : null; }).filter(Boolean);
+  const cut = G.events.length - G.events.filter(e => goldRankOk(e.ticker)).length;
   const r3 = ev.filter(x => x.o.r3 != null), r5 = ev.filter(x => x.o.r5 != null);
   const up = a => a.length ? Math.round(a.filter(x => x.v > 0).length / a.length * 100) : null;
   const u3 = up(r3.map(x => ({ v: x.o.r3 }))), u5 = up(r5.map(x => ({ v: x.o.r5 })));
@@ -7632,6 +7638,7 @@ function goldHelpHtml(){
   return `<div class="section help-block gold-help">
     <div class="gh-eyebrow">🏆 GOLDEN SIGNAL</div>
     <h3 class="gh-title">황금신호, 이렇게 잡았어요</h3>
+    <p class="gh-freq">보통 <b>1년에 약 40번</b>, 한 달에 3~4번꼴로 나와요</p>
     <div class="gh-kpis">
       <div class="gh-kpi"><b>${ev.length}<small>건</small></b><span>최근 황금신호</span></div>
       <div class="gh-kpi"><b>${u3 == null ? "—" : u3 + "<small>%</small>"}</b><span>3일 후 상승</span></div>
@@ -7643,8 +7650,10 @@ function goldHelpHtml(){
       3일 후 상승 ${u3 == null ? "—" : u3 + "%"} (결과 나온 ${r3.length}건) · 5일 후 상승 ${u5 == null ? "—" : u5 + "%"} (${r5.length}건) · 5일 평균 ${avg5 == null ? "—" : (avg5 >= 0 ? "+" : "") + avg5.toFixed(1) + "%"}<br>
       ${esc(idMDsafe(dmin))}~${esc(idMDsafe(dmax))} · 실시간 기록 ${nLive}건 + 소급 재현 ${nBack}건 · 신호 다음 날 시가에 사서 n거래일 뒤 종가 기준${base3 != null ? ` · 같은 기간 아무 날 매수 3일 후 상승 ${base3}%` : ""}<br>
       ${allGood ? `대표 사례는 전체 ${ev.length}건 중 골라 보여주는 예시예요. 실패 사례도 위 통계에 모두 들어 있어요.<br>` : ""}
+      연간 횟수는 3년 백테스트(일봉 등급 ∩ 캔들: 미장 148건·국장 14건, 약 2.7년)에 미장은 60일 실측의 장중 ▲ 비율(약 2/3)을 곱해 추정했어요.<br>
       아직 표본이 적어 참고용 통계예요. 이 기간은 약세장이라 신호 전반의 성적이 평소보다 낮게 나왔어요.<br>
-      황금신호 = 일봉 강한매수·💡 강한다중·다중신호 ∩ 같은 날 상승 캔들패턴 ∩ 그날 장중 5분 재돌파(▲) 1회 이상. 국장은 3년 백테스트(3일 71%)를 근거로 장중 조건 없이 일봉 등급 ∩ 캔들만으로 봐요. ‘소급 재현’은 캔들패턴 기록(11/5~)이 시작되기 전 날짜를 같은 함수로 다시 계산한 것이라 그날 화면에 실제로 보였던 신호는 아니에요.
+      ${cut ? `🎯 적중률 순위에서 종목 개별 승률이 ${GOLD_MIN_TICKER_RATE}% 이하인 종목의 ${cut}건은 뺐어요(현재 순위 기준).<br>` : ""}
+      황금신호 = 일봉 강한매수·💡 강한다중·다중신호 ∩ 같은 날 상승 캔들패턴 ∩ 그날 장중 5분 재돌파(▲) 1회 이상 · 종목 개별 승률 ${GOLD_MIN_TICKER_RATE}% 초과(순위 없는 종목은 포함). 국장은 3년 백테스트(3일 71%)를 근거로 장중 조건 없이 일봉 등급 ∩ 캔들만으로 봐요. ‘소급 재현’은 캔들패턴 기록(11/5~)이 시작되기 전 날짜를 같은 함수로 다시 계산한 것이라 그날 화면에 실제로 보였던 신호는 아니에요.
     </div></details>
   </div>`;
 }
