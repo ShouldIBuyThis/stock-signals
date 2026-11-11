@@ -7584,7 +7584,7 @@ ${ledgerStrip}    </details>
 
 /* ══════════ 🏆 황금신호 성적 · 실제 차트 사례 (2026-11-11 사용자 지시) ══════════
    발생 목록 = backtest/gold-cases.json(tools/gold-history-cands.js + tools/intraday-signal-nextopen-lab.js — 화면 판정 함수 그대로).
-   성과는 여기서 원장 일봉(ohlc60)으로 직접 센다: 신호일 종가 확정 → 다음 날 시가 진입 → n거래일 뒤 종가(신호 통계와 같은 규칙).
+   성과는 여기서 원장 일봉(ohlc60)으로 직접 센다: 신호일 종가에 사서 → n거래일 뒤 종가(2026-11-11부터 사이트 승률표와 같은 종가 기준)(신호 통계와 같은 규칙).
    결과가 아직 안 나온 날짜는 '측정 대기'. 사례 3개는 성과 상위(자랑 사례)라는 것을 화면에 그대로 적는다. 숫자는 꾸미지 않는다. */
 function goldOutcome(s, date){
   const D = (s && s.ohlc60 || []).filter(r => r && has(r[1]) && has(r[4]));
@@ -7592,7 +7592,8 @@ function goldOutcome(s, date){
   /* 2026-11-11 사용자 지적: 성과 구간이 실적 영향권에 걸리면 승률표처럼 그 구간은 세지 않는다(신호일 자체 영향권은 후보 단계에서 이미 제외). */
   let ew = null; try { ew = earningsWindowsForValidation(s, histStocks(s) || []); } catch(e){}
   const hit = n => !!ew && D.slice(i+1, i+1+n).some(r => ew.affected.has(r[0]));   // 승률표 validationWindowTouchesEarnings와 같은 규칙(affected만)
-  const p0 = D[i+1][1], ret = n => i + n < D.length && !hit(n) ? (D[i+n][4]/p0 - 1)*100 : null;
+  /* 2026-11-11 사용자 지시: 사이트 승률표와 같이 '신호일 종가 기준'(신호일 종가에 사서 n거래일 뒤 종가) */
+  const p0 = D[i][4], ret = n => i + n < D.length && !hit(n) ? (D[i+n][4]/p0 - 1)*100 : null;
   const w5 = D.slice(i+1, Math.min(D.length, i+6)), mfe = w5.length ? (Math.max(...w5.map(r => r[2]))/p0 - 1)*100 : null, mae = w5.length ? (Math.min(...w5.map(r => r[3]))/p0 - 1)*100 : null;
   return { i, D, entry: p0, r3: ret(3), r5: ret(5), r10: ret(10), mfe, mae, done5: i + 5 < D.length, e3: hit(3) && i + 3 < D.length, e5: hit(5) && i + 5 < D.length };
 }
@@ -7614,7 +7615,7 @@ function goldChartSvg(s, o){
   V.forEach((r, i) => { const op = r[1], c = r[4], col = c >= op ? "#e5484d" : "#3b82f6";
     g += `<line x1="${x(i)}" x2="${x(i)}" y1="${y(r[2])}" y2="${y(r[3])}" stroke="${col}" stroke-width="1"/><rect x="${(x(i)-cw*0.33).toFixed(1)}" width="${(cw*0.66).toFixed(1)}" y="${y(Math.max(op,c)).toFixed(1)}" height="${Math.max(1, Math.abs(y(op)-y(c))).toFixed(1)}" fill="${col}"><title>${esc(r[0])} 시 ${r[1]} 고 ${r[2]} 저 ${r[3]} 종 ${r[4]}</title></rect>`;
     const vh = (r[5]||0)/vmax*(Hv-4); g += `<rect x="${(x(i)-cw*0.33).toFixed(1)}" width="${(cw*0.66).toFixed(1)}" y="${(Hp+Hv-vh).toFixed(1)}" height="${vh.toFixed(1)}" fill="${col}" opacity=".4"/>`; });
-  if (o.entry != null && si + 1 < V.length) g += `<line x1="${x(si+1)-cw*0.5}" x2="${W-R}" y1="${y(o.entry)}" y2="${y(o.entry)}" stroke="#ca8a04" stroke-width="1" opacity=".7"/><text x="${W-R+3}" y="${y(o.entry)+4}" font-size="10" fill="#a16207">진입</text>`;
+  if (o.entry != null && si + 1 < V.length) g += `<line x1="${x(si+1)-cw*0.5}" x2="${W-R}" y1="${y(o.entry)}" y2="${y(o.entry)}" stroke="#ca8a04" stroke-width="1" opacity=".7"/><text x="${W-R+3}" y="${y(o.entry)+4}" font-size="10" fill="#a16207">신호일 종가</text>`;
   g += `<text x="${x(si)}" y="${T-8}" text-anchor="middle" font-size="13">🏆</text><text x="${x(si)+10}" y="${T-9}" font-size="10.5" font-weight="700" fill="#a16207">${esc(String(D[o.i][0]).slice(5).replace("-", "/"))} 신호</text>`;
   [hi, lo].forEach(v => { g += `<text x="${W-R+3}" y="${y(v)+4}" font-size="10" fill="var(--muted,#888)">${Number(v).toFixed(v >= 100 ? 0 : 2)}</text>`; });
   return `<svg viewBox="0 0 ${W} ${Hp+Hv+4}" width="100%" role="img" aria-label="${esc(s.ticker)} 황금신호 일봉">${g}</svg>`;
@@ -7643,14 +7644,16 @@ function goldHelpHtml(){
   /* 같은 기간 아무 날 매수(같은 진입 규칙) — 비교 기준 */
   const days = new Set(ev.map(x => x.e.date)), dmin = [...days].sort()[0], dmax = [...days].sort().pop();
   let bn = 0, bu = 0; allStocks().forEach(s => { const D = (s.ohlc60 || []).filter(r => r && has(r[1]) && has(r[4]));
-    D.forEach((r, i) => { if (r[0] < dmin || r[0] > dmax || i + 3 >= D.length) return; const v = (D[i+3][4]/D[i+1][1] - 1)*100; if (v > 1){ bn++; bu++; } else if (v < -1) bn++; }); });
+    D.forEach((r, i) => { if (r[0] < dmin || r[0] > dmax || i + 3 >= D.length) return; const v = (D[i+3][4]/D[i][4] - 1)*100; if (v > 1){ bn++; bu++; } else if (v < -1) bn++; }); });
   const base3 = bn ? Math.round(bu/bn*100) : null;
   const nLive = ev.filter(x => x.e.src === "원장").length, nBack = ev.length - nLive;
   /* 쇼케이스 3칸(2026-11-11 사용자 지시) — 선정 기준은 '확정 수익률'(가장 긴 확정 구간: 10일 → 5일 → 3일)이고 +1% 넘게 오른 성공 사례만.
      ① 대표 종목(GOLD_PIN = 코어위브) 실시간 포착: 현재 규칙의 사례든 '💡 도입 전' 실시간 기록이든 성공 사례가 있으면 항상 첫 칸 고정
        (정식 신호에 들어 있다는 이유로 고정이 풀리지 않게 — 이전 버그)
      ② 국장 대표 성공 사례 1개 ③ 나머지 중 확정 수익률 최고 1개 · 종목 중복 없이. 승률 통계 산식은 그대로. */
-  const GOLD_PIN = ["CRWV"], best = x => x.o.r10 ?? x.o.r5 ?? x.o.r3, perf = x => x.o.r5 ?? x.o.r3;
+  const GOLD_PIN = ["CRWV"], perf = x => x.o.r5 ?? x.o.r3;
+  /* 성공 = 3일 또는 5일 확정 수익이 +1% 초과 · 순위 = 5일(없으면 3일) 확정 수익 — 10일만 좋은 사례는 '성공'으로 내세우지 않는다 */
+  const best = x => Math.max(x.o.r3 ?? -99, x.o.r5 ?? -99);
   const isKr = x => /\.(KS|KQ)$/.test(x.s.ticker);
   const okCase = x => x.o.r3 != null && best(x) > 1, byBest = (a, b) => best(b) - best(a) || (b.o.mfe ?? 0) - (a.o.mfe ?? 0);
   const top = [], seen = new Set(), add = x => { if (x && !seen.has(x.s.ticker)){ top.push(x); seen.add(x.s.ticker); } };
@@ -7685,7 +7688,7 @@ function goldHelpHtml(){
       최근 60일 실제: 3일 후 상승 ${u3 == null ? "—" : u3 + "%"} (결과 나온 ${r3.length}건) · 5일 후 상승 ${u5 == null ? "—" : u5 + "%"} (${r5.length}건) · 5일 평균 ${avg5 == null ? "—" : (avg5 >= 0 ? "+" : "") + avg5.toFixed(1) + "%"}<br>
       상승·하락은 ±1% 안을 보합으로 빼고 셌어요. 3일 성적은 3일까지의 결과만 써요.<br>
       5일 내 회복: 3일째 −1% 아래로 실패한 ${f3.length}건 중 ${rec5.length}건은 5일째 −1% 위로 돌아왔어요${rec5.length ? ` (${rec5.map(x => esc(x.s.ticker) + " " + esc(idMDsafe(x.e.date))).join(", ")})` : ""}. 성과 구간이 실적 발표 영향권에 걸리면 사이트 승률표처럼 그 구간은 빼요.<br>
-      ${esc(idMDsafe(dmin))}~${esc(idMDsafe(dmax))} · 실시간 기록 ${nLive}건 + 소급 재현 ${nBack}건 · 신호 다음 날 시가에 사서 n거래일 뒤 종가 기준${base3 != null ? ` · 같은 기간 아무 날 매수 3일 후 상승 ${base3}%` : ""}<br>
+      ${esc(idMDsafe(dmin))}~${esc(idMDsafe(dmax))} · 실시간 기록 ${nLive}건 + 소급 재현 ${nBack}건 · 신호일 종가에 사서 n거래일 뒤 종가 기준(사이트 승률표와 같음)${base3 != null ? ` · 같은 기간 아무 날 매수 3일 후 상승 ${base3}%` : ""}<br>
       ${allGood ? `대표 사례는 전체 ${ev.length}건 중 골라 보여주는 예시예요. 실패 사례도 위 통계에 모두 들어 있어요.<br>` : ""}
       ${top.some(x => x.legacy) ? `‘💡 도입 전’ 사례는 미장에 나스닥 💡 조건을 붙이기(11/11) 전 화면에 실제로 뜬 황금신호예요. 지금 규칙으로는 황금신호가 아니라서 통계에는 넣지 않았어요.<br>` : ""}
       연간 횟수는 3년 백테스트(약 2.7년)에서 셌어요: 미장 일봉 등급 ∩ 캔들 ∩ (나스닥 💡 또는 종목 💡) 95건(연 약 41번, 장중 ▲까지 맞는 비율 약 2/3을 곱하면 약 27번) · 국장 일봉 등급 ∩ 캔들 14건(연 약 5번).<br>
