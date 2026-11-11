@@ -16,6 +16,13 @@ Article 4(3) of EU Directive 2019/790. Violations may result in civil claims for
 and injunctions and in criminal complaints under applicable law, including the Copyright
 Act and the Unfair Competition Prevention Act of the Republic of Korea.
 
+Exception: the owner may individually issue an authorization code permitting automated
+access and AI training. Such permission is valid only after the holder has had the code
+confirmed directly by the owner, and only within the scope, period, and purpose the owner
+sets. The code is never published in this repository or on the website; guessed,
+brute-forced, or transferred codes are not permission. The owner may revoke permission at
+any time and require deletion of collected data and trained results.
+
 Viewing the public repository on GitHub is permitted only to the extent required by the
 GitHub Terms of Service; it does not grant any of the rights above.
 
