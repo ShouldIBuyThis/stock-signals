@@ -1,5 +1,5 @@
 name: 관심종목 자동 갱신
-run-name: ${{ github.event_name == 'schedule' && github.event.schedule == '0 16 * * 1-5' && 'KR 정기 16:00' || github.event_name == 'schedule' && github.event.schedule == '0 17 * * 1-5' && 'KR 실패·취소 점검 17:00' || '관심종목 자동 갱신' }}
+run-name: ${{ github.event_name == 'schedule' && github.event.schedule == '10 16 * * 1-5' && 'KR 정기 16:10' || github.event_name == 'schedule' && github.event.schedule == '30 16 * * 1-5' && 'KR 재시도 16:30' || github.event_name == 'schedule' && github.event.schedule == '50 16 * * 1-5' && 'KR 재시도 16:50' || '관심종목 자동 갱신' }}
 
 on:
   # 화면·계산기·워크플로 자체를 수정하면 다음 정기 실행을 기다리지 않고 배포한다.
@@ -23,14 +23,17 @@ on:
     - cron: '30 21 * * 1-5'
       timezone: 'America/New_York'
 
-    # 한국장 정기 갱신: 16:00 KST (2026-11-10 사용자 지시 · 16:45에서 당김).
+    # 한국장 정기 갱신: 16:10 KST → 실패하면 16:30 → 또 실패하면 16:50 (2026-11-11 사용자 지시).
     # 야후 국장 시세가 약 20분 늦어 마감 직후엔 종가가 단일가 전 값일 수 있다 → main.py
     # kr_official_close_gate()가 15:30 이후 체결·공식 종가 일치를 확인하지 못하면 실행을 실패시켜
-    # 원장에 쓰지 않고, 아래 17:00 점검이 실패한 이 실행을 한 번 더 돌린다.
-    - cron: '0 16 * * 1-5'
+    # 원장에 쓰지 않는다. 세 시각은 서로 독립된 schedule이라 하나가 GitHub에서 통째로 누락돼도
+    # (2026-11-11 16:00 정기 실행이 아예 생성되지 않았다) 다음 시각이 갱신한다.
+    # 앞선 시도가 이미 성공했으면 precheck가 뒤 시도를 건너뛴다.
+    - cron: '10 16 * * 1-5'
       timezone: 'Asia/Seoul'
-    # 17:00에는 정상 갱신하지 않고 당일 실패·취소된 정기 작업만 재실행한다.
-    - cron: '0 17 * * 1-5'
+    - cron: '30 16 * * 1-5'
+      timezone: 'Asia/Seoul'
+    - cron: '50 16 * * 1-5'
       timezone: 'Asia/Seoul'
   workflow_dispatch:
     inputs:
@@ -59,48 +62,51 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  retry_kr:
-    if: github.event_name == 'schedule' && github.event.schedule == '0 17 * * 1-5'
+  # 국장 16:10/16:30/16:50 중 앞선 시도가 이미 성공했으면 뒤 시도는 건너뛴다.
+  # 16:10은 Claude 예약 작업의 workflow_dispatch(scope=kr)가 정시 1차, 같은 시각 schedule은 GitHub 쪽 백업이다.
+  # 성공 판정: 오늘(KST) 국장 schedule 실행 중 success가 있거나, 오늘자 history/kr 스냅샷이 main에 있다
+  # (공식 종가 확인 장치를 통과해야만 스냅샷이 써지므로 수동 kr 실행 성공도 여기서 잡힌다).
+  precheck:
     runs-on: ubuntu-latest
     permissions:
-      actions: write
+      actions: read
       contents: read
+    outputs:
+      skip: ${{ steps.kr.outputs.skip }}
     steps:
-      - name: 당일 KR 정기 작업의 실패·취소만 재실행
+      - name: 국장 재시도 필요 여부
+        id: kr
         uses: actions/github-script@v7
         with:
           script: |
-            const now = new Date();
-            const day = new Date(now.getTime() + 9 * 3600000).toISOString().slice(0, 10);
+            const ev = context.eventName, sch = context.payload.schedule || '';
+            const inp = context.payload.inputs || {};
+            const KR = ['10 16 * * 1-5', '30 16 * * 1-5', '50 16 * * 1-5'];
+            // 대상: 국장 schedule 3개 + 예약 작업이 16:10에 보내는 수동 실행(scope=kr, force_resnap=false).
+            // force_resnap=true 수동 실행과 us/all 실행은 절대 건너뛰지 않는다.
+            const krSched = ev === 'schedule' && KR.includes(sch);
+            const krDispatch = ev === 'workflow_dispatch' && inp.scope === 'kr' && String(inp.force_resnap) !== 'true';
+            if (!krSched && !krDispatch) { core.setOutput('skip', 'false'); return; }
+            const day = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
             const start = new Date(`${day}T00:00:00+09:00`).toISOString();
             const runs = await github.paginate(github.rest.actions.listWorkflowRuns, {
               ...context.repo, workflow_id: 'update.yml', branch: 'main',
               event: 'schedule', created: `>=${start}`, per_page: 100
             });
-            const target = runs.filter(r =>
-              r.display_title === 'KR 정기 16:00' &&
-              r.id !== context.runId && new Date(r.created_at) <= now
-            ).sort((a, b) => b.id - a.id)[0];
-            if (!target) {
-              core.warning('당일 KR 정기 실행 없음: 스케줄 지연/누락 확인 필요. 새 갱신은 시작하지 않습니다.');
-              return;
-            }
-            if (target.status !== 'completed' ||
-                !['failure', 'cancelled'].includes(target.conclusion) ||
-                target.run_attempt > 1) {
-              core.info(`재실행 생략: ${target.status}/${target.conclusion}, attempt=${target.run_attempt}`);
-              return;
-            }
-            const args = {...context.repo, run_id: target.id};
-            if (target.conclusion === 'failure') {
-              await github.rest.actions.reRunWorkflowFailedJobs(args);
-            } else {
-              await github.rest.actions.reRunWorkflow(args);
-            }
-            core.info(`KR ${target.id}: ${target.conclusion} 작업 재실행 요청 완료`);
+            const ok = runs.find(r => r.id !== context.runId && /^KR /.test(r.display_title || '') && r.conclusion === 'success');
+            let snap = false;
+            try {
+              await github.rest.repos.getContent({ ...context.repo, path: `history/kr/${day}.json`, ref: 'main' });
+              snap = true;
+            } catch (e) { if (e.status !== 404) throw e; }
+            const skip = !!ok || snap;
+            core.setOutput('skip', skip ? 'true' : 'false');
+            core.info(skip ? `건너뜀: ${ok ? `앞선 KR 실행 ${ok.id} 성공` : ''}${snap ? ` · history/kr/${day}.json 있음` : ''}`
+                           : `앞선 KR 시도 성공 없음 → ${sch} 재시도 진행`);
 
   update:
-    if: github.event_name != 'schedule' || github.event.schedule != '0 17 * * 1-5'
+    needs: precheck
+    if: needs.precheck.outputs.skip != 'true'
     runs-on: ubuntu-latest
     outputs:
       pages_artifact: ${{ steps.artifact_name.outputs.value }}
@@ -145,7 +151,7 @@ jobs:
 
           if [ "$EVENT_NAME" = "push" ]; then
             # 코드 변경 배포는 장중인 시장을 건드리지 않는다(CLAUDE.md §5 — 국장 개장 중 scope=kr 금지).
-            # 국장 08:30~17:00 KST(정기 갱신 16:00 · 실패 재실행 17:00 전)면 us만, 미장 09:00~16:40 ET면 kr만, 그 밖에는 all.
+            # 국장 08:30~17:00 KST(정기 갱신 16:10 · 재시도 16:30·16:50)면 us만, 미장 09:00~16:40 ET면 kr만, 그 밖에는 all.
             kst_dow=$(TZ=Asia/Seoul date +%u); kst_hm=$((10#$(TZ=Asia/Seoul date +%H%M)))
             ny_dow=$(TZ=America/New_York date +%u); ny_hm=$((10#$(TZ=America/New_York date +%H%M)))
             scope=all
@@ -166,7 +172,7 @@ jobs:
               echo "value=us" >> "$GITHUB_OUTPUT"
               echo "자동 실행 → US ($SCHEDULE_EXPR)"
               ;;
-            "0 16 * * 1-5")
+            "10 16 * * 1-5"|"30 16 * * 1-5"|"50 16 * * 1-5")
               echo "value=kr" >> "$GITHUB_OUTPUT"
               echo "자동 실행 → KR ($SCHEDULE_EXPR)"
               ;;
