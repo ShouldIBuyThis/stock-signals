@@ -18,7 +18,10 @@ page.runInPage(`this.__run = j => { const RAW = JSON.parse(j); state.data = norm
       const g = qqqTierRule(streak, num(vx[h.last_date]), p ? num(vx[p.last_date]) : null, br[h.last_date] ?? null); QT[h.last_date] = g.bulb ? 3 : g.tier; }); } catch(e){}
   allStocks().forEach(s => { const hs = histStocks(s); if (!hs) return; const ew = earningsWindowsForValidation(s, hs);
     hs.forEach((h, i) => { if (!h.last_date || !has(h.price)) return;
-      const row = Object.assign({}, s, h); if (i > 0) withPrev(row, hs[i-1]); row._prevOverallGrade = i > 0 ? evaluate(hs[i-1]).grade : null;
+      const row = Object.assign({}, s, h); if (i > 0) withPrev(row, hs[i-1]);
+      /* 미장 행에 그날 VXN이 비어 있으면 backfill macro에서 채운다(운영 원장처럼) — 💡 강한다중 관문(VXN≥25)·가점이 3년에서도 계산되게. 국장은 미국 같은 날 VXN이 미래 값이라 채우지 않는다. */
+      if (!has(row.market_vxn) && !/\.(KS|KQ)$/.test(s.ticker)){ const v = num(((RAW.macro && RAW.macro.vxn) || {})[h.last_date]); if (has(v)) row.market_vxn = v; }
+      row._prevOverallGrade = i > 0 ? evaluate(hs[i-1]).grade : null;
       row.sig = evaluate(row); row.earnings_hold = false; row.ext_pair = null; row._i = i; row._hs = hs; row._blk = ew.blocked.has(h.last_date);
       (byDate.get(h.last_date) || byDate.set(h.last_date, []).get(h.last_date)).push(row); }); });
   byDate.forEach((uni, d) => { const ok = uni.filter(r => !r._blk); const mm = new Map(multiSignalRank(ok).map(x => [x.ticker, x]));
@@ -69,7 +72,11 @@ for (const [mn, mf] of [['전체', () => true], ['미장', r => !r.kr], ['국장
   row('🏆 변동성 하(저)', G.filter(r => r.atr != null && r.atr <= c1)); row('🏆 변동성 중', G.filter(r => r.atr != null && r.atr > c1 && r.atr <= c2)); row('🏆 변동성 상(고)', G.filter(r => r.atr != null && r.atr > c2));
   row('  참고: 기준선 변동성 상', A.filter(r => r.atr != null && r.atr > c2));
   if (mn === '미장'){ const B3 = A.filter(r => r.qt === 3 && r.tier && r.bull);
-    row('💡 황금 전체', B3); row('💡 황금 ∩ 고변동 제외(저·중)', B3.filter(r => r.atr != null && r.atr <= c2)); row('💡 황금 ∩ 고변동만', B3.filter(r => r.atr != null && r.atr > c2));
+    row('💡 황금 전체', B3);
+    const OR = A.filter(r => r.tier && r.bull && (r.qt === 3 || r.tier === '💡 강한다중'));
+    row('🏆 OR: 나스닥💡 또는 종목💡', OR); row('  └ 종목💡만(나스닥💡 아님)', OR.filter(r => r.qt !== 3));
+    row('  └ OR ∩ 고변동 제외', OR.filter(r => r.atr != null && r.atr <= c2));
+    row('참고: 종목 💡 강한다중 전체(캔들 무관)', A.filter(r => r.tier === '💡 강한다중')); row('💡 황금 ∩ 고변동 제외(저·중)', B3.filter(r => r.atr != null && r.atr <= c2)); row('💡 황금 ∩ 고변동만', B3.filter(r => r.atr != null && r.atr > c2));
     row('💡 황금 ∩ 저변동만', B3.filter(r => r.atr != null && r.atr <= c1));
     row('💡날 일봉 등급 ∩ 고변동 제외(캔들 무관)', A.filter(r => r.qt === 3 && r.tier && r.atr != null && r.atr <= c2));
     row('일봉∩캔들 ∩ 고변동 제외(💡 무관)', G.filter(r => r.atr != null && r.atr <= c2)); } row('  참고: 강한매수 변동성 상', A.filter(r => r.g === 5 && r.atr != null && r.atr > c2));
