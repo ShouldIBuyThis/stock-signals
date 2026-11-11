@@ -28,7 +28,7 @@ page.runInPage(`this.__run = j => { const RAW = JSON.parse(j); state.data = norm
     uni.forEach(r => { const hs = r._hs, i = r._i, o1 = hs[i+1] && has(hs[i+1].open) ? hs[i+1].open : null;
       const f = n => o1 && hs[i+n] && has(hs[i+n].price) ? (hs[i+n].price/o1 - 1)*100 : null;
       let tier = null, bull = false; if (!r._blk){ tier = sbDailyTier(r, mm); try { bull = sbItemsFor(r, {main:true}).some(x => !x.site && (x.kind === 'green' || x.kind === 'blue')); } catch(e){} }
-      out.push({ d, t: r.ticker, kr: /\\.(KS|KQ)$/.test(r.ticker), blk: r._blk, g: r.sig.grade, tier, bull, qt: QT[d] ?? null, atr: has(r.atr_pct) ? r.atr_pct : null, f3: f(3), f5: f(5), f10: f(10) }); }); });
+      out.push({ d, t: r.ticker, kr: /\\.(KS|KQ)$/.test(r.ticker), blk: r._blk, g: r.sig.grade, tier, bull, qt: QT[d] ?? null, atr: has(r.atr_pct) ? r.atr_pct : null, dj: has(r.body) && has(r.upw) && has(r.loww) && r.body <= 0.3 && r.upw >= 0.25 && r.loww >= 0.25, bbp: has(r.bb_pos) ? r.bb_pos : null, f3: f(3), f5: f(5), f10: f(10) }); }); });
   return out; };`);
 const R = page.__run(raw);
 const days = [...new Set(R.map(r => r.d))].sort(), MID = days[Math.floor(days.length/2)];
@@ -47,6 +47,9 @@ for (const [mn, mf] of [['전체', () => true], ['미장', r => !r.kr], ['국장
   row('강한매수 전체', A.filter(r => r.g === 5)); row('다중(💡 포함)', A.filter(r => r.tier === '다중신호' || r.tier === '💡 강한다중')); row('💡 강한다중', A.filter(r => r.tier === '💡 강한다중'));
   row('일봉 등급(셋 중 하나)', A.filter(r => r.tier)); row('🏆 일봉 ∩ 캔들 (황금 일봉 쪽)', A.filter(r => r.tier && r.bull));
   row('  └ 등급만, 캔들 없음', A.filter(r => r.tier && !r.bull));
+  for (const X of [10, 20, 30]){ const DL = r => r.dj && r.bbp != null && r.bbp <= X;
+    row(`  · ${mn} 등급 ∩ (캔들 또는 하단 %B≤${X} 도지)`, A.filter(r => r.tier && (r.bull || DL(r))));
+    row(`    └ 새로 들어오는 쪽(도지만)`, A.filter(r => r.tier && !r.bull && DL(r))); }
   if (mn === '미장'){
     const Q = A.filter(r => r.qt != null), qn = k => Q.filter(r => r.qt >= k);
     console.log(`  · 나스닥 전용 등급 있는 행 ${Q.length} (강한 매수 우위 이상 날 ${new Set(qn(2).map(r => r.d)).size}일 · 💡 ${new Set(Q.filter(r => r.qt === 3).map(r => r.d)).size}일)`);
@@ -76,7 +79,13 @@ for (const [mn, mf] of [['전체', () => true], ['미장', r => !r.kr], ['국장
     const OR = A.filter(r => r.tier && r.bull && (r.qt === 3 || r.tier === '💡 강한다중'));
     row('🏆 OR: 나스닥💡 또는 종목💡', OR); row('  └ 종목💡만(나스닥💡 아님)', OR.filter(r => r.qt !== 3));
     row('  └ OR ∩ 고변동 제외', OR.filter(r => r.atr != null && r.atr <= c2));
-    row('참고: 종목 💡 강한다중 전체(캔들 무관)', A.filter(r => r.tier === '💡 강한다중')); row('💡 황금 ∩ 고변동 제외(저·중)', B3.filter(r => r.atr != null && r.atr <= c2)); row('💡 황금 ∩ 고변동만', B3.filter(r => r.atr != null && r.atr > c2));
+    row('참고: 종목 💡 강한다중 전체(캔들 무관)', A.filter(r => r.tier === '💡 강한다중'));
+    /* 2026-11-11 사용자 제안: 상승 캔들 '또는' 볼밴 하단권 도지·팽이(방향 정하기 직전) — 도지 정의는 pattern_flags C_DOJI와 같음(몸통≤30%·위아래 꼬리≥25%) */
+    const ORm = r => r.qt === 3 || r.tier === '💡 강한다중';
+    for (const X of [10, 20, 30]){ const DL = r => r.dj && r.bbp != null && r.bbp <= X;
+      row(`🏆 OR · 캔들 또는 하단(%B≤${X}) 도지`, A.filter(r => r.tier && ORm(r) && (r.bull || DL(r))));
+      row(`  └ 새로 들어오는 쪽(도지만, %B≤${X})`, A.filter(r => r.tier && ORm(r) && !r.bull && DL(r))); }
+    row('참고: 하단(%B≤20) 도지 · 등급 무관', A.filter(r => r.dj && r.bbp != null && r.bbp <= 20)); row('💡 황금 ∩ 고변동 제외(저·중)', B3.filter(r => r.atr != null && r.atr <= c2)); row('💡 황금 ∩ 고변동만', B3.filter(r => r.atr != null && r.atr > c2));
     row('💡 황금 ∩ 저변동만', B3.filter(r => r.atr != null && r.atr <= c1));
     row('💡날 일봉 등급 ∩ 고변동 제외(캔들 무관)', A.filter(r => r.qt === 3 && r.tier && r.atr != null && r.atr <= c2));
     row('일봉∩캔들 ∩ 고변동 제외(💡 무관)', G.filter(r => r.atr != null && r.atr <= c2)); } row('  참고: 강한매수 변동성 상', A.filter(r => r.g === 5 && r.atr != null && r.atr > c2));
