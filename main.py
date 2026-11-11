@@ -996,7 +996,7 @@ def kr_official_close_gate(results, expected, quote=None):
     국장 첫 갱신을 16:00 KST로 당기면서 넣은 안전장치다. 야후 국장 시세는 약 20분 늦어서
     마감 직후에는 일봉 종가가 종가 단일가(15:20~15:30) 전 가격일 수 있다. 원장은 append-only라
     한 번 잘못 쓰면 고칠 수 없으므로, 아래를 모두 만족하지 않으면 그 실행을 실패시켜 원장에 쓰지 않는다
-    (실패 → 17:00 KST 점검 작업이 한 번 더 돌린다).
+    (실패 → 16:30·16:50 KST 재시도가 다시 돌린다).
       · quote의 마지막 체결(regularMarketTime)이 expected 거래일 15:30 KST 이후
       · 우리가 쓸 종가(row['price'])가 quote의 regularMarketPrice와 같음(0.5원 이내)
     이전 실행에서 이미 기록돼 그대로 넘겨받은 행(data_status 있음)은 건드리지 않는다.
@@ -2362,14 +2362,14 @@ def main():
             raise RuntimeError(f"미국 종가 미갱신 ({expected_us} 필요): {', '.join(outdated)}")
     if RUN_SCOPE in ("kr", "all"):
         # 2026-11-03 국장 행 유실 재발 방지: 미장과 같은 기준으로 '최신 확정 거래일'이 안 들어왔으면
-        # 성공으로 끝내지 않는다. 실패해야 17:00 KST 점검 작업이 한 번 더 돌린다.
+        # 성공으로 끝내지 않는다. 실패해야 16:30·16:50 KST 재시도가 한 번 더 돌린다.
         # (예전에는 OHLC 빈 행이 조용히 지워지고 '새 거래일 0행'으로 성공 처리됐다)
         expected_kr = latest_closed_kr_session()
         outdated_kr = [r["ticker"] for r in results if is_kr_ticker(r["ticker"])
                        and str(r.get("last_date") or "") < expected_kr]
         if outdated_kr:
             raise RuntimeError(f"국장 종가 미갱신 ({expected_kr} 필요): {', '.join(outdated_kr)}")
-        # 16:00 첫 갱신 안전장치: 그날 종가가 15:30 공식 종가로 확인될 때만 저장한다.
+        # 16:10 첫 갱신 안전장치: 그날 종가가 15:30 공식 종가로 확인될 때만 저장한다.
         unconfirmed = kr_official_close_gate(results, expected_kr)
         if unconfirmed:
             raise RuntimeError(f"국장 공식 종가 미확정 ({expected_kr}) — 원장에 쓰지 않음: {'; '.join(unconfirmed)}")
