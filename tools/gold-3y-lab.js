@@ -67,7 +67,12 @@ for (const [mn, mf] of [['전체', () => true], ['미장', r => !r.kr], ['국장
   console.log(`  · 변동성 3분위 경계(ATR%): ${c1?.toFixed(2)} / ${c2?.toFixed(2)}`);
   const G = A.filter(r => r.tier && r.bull);
   row('🏆 변동성 하(저)', G.filter(r => r.atr != null && r.atr <= c1)); row('🏆 변동성 중', G.filter(r => r.atr != null && r.atr > c1 && r.atr <= c2)); row('🏆 변동성 상(고)', G.filter(r => r.atr != null && r.atr > c2));
-  row('  참고: 기준선 변동성 상', A.filter(r => r.atr != null && r.atr > c2)); row('  참고: 강한매수 변동성 상', A.filter(r => r.g === 5 && r.atr != null && r.atr > c2));
+  row('  참고: 기준선 변동성 상', A.filter(r => r.atr != null && r.atr > c2));
+  if (mn === '미장'){ const B3 = A.filter(r => r.qt === 3 && r.tier && r.bull);
+    row('💡 황금 전체', B3); row('💡 황금 ∩ 고변동 제외(저·중)', B3.filter(r => r.atr != null && r.atr <= c2)); row('💡 황금 ∩ 고변동만', B3.filter(r => r.atr != null && r.atr > c2));
+    row('💡 황금 ∩ 저변동만', B3.filter(r => r.atr != null && r.atr <= c1));
+    row('💡날 일봉 등급 ∩ 고변동 제외(캔들 무관)', A.filter(r => r.qt === 3 && r.tier && r.atr != null && r.atr <= c2));
+    row('일봉∩캔들 ∩ 고변동 제외(💡 무관)', G.filter(r => r.atr != null && r.atr <= c2)); } row('  참고: 강한매수 변동성 상', A.filter(r => r.g === 5 && r.atr != null && r.atr > c2));
   /* 종목 개별 승률(이 3년 표본 안 강한매수 3일 상승 비율 — 사후 집계라 낙관적) 65% 컷 */
   const TR = {}; A.filter(r => r.g === 5 && r.f3 != null && r.f3 !== 0).forEach(r => { const x = TR[r.t] = TR[r.t] || [0, 0]; x[0] += r.f3 > 0 ? 1 : 0; x[1]++; });
   const tr = t => TR[t] && TR[t][1] >= 5 ? TR[t][0]/TR[t][1] : null;
