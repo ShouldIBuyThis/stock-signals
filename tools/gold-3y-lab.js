@@ -32,7 +32,7 @@ page.runInPage(`this.__run = j => { const RAW = JSON.parse(j); state.data = norm
       const n1 = hs[i+1], o2 = hs[i+2] && has(hs[i+2].open) ? hs[i+2].open : null;
       const g = n => o2 && hs[i+1+n] && has(hs[i+1+n].price) ? (hs[i+1+n].price/o2 - 1)*100 : null;   // 다음 봉 확인 뒤 진입(이틀 뒤 시가) — 미래 참조 없음
       const nxUp = !!(n1 && has(n1.price) && has(n1.open) && n1.price > n1.open && n1.price > r.price);
-      out.push({ sc: r.stoch_cross || null, up: has(r.upw) ? r.upw : null, lw: has(r.loww) ? r.loww : null, bd: has(r.body) ? r.body : null, nxUp, g3: g(3), g5: g(5), g10: g(10),
+      out.push({ k: has(r.stoch_k) ? r.stoch_k : null, rsi: has(r.rsi) ? r.rsi : null, sc: r.stoch_cross || null, up: has(r.upw) ? r.upw : null, lw: has(r.loww) ? r.loww : null, bd: has(r.body) ? r.body : null, nxUp, g3: g(3), g5: g(5), g10: g(10),
         d, t: r.ticker, kr: /\\.(KS|KQ)$/.test(r.ticker), blk: r._blk, g: r.sig.grade, tier, bull, qt: QT[d] ?? null, atr: has(r.atr_pct) ? r.atr_pct : null, dj: has(r.body) && has(r.upw) && has(r.loww) && r.body <= 0.3 && r.upw >= 0.25 && r.loww >= 0.25, bbp: has(r.bb_pos) ? r.bb_pos : null, f3: f(3), f5: f(5), f10: f(10) }); }); });
   return out; };`);
 const R = page.__run(raw);
@@ -81,6 +81,22 @@ for (const [mn, mf] of [['전체', () => true], ['미장', r => !r.kr], ['국장
     if (mn === '국장'){ const K = A.filter(r => r.t === '229200.KS' && r.tier && r.bbp != null && r.bbp <= 30 && neu(r));
       console.log(`  코스닥150(229200) 등급 ∩ 하단(%B≤30) 중립 캔들: ${K.length}건 ` + K.map(r => `${r.d} ${r.tier} 3일 ${r.f3 == null ? '—' : r.f3.toFixed(1)} 5일 ${r.f5 == null ? '—' : r.f5.toFixed(1)} 10일 ${r.f10 == null ? '—' : r.f10.toFixed(1)}`).join(' · '));
       const K2 = A.filter(r => r.t === '229200.KS' && r.tier); console.log(`  코스닥150 일봉 등급 전체 ${K2.length}건 중 상승캔들 ${K2.filter(r => r.bull).length} · 하단 중립캔들 ${K2.filter(r => r.bbp != null && r.bbp <= 30 && neu(r)).length}`); }
+    /* ══ 2026-11-11 캔들 누락 연구(사용자 지적: 229200 11/9 강한매수 +12.8%가 캔들 조건에 걸려 황금에서 빠짐) — 연구만, 산식 변경 아님 ══
+       '다음 날 캔들 확인'은 D+1 종가에 산다(D+1 캔들을 보고 사므로 미래 참조 없음). */
+    console.log(`\n  ── ${mn} 캔들 누락 연구: 일봉 등급인데 그날 상승 캔들패턴이 없는 날 ──`);
+    const NB = A.filter(r => r.tier && mkt(r) && !r.bull);
+    row('비교: 🏆 등급 ∩ 같은 날 캔들', A.filter(r => r.tier && mkt(r) && r.bull));
+    row('등급 ∩ 캔들 없음(누락 쪽 전체)', NB); row('  └ 강한매수(grade 5)', NB.filter(r => r.g === 5));
+    row('  └ ∩ 스토캐스틱 K≤20', NB.filter(r => r.k != null && r.k <= 20)); row('  └ ∩ 스토캐스틱 K≤10', NB.filter(r => r.k != null && r.k <= 10));
+    row('  └ ∩ RSI≤30', NB.filter(r => r.rsi != null && r.rsi <= 30)); row('  └ ∩ %B≤20', NB.filter(r => r.bbp != null && r.bbp <= 20));
+    row('  └ ∩ 고변동 제외', NB.filter(r => !HV(r)));
+    const BY = {}; A.forEach(r => (BY[r.t] = BY[r.t] || []).push(r)); const nxt = new Map();
+    Object.values(BY).forEach(a => { a.sort((x, y) => x.d < y.d ? -1 : 1); a.forEach((r, i) => nxt.set(r, a[i+1])); });
+    const N1 = NB.map(r => nxt.get(r)).filter(n => n && n.bull);
+    row('등급(캔들 없음) → 다음 날 상승 캔들 [D+1 종가 진입]', N1); row('  └ 다음 날은 등급 없음(229200 11/10 모양)', N1.filter(n => !n.tier));
+    row('등급 → 다음 날 캔들 없음 [D+1 종가 진입]', NB.map(r => nxt.get(r)).filter(n => n && !n.bull));
+    if (mn === '국장'){ const K3 = NB.filter(r => r.t === '229200.KS');
+      console.log(`  코스닥150 등급 ∩ 캔들 없음 ${K3.length}건: ` + K3.slice(-12).map(r => `${r.d.slice(2)} ${r.g === 5 ? '강매' : ''}${r.tier === '💡 강한다중' ? '💡' : ''} K${r.k == null ? '—' : r.k.toFixed(0)} 3일 ${r.f3 == null ? '—' : r.f3.toFixed(1)}`).join(' · ')); }
   }
   for (const X of [10, 20, 30]){ const DL = r => r.dj && r.bbp != null && r.bbp <= X;
     row(`  · ${mn} 등급 ∩ (캔들 또는 하단 %B≤${X} 도지)`, A.filter(r => r.tier && (r.bull || DL(r))));
