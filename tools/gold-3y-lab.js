@@ -51,6 +51,10 @@ for (const [mn, mf] of [['전체', () => true], ['미장', r => !r.kr], ['국장
   row('기준선(모든 날)', A); row('캔들패턴만(상승 🟢🔵)', A.filter(r => r.bull));
   row('강한매수 전체', A.filter(r => r.g === 5)); row('다중(💡 포함)', A.filter(r => r.tier === '다중신호' || r.tier === '💡 강한다중')); row('💡 강한다중', A.filter(r => r.tier === '💡 강한다중'));
   row('일봉 등급(셋 중 하나)', A.filter(r => r.tier)); row('🏆 일봉 ∩ 캔들 (황금 일봉 쪽)', A.filter(r => r.tier && r.bull));
+  /* 2026-11-11 사용자 결정(국장): 🏆 = 일봉 등급 ∩ (상승 캔들 또는 볼밴 %B≤10) — GOLD_3Y.kr 숫자의 출처 */
+  if (mn === '국장'){ const KA = A.filter(r => r.tier && (r.bull || (r.bbp != null && r.bbp <= 10)));
+    row('🏆 국장 현행: 등급 ∩ (캔들 또는 %B≤10)', KA); row('  └ 새로 들어온 쪽(캔들 없음 ∩ %B≤10)', KA.filter(r => !r.bull));
+    console.log('  국장 현행 사례(최근 12): ' + KA.slice().sort((x, y) => x.d < y.d ? -1 : 1).slice(-12).map(r => `${r.d.slice(2)} ${r.t} ${r.bull ? '캔들' : '하단'} 3일 ${r.f3 == null ? '—' : r.f3.toFixed(1)}`).join(' · ')); }
   row('  └ 등급만, 캔들 없음', A.filter(r => r.tier && !r.bull));
   /* ══ 2026-11-11 A형·B형·고변동 예외 연구(사용자 지시 1~8) ══ */
   if (mn !== '전체'){
