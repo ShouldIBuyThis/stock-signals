@@ -2,6 +2,7 @@
    화면 함수를 그대로 쓴다(재구현 없음): strategyValidation()과 같은 방식으로 날짜별 행을 만들고
    evaluate() 등급 · multiSignalRank() 다중 등급 · sbDailyTier() · sbItemsFor(row,{main:true}) 상승 패턴.
    실적 영향권(blocked) 날은 화면처럼 뺀다. 장중 조건(세 시간봉)은 5분봉이 필요해 CI의 tools/intraday-gold-lab.js가 본다.
+   국장은 2026-11-11부터 상승 캔들 대신 볼밴 %B≤10(band:true)도 후보로 본다.
    사용: (저장소에서 python3 -m http.server 8765) node tools/gold-history-cands.js [거래일수=20] [pat.json] > backtest/gold-cands.json
    pat.json(선택) = tools/pat-recompute.py의 PATJSON — 원장 pat이 비어 있는 날(2026-11-05 이전)만 이 소급 값으로 채우고 src:"소급"으로 표시한다. */
 const { chromium } = require('playwright');
@@ -38,7 +39,9 @@ const PATX = process.argv[3] ? JSON.parse(require('fs').readFileSync(process.arg
         uni.filter(r => mk(r) === m).forEach(r => {
           const tier = sbDailyTier(r, mm); if (!tier) return;
           const items = sbItemsFor(r, {main:true}), pats = items.filter(x => !x.site && (x.kind === 'green' || x.kind === 'blue'));
-          res.push({ m, date: d, ticker: r.ticker, name: r.name || '', tier, src: r._src, pats: [...new Set(pats.map(x => x.name))], red: items.some(x => x.kind === 'red'), price: r.price });
+          /* 국장(2026-11-11 사용자 결정): 상승 캔들 또는 볼밴 %B≤10(화면 goldKrBand 그대로) */
+          const band = m === 'kr' && typeof goldKrBand === 'function' && goldKrBand(r);
+          res.push({ m, date: d, ticker: r.ticker, name: r.name || '', tier, src: r._src, pats: [...new Set(pats.map(x => x.name))], band: !pats.length && band, bb: has(r.bb_pos) ? +r.bb_pos.toFixed(2) : null, red: items.some(x => x.kind === 'red'), price: r.price });
         });
       });
       res.push({ m, _dates: dates });
@@ -46,7 +49,7 @@ const PATX = process.argv[3] ? JSON.parse(require('fs').readFileSync(process.arg
     return res;
   }, [N, PATX]);
   const dates = out.filter(x => x._dates), rows = out.filter(x => !x._dates);
-  const both = rows.filter(r => r.pats.length);
+  const both = rows.filter(r => r.pats.length || r.band);
   console.log(JSON.stringify({ generated: new Date().toISOString(), days: N, dates: Object.fromEntries(dates.map(x => [x.m, x._dates])),
     daily_only: rows.length, cands: both }, null, 1));
   console.error(`일봉 등급(강한매수·다중·💡) ${rows.length}건 → 상승 캔들패턴까지 ${both.length}건 · 페이지 오류 ${errs.length}`);
