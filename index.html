@@ -5240,7 +5240,7 @@ function sbGoldInner(cands){
       <div class="sb-goldl">📅 일봉 <b>${esc(c.tier)}</b> · 🕯 ${esc(c.pats.slice(0, 2).join(", "))}${c.pats.length > 2 ? ` 외 ${c.pats.length - 2}` : ""}${c.red ? ` · <span class="down">🔴 위험 패턴도 함께</span>` : ""}</div>
       <div class="sb-goldl">${c.kr ? `🇰🇷 국장은 일봉 등급 ∩ 캔들만으로 황금(3년 백테스트 3일 71%) · 장중 참고: ` : `⏱ 장중(${esc(idMDsafe(s.last_date))}) `}${sbIdText(r && r.r ? r.r : r && r.err ? r : null)}</div></div>`; };
   const rest = cands.filter(c => !gold.includes(c));
-  return `<div class="sb-group sb-gold"><div class="sb-gh">🏆 <b>황금신호</b>  <small>일봉 강한매수 · 캔들패턴 · 그날 장중 5분 ▲ 겹침(국장은 장중 조건 없이) · ${wait ? `장중 확인 중 ${wait}종목` : `${gold.length}종목`}</small></div>
+  return `<div class="sb-group sb-gold"><div class="sb-gh">🏆 <b>황금신호</b>   <small>일봉 강한매수 · 캔들패턴 · 그날 장중 5분 ▲ 겹침(미장은 나스닥 💡 또는 종목 💡 · 국장은 장중 조건 없이) · ${wait ? `장중 확인 중 ${wait}종목` : `${gold.length}종목`}</small></div>
     ${gold.length ? gold.map(row).join("") : `<div class="sb-empty">${wait ? "장중 5분봉을 확인하고 있어요…" : "오늘은 셋이 모두 겹친 종목이 없어요."}</div>`}
     ${rest.length ? `<details class="sb-rest"${gold.length ? "" : " open"}><summary>${gold.length ? `나머지 ${rest.length}종목` : `일봉 강한매수 ∩ 캔들패턴 ${rest.length}종목`} — 장중 조건이 덜 맞았거나 확인 중</summary>${rest.map(row).join("")}</details>` : ""}
     <div class="sb-note">셋이 겹친 '참고 표시'예요.${bt} 표본이 적고 약세장 한 구간이라 매수 확정 신호가 아니에요. 등급·점수는 바꾸지 않아요.</div></div>`;
@@ -7619,9 +7619,10 @@ function goldChartSvg(s, o){
   [hi, lo].forEach(v => { g += `<text x="${W-R+3}" y="${y(v)+4}" font-size="10" fill="var(--muted,#888)">${Number(v).toFixed(v >= 100 ? 0 : 2)}</text>`; });
   return `<svg viewBox="0 0 ${W} ${Hp+Hv+4}" width="100%" role="img" aria-label="${esc(s.ticker)} 황금신호 일봉">${g}</svg>`;
 }
-/* 2026-11-11 사용자 결정 '3년 숫자 크게' — tools/gold-3y-lab.js run 42962254622(3년 690거래일 · 다음 날 시가 진입 · ±1% 보합 제외).
-   장중 ▲ 조건은 3년치 5분봉이 없어 빠진 일봉 쪽 숫자다. 국장 = 일봉 등급 ∩ 캔들, 미장 = 일봉 등급 ∩ 캔들 ∩ 그날 나스닥 💡 강한다중. */
-const GOLD_3Y = { kr: { n: 14, r3: 75, r5: 64, r10: 69 }, us: { n: 29, r3: 85, r5: 81, r10: 92 } };
+/* 2026-11-11 사용자 결정 '3년 숫자 크게' — tools/gold-3y-lab.js run 42965426207(3년 690거래일 · 미장 행에 그날 VXN 채움 · 다음 날 시가 진입 · ±1% 보합 제외).
+   장중 ▲ 조건은 3년치 5분봉이 없어 빠진 일봉 쪽 숫자다. 국장 = 일봉 등급 ∩ 캔들,
+   미장 = 일봉 등급 ∩ 캔들 ∩ (그날 나스닥 💡 강한다중 또는 종목 💡 강한다중) — 95건 · 5일 반쪽 84%/68%. */
+const GOLD_3Y = { kr: { n: 14, r3: 75, r5: 64, r10: 69 }, us: { n: 95, r3: 75, r5: 78, r10: 83 } };
 function goldHelpHtml(){
   const G = GOLD_CASES; if (!G || !G.events || !G.events.length) return "";
   const pct = v => v == null ? "측정 대기" : `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
@@ -7665,7 +7666,7 @@ function goldHelpHtml(){
   return `<div class="section help-block gold-help">
     <div class="gh-eyebrow">🏆 GOLDEN SIGNAL</div>
     <h3 class="gh-title">황금신호, 이렇게 잡았어요</h3>
-    <p class="gh-freq">보통 <b>1년에 약 12~16번</b>(미장 7~11 · 국장 5), 한 달에 1번꼴로 나와요</p>
+    <p class="gh-freq">보통 <b>1년에 약 30번</b>(미장 약 27 · 국장 약 5), 한 달에 2~3번꼴로 나와요</p>
     <div class="gh-kpis">
       <div class="gh-kpi"><b>${GOLD_3Y.us.r3}<small>%</small></b><span>🇺🇸 미장 3일 후 상승<br><small>3년 백테스트 · ${GOLD_3Y.us.n}건</small></span></div>
       <div class="gh-kpi"><b>${GOLD_3Y.kr.r3}<small>%</small></b><span>🇰🇷 국장 3일 후 상승<br><small>3년 백테스트 · ${GOLD_3Y.kr.n}건</small></span></div>
@@ -7681,9 +7682,9 @@ function goldHelpHtml(){
       ${esc(idMDsafe(dmin))}~${esc(idMDsafe(dmax))} · 실시간 기록 ${nLive}건 + 소급 재현 ${nBack}건 · 신호 다음 날 시가에 사서 n거래일 뒤 종가 기준${base3 != null ? ` · 같은 기간 아무 날 매수 3일 후 상승 ${base3}%` : ""}<br>
       ${allGood ? `대표 사례는 전체 ${ev.length}건 중 골라 보여주는 예시예요. 실패 사례도 위 통계에 모두 들어 있어요.<br>` : ""}
       ${top.some(x => x.legacy) ? `‘💡 도입 전’ 사례는 미장에 나스닥 💡 조건을 붙이기(11/11) 전 화면에 실제로 뜬 황금신호예요. 지금 규칙으로는 황금신호가 아니라서 통계에는 넣지 않았어요.<br>` : ""}
-      연간 횟수는 3년 백테스트(약 2.7년)에서 셌어요: 미장 일봉 등급 ∩ 캔들 ∩ 나스닥 💡 29건(연 약 11번, 장중 ▲까지 맞는 비율 약 2/3을 곱하면 약 7번) · 국장 일봉 등급 ∩ 캔들 14건(연 약 5번).<br>
+      연간 횟수는 3년 백테스트(약 2.7년)에서 셌어요: 미장 일봉 등급 ∩ 캔들 ∩ (나스닥 💡 또는 종목 💡) 95건(연 약 41번, 장중 ▲까지 맞는 비율 약 2/3을 곱하면 약 27번) · 국장 일봉 등급 ∩ 캔들 14건(연 약 5번).<br>
       아직 표본이 적어 참고용 통계예요. 이 기간은 약세장이라 신호 전반의 성적이 평소보다 낮게 나왔어요.<br>
-      황금신호 = 일봉 강한매수·💡 강한다중·다중신호 ∩ 같은 날 상승 캔들패턴 ∩ 그날 장중 5분 재돌파(▲) 1회 이상. 국장은 3년 백테스트(3일 71%)를 근거로 장중 조건 없이 일봉 등급 ∩ 캔들만으로 봐요. ‘소급 재현’은 캔들패턴 기록(11/5~)이 시작되기 전 날짜를 같은 함수로 다시 계산한 것이라 그날 화면에 실제로 보였던 신호는 아니에요.
+      황금신호 = 일봉 강한매수·💡 강한다중·다중신호 ∩ 같은 날 상승 캔들패턴 ∩ 그날 장중 5분 재돌파(▲) 1회 이상. 미장은 여기에 그날 나스닥 등급 💡 강한다중 또는 종목 자체 💡 강한다중이어야 해요. 국장은 3년 백테스트(3일 75%)를 근거로 장중 조건 없이 일봉 등급 ∩ 캔들만으로 봐요. ‘소급 재현’은 캔들패턴 기록(11/5~)이 시작되기 전 날짜를 같은 함수로 다시 계산한 것이라 그날 화면에 실제로 보였던 신호는 아니에요.
     </div></details>
   </div>`;
 }
