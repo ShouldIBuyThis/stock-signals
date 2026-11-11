@@ -5167,7 +5167,9 @@ function sbRowHtml(g){
       ${x._compact ? "" : `<span class="sb-hit">${esc(sbShortHit(x))}</span>${sbBadge(x)}`}</summary>${sbCardHtml(g)}</details>`;
 }
 /* ══ 🏆 황금신호 (2026-11-11 사용자 지시) ══
-   일봉 종가 판정(강한매수·💡 강한다중·다중신호 중 하나) ∩ 같은 날 캔들패턴(상승 쪽 🟢·🔵) ∩ 그날 장중 마지막 ▲에서 5·15·30분 세 조건 충족.
+   일봉 종가 판정(강한매수·💡 강한다중·다중신호 중 하나) ∩ 같은 날 캔들패턴(상승 쪽 🟢·🔵) ∩ 그날 장중 5분 재돌파(▲)가 한 번 이상.
+   2026-11-11 사용자 결정으로 장중 조건을 '마지막 ▲에서 5·15·30분 셋 다'에서 '그날 ▲ 있음'으로 바꿨다 — 60거래일 소급(일봉∩캔들 57건)에서
+   ▲ 있던 날 3일 상승 55%(20건) · ▲ 없던 날 15%(13건), 셋 다 요구는 3건뿐이고 나아지지 않았다. 30·15분 조건은 참고로만 함께 보여 준다.
    세 판정은 각각 기존 함수(evaluate 등급·multiSignalRank·sbItemsFor·idMtf)를 그대로 읽는다 — 새 산식·새 점수 없음, 등급·원장 영향 없음.
    이 조합 자체는 아직 백테스트하지 않았다(검증 전 · 참고). 장중 자료는 중계 서버(야후)에서 후보 종목만 받는다. */
 const SB_GOLD = { m: new Map(), cands: [], run: false };
@@ -5195,24 +5197,24 @@ function sbIdText(r){
   if (r.kind === "noday") return "그날 5분봉이 아직 없어요";
   if (r.kind === "none") return "그날 ▲(5분 재돌파)가 한 번도 없었어요";
   const ok = v => v ? "✓" : "✗";
-  return `마지막 ▲ ${idHM(r.m + 5)} 확정 때 30분 추세 위 ${ok(r.t30 === "up")} · 15분 지지 ${ok(r.held15 && !r.broken15)} · 5분 재돌파 ${ok(r.e5)}`
-    + (r.ok ? " → <b>세 조건 충족</b>" : " → 일부만 충족");
+  return `5분 재돌파 ▲ ${r.n > 1 ? `${r.n}번 · 마지막 ` : ""}${idHM(r.m + 5)} <small>(그때 30분 추세 위 ${ok(r.t30 === "up")} · 15분 지지 ${ok(r.held15 && !r.broken15)} — 참고)</small>`
+    + " → <b>▲ 있음 · 장중 조건 충족</b>";
 }
 function sbGoldInner(cands){
   if (!cands.length) return "";
   const res = c => SB_GOLD.m.get(sbGoldKey(c.s));
   const gold = cands.filter(c => { const r = res(c); return r && r.ok; });
   const wait = cands.filter(c => !res(c)).length;
-  let bt = ""; try { const g = ID_BT.go; bt = ` 장중 세 조건(🟢)만 놓고 보면 과거 60일 ${g[0].toLocaleString()}건이 60분 뒤 평균 ${g[1].toFixed(2)}%(상승 ${g[2]}%)로 평소와 차이가 없었어요.`; } catch(e){}
+  const bt = " 60거래일 소급 기준으로 이 조합(일봉∩캔들∩그날 ▲)은 3일 뒤 상승 55%(20건), ▲ 없던 날은 15%(13건)였어요.";
   const row = c => { const r = res(c), s = c.s;
     return `<div class="sb-goldrow${r && r.ok ? " on" : ""}"><button class="sb-go" data-rankgoto="${esc(s.ticker)}" data-rank-sort="overall">${r && r.ok ? "🏆" : "·"} <b>${esc(s.ticker)}</b> <small>${esc(s.name || "")}</small></button>
       <div class="sb-goldl">📅 일봉 <b>${esc(c.tier)}</b> · 🕯 ${esc(c.pats.slice(0, 2).join(", "))}${c.pats.length > 2 ? ` 외 ${c.pats.length - 2}` : ""}${c.red ? ` · <span class="down">🔴 위험 패턴도 함께</span>` : ""}</div>
       <div class="sb-goldl">⏱ 장중(${esc(idMDsafe(s.last_date))}) ${sbIdText(r && r.r ? r.r : r && r.err ? r : null)}</div></div>`; };
   const rest = cands.filter(c => !gold.includes(c));
-  return `<div class="sb-group sb-gold"><div class="sb-gh">🏆 <b>황금신호</b> <small>일봉 강한매수 · 캔들패턴 · 장중 마지막 신호 셋 다 겹침 · ${wait ? `장중 확인 중 ${wait}종목` : `${gold.length}종목`}</small></div>
+  return `<div class="sb-group sb-gold"><div class="sb-gh">🏆 <b>황금신호</b>  <small>일봉 강한매수 · 캔들패턴 · 그날 장중 5분 ▲ 겹침 · ${wait ? `장중 확인 중 ${wait}종목` : `${gold.length}종목`}</small></div>
     ${gold.length ? gold.map(row).join("") : `<div class="sb-empty">${wait ? "장중 5분봉을 확인하고 있어요…" : "오늘은 셋이 모두 겹친 종목이 없어요."}</div>`}
     ${rest.length ? `<details class="sb-rest"${gold.length ? "" : " open"}><summary>${gold.length ? `나머지 ${rest.length}종목` : `일봉 강한매수 ∩ 캔들패턴 ${rest.length}종목`} — 장중 조건이 덜 맞았거나 확인 중</summary>${rest.map(row).join("")}</details>` : ""}
-    <div class="sb-note">셋이 겹친 '참고 표시'예요. 이 조합은 아직 백테스트하지 않았어요(검증 전).${bt} 매수 확정 신호가 아니고, 등급·점수는 바꾸지 않아요.</div></div>`;
+    <div class="sb-note">셋이 겹친 '참고 표시'예요.${bt} 표본이 적고 약세장 한 구간이라 매수 확정 신호가 아니에요. 등급·점수는 바꾸지 않아요.</div></div>`;
 }
 function idMDsafe(day){ try { return day ? idMD(day) : "—"; } catch(e){ return day || "—"; } }
 function sbGoldPaint(){ document.querySelectorAll(".sb-gold-wrap").forEach(el => { el.innerHTML = sbGoldInner(SB_GOLD.cands); }); }
@@ -5222,7 +5224,7 @@ async function sbGoldKick(){
   if (!need.length || typeof idFetch !== "function") return;
   SB_GOLD.run = true; let i = 0;
   const work = async () => { while (i < need.length){ const s = need[i++], k = sbGoldKey(s);
-    try { const c = await idFetch(String(s.ticker).toUpperCase()); const r = idLastSignalOn(c.d, s.last_date); SB_GOLD.m.set(k, { r, ok: r.kind === "rb" && r.ok }); }
+    try { const c = await idFetch(String(s.ticker).toUpperCase()); const r = idLastSignalOn(c.d, s.last_date); SB_GOLD.m.set(k, { r, ok: r.kind === "rb" }); }
     catch(e){ SB_GOLD.m.set(k, { err: e.message || "오류" }); }
     sbGoldPaint(); } };
   try { await Promise.all([0, 1, 2].map(work)); } finally { SB_GOLD.run = false; }
@@ -5977,20 +5979,20 @@ function cartPatternBlock(mine){
         <span class="lv2">${(()=>{ const CL = candleLabel(s); return CL ? `마지막 봉 <span class="c-light">${CL.light}</span><u class="edu-link" data-edubig="${esc(CL.link)}">${esc(CL.label)}</u>` : "마지막 봉 정보 없음"; })()}</span></div>
       <p>· ${cart52wText(s) || "52주 위치 정보 없음"}</p>
       ${sig || `<p class="lv2">· 오늘 새로 뜬 캔들·패턴 신호 없음</p>`}
-      <p class="cart-id" data-cartid="${esc(String(s.ticker).toUpperCase())}" data-cartday="${esc(s.last_date || "")}">· ⏱ 장중 마지막 신호(${esc(idMDsafe(s.last_date))}) <span class="lv2">참고</span>: ⏳ 확인 중…</p></div>`;
+      <p class="cart-id" data-cartid="${esc(String(s.ticker).toUpperCase())}" data-cartday="${esc(s.last_date || "")}">· ⏱ 장중 5분 재돌파(${esc(idMDsafe(s.last_date))}) <span class="lv2">참고</span>: ⏳ 확인 중…</p></div>`;
   }).join("");
   return `<div class="cf-h" style="margin-top:14px">🕯 캔들·패턴 신호 · 52주 위치 <span class="lv2">(마지막 확정 종가 기준)</span></div>
     <div class="cf-r" style="margin-bottom:6px">${sum}</div>${rows}
     <p class="cf-note">신호 줄을 누르면 과거 성적(신호 다음 날 시가에 샀다고 가정한 백테스트)과 실제 차트가 펼쳐집니다. 숫자는 신호 보드와 같습니다.
       테마 하락 패턴(🔴 사지 마)만 매수 등급 계산(v22)에 들어가 있고, 나머지 캔들·패턴은 참고 표시입니다(등급을 바꾸지 않음).<br>
-      ⏱ 장중 마지막 신호는 일봉 종가 날의 5분봉에서 마지막 ▲(5분 재돌파) 때 30분 추세·15분 지지·5분 재돌파가 맞았는지예요. <b>참고만</b> — 승률 검증 전이고 등급·점수에 반영하지 않아요.</p>`;
+      ⏱ 장중 5분 재돌파는 일봉 종가 날의 5분봉에서 ▲(단기 이동평균선 재돌파 + 거래량)가 한 번이라도 있었는지예요(30·15분 조건은 참고 표시). <b>참고만</b> — 등급·점수에 반영하지 않아요.</p>`;
 }
 /* 장바구니 ⏱ 줄 채우기 — 신호 보드 황금신호와 같은 idLastSignalOn()·같은 캐시 */
 async function cartIdFill(){
   const els = [...document.querySelectorAll(".cart-id[data-cartid]")]; let i = 0;
   const work = async () => { while (i < els.length){ const el = els[i++], t = el.dataset.cartid, day = el.dataset.cartday, k = t + "|" + day;
     let v = SB_GOLD.m.get(k);
-    if (!v){ try { const c = await idFetch(t); const r = idLastSignalOn(c.d, day); v = { r, ok: r.kind === "rb" && r.ok }; } catch(e){ v = { err: e.message || "오류" }; } SB_GOLD.m.set(k, v); }
+    if (!v){ try { const c = await idFetch(t); const r = idLastSignalOn(c.d, day); v = { r, ok: r.kind === "rb" }; } catch(e){ v = { err: e.message || "오류" }; } SB_GOLD.m.set(k, v); }
     const head = el.innerHTML.split(":")[0];
     el.innerHTML = `${head}: ${v.ok ? "🟢 " : ""}${sbIdText(v.r ? v.r : v)}`; } };
   try { await Promise.all([0, 1, 2].map(work)); } catch(e){}
@@ -7601,22 +7603,26 @@ function goldHelpHtml(){
     D.forEach((r, i) => { if (r[0] < dmin || r[0] > dmax || i + 3 >= D.length) return; bn++; if (D[i+3][4] > D[i+1][1]) bu++; }); });
   const base3 = bn ? Math.round(bu/bn*100) : null;
   const nLive = ev.filter(x => x.e.src === "원장").length, nBack = ev.length - nLive;
-  const top = ev.filter(x => x.o.r3 != null).sort((a, b) => (b.o.r5 ?? b.o.r3) - (a.o.r5 ?? a.o.r3)).slice(0, 3);
+  /* 사례 3개: 결과가 나온 것 중 성과 순 · 종목 중복 없이. 대표 종목(GOLD_PIN, 사용자 지정)은 결과가 플러스일 때만 맨 앞에 둔다. */
+  const GOLD_PIN = ["CRWV"], perf = x => x.o.r5 ?? x.o.r3;
+  const done = ev.filter(x => x.o.r3 != null).sort((a, b) => perf(b) - perf(a)), top = [], seen = new Set();
+  GOLD_PIN.forEach(tk => { const x = done.find(y => y.s.ticker === tk && perf(y) > 0); if (x){ top.push(x); seen.add(tk); } });
+  done.forEach(x => { if (top.length < 3 && !seen.has(x.s.ticker)){ top.push(x); seen.add(x.s.ticker); } });
   const card = x => `<div class="gold-case">
       <div class="gold-case-h"><b>${esc(x.s.name || x.s.ticker)}</b> <span>${esc(x.s.ticker)}</span> <small class="gold-src">${x.e.src === "원장" ? "실시간 기록" : "소급 재현"}</small></div>
       <div class="gold-chart">${goldChartSvg(x.s, x.o)}</div>
       <div class="gold-nums"><div><span>신호일</span><b>${esc(idMDsafe(x.e.date))}</b></div><div><span>3일 후</span><b class="${(x.o.r3 ?? 0) >= 0 ? "up" : "down"}">${pct(x.o.r3)}</b></div><div><span>5일 후</span><b class="${(x.o.r5 ?? 0) >= 0 ? "up" : "down"}">${pct(x.o.r5)}</b></div><div><span>5일 내 최대</span><b>${pct(x.o.mfe)}</b></div></div>
       <div class="gold-line">“${esc(goldOneLine(x.o))}”</div>
-      <div class="gold-why">📅 일봉 ${esc(x.e.tier)} · 🕯 ${esc((x.e.pats || []).slice(0, 2).join(", "))} · ⏱ 장중 마지막 ▲ ${x.e.m != null ? esc(idHM(x.e.m + 5)) : "—"} 세 조건 충족</div>
+      <div class="gold-why">📅 일봉 ${esc(x.e.tier)} · 🕯 ${esc((x.e.pats || []).slice(0, 2).join(", "))} · ⏱ 장중 5분 ▲ ${x.e.hm ? esc(x.e.hm) : x.e.m != null ? esc(idHM(x.e.m + 5)) : "—"}${x.e.all3 ? " (30·15분도 충족)" : ""}</div>
       <button class="sb-go" data-rankgoto="${esc(x.s.ticker)}" data-rank-sort="overall">📇 ${esc(x.s.ticker)} 종목 카드</button></div>`;
   return `<div class="section help-block gold-help">
     <h3>🏆 황금신호, 실제로 어디서 잡혔나</h3>
     <div class="gold-sum">최근 황금신호 <b>${ev.length}건</b> · 3일 후 상승 <b>${u3 == null ? "—" : u3 + "%"}</b><small>(${r3.length}건)</small> · 5일 후 상승 <b>${u5 == null ? "—" : u5 + "%"}</b><small>(${r5.length}건)</small> · 5일 평균 <b>${avg5 == null ? "—" : (avg5 >= 0 ? "+" : "") + avg5.toFixed(1) + "%"}</b></div>
     <div class="gold-warn">※ 아직 표본이 적어 참고용 통계입니다. 과거 성과가 미래 수익을 보장하지 않습니다.</div>
     <div class="gold-meta">${esc(idMDsafe(dmin))}~${esc(idMDsafe(dmax))} · 실시간 기록 ${nLive}건 + 소급 재현 ${nBack}건 · 신호 다음 날 시가에 사서 n거래일 뒤 종가 기준${base3 != null ? ` · 같은 기간 아무 날 매수 3일 후 상승 ${base3}%` : ""}</div>
-    ${top.length ? `<div class="gold-cases-h">${top.every(x => (x.o.r5 ?? x.o.r3) > 0) ? `성과가 좋았던 사례 ${top.length}개 <small>(전체 ${ev.length}건 중 상위 · 실패 사례는 위 통계에 모두 포함)</small>` : `결과가 나온 사례 ${top.length}개 <small>(좋은 것·나쁜 것 모두 · 성과 순)</small>`}</div><div class="gold-cases">${top.map(card).join("")}</div>` : `<div class="sb-empty">아직 3일 결과가 나온 황금신호가 없어요.</div>`}
+    ${top.length ? `<div class="gold-cases-h">${top.every(x => (x.o.r5 ?? x.o.r3) > 0) ? `성과가 좋았던 사례 ${top.length}개 <small>(전체 ${ev.length}건 중 골라 보여주는 예시 · 실패 사례는 위 통계에 모두 포함)</small>` : `결과가 나온 사례 ${top.length}개 <small>(좋은 것·나쁜 것 모두 · 성과 순)</small>`}</div><div class="gold-cases">${top.map(card).join("")}</div>` : `<div class="sb-empty">아직 3일 결과가 나온 황금신호가 없어요.</div>`}
     <details class="acc" style="margin-top:8px"><summary style="cursor:pointer;font-size:12px"><b>전체 ${ev.length}건 보기</b></summary><div class="strip" style="margin-top:6px;line-height:1.9">${ev.slice().sort((a, b) => b.e.date.localeCompare(a.e.date)).map(x => `${esc(idMDsafe(x.e.date))} <b>${esc(x.s.ticker)}</b> · 3일 ${pct(x.o.r3)} · 5일 ${pct(x.o.r5)}${x.e.src === "원장" ? "" : " · 소급"}`).join("<br>")}</div></details>
-    <p style="font-size:11px;color:var(--faint);margin:8px 2px 0;line-height:1.6">황금신호 = 일봉 강한매수·💡 강한다중·다중신호 ∩ 같은 날 상승 캔들패턴 ∩ 그날 장중 마지막 ▲(5분 재돌파) 때 30분·15분·5분 조건 충족. ‘소급 재현’은 캔들패턴 기록(11/5~)이 시작되기 전 날짜를 같은 함수로 다시 계산한 것이라 그날 화면에 실제로 보였던 신호는 아니에요.</p>
+    <p style="font-size:11px;color:var(--faint);margin:8px 2px 0;line-height:1.6">황금신호 = 일봉 강한매수·💡 강한다중·다중신호 ∩ 같은 날 상승 캔들패턴 ∩ 그날 장중 5분 재돌파(▲)가 한 번 이상. ‘소급 재현’은 캔들패턴 기록(11/5~)이 시작되기 전 날짜를 같은 함수로 다시 계산한 것이라 그날 화면에 실제로 보였던 신호는 아니에요.</p>
   </div>`;
 }
 
@@ -7664,10 +7670,10 @@ function renderHelp(){
     <div class="help-grid" style="margin-bottom:8px">
       <div class="help-card buy"><b>① 📅 일봉 판정</b><br>마지막 <b>일봉 종가</b>로 매긴 <b>강한매수 · 💡 강한다중 · 다중신호</b>. 사이트의 기본 매수 등급이에요.</div>
       <div class="help-card buy"><b>② 🕯 캔들패턴</b><br>같은 날 종가에 뜬 반등(🟢)·추세(🔵) 모양. 신호마다 과거 성적 배지(✅·🟡·⚪)가 붙어요.</div>
-      <div class="help-card rev"><b>③ ⏱ 장중 마지막 신호</b><br>그날 5분봉에서 마지막 ▲(5분 재돌파) 때 <b>30분 추세 위 · 15분 지지 확인 · 5분 재돌파</b> 세 조건이 맞았는지.</div>
+      <div class="help-card rev"><b>③ ⏱ 장중 5분 재돌파</b><br>그날 5분봉이 단기 이동평균선을 거래량과 함께 <b>다시 넘은 ▲가 한 번이라도 있었는지</b>. 30분·15분 조건은 참고로 같이 보여 줘요.</div>
     </div>
     <p style="font-size:12.5px;margin:4px 2px">셋이 모두 겹친 종목은 오늘의 신호 맨 아래 <b>🏆 황금신호</b>에 모여요. 장바구니 모의점검에도 ②캔들패턴과 ③장중 마지막 신호가 종목별로 함께 나와요.</p>
-    <p style="font-size:11.5px;color:var(--faint);margin:4px 2px 0">①은 위 승률표처럼 원장(그날 실제 기록)으로 성적을 재는 기본 등급이에요. ③ 장중 조건은 과거 60일 시험에서 평소와 차이가 없었고, 셋을 겹친 조합은 아직 백테스트하지 않았어요 — 참고 표시이며 매수 확정이 아니에요.</p>
+    <p style="font-size:11.5px;color:var(--faint);margin:4px 2px 0">①은 위 승률표처럼 원장(그날 실제 기록)으로 성적을 재는 기본 등급이에요. 셋을 겹친 조합은 60거래일 소급에서 3일 뒤 상승 55%(20건)로, ▲ 없던 날(15%)보다 나았어요. 표본이 적고 약세장 구간이라 참고 표시이며 매수 확정이 아니에요.</p>
   </div>
 
   <div class="section help-block">

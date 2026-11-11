@@ -46,9 +46,9 @@ function gen(t, lastDay){
     const chk = SB_GOLD.cands.map(c => { const t = String(c.s.ticker).toUpperCase(), d = ID.cache.get(t).d, day = c.s.last_date, off = d.gmtoffset;
       const bars = d.bars.filter(b => idLocal(b[0], off).day <= day), A = idMtf({ ...d, bars, lastTrade: bars[bars.length-1][0] + 300 }, Date.now()/1000);
       const rb = A.E.bars.slice(-1)[0], v = SB_GOLD.m.get(sbGoldKey(c.s));
-      if (!rb) return { t, same: v.r.kind === 'none', ok: false };
+      if (!rb) return { t, same: v.r.kind === 'none' && !v.ok, ok: false };
       const tau = rb.ts + 300, At = idMtf({ ...d, bars: bars.filter(b => b[0] + 300 <= tau), lastTrade: tau }, tau);
-      return { t, same: v.r.kind === 'rb' && v.r.state === At.state && v.ok === (At.state === 'go') && v.r.m === rb.m && A.lastDay === day, ok: v.ok, st: At.state,
+      return { t, same: v.r.kind === 'rb' && v.r.state === At.state && v.ok === true && v.r.m === rb.m && A.lastDay === day, ok: v.ok, st: At.state,
         future: d.bars.some(b => idLocal(b[0], off).day > day) }; });
     const gold = [...document.querySelectorAll('.sb-gold .sb-goldrow.on .sb-go')].map(e => e.dataset.rankgoto);
     return { exp, got, chk, gold, note: (document.querySelector('.sb-gold .sb-note') || {}).textContent || '' };
@@ -56,23 +56,23 @@ function gen(t, lastDay){
   ok(R.got.length > 0 && JSON.stringify(R.exp.slice().sort()) === JSON.stringify(R.got.slice().sort()), `후보 ${R.got.length}종목 = (강한매수|다중|💡) ∩ 상승 캔들패턴 독립 계산: ${R.got.join(',')}`);
   ok(R.chk.every(c => c.same), `장중 마지막 ▲ 판정 = idMtf() 독립 재생과 일치 (${R.chk.map(c => c.t + ':' + (c.st || 'none')).join(' ')})`);
   ok(R.chk.every(c => c.future), `가짜 자료에 일봉 날짜 다음 세션이 있어도 그 봉은 쓰지 않음(lastDay = 일봉 날짜)`);
-  ok(JSON.stringify(R.gold.slice().sort()) === JSON.stringify(R.chk.filter(c => c.ok).map(c => c.t).sort().map(t => R.got.find(g => g.toUpperCase() === t))), `🏆 표시 = 세 조건 충족 종목만 (${R.gold.join(',') || '없음'} · 충족 ${R.chk.filter(c => c.ok).length})`);
+  ok(JSON.stringify(R.gold.slice().sort()) === JSON.stringify(R.chk.filter(c => c.ok).map(c => c.t).sort().map(t => R.got.find(g => g.toUpperCase() === t))), `🏆 표시 = 그날 ▲ 있는 종목만 (${R.gold.join(',') || '없음'} · 충족 ${R.chk.filter(c => c.ok).length})`);
   ok(new Set(seen).size === seen.length && seen.length === R.got.length && seen.length <= 20, `호출 = 후보 종목만 ${seen.length}건(중복 없음)`);
-  ok(/검증 전/.test(R.note) && /매수 확정 신호가 아니/.test(R.note) && /\d+건이 60분 뒤 평균/.test(R.note), `주의 문구: ${R.note.slice(0, 90)}…`);
+  ok(/55%\(20건\)/.test(R.note) && /매수 확정 신호가 아니/.test(R.note), `주의 문구: ${R.note.slice(0, 90)}…`);
   // 🏆 줄 그리기(강제로 1종목 충족시켜 모양 확인)
   const forced = await pg.evaluate(() => { const c = SB_GOLD.cands[0]; SB_GOLD.m.set(sbGoldKey(c.s), { r: { kind: 'rb', m: 600, n: 1, state: 'go', ok: true, t30: 'up', held15: true, broken15: false, e5: true }, ok: true }); sbGoldPaint();
     const row = document.querySelector('.sb-gold .sb-goldrow.on'); return row ? row.textContent.replace(/\s+/g, ' ') : ''; });
-  ok(/🏆/.test(forced) && /일봉/.test(forced) && /🕯/.test(forced) && /30분 추세 위 ✓ · 15분 지지 ✓ · 5분 재돌파 ✓ → 세 조건 충족/.test(forced), `🏆 줄: ${forced.slice(0, 150)}`);
+  ok(/🏆/.test(forced) && /일봉/.test(forced) && /🕯/.test(forced) && /5분 재돌파 ▲ .*30분 추세 위 ✓ · 15분 지지 ✓ — 참고.*▲ 있음 · 장중 조건 충족/.test(forced), `🏆 줄: ${forced.slice(0, 150)}`);
   if (process.env.SHOT_DIR){ await pg.setViewportSize({ width: 390, height: 844 }); await pg.evaluate(() => sbGoldPaint()); await pg.locator('.sb-gold').screenshot({ path: process.env.SHOT_DIR + '/gold.png' }); }
   // 장바구니
   await pg.evaluate(() => { SB_GOLD.m.clear(); state.cart = ['TSLA', 'APLD'].filter(t => allStocks().some(s => s.ticker === t)); openCartReview(); });
   await pg.waitForFunction(() => [...document.querySelectorAll('.cart-id')].every(e => !/확인 중/.test(e.textContent)), null, { timeout: 20000 });
   const cart = await pg.evaluate(() => [...document.querySelectorAll('.cart-id')].map(e => e.textContent.replace(/\s+/g, ' ')));
-  ok(cart.length === 2 && cart.every(t => /장중 마지막 신호\(\d+\/\d+\) 참고: /.test(t) && /(30분 추세 위|▲\(5분 재돌파\)가 한 번도)/.test(t)), `장바구니 ⏱ 줄 ${cart.length}개: ${cart[0]}`);
+  ok(cart.length === 2 && cart.every(t => /장중 5분 재돌파\(\d+\/\d+\) 참고: /.test(t) && /(5분 재돌파 ▲|▲\(5분 재돌파\)가 한 번도)/.test(t)), `장바구니 ⏱ 줄 ${cart.length}개: ${cart[0]}`);
   ok(/참고만/.test(await pg.textContent('#modal')), `장바구니 설명에 '참고만'`);
   await pg.evaluate(() => { document.getElementById('modal').classList.remove('on'); state.tab = 'help'; render(); });
   const help = await pg.evaluate(() => document.body.textContent.replace(/\s+/g, ' '));
-  ok(/오늘의 신호 — 세 가지를 같이 보세요/.test(help) && /일봉 판정/.test(help) && /캔들패턴/.test(help) && /장중 마지막 신호/.test(help), `도움말: 세 가지 안내`);
+  ok(/오늘의 신호 — 세 가지를 같이 보세요/.test(help) && /일봉 판정/.test(help) && /캔들패턴/.test(help) && /장중 5분 재돌파/.test(help), `도움말: 세 가지 안내`);
   ok(!errs.length, `페이지 오류 ${errs.length}건 ${errs.slice(0, 2).join(' | ')}`);
   await b.close(); console.log(fail ? `실패 ${fail}` : '모두 통과'); process.exit(fail ? 1 : 0);
 })();
