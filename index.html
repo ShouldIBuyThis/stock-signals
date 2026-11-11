@@ -7577,9 +7577,12 @@ ${ledgerStrip}    </details>
 function goldOutcome(s, date){
   const D = (s && s.ohlc60 || []).filter(r => r && has(r[1]) && has(r[4]));
   const i = D.findIndex(r => r[0] === date); if (i < 0 || i + 1 >= D.length) return { i, D, entry: null };
-  const p0 = D[i+1][1], ret = n => i + n < D.length ? (D[i+n][4]/p0 - 1)*100 : null;
+  /* 2026-11-11 사용자 지적: 성과 구간이 실적 영향권에 걸리면 승률표처럼 그 구간은 세지 않는다(신호일 자체 영향권은 후보 단계에서 이미 제외). */
+  let ew = null; try { ew = earningsWindowsForValidation(s, histStocks(s) || []); } catch(e){}
+  const hit = n => !!ew && D.slice(i+1, i+1+n).some(r => ew.affected.has(r[0]) || ew.blocked.has(r[0]));
+  const p0 = D[i+1][1], ret = n => i + n < D.length && !hit(n) ? (D[i+n][4]/p0 - 1)*100 : null;
   const w5 = D.slice(i+1, Math.min(D.length, i+6)), mfe = w5.length ? (Math.max(...w5.map(r => r[2]))/p0 - 1)*100 : null, mae = w5.length ? (Math.min(...w5.map(r => r[3]))/p0 - 1)*100 : null;
-  return { i, D, entry: p0, r3: ret(3), r5: ret(5), mfe, mae, done5: i + 5 < D.length };
+  return { i, D, entry: p0, r3: ret(3), r5: ret(5), mfe, mae, done5: i + 5 < D.length, e3: hit(3) && i + 3 < D.length, e5: hit(5) && i + 5 < D.length };
 }
 function goldOneLine(o){
   if (o.r3 == null) return "결과 측정 중이에요";
@@ -7610,44 +7613,45 @@ function goldHelpHtml(){
   const ev = G.events.filter(e => goldRankOk(e.ticker)).map(e => { const s = allStocks().find(x => x.ticker === e.ticker); return s ? { e, s, o: goldOutcome(s, e.date) } : null; }).filter(Boolean);
   const cut = G.events.length - G.events.filter(e => goldRankOk(e.ticker)).length;
   const r3 = ev.filter(x => x.o.r3 != null), r5 = ev.filter(x => x.o.r5 != null);
-  const up = a => a.length ? Math.round(a.filter(x => x.v > 0).length / a.length * 100) : null;
+  const up = a => { const w = a.filter(x => x.v > 1).length, l = a.filter(x => x.v < -1).length; return w + l ? Math.round(w / (w + l) * 100) : null; };   // 일봉 규칙: ±1% 안은 보합으로 제외
   const u3 = up(r3.map(x => ({ v: x.o.r3 }))), u5 = up(r5.map(x => ({ v: x.o.r5 })));
   const avg5 = r5.length ? r5.reduce((a, x) => a + x.o.r5, 0) / r5.length : null;
   /* 같은 기간 아무 날 매수(같은 진입 규칙) — 비교 기준 */
   const days = new Set(ev.map(x => x.e.date)), dmin = [...days].sort()[0], dmax = [...days].sort().pop();
   let bn = 0, bu = 0; allStocks().forEach(s => { const D = (s.ohlc60 || []).filter(r => r && has(r[1]) && has(r[4]));
-    D.forEach((r, i) => { if (r[0] < dmin || r[0] > dmax || i + 3 >= D.length) return; bn++; if (D[i+3][4] > D[i+1][1]) bu++; }); });
+    D.forEach((r, i) => { if (r[0] < dmin || r[0] > dmax || i + 3 >= D.length) return; const v = (D[i+3][4]/D[i+1][1] - 1)*100; if (v > 1){ bn++; bu++; } else if (v < -1) bn++; }); });
   const base3 = bn ? Math.round(bu/bn*100) : null;
   const nLive = ev.filter(x => x.e.src === "원장").length, nBack = ev.length - nLive;
   /* 사례 3개: 결과가 나온 것 중 성과 순 · 종목 중복 없이. 대표 종목(GOLD_PIN, 사용자 지정)은 결과가 플러스일 때만 맨 앞에 둔다. */
   const GOLD_PIN = ["CRWV"], perf = x => x.o.r5 ?? x.o.r3;
   const done = ev.filter(x => x.o.r3 != null).sort((a, b) => perf(b) - perf(a)), top = [], seen = new Set();
-  GOLD_PIN.forEach(tk => { const x = done.find(y => y.s.ticker === tk && perf(y) > 0); if (x){ top.push(x); seen.add(tk); } });
+  GOLD_PIN.forEach(tk => { const x = done.find(y => y.s.ticker === tk && perf(y) > 1); if (x){ top.push(x); seen.add(tk); } });
   done.forEach(x => { if (top.length < 3 && !seen.has(x.s.ticker)){ top.push(x); seen.add(x.s.ticker); } });
-  const big = (lab, v, tone) => `<div class="gc-stat"><b class="${tone || ((v ?? 0) >= 0 ? "up" : "down")}">${pct(v)}</b><span>${lab}</span></div>`;
+  const big = (lab, v, tone, earn) => `<div class="gc-stat"><b class="${tone || ((v ?? 0) >= 0 ? "up" : "down")}">${earn && v == null ? "실적 제외" : pct(v)}</b><span>${lab}</span></div>`;
   const card = x => `<article class="gold-case">
       <div class="gc-head"><div><b>${esc(x.s.name || x.s.ticker)}</b><span>${esc(x.s.ticker)} · ${esc(idMDsafe(x.e.date))} 신호</span></div><em class="gc-badge">${x.e.src === "원장" ? "실시간 기록" : "소급 재현"}</em></div>
       <div class="gold-chart">${goldChartSvg(x.s, x.o)}</div>
-      <div class="gc-stats">${big("3일 후", x.o.r3)}${x.o.r5 != null ? big("5일 후", x.o.r5) : ""}${big("5일 안 최고", x.o.mfe, "gold")}</div>
+      <div class="gc-stats">${big("3일 후", x.o.r3, null, x.o.e3)}${x.o.r5 != null || x.o.e5 ? big("5일 후", x.o.r5, null, x.o.e5) : ""}${big("5일 안 최고", x.o.mfe, "gold")}</div>
       <p class="gc-line">${esc(goldOneLine(x.o))}</p>
       <details class="gc-more"><summary>신호 근거</summary>
         <div>📅 일봉 ${esc(x.e.tier)}<br>🕯 ${esc((x.e.pats || []).slice(0, 2).join(", "))}<br>⏱ 장중 5분 ▲ ${x.e.hm ? esc(x.e.hm) : x.e.m != null ? esc(idHM(x.e.m + 5)) : "—"}${x.e.all3 ? " (30·15분도 충족)" : ""}</div>
         <button class="gc-go" data-rankgoto="${esc(x.s.ticker)}" data-rank-sort="overall">${esc(x.s.ticker)} 종목 카드 보기 →</button>
       </details></article>`;
-  const allGood = top.every(x => (x.o.r5 ?? x.o.r3) > 0);
+  const allGood = top.every(x => (x.o.r5 ?? x.o.r3) > 1);
   return `<div class="section help-block gold-help">
     <div class="gh-eyebrow">🏆 GOLDEN SIGNAL</div>
     <h3 class="gh-title">황금신호, 이렇게 잡았어요</h3>
     <p class="gh-freq">보통 <b>1년에 약 40번</b>, 한 달에 3~4번꼴로 나와요</p>
     <div class="gh-kpis">
       <div class="gh-kpi"><b>${ev.length}<small>건</small></b><span>최근 황금신호</span></div>
-      <div class="gh-kpi"><b>${u3 == null ? "—" : u3 + "<small>%</small>"}</b><span>3일 후 상승</span></div>
+      <div class="gh-kpi"><b>${u3 == null ? "—" : u3 + "<small>%</small>"}</b><span>3일 후 상승 <small>(±1% 보합 제외)</small></span></div>
     </div>
     <p class="gh-note">참고용 통계예요 · 과거 성과가 미래 수익을 보장하지 않아요</p>
     ${top.length ? `<div class="gh-cases-h">${allGood ? "대표 사례" : "결과가 나온 사례"}</div><div class="gold-cases">${top.map(card).join("")}</div>` : `<div class="sb-empty">아직 3일 결과가 나온 황금신호가 없어요.</div>`}
     <details class="gh-all"><summary>전체 ${ev.length}건 보기</summary><div class="gh-list">${ev.slice().sort((a, b) => b.e.date.localeCompare(a.e.date)).map(x => `<div><span>${esc(idMDsafe(x.e.date))}</span><b>${esc(x.s.ticker)}</b><span>3일 ${pct(x.o.r3)}</span><span>5일 ${pct(x.o.r5)}</span>${x.e.src === "원장" ? "" : "<i>소급</i>"}</div>`).join("")}</div></details>
     <details class="gh-fine"><summary>통계 자세히 · 기준 설명</summary><div>
       3일 후 상승 ${u3 == null ? "—" : u3 + "%"} (결과 나온 ${r3.length}건) · 5일 후 상승 ${u5 == null ? "—" : u5 + "%"} (${r5.length}건) · 5일 평균 ${avg5 == null ? "—" : (avg5 >= 0 ? "+" : "") + avg5.toFixed(1) + "%"}<br>
+      상승·하락은 ±1% 안을 보합으로 빼고 셌어요. 성과 구간이 실적 발표 영향권에 걸리면 사이트 승률표처럼 그 구간은 빼요.<br>
       ${esc(idMDsafe(dmin))}~${esc(idMDsafe(dmax))} · 실시간 기록 ${nLive}건 + 소급 재현 ${nBack}건 · 신호 다음 날 시가에 사서 n거래일 뒤 종가 기준${base3 != null ? ` · 같은 기간 아무 날 매수 3일 후 상승 ${base3}%` : ""}<br>
       ${allGood ? `대표 사례는 전체 ${ev.length}건 중 골라 보여주는 예시예요. 실패 사례도 위 통계에 모두 들어 있어요.<br>` : ""}
       연간 횟수는 3년 백테스트(일봉 등급 ∩ 캔들: 미장 148건·국장 14건, 약 2.7년)에 미장은 60일 실측의 장중 ▲ 비율(약 2/3)을 곱해 추정했어요.<br>
