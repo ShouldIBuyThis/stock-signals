@@ -7605,7 +7605,7 @@ function goldOneLine(o){
   if ((o.r5 ?? o.r3) > 0) return "며칠 다지기 뒤 위로 방향을 잡음";
   return "반등이 이어지지 못하고 밀림";
 }
-function goldChartSvg(s, o){
+function goldChartSvg(s, o, mark){
   const D = o.D; if (!D.length || o.i < 0) return "";
   const a = Math.max(0, o.i - 14), V = D.slice(a, Math.min(D.length, o.i + 9)), si = o.i - a;
   const W = 600, Hp = 170, Hv = 34, L = 6, R = 48, T = 22;
@@ -7616,7 +7616,7 @@ function goldChartSvg(s, o){
     g += `<line x1="${x(i)}" x2="${x(i)}" y1="${y(r[2])}" y2="${y(r[3])}" stroke="${col}" stroke-width="1"/><rect x="${(x(i)-cw*0.33).toFixed(1)}" width="${(cw*0.66).toFixed(1)}" y="${y(Math.max(op,c)).toFixed(1)}" height="${Math.max(1, Math.abs(y(op)-y(c))).toFixed(1)}" fill="${col}"><title>${esc(r[0])} 시 ${r[1]} 고 ${r[2]} 저 ${r[3]} 종 ${r[4]}</title></rect>`;
     const vh = (r[5]||0)/vmax*(Hv-4); g += `<rect x="${(x(i)-cw*0.33).toFixed(1)}" width="${(cw*0.66).toFixed(1)}" y="${(Hp+Hv-vh).toFixed(1)}" height="${vh.toFixed(1)}" fill="${col}" opacity=".4"/>`; });
   if (o.entry != null && si + 1 < V.length) g += `<line x1="${x(si+1)-cw*0.5}" x2="${W-R}" y1="${y(o.entry)}" y2="${y(o.entry)}" stroke="#ca8a04" stroke-width="1" opacity=".7"/><text x="${W-R+3}" y="${y(o.entry)+4}" font-size="10" fill="#a16207">신호일 종가</text>`;
-  g += `<text x="${x(si)}" y="${T-8}" text-anchor="middle" font-size="13">🏆</text><text x="${x(si)+10}" y="${T-9}" font-size="10.5" font-weight="700" fill="#a16207">${esc(String(D[o.i][0]).slice(5).replace("-", "/"))} 신호</text>`;
+  g += `<text x="${x(si)}" y="${T-8}" text-anchor="middle" font-size="13">${mark || "🏆"}</text><text x="${x(si)+10}" y="${T-9}" font-size="10.5" font-weight="700" fill="#a16207">${esc(String(D[o.i][0]).slice(5).replace("-", "/"))} 신호</text>`;
   [hi, lo].forEach(v => { g += `<text x="${W-R+3}" y="${y(v)+4}" font-size="10" fill="var(--muted,#888)">${Number(v).toFixed(v >= 100 ? 0 : 2)}</text>`; });
   return `<svg viewBox="0 0 ${W} ${Hp+Hv+4}" width="100%" role="img" aria-label="${esc(s.ticker)} 황금신호 일봉">${g}</svg>`;
 }
@@ -7626,6 +7626,55 @@ function goldChartSvg(s, o){
 /* 국장 지수 ETF는 코스피·코스닥을 이름으로 구분해 보여 준다(069500.KS = KODEX 200 = 코스피200 · 229200.KS = KODEX 코스닥150) */
 const GOLD_KR_LABEL = { "069500.KS": "코스피200 ETF (KODEX 200)", "229200.KS": "코스닥150 ETF (KODEX 코스닥150)", "122630.KS": "코스피200 레버리지", "233740.KS": "코스닥150 레버리지" };
 const GOLD_3Y = { kr: { n: 14, r3: 73, r5: 57, r10: 77 }, us: { n: 95, r3: 77, r5: 79, r10: 86 } };
+/* 2026-11-11 사용자 지시: '일봉 강한매수'였지만 그날 상승 캔들패턴이 없어 황금신호(캔들 조건)에서 빠진 반등 성공 사례.
+   황금신호가 아니므로 3년·60일 황금 통계에 넣지 않고 따로 보여 준다(산식 변경 아님). 계기: 229200 11/9 강한매수 → 2거래일 +12.8%.
+   대상 = 원장 날짜 중 캔들패턴 기록이 있는 날(pat 기록 11/5~)만 — 기록 전 날짜는 '캔들 없음'을 알 수 없어 뺀다.
+   등급 = 화면 evaluate() 그대로(grade 5) · 실적 영향권 신호일 제외 · 성과 = 신호일 종가 → n거래일 뒤 종가(최대 3일, 성과 구간이 실적 영향권이면 제외). */
+function goldStrongMissed(){
+  const key = state.data && state.data.generated_at;
+  if (goldStrongMissed._k === key && goldStrongMissed._v) return goldStrongMissed._v;
+  const gold = new Set(((GOLD_CASES && GOLD_CASES.events) || []).map(e => e.ticker + "|" + e.date)), out = [];
+  allStocks().forEach(s => { const hs = histStocks(s); if (!hs) return; let ew = null; try { ew = earningsWindowsForValidation(s, hs); } catch(e){}
+    hs.forEach((h, i) => { if (!h.last_date || !has(h.price) || h.pat == null || (ew && ew.blocked.has(h.last_date)) || gold.has(s.ticker + "|" + h.last_date)) return;
+      const row = Object.assign({}, s, h); if (i > 0) withPrev(row, hs[i-1]); row._prevOverallGrade = i > 0 ? evaluate(hs[i-1]).grade : null;
+      row.sig = evaluate(row); if (row.sig.grade !== 5) return; row.earnings_hold = false; row.ext_pair = null;
+      let bull = false; try { bull = sbItemsFor(row, {main:true}).some(x => !x.site && (x.kind === "green" || x.kind === "blue")); } catch(e){}
+      if (bull) return;
+      const o = goldOutcome(s, h.last_date); if (!o || o.entry == null || o.i < 0) return;
+      const n = Math.min(3, o.D.length - 1 - o.i); if (n < 1) return;
+      if (ew && o.D.slice(o.i+1, o.i+1+n).some(r => ew.affected.has(r[0]))) return;
+      const c = o.D[o.i];
+      out.push({ s, d: h.last_date, o, n, rn: (o.D[o.i+n][4]/o.entry - 1)*100,
+        cd: { up: c[4] >= c[1], body: row.body, upw: row.upw, loww: row.loww, bb: has(row.bb_pos) ? row.bb_pos : null } }); }); });
+  goldStrongMissed._k = key; goldStrongMissed._v = out; return out;
+}
+function goldStrongMissedHtml(){
+  let all = []; try { all = goldStrongMissed(); } catch(e){ return ""; }
+  const done3 = all.filter(x => x.n >= 3), w = done3.filter(x => x.rn > 1).length, l = done3.filter(x => x.rn < -1).length;
+  /* 사례 2칸: ① 국장 최고 ② 미장 최고 — 2거래일 이상 결과가 나왔고 +1% 넘게 오른 것 중 수익률 순(사용자 지시: 229200 11/9 같은 국장 사례를 소개) */
+  const isKr = x => /\.(KS|KQ)$/.test(x.s.ticker), okc = all.filter(x => x.n >= 2 && x.rn > 1).sort((a, b) => b.rn - a.rn);
+  const pick = [okc.find(isKr), okc.find(x => !isKr(x))].filter(Boolean);
+  if (!pick.length) return "";
+  /* 같은 날 몰림 표시: 한 날짜에 절반 이상 몰렸으면 사실상 한 번의 시장 반등이라는 것을 숫자와 같이 적는다 */
+  const byDay = {}; all.forEach(x => byDay[x.d] = (byDay[x.d] || 0) + 1);
+  const topDay = Object.entries(byDay).sort((a, b) => b[1] - a[1])[0];
+  const crowd = topDay && topDay[1] * 2 >= all.length ? ` 다만 ${topDay[1]}건이 ${esc(idMDsafe(topDay[0]))} 하루에 몰려 있어 사실상 한 번의 시장 반등이에요.` : "";
+  const pct = v => v == null ? "—" : `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`, P = v => v == null ? "—" : Math.round(v * 100) + "%";
+  const shape = c => c.body == null ? "" : c.body <= 0.3 && c.upw >= 0.6 && c.loww < 0.25 ? " (역망치형)" : c.body <= 0.3 && c.upw >= 0.25 && c.loww >= 0.25 ? " (팽이·도지형)" : c.body <= 0.3 && c.loww >= 0.6 ? " (망치형)" : "";
+  const card = x => `<article class="gold-case">
+      <div class="gc-head"><div><b>${esc(GOLD_KR_LABEL[x.s.ticker] || x.s.name || x.s.ticker)}</b><span>${esc(x.s.ticker)} · ${esc(idMDsafe(x.d))} 일봉 강한매수</span></div><em class="gc-badge">실시간 기록 · 황금신호 아님</em></div>
+      <div class="gold-chart">${goldChartSvg(x.s, x.o, "💪")}</div>
+      <div class="gc-stats"><div class="gc-stat"><b class="${x.rn >= 0 ? "up" : "down"}">${pct(x.rn)}</b><span>${x.n}거래일 후${x.n < 3 ? " (진행 중)" : ""}</span></div><div class="gc-stat"><b class="gold">${pct(x.o.mfe)}</b><span>${x.n < 5 ? "지금까지 최고" : "5일 안 최고"}</span></div></div>
+      <p class="gc-line">신호일 종가 ${Number(x.o.entry).toLocaleString()}에 샀다면 ${x.n}거래일 뒤 ${pct(x.rn)}${x.n < 3 ? " · 3일 결과는 3거래일째 종가에 확정" : ""}</p>
+      <details class="gc-more"><summary>황금신호에서 빠진 이유</summary>
+        <div>📅 일봉 강한매수 ✓<br>🕯 그날 캔들: ${x.cd.up ? "양봉" : "음봉"}${shape(x.cd)} · 몸통 ${P(x.cd.body)} · 윗꼬리 ${P(x.cd.upw)} · 아랫꼬리 ${P(x.cd.loww)}${x.cd.bb != null ? ` · 볼밴 ${x.cd.bb < 0 ? "하단선 아래" : `위치 %B ${Math.round(x.cd.bb)}`}` : ""} → 상승 캔들패턴 없음 ✗<br>
+        황금신호는 일봉 등급과 상승 캔들패턴이 같은 날 겹쳐야 해요. 볼밴 하단의 중립 캔들(B형)을 인정할지는 3년 검증 중이고 아직 조건에 넣지 않았어요.</div>
+        <button class="gc-go" data-rankgoto="${esc(x.s.ticker)}" data-rank-sort="overall">${esc(x.s.ticker)} 종목 카드 보기 →</button>
+      </details></article>`;
+  return `<div class="gh-cases-h">💪 강한매수 반등 성공 사례 <small style="font-weight:500;color:var(--muted,#888)">황금신호 아님 · 위 통계에 넣지 않음</small></div>
+    <div class="gold-cases">${pick.map(card).join("")}</div>
+    <p class="gh-note">일봉 강한매수였지만 그날 상승 캔들패턴이 없어 황금신호 조건에 걸리지 않은 날이에요. 같은 기간(캔들 기록 시작 11/5~) 이런 강한매수 ${all.length}건 중 3일 결과가 나온 ${done3.length}건은 ${w + l ? `3일 후 상승 ${Math.round(w / (w + l) * 100)}%(±1% 보합 제외)` : "아직 판단할 결과가 없어요"}.${crowd} 골라 보여 주는 예시예요.</p>`;
+}
 function goldHelpHtml(){
   const G = GOLD_CASES; if (!G || !G.events || !G.events.length) return "";
   const pct = v => v == null ? "측정 대기" : `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
@@ -7682,6 +7731,7 @@ function goldHelpHtml(){
     </div>
     <p class="gh-note">10일 후 상승 미장 ${GOLD_3Y.us.r10}% · 국장 ${GOLD_3Y.kr.r10}% · 최근 60일 실제 황금신호 ${ev.length}건은 3일 후 상승 ${u3 == null ? "—" : u3 + "%"}(약세장)${rec5.length ? ` · 3일 실패 ${f3.length}건 중 5일 내 회복 ${rec5.length}건` : ""}<br>참고용 통계예요 · 과거 성과가 미래 수익을 보장하지 않아요</p>
     ${top.length ? `<div class="gh-cases-h">${allGood ? "대표 성공 사례" : "결과가 나온 사례"}</div><div class="gold-cases">${top.map(card).join("")}</div>` : `<div class="sb-empty">아직 3일 결과가 나온 황금신호가 없어요.</div>`}
+    ${goldStrongMissedHtml()}
     <details class="gh-all"><summary>전체 ${ev.length}건 보기</summary><div class="gh-list">${ev.slice().sort((a, b) => b.e.date.localeCompare(a.e.date)).map(x => `<div><span>${esc(idMDsafe(x.e.date))}</span><b>${esc(x.s.ticker)}</b><span>3일 ${pct(x.o.r3)}</span><span>5일 ${pct(x.o.r5)}</span>${x.e.src === "원장" ? "" : "<i>소급</i>"}</div>`).join("")}</div></details>
     <details class="gh-fine"><summary>통계 자세히 · 기준 설명</summary><div>
       3년 백테스트(위 큰 숫자): 3·5·10일 상승 미장 ${GOLD_3Y.us.r3}·${GOLD_3Y.us.r5}·${GOLD_3Y.us.r10}% (${GOLD_3Y.us.n}건) · 국장 ${GOLD_3Y.kr.r3}·${GOLD_3Y.kr.r5}·${GOLD_3Y.kr.r10}% (${GOLD_3Y.kr.n}건). 지금 관심종목으로 과거를 다시 계산한 것이라(생존 편향) 실제 기록이 아니고, 3년치 5분봉이 없어 장중 ▲ 조건은 빠져 있어요.<br>
