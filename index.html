@@ -7644,8 +7644,10 @@ function goldStrongMissed(){
       const n = Math.min(3, o.D.length - 1 - o.i); if (n < 1) return;
       if (ew && o.D.slice(o.i+1, o.i+1+n).some(r => ew.affected.has(r[0]))) return;
       const c = o.D[o.i];
+      /* 그날 캔들 이름 = 사이트 분류기 그대로(연구실 '캔들 모양'과 같은 문턱) — 그날까지 자른 일봉 · 그날 볼밴 위치로 */
+      let nm = null; try { const cut = Object.assign({}, s, { ohlc60: (s.ohlc60 || []).filter(r => r && r[0] <= h.last_date), bb_pos: row.bb_pos }); const lb = candleLabel(cut); nm = lb && (lb.name || lb.label) || todayShape(cut); } catch(e){}
       out.push({ s, d: h.last_date, o, n, rn: (o.D[o.i+n][4]/o.entry - 1)*100,
-        cd: { up: c[4] >= c[1], body: row.body, upw: row.upw, loww: row.loww, bb: has(row.bb_pos) ? row.bb_pos : null } }); }); });
+        cd: { up: c[4] >= c[1], body: row.body, upw: row.upw, loww: row.loww, bb: has(row.bb_pos) ? row.bb_pos : null, nm } }); }); });
   goldStrongMissed._k = key; goldStrongMissed._v = out; return out;
 }
 function goldStrongMissedHtml(){
@@ -7660,15 +7662,15 @@ function goldStrongMissedHtml(){
   const topDay = Object.entries(byDay).sort((a, b) => b[1] - a[1])[0];
   const crowd = topDay && topDay[1] * 2 >= all.length ? ` 다만 ${topDay[1]}건이 ${esc(idMDsafe(topDay[0]))} 하루에 몰려 있어 사실상 한 번의 시장 반등이에요.` : "";
   const pct = v => v == null ? "—" : `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`, P = v => v == null ? "—" : Math.round(v * 100) + "%";
-  const shape = c => c.body == null ? "" : c.body <= 0.3 && c.upw >= 0.6 && c.loww < 0.25 ? " (역망치형)" : c.body <= 0.3 && c.upw >= 0.25 && c.loww >= 0.25 ? " (팽이·도지형)" : c.body <= 0.3 && c.loww >= 0.6 ? " (망치형)" : "";
+  const shape = c => c.nm ? ` ${esc(c.nm)}` : "";
   const card = x => `<article class="gold-case">
       <div class="gc-head"><div><b>${esc(GOLD_KR_LABEL[x.s.ticker] || x.s.name || x.s.ticker)}</b><span>${esc(x.s.ticker)} · ${esc(idMDsafe(x.d))} 일봉 강한매수</span></div><em class="gc-badge">실시간 기록 · 황금신호 아님</em></div>
       <div class="gold-chart">${goldChartSvg(x.s, x.o, "💪")}</div>
       <div class="gc-stats"><div class="gc-stat"><b class="${x.rn >= 0 ? "up" : "down"}">${pct(x.rn)}</b><span>${x.n}거래일 후${x.n < 3 ? " (진행 중)" : ""}</span></div><div class="gc-stat"><b class="gold">${pct(x.o.mfe)}</b><span>${x.n < 5 ? "지금까지 최고" : "5일 안 최고"}</span></div></div>
       <p class="gc-line">신호일 종가 ${Number(x.o.entry).toLocaleString()}에 샀다면 ${x.n}거래일 뒤 ${pct(x.rn)}${x.n < 3 ? " · 3일 결과는 3거래일째 종가에 확정" : ""}</p>
       <details class="gc-more"><summary>황금신호에서 빠진 이유</summary>
-        <div>📅 일봉 강한매수 ✓<br>🕯 그날 캔들: ${x.cd.up ? "양봉" : "음봉"}${shape(x.cd)} · 몸통 ${P(x.cd.body)} · 윗꼬리 ${P(x.cd.upw)} · 아랫꼬리 ${P(x.cd.loww)}${x.cd.bb != null ? ` · 볼밴 ${x.cd.bb < 0 ? "하단선 아래" : `위치 %B ${Math.round(x.cd.bb)}`}` : ""} → 상승 캔들패턴 없음 ✗<br>
-        황금신호는 일봉 등급과 상승 캔들패턴이 같은 날 겹쳐야 해요. 볼밴 하단의 중립 캔들(B형)을 인정할지는 3년 검증 중이고 아직 조건에 넣지 않았어요.</div>
+        <div>📅 일봉 강한매수 ✓<br>🕯 그날 캔들:${shape(x.cd) || (x.cd.up ? " 양봉" : " 음봉")} · 몸통 ${P(x.cd.body)} · 윗꼬리 ${P(x.cd.upw)} · 아랫꼬리 ${P(x.cd.loww)}${x.cd.bb != null ? ` · 볼밴 ${x.cd.bb < 0 ? "하단선 아래" : `위치 %B ${Math.round(x.cd.bb)}`}` : ""} → 상승 캔들패턴 신호 없음 ✗<br>
+        황금신호의 ‘상승 캔들’은 승률을 검증한 캔들패턴 매수 신호(🟢🔵)예요. 연구실 ‘캔들 모양’ 이름(망치형·역망치형 등)은 화면 설명용이라 조건에 쓰지 않아요. 볼밴 하단의 중립 캔들(도지·팽이 등, B형)을 인정할지는 3년 검증 중이고 아직 조건에 넣지 않았어요.</div>
         <button class="gc-go" data-rankgoto="${esc(x.s.ticker)}" data-rank-sort="overall">${esc(x.s.ticker)} 종목 카드 보기 →</button>
       </details></article>`;
   return `<div class="gh-cases-h">💪 강한매수 반등 성공 사례 <small style="font-weight:500;color:var(--muted,#888)">황금신호 아님 · 위 통계에 넣지 않음</small></div>
