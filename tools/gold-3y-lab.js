@@ -90,13 +90,20 @@ for (const [mn, mf] of [['전체', () => true], ['미장', r => !r.kr], ['국장
     row('  └ ∩ 스토캐스틱 K≤20', NB.filter(r => r.k != null && r.k <= 20)); row('  └ ∩ 스토캐스틱 K≤10', NB.filter(r => r.k != null && r.k <= 10));
     row('  └ ∩ RSI≤30', NB.filter(r => r.rsi != null && r.rsi <= 30)); row('  └ ∩ %B≤20', NB.filter(r => r.bbp != null && r.bbp <= 20));
     row('  └ ∩ 고변동 제외', NB.filter(r => !HV(r)));
+    /* 역망치형(윗꼬리 긴 작은 몸통, 아랫꼬리 짧음) — 229200 11/9(몸통 11%·윗꼬리 68%·아랫꼬리 21%, %B −1.7)가 B형 중립 캔들 정의(도지·팽이는 양쪽 꼬리 25%↑)에 걸리지 않은 모양 */
+    const inv = r => r.bd != null && r.bd <= 0.3 && r.up >= 0.6 && r.lw < 0.25;
+    for (const X of [0, 10, 20]){ const lowB = r => r.bbp != null && r.bbp <= X;
+      row(`B형(%B≤${X}) 기존 중립 캔들`, NB.filter(r => lowB(r) && neu(r)));
+      row(`  └ 역망치형만(%B≤${X})`, NB.filter(r => lowB(r) && inv(r)));
+      row(`  └ 기존 중립 + 역망치형(%B≤${X})`, NB.filter(r => lowB(r) && (neu(r) || inv(r))));
+      row(`  └ 캔들 모양 무관(%B≤${X})`, NB.filter(lowB)); }
     const BY = {}; A.forEach(r => (BY[r.t] = BY[r.t] || []).push(r)); const nxt = new Map();
     Object.values(BY).forEach(a => { a.sort((x, y) => x.d < y.d ? -1 : 1); a.forEach((r, i) => nxt.set(r, a[i+1])); });
     const N1 = NB.map(r => nxt.get(r)).filter(n => n && n.bull);
     row('등급(캔들 없음) → 다음 날 상승 캔들 [D+1 종가 진입]', N1); row('  └ 다음 날은 등급 없음(229200 11/10 모양)', N1.filter(n => !n.tier));
     row('등급 → 다음 날 캔들 없음 [D+1 종가 진입]', NB.map(r => nxt.get(r)).filter(n => n && !n.bull));
     if (mn === '국장'){ const K3 = NB.filter(r => r.t === '229200.KS');
-      console.log(`  코스닥150 등급 ∩ 캔들 없음 ${K3.length}건: ` + K3.slice(-12).map(r => `${r.d.slice(2)} ${r.g === 5 ? '강매' : ''}${r.tier === '💡 강한다중' ? '💡' : ''} K${r.k == null ? '—' : r.k.toFixed(0)} 3일 ${r.f3 == null ? '—' : r.f3.toFixed(1)}`).join(' · ')); }
+      console.log(`  코스닥150 등급 ∩ 캔들 없음 ${K3.length}건: ` + K3.slice(-12).map(r => `${r.d.slice(2)} ${r.g === 5 ? '강매' : ''}${r.tier === '💡 강한다중' ? '💡' : ''} K${r.k == null ? '—' : r.k.toFixed(0)} %B${r.bbp == null ? '—' : r.bbp.toFixed(0)} 몸${r.bd == null ? '—' : Math.round(r.bd*100)}/윗${r.up == null ? '—' : Math.round(r.up*100)}/아랫${r.lw == null ? '—' : Math.round(r.lw*100)} 3일 ${r.f3 == null ? '—' : r.f3.toFixed(1)}`).join(' · ')); }
   }
   for (const X of [10, 20, 30]){ const DL = r => r.dj && r.bbp != null && r.bbp <= X;
     row(`  · ${mn} 등급 ∩ (캔들 또는 하단 %B≤${X} 도지)`, A.filter(r => r.tier && (r.bull || DL(r))));
