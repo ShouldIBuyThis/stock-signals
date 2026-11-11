@@ -2,14 +2,16 @@
    화면 함수를 그대로 쓴다(재구현 없음): strategyValidation()과 같은 방식으로 날짜별 행을 만들고
    evaluate() 등급 · multiSignalRank() 다중 등급 · sbDailyTier() · sbItemsFor(row,{main:true}) 상승 패턴.
    실적 영향권(blocked) 날은 화면처럼 뺀다. 장중 조건(세 시간봉)은 5분봉이 필요해 CI의 tools/intraday-gold-lab.js가 본다.
-   사용: (저장소에서 python3 -m http.server 8765) node tools/gold-history-cands.js [거래일수=20] > backtest/gold-cands.json */
+   사용: (저장소에서 python3 -m http.server 8765) node tools/gold-history-cands.js [거래일수=20] [pat.json] > backtest/gold-cands.json
+   pat.json(선택) = tools/pat-recompute.py의 PATJSON — 원장 pat이 비어 있는 날(2026-11-05 이전)만 이 소급 값으로 채우고 src:"소급"으로 표시한다. */
 const { chromium } = require('playwright');
 const N = +(process.argv[2] || 20);
+const PATX = process.argv[3] ? JSON.parse(require('fs').readFileSync(process.argv[3], 'utf8')) : null;
 (async () => {
   const b = await chromium.launch(), pg = await b.newPage(); const errs = []; pg.on('pageerror', e => errs.push(e.message));
   await pg.route(/workers\.dev/, r => r.abort());
   await pg.goto('http://localhost:8765/index.html'); await pg.waitForFunction(() => state.data && allStocks().length > 0, null, { timeout: 30000 });
-  const out = await pg.evaluate(N => {
+  const out = await pg.evaluate(([N, PATX]) => {
     const byDate = new Map();
     allStocks().forEach(s => {
       const hs = histStocks(s); if (!hs || !hs.length) return;
@@ -22,6 +24,8 @@ const N = +(process.argv[2] || 20);
         row.sig = evaluate(row);
         const raw = (s._hist || [])[i] || {};
         row.ext_pair = raw.ext_pair ?? null; row.earnings_hold = false;   // 그날 값만(오늘 값이 섞이지 않게)
+        row._src = '원장';
+        if (row.pat == null){ const px = PATX && PATX[s.ticker] ? (PATX[s.ticker][h.last_date] || '') : null; if (px != null){ row.pat = px; row._src = '소급'; } }
         (byDate.get(h.last_date) || byDate.set(h.last_date, []).get(h.last_date)).push(row);
       });
     });
@@ -34,13 +38,13 @@ const N = +(process.argv[2] || 20);
         uni.filter(r => mk(r) === m).forEach(r => {
           const tier = sbDailyTier(r, mm); if (!tier) return;
           const items = sbItemsFor(r, {main:true}), pats = items.filter(x => !x.site && (x.kind === 'green' || x.kind === 'blue'));
-          res.push({ m, date: d, ticker: r.ticker, name: r.name || '', tier, pats: [...new Set(pats.map(x => x.name))], red: items.some(x => x.kind === 'red'), price: r.price });
+          res.push({ m, date: d, ticker: r.ticker, name: r.name || '', tier, src: r._src, pats: [...new Set(pats.map(x => x.name))], red: items.some(x => x.kind === 'red'), price: r.price });
         });
       });
       res.push({ m, _dates: dates });
     }
     return res;
-  }, N);
+  }, [N, PATX]);
   const dates = out.filter(x => x._dates), rows = out.filter(x => !x._dates);
   const both = rows.filter(r => r.pats.length);
   console.log(JSON.stringify({ generated: new Date().toISOString(), days: N, dates: Object.fromEntries(dates.map(x => [x.m, x._dates])),

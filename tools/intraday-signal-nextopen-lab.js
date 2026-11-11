@@ -99,8 +99,8 @@ for (const [mn, mf] of [['미장', t => !isKR(t)], ['국장', isKR]]){
 
 /* ── 최근 20거래일 황금신호: 일봉 후보(gold-cands.json) × 그날 장중 마지막 ▲(idLastSignalOn) ── */
 if (GC){
-  console.log(`\n■ 최근 20거래일 황금신호 — 일봉 후보 ${GC.cands.length}건(${GC.dates.us[0]}~ 미장 · ${GC.dates.kr[0]}~ 국장) × 그날 장중 마지막 ▲`);
-  const g = []; let par = 0, parN = 0;
+  console.log(`\n■ 황금신호 — 일봉 후보 ${GC.cands.length}건(${GC.dates.us[0]}~ 미장 · ${GC.dates.kr[0]}~ 국장) × 그날 장중 마지막 ▲`);
+  const g = [], J = []; let par = 0, parN = 0;
   for (const c of GC.cands){
     const t = c.ticker.toUpperCase(), src = data[t] || data[c.ticker];
     if (!src){ console.log(`  ${c.date} ${c.ticker} · 5분봉 없음`); continue; }
@@ -117,9 +117,11 @@ if (GC){
     let perf = '';
     if (X && X.nextOpen != null){ const cl = X.close; perf = cl != null ? ` · 종가→다음 날 시가 ${sg((X.nextOpen/cl - 1)*100, 2)}%` : ''; }
     if (r.ok) g.push(c);
+    J.push({ date: day, ticker: c.ticker, tier: c.tier, src: c.src || '원장', pats: c.pats, red: c.red, kind: r.kind, m: r.m ?? null, t30: r.t30 ?? null, held15: r.held15 ?? null, e5: r.e5 ?? null, ok: !!r.ok });
     if (X && r.kind === 'rb'){ const zr = X.ev.filter(z => z && z.rb && z.late).pop(); parN++; if (zr && zr.st === r.state) par++; }   // 화면 함수 ↔ 하루 재생 교차 확인
     console.log(`  ${r.ok ? '🏆' : '  '} ${day} ${c.ticker.padEnd(9)} 일봉 ${c.tier} · 🕯 ${c.pats.slice(0, 2).join(', ')}${c.red ? ' · 🔴 위험 패턴도' : ''} | ${line}${perf}`);
   }
   console.log(`  교차 확인: idLastSignalOn() 판정 = 하루 재생의 마지막 ▲ 판정 ${par}/${parN}`);
+  console.log('GOLDJSON ' + JSON.stringify(J));
   console.log(`  → 황금신호(셋 다) ${g.length}건: ${g.map(c => c.date + ' ' + c.ticker).join(' · ') || '없음'}`);
 }
