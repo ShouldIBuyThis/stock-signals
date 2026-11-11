@@ -32,14 +32,18 @@ function gen(t, lastDay){
   const real = await pg.evaluate(() => SB_GOLD.cands.map(c => c.s.ticker + '(' + c.tier + ')'));
   console.log(`ℹ️ 실제 오늘 후보 ${real.length}종목 ${real.join(',')}`);
   await pg.evaluate(() => { const orig = window.sbDailyTier, pick = new Set(['APLD', 'AMAT', 'NOW', 'MU', 'MSFT', '069500.KS']);
-    window.sbDailyTier = (s, mm) => pick.has(s.ticker) ? '강한매수' : orig(s, mm); SB_GOLD.m.clear(); render(); }); seen.length = 0;
+    window.sbDailyTier = (s, mm) => pick.has(s.ticker) ? '강한매수' : orig(s, mm);
+    window.__bulb = false; window.qqqBulbOn = () => window.__bulb; SB_GOLD.m.clear(); render(); });
+  const noBulb = await pg.evaluate(() => SB_GOLD.cands.map(c => c.s.ticker));
+  ok(noBulb.length > 0 && noBulb.every(t => /\.(KS|KQ)$/.test(t)), `나스닥 💡 아닌 날: 미장 후보 없음 · 국장만 (${noBulb.join(',')})`);
+  await pg.evaluate(() => { window.__bulb = true; SB_GOLD.m.clear(); render(); }); seen.length = 0;
   await pg.waitForFunction(() => !SB_GOLD.run && SB_GOLD.cands.every(c => SB_GOLD.m.has(sbGoldKey(c.s))), null, { timeout: 30000 });
   const sub = await pg.textContent('.sb-board .section-h .sub');
   ok(/일봉 종가 기준/.test(sub) && /강한매수와 캔들패턴/.test(sub) && /황금신호/.test(sub), `부제: ${sub}`);
   const R = await pg.evaluate(() => {
     let mm = new Map(currentMultiRanked().map(x => [x.ticker, x]));
     const list = allStocks().filter(s => (state.market === "all" || (state.market === "kr" ? s._kr : !s._kr)) && !state.hidden.includes(s.ticker));
-    const exp = list.filter(s => sbDailyTier(s, mm)
+    const exp = list.filter(s => sbDailyTier(s, mm) && goldMarketOk(s, s.last_date)
       && sbItemsFor(s, {main:true}).some(x => !x.site && (x.kind === 'green' || x.kind === 'blue'))).map(s => s.ticker);
     const got = SB_GOLD.cands.map(c => c.s.ticker);
     /* 장중 판정 독립 재생: 일봉 날짜까지의 봉만 → 마지막 ▲ → 그 봉 끝 시점 idMtf().state */
@@ -57,7 +61,7 @@ function gen(t, lastDay){
   ok(R.chk.every(c => c.same), `장중 마지막 ▲ 판정 = idMtf() 독립 재생과 일치 (${R.chk.map(c => c.t + ':' + (c.st || 'none')).join(' ')})`);
   ok(R.chk.every(c => c.future), `가짜 자료에 일봉 날짜 다음 세션이 있어도 그 봉은 쓰지 않음(lastDay = 일봉 날짜)`);
   ok(JSON.stringify(R.gold.slice().sort()) === JSON.stringify(R.chk.filter(c => c.ok).map(c => c.t).sort().map(t => R.got.find(g => g.toUpperCase() === t))), `🏆 표시 = 그날 ▲ 있는 종목만 (${R.gold.join(',') || '없음'} · 충족 ${R.chk.filter(c => c.ok).length})`);
-  ok(new Set(seen).size === seen.length && seen.length === R.got.length && seen.length <= 20, `호출 = 후보 종목만 ${seen.length}건(중복 없음)`);
+  ok(new Set(seen).size === seen.length && seen.every(t => R.got.some(g => g.toUpperCase() === t)) && seen.length <= 20, `호출 = 후보 종목만 ${seen.length}건(중복 없음 · 90초 캐시 재사용 포함)`);
   ok(/55%\(20건\)/.test(R.note) && /매수 확정 신호가 아니/.test(R.note), `주의 문구: ${R.note.slice(0, 90)}…`);
   // 🏆 줄 그리기(강제로 1종목 충족시켜 모양 확인)
   const forced = await pg.evaluate(() => { const c = SB_GOLD.cands[0]; SB_GOLD.m.set(sbGoldKey(c.s), { r: { kind: 'rb', m: 600, n: 1, state: 'go', ok: true, t30: 'up', held15: true, broken15: false, e5: true }, ok: true }); sbGoldPaint();

@@ -5193,11 +5193,23 @@ function sbDailyTier(s, mm){
 /* 2026-11-11 '개별 승률 65% 이하 제외'를 넣었다가 같은 날 되돌림(사용자 결정): 60일 실측에서 컷이 이긴 표본(RGTI·INTC)을 더 많이 지웠고,
    기준인 backtest/ticker-record.json이 9/3 자료(최고 칸 기준)라 현재 필터로 부적합. 다시 쓰려면 3년 검증 뒤에. */
 function goldRankOk(){ return true; }
+/* 2026-11-11 사용자 결정: 미장 황금신호는 그날 나스닥 전용 등급이 💡 강한다중일 때만(3년 백테스트 교집합 29건 3·5·10일 72·79·86%, 0% 기준).
+   그날 등급 = QQQ 전용 원장(qqqSignalHistory) 그 날짜 행. 그 행의 VXN이 비어 있으면(11/10처럼 확정 전 고정) VXN 날짜가 같을 때만 현재 카드 값을 쓴다. */
+function qqqBulbOn(date){
+  try {
+    const row = qqqSignalHistory(qqqBenchmarkStock()).find(r => r.d === date);
+    if (row && row.vxn != null) return !!row.bulb;
+    const v = ((state.data && state.data.market_extra) || {}).vxn || {};
+    if (v.date === date) return !!qqqGrade().bulb;
+  } catch(e){}
+  return false;
+}
+const goldMarketOk = (s, date) => !!(s._kr || /\.(KS|KQ)$/.test(s.ticker)) || qqqBulbOn(date);
 function sbGoldCands(list){
   let mm = null; try { mm = new Map(currentMultiRanked().map(x => [x.ticker, x])); } catch(e){}
   const out = [];
   (list || []).forEach(s => {
-    const tier = sbDailyTier(s, mm); if (!tier || !goldRankOk(s.ticker)) return;
+    const tier = sbDailyTier(s, mm); if (!tier || !goldRankOk(s.ticker) || !goldMarketOk(s, s.last_date)) return;
     const items = sbItemsFor(s, {main:true});
     const pats = items.filter(x => !x.site && (x.kind === "green" || x.kind === "blue"));
     if (!pats.length) return;
@@ -7606,14 +7618,20 @@ function goldChartSvg(s, o){
   [hi, lo].forEach(v => { g += `<text x="${W-R+3}" y="${y(v)+4}" font-size="10" fill="var(--muted,#888)">${Number(v).toFixed(v >= 100 ? 0 : 2)}</text>`; });
   return `<svg viewBox="0 0 ${W} ${Hp+Hv+4}" width="100%" role="img" aria-label="${esc(s.ticker)} 황금신호 일봉">${g}</svg>`;
 }
+/* 2026-11-11 사용자 결정 '3년 숫자 크게' — tools/gold-3y-lab.js run 42962254622(3년 690거래일 · 다음 날 시가 진입 · ±1% 보합 제외).
+   장중 ▲ 조건은 3년치 5분봉이 없어 빠진 일봉 쪽 숫자다. 국장 = 일봉 등급 ∩ 캔들, 미장 = 일봉 등급 ∩ 캔들 ∩ 그날 나스닥 💡 강한다중. */
+const GOLD_3Y = { kr: { n: 14, r3: 75, r5: 64, r10: 69 }, us: { n: 29, r3: 85, r5: 81, r10: 92 } };
 function goldHelpHtml(){
   const G = GOLD_CASES; if (!G || !G.events || !G.events.length) return "";
   const pct = v => v == null ? "측정 대기" : `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
-  const ev = G.events.filter(e => goldRankOk(e.ticker)).map(e => { const s = allStocks().find(x => x.ticker === e.ticker); return s ? { e, s, o: goldOutcome(s, e.date) } : null; }).filter(Boolean);
+  const ev = G.events.filter(e => goldRankOk(e.ticker) && goldMarketOk({ ticker: e.ticker }, e.date)).map(e => { const s = allStocks().find(x => x.ticker === e.ticker); return s ? { e, s, o: goldOutcome(s, e.date) } : null; }).filter(Boolean);
   const cut = G.events.length - G.events.filter(e => goldRankOk(e.ticker)).length;
   const r3 = ev.filter(x => x.o.r3 != null), r5 = ev.filter(x => x.o.r5 != null);
   const up = a => { const w = a.filter(x => x.v > 1).length, l = a.filter(x => x.v < -1).length; return w + l ? Math.round(w / (w + l) * 100) : null; };   // 일봉 규칙: ±1% 안은 보합으로 제외
+  /* 3일 성적은 3일까지의 결과만 쓴다(5일 결과로 바꾸지 않음 — 2026-11-11 사용자 재검토). 대신 '3일 실패 → 5일 안 회복'을 별도 지표로 센다
+     (5일 종가가 −1% 이상으로 돌아온 경우 · 예: IREN 10/20 3일 −9.7% 실패 → 5일 −0.5% 보합 = 회복). */
   const u3 = up(r3.map(x => ({ v: x.o.r3 }))), u5 = up(r5.map(x => ({ v: x.o.r5 })));
+  const f3 = ev.filter(x => x.o.r3 != null && x.o.r3 < -1 && x.o.r5 != null), rec5 = f3.filter(x => x.o.r5 >= -1);
   const avg5 = r5.length ? r5.reduce((a, x) => a + x.o.r5, 0) / r5.length : null;
   /* 같은 기간 아무 날 매수(같은 진입 규칙) — 비교 기준 */
   const days = new Set(ev.map(x => x.e.date)), dmin = [...days].sort()[0], dmax = [...days].sort().pop();
@@ -7640,20 +7658,22 @@ function goldHelpHtml(){
   return `<div class="section help-block gold-help">
     <div class="gh-eyebrow">🏆 GOLDEN SIGNAL</div>
     <h3 class="gh-title">황금신호, 이렇게 잡았어요</h3>
-    <p class="gh-freq">보통 <b>1년에 약 40번</b>, 한 달에 3~4번꼴로 나와요</p>
+    <p class="gh-freq">보통 <b>1년에 약 12~16번</b>(미장 7~11 · 국장 5), 한 달에 1번꼴로 나와요</p>
     <div class="gh-kpis">
-      <div class="gh-kpi"><b>${ev.length}<small>건</small></b><span>최근 황금신호</span></div>
-      <div class="gh-kpi"><b>${u3 == null ? "—" : u3 + "<small>%</small>"}</b><span>3일 후 상승 <small>(±1% 보합 제외)</small></span></div>
+      <div class="gh-kpi"><b>${GOLD_3Y.us.r3}<small>%</small></b><span>🇺🇸 미장 3일 후 상승<br><small>3년 백테스트 · ${GOLD_3Y.us.n}건</small></span></div>
+      <div class="gh-kpi"><b>${GOLD_3Y.kr.r3}<small>%</small></b><span>🇰🇷 국장 3일 후 상승<br><small>3년 백테스트 · ${GOLD_3Y.kr.n}건</small></span></div>
     </div>
-    <p class="gh-note">참고용 통계예요 · 과거 성과가 미래 수익을 보장하지 않아요</p>
+    <p class="gh-note">10일 후 상승 미장 ${GOLD_3Y.us.r10}% · 국장 ${GOLD_3Y.kr.r10}% · 최근 60일 실제 황금신호 ${ev.length}건은 3일 후 상승 ${u3 == null ? "—" : u3 + "%"}(약세장)${rec5.length ? ` · 3일 실패 ${f3.length}건 중 5일 내 회복 ${rec5.length}건` : ""}<br>참고용 통계예요 · 과거 성과가 미래 수익을 보장하지 않아요</p>
     ${top.length ? `<div class="gh-cases-h">${allGood ? "대표 사례" : "결과가 나온 사례"}</div><div class="gold-cases">${top.map(card).join("")}</div>` : `<div class="sb-empty">아직 3일 결과가 나온 황금신호가 없어요.</div>`}
     <details class="gh-all"><summary>전체 ${ev.length}건 보기</summary><div class="gh-list">${ev.slice().sort((a, b) => b.e.date.localeCompare(a.e.date)).map(x => `<div><span>${esc(idMDsafe(x.e.date))}</span><b>${esc(x.s.ticker)}</b><span>3일 ${pct(x.o.r3)}</span><span>5일 ${pct(x.o.r5)}</span>${x.e.src === "원장" ? "" : "<i>소급</i>"}</div>`).join("")}</div></details>
     <details class="gh-fine"><summary>통계 자세히 · 기준 설명</summary><div>
-      3일 후 상승 ${u3 == null ? "—" : u3 + "%"} (결과 나온 ${r3.length}건) · 5일 후 상승 ${u5 == null ? "—" : u5 + "%"} (${r5.length}건) · 5일 평균 ${avg5 == null ? "—" : (avg5 >= 0 ? "+" : "") + avg5.toFixed(1) + "%"}<br>
-      상승·하락은 ±1% 안을 보합으로 빼고 셌어요. 성과 구간이 실적 발표 영향권에 걸리면 사이트 승률표처럼 그 구간은 빼요.<br>
+      3년 백테스트(위 큰 숫자): 3·5·10일 상승 미장 ${GOLD_3Y.us.r3}·${GOLD_3Y.us.r5}·${GOLD_3Y.us.r10}% (${GOLD_3Y.us.n}건) · 국장 ${GOLD_3Y.kr.r3}·${GOLD_3Y.kr.r5}·${GOLD_3Y.kr.r10}% (${GOLD_3Y.kr.n}건). 지금 관심종목으로 과거를 다시 계산한 것이라(생존 편향) 실제 기록이 아니고, 3년치 5분봉이 없어 장중 ▲ 조건은 빠져 있어요.<br>
+      최근 60일 실제: 3일 후 상승 ${u3 == null ? "—" : u3 + "%"} (결과 나온 ${r3.length}건) · 5일 후 상승 ${u5 == null ? "—" : u5 + "%"} (${r5.length}건) · 5일 평균 ${avg5 == null ? "—" : (avg5 >= 0 ? "+" : "") + avg5.toFixed(1) + "%"}<br>
+      상승·하락은 ±1% 안을 보합으로 빼고 셌어요. 3일 성적은 3일까지의 결과만 써요.<br>
+      5일 내 회복: 3일째 −1% 아래로 실패한 ${f3.length}건 중 ${rec5.length}건은 5일째 −1% 위로 돌아왔어요${rec5.length ? ` (${rec5.map(x => esc(x.s.ticker) + " " + esc(idMDsafe(x.e.date))).join(", ")})` : ""}. 성과 구간이 실적 발표 영향권에 걸리면 사이트 승률표처럼 그 구간은 빼요.<br>
       ${esc(idMDsafe(dmin))}~${esc(idMDsafe(dmax))} · 실시간 기록 ${nLive}건 + 소급 재현 ${nBack}건 · 신호 다음 날 시가에 사서 n거래일 뒤 종가 기준${base3 != null ? ` · 같은 기간 아무 날 매수 3일 후 상승 ${base3}%` : ""}<br>
       ${allGood ? `대표 사례는 전체 ${ev.length}건 중 골라 보여주는 예시예요. 실패 사례도 위 통계에 모두 들어 있어요.<br>` : ""}
-      연간 횟수는 3년 백테스트(일봉 등급 ∩ 캔들: 미장 148건·국장 14건, 약 2.7년)에 미장은 60일 실측의 장중 ▲ 비율(약 2/3)을 곱해 추정했어요.<br>
+      연간 횟수는 3년 백테스트(약 2.7년)에서 셌어요: 미장 일봉 등급 ∩ 캔들 ∩ 나스닥 💡 29건(연 약 11번, 장중 ▲까지 맞는 비율 약 2/3을 곱하면 약 7번) · 국장 일봉 등급 ∩ 캔들 14건(연 약 5번).<br>
       아직 표본이 적어 참고용 통계예요. 이 기간은 약세장이라 신호 전반의 성적이 평소보다 낮게 나왔어요.<br>
       황금신호 = 일봉 강한매수·💡 강한다중·다중신호 ∩ 같은 날 상승 캔들패턴 ∩ 그날 장중 5분 재돌파(▲) 1회 이상. 국장은 3년 백테스트(3일 71%)를 근거로 장중 조건 없이 일봉 등급 ∩ 캔들만으로 봐요. ‘소급 재현’은 캔들패턴 기록(11/5~)이 시작되기 전 날짜를 같은 함수로 다시 계산한 것이라 그날 화면에 실제로 보였던 신호는 아니에요.
     </div></details>

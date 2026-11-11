@@ -32,10 +32,12 @@ const days = [...new Set(R.map(r => r.d))].sort(), MID = days[Math.floor(days.le
 const hasOpen = R.filter(r => r.f3 != null).length;
 console.log(`${days[0]}~${days[days.length-1]} · ${days.length}거래일 · 종목·날 ${R.length} · 다음날 시가 있는 행 ${hasOpen} · 반쪽 ${MID}`);
 if (!hasOpen) { console.log('⚠ hist에 open 열이 없어 다음 날 시가 진입을 계산할 수 없음'); process.exit(0); }
-const st = (a, k) => { const v = a.map(r => r[k]).filter(x => x != null); if (!v.length) return '—'; const u = v.filter(x => x > 0).length, dn = v.filter(x => x < 0).length, u1 = v.filter(x => x > 1).length, d1 = v.filter(x => x < -1).length;
-  return `${String(Math.round(u/(u+dn)*100)).padStart(3)}% [±1% ${u1 + d1 ? Math.round(u1/(u1+d1)*100) : '—'}%] ${(v.reduce((s, x) => s + x, 0)/v.length).toFixed(2).padStart(6)}% (${v.length})`; };
-const row = (nm, a) => { const half = w => { const z = a.filter(r => (r.d < MID) === (w === 0)), v = z.map(r => r.f3).filter(x => x != null), u = v.filter(x => x > 0).length, dn = v.filter(x => x < 0).length; return u + dn ? `${Math.round(u/(u+dn)*100)}%(${v.length})` : '—'; };
-  console.log(`${nm.padEnd(26)} 3일 ${st(a, 'f3')} | 5일 ${st(a, 'f5')} | 10일 ${st(a, 'f10')} | 3일 반쪽 ${half(0)}/${half(1)}`); };
+const st = (a, k) => { const v = a.map(r => r[k]).filter(x => x != null); if (!v.length) return '—'; const u1 = v.filter(x => x > 1).length, d1 = v.filter(x => x < -1).length, big = v.filter(x => x <= -5).length;
+  return `${u1 + d1 ? String(Math.round(u1/(u1+d1)*100)).padStart(3) : '  —'}% ${(v.reduce((s, x) => s + x, 0)/v.length).toFixed(2).padStart(6)}% 큰손실${String(Math.round(big/v.length*100)).padStart(3)}% (${v.length})`; };
+const YRS = days.length/252;
+const row = (nm, a) => { const half = w => { const z = a.filter(r => (r.d < MID) === (w === 0)), v = z.map(r => r.f5).filter(x => x != null), u = v.filter(x => x > 1).length, dn = v.filter(x => x < -1).length; return u + dn ? `${Math.round(u/(u+dn)*100)}%(${v.length})` : '—'; };
+  console.log(`${nm.padEnd(26)} 연${(a.length/YRS).toFixed(0).padStart(4)}회 | 3일 ${st(a, 'f3')} | 5일 ${st(a, 'f5')} | 10일 ${st(a, 'f10')} | 5일 반쪽 ${half(0)}/${half(1)}`); };
+console.log('표기: 상승 = ±1% 밖에서 오른 비율(보합 제외) · 평균 · 큰손실 = −5% 이하 비율 · (n) · 연 = 1년당 건수 · 반쪽은 5일 기준');
 for (const [mn, mf] of [['전체', () => true], ['미장', r => !r.kr], ['국장', r => r.kr]]){
   const A = R.filter(r => !r.blk && mf(r)); console.log(`\n■ ${mn}  (상승 = 보합 제외 · [±1% 방향] · 평균 · (n))`);
   row('기준선(모든 날)', A); row('캔들패턴만(상승 🟢🔵)', A.filter(r => r.bull));
@@ -51,6 +53,14 @@ for (const [mn, mf] of [['전체', () => true], ['미장', r => !r.kr], ['국장
     row('  └ 같은 조합, 나스닥 매수우위+', qn(1).filter(r => r.tier && r.bull));
     row('  └ 같은 조합, 나스닥 💡만', Q.filter(r => r.qt === 3 && r.tier && r.bull));
     row('  └ 지워지는 쪽 (나스닥 중립)', Q.filter(r => r.qt === 0 && r.tier && r.bull));
+    const BD = Q.filter(r => r.qt === 3), BG = BD.filter(r => r.tier && r.bull);
+    row('💡날 같은 날 시장 기준선(모든 종목)', BD); row('💡날 일봉 등급만(캔들 무관)', BD.filter(r => r.tier)); row('💡날 캔들만(등급 무관)', BD.filter(r => r.bull));
+    /* 종목별 기준선: 그 종목의 3년 전체 평균 수익·상승 비율과 비교(초과 수익) */
+    const TB = {}; A.forEach(r => { for (const k of ['f3', 'f5', 'f10']) if (r[k] != null){ const x = (TB[r.t + k] = TB[r.t + k] || [0, 0, 0]); x[0] += r[k]; x[1]++; if (r[k] > 1) x[2]++; } });
+    for (const k of ['f3', 'f5', 'f10']){ const ex = BG.filter(r => r[k] != null).map(r => r[k] - TB[r.t + k][0]/TB[r.t + k][1]); const bu = BG.filter(r => r[k] != null).map(r => TB[r.t + k][2]/TB[r.t + k][1]);
+      console.log(`  💡 황금 ${k.slice(1)}일: 종목별 3년 평균 대비 초과수익 ${ex.length ? (ex.reduce((a, b) => a + b, 0)/ex.length).toFixed(2) : '—'}%p · 그 종목들 평소 +1% 넘게 오른 비율 평균 ${bu.length ? Math.round(bu.reduce((a, b) => a + b, 0)/bu.length*100) : '—'}% (n${ex.length})`); }
+    console.log(`  💡 날짜(${new Set(BD.map(r => r.d)).size}일): ${[...new Set(BD.map(r => r.d))].join(' ')}`);
+    console.log(`  💡 황금 사례: ${BG.map(r => r.d.slice(2) + ' ' + r.t + ' ' + (r.f5 == null ? '—' : r.f5.toFixed(1))).join(' · ')}`);
   }
   /* 변동성(신호일 ATR% — 그날까지의 값, 미래 참조 없음) 3분위: 이 시장 모든 행의 ATR% 기준 */
   const at = A.map(r => r.atr).filter(v => v != null).sort((a, b) => a - b), c1 = at[Math.floor(at.length/3)], c2 = at[Math.floor(at.length*2/3)];
