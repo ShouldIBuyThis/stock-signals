@@ -73,6 +73,14 @@ function gen(t, lastDay){
   await pg.evaluate(() => { document.getElementById('modal').classList.remove('on'); state.tab = 'help'; render(); });
   const help = await pg.evaluate(() => document.body.textContent.replace(/\s+/g, ' '));
   ok(/오늘의 신호 — 세 가지를 같이 보세요/.test(help) && /일봉 판정/.test(help) && /캔들패턴/.test(help) && /장중 5분 재돌파/.test(help), `도움말: 세 가지 안내`);
+  // 장중 상세 펼침: 전날 일봉 등급 + '보정 검증 중' 작은 안내 (두 모드)
+  const prior = [];
+  for (const mode of ['easy', 'pro']){
+    await pg.evaluate(m => { state.tab = 'theme'; render(); try { localStorage.setItem('id_mode', m); } catch(e){} ID.mode = m; if (!ID.on) document.getElementById('idToggle').click(); idInput.value = 'APLD'; idQuery(false); }, mode);
+    await pg.waitForFunction(() => document.querySelector('#idOut .id-big'), null, { timeout: 15000 });
+    prior.push(await pg.evaluate(() => { const e = document.querySelector('#idOut .id-prior'); return e ? e.textContent.replace(/\s+/g, ' ') : ''; }));
+  }
+  ok(prior.every(t => /전날 일봉 종가\(\d+\/\d+\) 등급/.test(t) && /검증 진행 중/.test(t) && /반영하지 않았어요/.test(t)), `장중 상세(초보·전문가) 보정 안내: ${prior[0].slice(0, 90)}`);
   ok(!errs.length, `페이지 오류 ${errs.length}건 ${errs.slice(0, 2).join(' | ')}`);
   await b.close(); console.log(fail ? `실패 ${fail}` : '모두 통과'); process.exit(fail ? 1 : 0);
 })();
