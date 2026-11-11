@@ -69,7 +69,7 @@ function gen(t, lastDay){
   ok(/🏆/.test(forced) && /일봉/.test(forced) && /🕯/.test(forced) && /5분 재돌파 ▲ .*30분 추세 위 ✓ · 15분 지지 ✓ — 참고.*▲ 있음 · 장중 조건 충족/.test(forced), `🏆 줄: ${forced.slice(0, 150)}`);
   const krGold = await pg.evaluate(() => { const c = SB_GOLD.cands.find(x => x.kr); if (!c) return null; SB_GOLD.m.set(sbGoldKey(c.s), { r: { kind: 'none' }, ok: false }); sbGoldPaint();
     const el = [...document.querySelectorAll('.sb-gold .sb-goldrow.on .sb-go')].find(e => e.dataset.rankgoto === c.s.ticker); return el ? el.closest('.sb-goldrow').textContent.replace(/\s+/g, ' ') : ''; });
-  ok(krGold === null || /국장은 일봉 등급 ∩ 캔들만으로 황금/.test(krGold), `국장: 장중 ▲ 없어도 🏆 (${krGold === null ? '국장 후보 없음' : krGold.slice(0, 80)})`);
+  ok(krGold === null || /국장은 일봉 등급 ∩ \(캔들 또는 볼밴 하단 %B≤10\)으로 황금/.test(krGold), `국장: 장중 ▲ 없어도 🏆 (${krGold === null ? '국장 후보 없음' : krGold.slice(0, 80)})`);
   if (process.env.SHOT_DIR){ await pg.setViewportSize({ width: 390, height: 844 }); await pg.evaluate(() => sbGoldPaint()); await pg.locator('.sb-gold').screenshot({ path: process.env.SHOT_DIR + '/gold.png' }); }
   // 장바구니
   await pg.evaluate(() => { SB_GOLD.m.clear(); state.cart = ['TSLA', 'APLD'].filter(t => allStocks().some(s => s.ticker === t)); openCartReview(); });
