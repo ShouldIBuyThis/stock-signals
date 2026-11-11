@@ -703,6 +703,7 @@ html[data-theme="dark"] .badge.gOh,html[data-theme="dark"] .c-badge.gOh,html[dat
 .sb-goldrow .sb-go{margin:0 0 3px}.sb-goldrow.on .sb-go{font-weight:800}
 .sb-goldl{font-size:12px;line-height:1.55;color:var(--reason,#475569)}
 .cart-id{font-size:12px}
+.id-prior{font-size:11px;color:var(--faint,#888);line-height:1.6;margin-top:6px}
 .gold-help{border:1px solid #eab308;background:linear-gradient(0deg,rgba(250,204,21,.07),rgba(250,204,21,.07)),var(--card,#fff)}
 .gold-sum{font-size:15px;line-height:1.7;margin:4px 0 2px}.gold-sum b{font-size:18px;color:#a16207}.gold-sum small{font-size:11px;color:var(--muted);margin-left:2px}
 .gold-warn{font-size:11px;color:var(--muted);margin-bottom:4px}.gold-meta{font-size:11px;color:var(--faint);line-height:1.6}
@@ -9264,6 +9265,18 @@ function idLastSignalOn(d, day){
   return { kind: "rb", m: rb.m, n: A.E.bars.length, state: At.state, ok: At.state === "go",
     t30: At.T ? At.T.dir : null, held15: !!(At.P && At.P.held), broken15: !!(At.P && At.P.broken), e5: !!(At.E && At.E.ok), endState: A.state };
 }
+/* 2026-11-11 사용자 지시 "전날 일봉 참고 장중 가산점·감점이 있으면 펼칠 때 작은 글씨로 보정 진행 중 알림".
+   보정은 아직 연구 중(tools/intraday-daily-prior-lab.js)이라 판정(idMtf)에는 넣지 않는다 — 전날 일봉 종가 등급과 '검증 중'만 알린다.
+   전날 = 이 장중 세션(lastDay)보다 앞선 마지막 원장 날짜(장 시작 전에 이미 아는 값). */
+function idPriorNote(t, lastDay){
+  let s = null; try { s = allStocks().find(x => String(x.ticker).toUpperCase() === t); } catch(e){}
+  if (!s) return "";
+  const hs = (typeof histStocks === "function" && histStocks(s)) || [], prev = hs.filter(h => h.last_date && h.last_date < lastDay).pop();
+  if (!prev) return "";
+  let lab = ""; try { const sig = evaluate(prev); lab = gradeLabel(sig);
+    if (prev.last_date === s.last_date && sig.grade === 5){ const m = currentMultiRanked().find(x => x.ticker === s.ticker); if (m && m._multiTier) lab = m._multiTier === 1 ? "💡 강한다중" : "다중신호"; } } catch(e){ return ""; }
+  return `<div class="id-prior">📅 전날 일봉 종가(${esc(idMD(prev.last_date))}) 등급 <b>${esc(lab)}</b> · 이 등급으로 장중 신호에 가산점·감점을 주는 보정은 <b>검증 진행 중</b>이에요 — 아직 위 판정에는 반영하지 않았어요.</div>`;
+}
 function idEvidenceAt(d, ts){ const tau = ts + 300, At = idMtf({ ...d, bars: d.bars.filter(b => b[0] + 300 <= tau), lastTrade: tau }, tau); return At ? idUpEvidence(At) : []; }
 /* 한 종목 → 목록 한 줄(없으면 장중 아님/신호 없음). 계산만 — DOM 없음 */
 function idScanRow(t, name, d, now){
@@ -9885,6 +9898,7 @@ function idRender(){
         · <b>지지선 / 저항선</b>: 주가를 받쳐 주는 가격 / 오늘 위에서 막혔던 가격이에요.<br>
         · <b>확정된 봉</b>: 시간이 다 끝난 봉이에요. 진행 중인 봉은 모양이 바뀔 수 있어서 판단에 쓰지 않아요.<br>
         · 이 판정은 <b>승률 검증 전 참고 신호</b>예요. 과거 60일 시험에서는 표시 뒤 흐름이 평소와 크게 다르지 않았어요.</div>
+        ${idPriorNote(t, lastDay)}
       </details>`;
   } else {
     const ok = v => v ? `<span class="up">✓</span>` : `<span class="down">✗</span>`;
@@ -9907,6 +9921,7 @@ function idRender(){
           <tr><td>EMA 9/20 교차</td><td style="font-weight:500">${crosses(A.tf[5], "5분")}<br>${crosses(A.tf[15], "15분")}<br>${crosses(A.tf[30], "30분")}</td></tr>
           <tr><td>VWAP 교차(5분)</td><td style="font-weight:500">${vwX.length ? vwX.slice(-3).join(" · ") : "없음"}</td></tr>
         </table>
+        ${idPriorNote(t, lastDay)}
         <div class="id-ref"><b>발생 조건</b><br>
           · 30분 상승 = 종가 &gt; VWAP ∧ EMA9 &gt; EMA20 ∧ EMA20 ≥ 3봉 전 / 하락 = 종가 &lt; VWAP ∧ EMA9 &lt; EMA20<br>
           · 15분 S = 현재가 아래 VWAP·EMA20 중 큰 값 · R = 직전 확정 봉까지 오늘 고점 · 지지 확인 = 최근 2봉 저가 ≤ S+0.25ATR ∧ 종가 ≥ S ∧ 6봉 고점−저가 ≥ 0.5ATR<br>
