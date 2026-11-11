@@ -43,7 +43,7 @@ function gen(t, lastDay){
   const R = await pg.evaluate(() => {
     let mm = new Map(currentMultiRanked().map(x => [x.ticker, x]));
     const list = allStocks().filter(s => (state.market === "all" || (state.market === "kr" ? s._kr : !s._kr)) && !state.hidden.includes(s.ticker));
-    const exp = list.filter(s => sbDailyTier(s, mm) && goldMarketOk(s, s.last_date)
+    const exp = list.filter(s => sbDailyTier(s, mm) && goldMarketOk(s, s.last_date, sbDailyTier(s, mm))
       && sbItemsFor(s, {main:true}).some(x => !x.site && (x.kind === 'green' || x.kind === 'blue'))).map(s => s.ticker);
     const got = SB_GOLD.cands.map(c => c.s.ticker);
     /* 장중 판정 독립 재생: 일봉 날짜까지의 봉만 → 마지막 ▲ → 그 봉 끝 시점 idMtf().state */

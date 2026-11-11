@@ -5204,12 +5204,13 @@ function qqqBulbOn(date){
   } catch(e){}
   return false;
 }
-const goldMarketOk = (s, date) => !!(s._kr || /\.(KS|KQ)$/.test(s.ticker)) || qqqBulbOn(date);
+/* 2026-11-11 사용자 제안: 나스닥 💡 '또는' 종목 자체가 일봉 💡 강한다중이면 통과(산식·등급은 그대로, 황금 선정 조건만) */
+const goldMarketOk = (s, date, tier) => !!(s._kr || /\.(KS|KQ)$/.test(s.ticker)) || qqqBulbOn(date) || tier === "💡 강한다중";
 function sbGoldCands(list){
   let mm = null; try { mm = new Map(currentMultiRanked().map(x => [x.ticker, x])); } catch(e){}
   const out = [];
   (list || []).forEach(s => {
-    const tier = sbDailyTier(s, mm); if (!tier || !goldRankOk(s.ticker) || !goldMarketOk(s, s.last_date)) return;
+    const tier = sbDailyTier(s, mm); if (!tier || !goldRankOk(s.ticker) || !goldMarketOk(s, s.last_date, tier)) return;
     const items = sbItemsFor(s, {main:true});
     const pats = items.filter(x => !x.site && (x.kind === "green" || x.kind === "blue"));
     if (!pats.length) return;
@@ -7625,9 +7626,9 @@ function goldHelpHtml(){
   const G = GOLD_CASES; if (!G || !G.events || !G.events.length) return "";
   const pct = v => v == null ? "측정 대기" : `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
   const mk = e => { const s = allStocks().find(x => x.ticker === e.ticker); return s ? { e, s, o: goldOutcome(s, e.date) } : null; };
-  const ev = G.events.filter(e => goldRankOk(e.ticker) && goldMarketOk({ ticker: e.ticker }, e.date)).map(mk).filter(Boolean);
+  const ev = G.events.filter(e => goldRankOk(e.ticker) && goldMarketOk({ ticker: e.ticker }, e.date, e.tier)).map(mk).filter(Boolean);
   /* 💡 조건 도입(2026-11-11) 전에 실제로 뜬 황금신호(원장) — 대표 사례로만 보여 주고 통계에는 넣지 않는다(사용자 지시: 코어위브 11/5 복구) */
-  const legacy = G.events.filter(e => e.src === "원장" && !goldMarketOk({ ticker: e.ticker }, e.date)).map(mk).filter(Boolean).map(x => Object.assign(x, { legacy: true }));
+  const legacy = G.events.filter(e => e.src === "원장" && !goldMarketOk({ ticker: e.ticker }, e.date, e.tier)).map(mk).filter(Boolean).map(x => Object.assign(x, { legacy: true }));
   const cut = G.events.length - G.events.filter(e => goldRankOk(e.ticker)).length;
   const r3 = ev.filter(x => x.o.r3 != null), r5 = ev.filter(x => x.o.r5 != null);
   const up = a => { const w = a.filter(x => x.v > 1).length, l = a.filter(x => x.v < -1).length; return w + l ? Math.round(w / (w + l) * 100) : null; };   // 일봉 규칙: ±1% 안은 보합으로 제외
