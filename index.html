@@ -5190,10 +5190,9 @@ function sbDailyTier(s, mm){
   const m = mm && mm.get(s.ticker), t = m ? m._multiTier : 0;
   return t === 1 ? "💡 강한다중" : t === 2 ? "다중신호" : (s.sig && s.sig.grade === 5 ? "강한매수" : null);
 }
-/* 2026-11-11 사용자 결정: 🎯 적중률 순위의 종목 개별 승률이 65% 이하인 종목은 황금신호에서 뺀다(순위가 없는 종목은 남긴다).
-   개별 승률 = tickerHitRanks()의 rate(backtest/ticker-record.json · 화면 적중률 순위와 같은 값). */
-const GOLD_MIN_TICKER_RATE = 65;
-function goldRankOk(tk){ try { const R = tickerHitRanks()[tk]; return !(R && R.rate != null && R.rate <= GOLD_MIN_TICKER_RATE); } catch(e){ return true; } }
+/* 2026-11-11 '개별 승률 65% 이하 제외'를 넣었다가 같은 날 되돌림(사용자 결정): 60일 실측에서 컷이 이긴 표본(RGTI·INTC)을 더 많이 지웠고,
+   기준인 backtest/ticker-record.json이 9/3 자료(최고 칸 기준)라 현재 필터로 부적합. 다시 쓰려면 3년 검증 뒤에. */
+function goldRankOk(){ return true; }
 function sbGoldCands(list){
   let mm = null; try { mm = new Map(currentMultiRanked().map(x => [x.ticker, x])); } catch(e){}
   const out = [];
@@ -7656,8 +7655,7 @@ function goldHelpHtml(){
       ${allGood ? `대표 사례는 전체 ${ev.length}건 중 골라 보여주는 예시예요. 실패 사례도 위 통계에 모두 들어 있어요.<br>` : ""}
       연간 횟수는 3년 백테스트(일봉 등급 ∩ 캔들: 미장 148건·국장 14건, 약 2.7년)에 미장은 60일 실측의 장중 ▲ 비율(약 2/3)을 곱해 추정했어요.<br>
       아직 표본이 적어 참고용 통계예요. 이 기간은 약세장이라 신호 전반의 성적이 평소보다 낮게 나왔어요.<br>
-      ${cut ? `🎯 적중률 순위에서 종목 개별 승률이 ${GOLD_MIN_TICKER_RATE}% 이하인 종목의 ${cut}건은 뺐어요(현재 순위 기준).<br>` : ""}
-      황금신호 = 일봉 강한매수·💡 강한다중·다중신호 ∩ 같은 날 상승 캔들패턴 ∩ 그날 장중 5분 재돌파(▲) 1회 이상 · 종목 개별 승률 ${GOLD_MIN_TICKER_RATE}% 초과(순위 없는 종목은 포함). 국장은 3년 백테스트(3일 71%)를 근거로 장중 조건 없이 일봉 등급 ∩ 캔들만으로 봐요. ‘소급 재현’은 캔들패턴 기록(11/5~)이 시작되기 전 날짜를 같은 함수로 다시 계산한 것이라 그날 화면에 실제로 보였던 신호는 아니에요.
+      황금신호 = 일봉 강한매수·💡 강한다중·다중신호 ∩ 같은 날 상승 캔들패턴 ∩ 그날 장중 5분 재돌파(▲) 1회 이상. 국장은 3년 백테스트(3일 71%)를 근거로 장중 조건 없이 일봉 등급 ∩ 캔들만으로 봐요. ‘소급 재현’은 캔들패턴 기록(11/5~)이 시작되기 전 날짜를 같은 함수로 다시 계산한 것이라 그날 화면에 실제로 보였던 신호는 아니에요.
     </div></details>
   </div>`;
 }
