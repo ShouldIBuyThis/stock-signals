@@ -7459,8 +7459,8 @@ function validationBlock(){
   }).filter(Boolean).join("");
   /* 이름 그대로 "전략별 수익 사례 TOP2"다. 최신순 목록이 아니라
      검증 표본 중 수익률 상위만 골라 보여주는 예시 영역이다. 승률 통계와는 완전히 분리돼 있다. */
-  const exampleBlock=exGroups ? `<details class="acc validation-examples" style="margin-top:8px" open>
-    <summary style="cursor:pointer"><b>📌 전략별 수익 사례 TOP2</b> <span style="font-size:11px;color:var(--muted)">최근 ${histWindowDays()}거래일 실제 기록</span></summary>
+  const exampleBlock=exGroups ? `<div class="validation-examples" style="margin-top:9px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:11px 13px">
+    <div style="font-size:13px"><b>📌 전략별 수익 사례 TOP2</b> <span style="font-size:11px;color:var(--muted)">최근 ${histWindowDays()}거래일 실제 기록</span></div>
     <div style="margin:6px 0 2px;font-size:10.8px;color:var(--faint);line-height:1.7;font-weight:500">
       <span style="font-size:10.8px;font-weight:700;color:var(--buy)">강한매수</span> 신호 발생일 /
       <span style="font-size:10.8px;font-weight:500;color:var(--faint)">중립</span> →
@@ -7468,7 +7468,7 @@ function validationBlock(){
     </div>
     <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px">${exGroups}</div>
     <div style="margin-top:7px;color:var(--faint);font-size:10.5px">위 검증 표본 중 <b>수익률 상위</b>만 고른 예시입니다 · 실적 영향권 · 레버리지 ETF 제외<br>실패·보합 사례는 아래 통계에 모두 포함됩니다.</div>
-  </details>` : "";
+  </div>` : "";
   const ex=v._excludedDetails||[];
   const blockedEx=v._blockedSignalDetails||[];
   const exLines=[
@@ -7536,9 +7536,7 @@ function validationBlock(){
       ${srcRow("💡 강한다중","전구 신호만",T.strict)}${srcRow("🔵 다중신호","강한+일반 합산",T.multi)}${srcRow("🟢 강한매수","최종 초록뱃지",T.strongBuy)}${baseRow}
     </table>`;
   const ledgerExtras=`    <div style="margin-top:9px">
-      <button type="button" class="perfbtn" onclick="openAllBuyersPerf()" title="매수관심까지 포함해 전부 샀다면">💡 매수관심&강한매수를 다 매수했다면?</button>
       <button type="button" class="perfbtn" onclick="openPhasePerf()" title="강세장·약세장에서 신호가 어떻게 달라지는지">📊 시장 국면별 승률</button>
-      <button type="button" class="perfbtn" onclick="openHoldPerf()" title="+7·+10·+20일까지 들고 있었다면 어떻게 됐는지">⏳ 더 오래 들고 있었다면?</button>
       <button type="button" class="perfbtn" onclick="openHitRankAll()" title="전체 종목을 예측 적중률로 줄 세운 순위">🎯 적중률 순위</button>
     </div>
     ${BT ? "" : exampleBlock}${diagDetail}${exDetail}`;
