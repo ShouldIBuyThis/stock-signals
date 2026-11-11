@@ -4,13 +4,14 @@
  * "3년치 황금은 훨씬 높을 것 같은데, 다중이 70% 넘는데 교집합이 그것뿐이냐".
  * 장중 5분 ▲ 조건은 야후 5분봉이 60일뿐이라 3년에 걸 수 없다 → 여기서는 일봉 두 조건만 본다(장중은 60일 결과로 따로).
  * 화면 코드 그대로(H.loadPage → normalize → histStocks·evaluate·multiSignalRank·sbDailyTier·sbItemsFor). pat은 backfill hist의 그날 값.
- * 성과: 신호일 종가 확정 → 다음 날 시가 진입 → n거래일 뒤 종가. 상승 = 보합(정확히 0) 제외 비율, ±1% 방향 비율 병기.
+ * 성과: 신호일 종가에 사서 n거래일 뒤 종가(기본, 2026-11-11 사용자 지시) · ENTRY=open이면 다음 날 시가 진입. 상승 = 보합(정확히 0) 제외 비율, ±1% 방향 비율 병기.
  * 비교: 기준선(모든 종목·날) · 강한매수 전체 · 다중(💡 포함) · 💡 · 캔들패턴만(등급 무관) · 교집합. 반쪽(§2) 같이.
  * 사용: node tools/gold-3y-lab.js backtest/raw.json   (lab-quick years=3 days=690)
  */
 const fs = require('fs'), H = require('./_harness');
 const raw = fs.readFileSync(process.argv[2] || 'backtest/raw.json', 'utf8');
 const page = H.loadPage();
+page.runInPage(`var __EO = ${process.env.ENTRY === 'open'};`);
 page.runInPage(`this.__run = j => { const RAW = JSON.parse(j); state.data = normalize(RAW); const byDate = new Map(), out = [];
   /* 나스닥 전용 등급(날짜별) — 화면 qqqTierRule() 그대로: 연속 하락(QQQ 종가) · VXN(그날·전날, backfill macro) · 바닥권(breadthByDate) */
   const QT = {}; try { const q = qqqBenchmarkStock(), qh = histStocks(q) || [], vx = (RAW.macro && RAW.macro.vxn) || {}, br = breadthByDate();
@@ -26,7 +27,7 @@ page.runInPage(`this.__run = j => { const RAW = JSON.parse(j); state.data = norm
       (byDate.get(h.last_date) || byDate.set(h.last_date, []).get(h.last_date)).push(row); }); });
   byDate.forEach((uni, d) => { const ok = uni.filter(r => !r._blk); const mm = new Map(multiSignalRank(ok).map(x => [x.ticker, x]));
     uni.forEach(r => { const hs = r._hs, i = r._i, o1 = hs[i+1] && has(hs[i+1].open) ? hs[i+1].open : null;
-      const f = n => o1 && hs[i+n] && has(hs[i+n].price) ? (hs[i+n].price/o1 - 1)*100 : null;
+      const f = n => (__EO ? o1 : r.price) && hs[i+n] && has(hs[i+n].price) ? (hs[i+n].price/(__EO ? o1 : r.price) - 1)*100 : null;   // 기본 = 신호일 종가 기준(사이트 승률표와 같음) · ENTRY=open이면 다음 날 시가
       let tier = null, bull = false; if (!r._blk){ tier = sbDailyTier(r, mm); try { bull = sbItemsFor(r, {main:true}).some(x => !x.site && (x.kind === 'green' || x.kind === 'blue')); } catch(e){} }
       const n1 = hs[i+1], o2 = hs[i+2] && has(hs[i+2].open) ? hs[i+2].open : null;
       const g = n => o2 && hs[i+1+n] && has(hs[i+1+n].price) ? (hs[i+1+n].price/o2 - 1)*100 : null;   // 다음 봉 확인 뒤 진입(이틀 뒤 시가) — 미래 참조 없음
