@@ -7645,8 +7645,11 @@ function goldHelpHtml(){
   const nLive = ev.filter(x => x.e.src === "원장").length, nBack = ev.length - nLive;
   /* 사례 3개: 결과가 나온 것 중 성과 순 · 종목 중복 없이. 대표 종목(GOLD_PIN, 사용자 지정)은 결과가 플러스일 때만 맨 앞에 둔다. */
   const GOLD_PIN = ["CRWV"], perf = x => x.o.r5 ?? x.o.r3;
-  const done = ev.filter(x => x.o.r3 != null).sort((a, b) => perf(b) - perf(a)), top = [], seen = new Set();
-  GOLD_PIN.forEach(tk => { const x = done.find(y => y.s.ticker === tk && perf(y) > 1) || legacy.filter(y => y.s.ticker === tk && y.o.r3 != null && perf(y) > 1).sort((a, b) => perf(b) - perf(a))[0]; if (x){ top.push(x); seen.add(tk); } });
+  /* 2026-11-11 사용자 지시 '가장 드라마틱한 세 개': 성공(+1% 초과) 사례 중 5일 안 출렁임(최고 상승 − 최저 하락)이 큰 순 · 종목 중복 없이 */
+  const drama = x => (x.o.mfe ?? 0) - (x.o.mae ?? 0);
+  const done = ev.filter(x => x.o.r3 != null).sort((a, b) => ((perf(b) > 1) - (perf(a) > 1)) || drama(b) - drama(a)), top = [], seen = new Set();
+  /* 대표 종목(GOLD_PIN)은 현재 규칙의 사례가 없을 때만 '💡 도입 전' 실시간 기록으로 보탠다 */
+  GOLD_PIN.forEach(tk => { if (done.some(y => y.s.ticker === tk && perf(y) > 1)) return; const x = legacy.filter(y => y.s.ticker === tk && y.o.r3 != null && perf(y) > 1).sort((a, b) => drama(b) - drama(a))[0]; if (x){ top.push(x); seen.add(tk); } });
   done.forEach(x => { if (top.length < 3 && !seen.has(x.s.ticker)){ top.push(x); seen.add(x.s.ticker); } });
   const big = (lab, v, tone, earn) => `<div class="gc-stat"><b class="${tone || ((v ?? 0) >= 0 ? "up" : "down")}">${earn && v == null ? "실적 제외" : pct(v)}</b><span>${lab}</span></div>`;
   const card = x => `<article class="gold-case">
@@ -7668,7 +7671,7 @@ function goldHelpHtml(){
       <div class="gh-kpi"><b>${GOLD_3Y.kr.r3}<small>%</small></b><span>🇰🇷 국장 3일 후 상승<br><small>3년 백테스트 · ${GOLD_3Y.kr.n}건</small></span></div>
     </div>
     <p class="gh-note">10일 후 상승 미장 ${GOLD_3Y.us.r10}% · 국장 ${GOLD_3Y.kr.r10}% · 최근 60일 실제 황금신호 ${ev.length}건은 3일 후 상승 ${u3 == null ? "—" : u3 + "%"}(약세장)${rec5.length ? ` · 3일 실패 ${f3.length}건 중 5일 내 회복 ${rec5.length}건` : ""}<br>참고용 통계예요 · 과거 성과가 미래 수익을 보장하지 않아요</p>
-    ${top.length ? `<div class="gh-cases-h">${allGood ? "대표 사례" : "결과가 나온 사례"}</div><div class="gold-cases">${top.map(card).join("")}</div>` : `<div class="sb-empty">아직 3일 결과가 나온 황금신호가 없어요.</div>`}
+    ${top.length ? `<div class="gh-cases-h">${allGood ? "가장 드라마틱했던 사례" : "결과가 나온 사례"}</div><div class="gold-cases">${top.map(card).join("")}</div>` : `<div class="sb-empty">아직 3일 결과가 나온 황금신호가 없어요.</div>`}
     <details class="gh-all"><summary>전체 ${ev.length}건 보기</summary><div class="gh-list">${ev.slice().sort((a, b) => b.e.date.localeCompare(a.e.date)).map(x => `<div><span>${esc(idMDsafe(x.e.date))}</span><b>${esc(x.s.ticker)}</b><span>3일 ${pct(x.o.r3)}</span><span>5일 ${pct(x.o.r5)}</span>${x.e.src === "원장" ? "" : "<i>소급</i>"}</div>`).join("")}</div></details>
     <details class="gh-fine"><summary>통계 자세히 · 기준 설명</summary><div>
       3년 백테스트(위 큰 숫자): 3·5·10일 상승 미장 ${GOLD_3Y.us.r3}·${GOLD_3Y.us.r5}·${GOLD_3Y.us.r10}% (${GOLD_3Y.us.n}건) · 국장 ${GOLD_3Y.kr.r3}·${GOLD_3Y.kr.r5}·${GOLD_3Y.kr.r10}% (${GOLD_3Y.kr.n}건). 지금 관심종목으로 과거를 다시 계산한 것이라(생존 편향) 실제 기록이 아니고, 3년치 5분봉이 없어 장중 ▲ 조건은 빠져 있어요.<br>
