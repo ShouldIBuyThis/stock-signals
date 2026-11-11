@@ -1,0 +1,22 @@
+Copyright (c) 2026 지금이니? (ShouldIBuyThis). All rights reserved.
+
+This repository and the website at https://shouldibuythis.github.io/stock-signals/
+(code, signal logic and its implementation, backtests, validation records, ledger data,
+documents, page design and text) are proprietary. No license is granted.
+
+Without prior written permission from the owner, you may NOT:
+  - copy, modify, redistribute, sell, or publish any part of this repository or website;
+  - build or operate a similar stock-analysis service based on it;
+  - access it with crawlers, scrapers, bots, or automated/AI agents to collect its content;
+  - use any part of it to train, fine-tune, evaluate, embed, index, or ground (RAG)
+    artificial-intelligence or machine-learning models, or include it in any dataset.
+
+The owner expressly reserves all text and data mining (TDM) rights, including under
+Article 4(3) of EU Directive 2019/790. Violations may result in civil claims for damages
+and injunctions and in criminal complaints under applicable law, including the Copyright
+Act and the Unfair Competition Prevention Act of the Republic of Korea.
+
+Viewing the public repository on GitHub is permitted only to the extent required by the
+GitHub Terms of Service; it does not grant any of the rights above.
+
+Terms of use (Korean): https://shouldibuythis.github.io/stock-signals/terms.html
