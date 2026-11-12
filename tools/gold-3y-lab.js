@@ -29,19 +29,34 @@ page.runInPage(`this.__run = j => { const RAW = JSON.parse(j); state.data = norm
       /* 미장 행에 그날 VXN이 비어 있으면 backfill macro에서 채운다(운영 원장처럼) — 💡 강한다중 관문(VXN≥25)·가점이 3년에서도 계산되게. 국장은 미국 같은 날 VXN이 미래 값이라 채우지 않는다. */
       if (!has(row.market_vxn) && !/\.(KS|KQ)$/.test(s.ticker)){ const v = num(((RAW.macro && RAW.macro.vxn) || {})[h.last_date]); if (has(v)) row.market_vxn = v; }
       row._prevOverallGrade = i > 0 ? evaluate(hs[i-1]).grade : null;
+      row._ep = num(h.ext_pair);   /* 2026-11-12: 원장·백필 hist의 그날 페어 리버설(main.ext_pair_reversal — 그날까지의 봉만 사용) — 포함 비교용 */
       row.sig = evaluate(row); row.earnings_hold = false; row.ext_pair = null; row._i = i; row._hs = hs; row._blk = ew.blocked.has(h.last_date);
       (byDate.get(h.last_date) || byDate.set(h.last_date, []).get(h.last_date)).push(row); }); });
   byDate.forEach((uni, d) => { const ok = uni.filter(r => !r._blk); const mm = new Map(multiSignalRank(ok).map(x => [x.ticker, x]));
     uni.forEach(r => { const hs = r._hs, i = r._i, o1 = hs[i+1] && has(hs[i+1].open) ? hs[i+1].open : null;
       const f = n => (__EO ? o1 : r.price) && hs[i+n] && has(hs[i+n].price) ? (hs[i+n].price/(__EO ? o1 : r.price) - 1)*100 : null;   // 기본 = 신호일 종가 기준(사이트 승률표와 같음) · ENTRY=open이면 다음 날 시가
-      let tier = null, bull = false; if (!r._blk){ tier = sbDailyTier(r, mm); try { bull = sbItemsFor(r, {main:true}).some(x => !x.site && !x.noGold && (x.kind === 'green' || x.kind === 'blue')); } catch(e){} }
+      let tier = null, bull = false, bullP = false; if (!r._blk){ tier = sbDailyTier(r, mm); try { bull = sbItemsFor(r, {main:true}).some(x => !x.site && !x.noGold && (x.kind === 'green' || x.kind === 'blue')); } catch(e){}
+        try { r.ext_pair = r._ep; bullP = sbItemsFor(r, {main:true}).some(x => !x.site && !x.noGold && (x.kind === 'green' || x.kind === 'blue')); } catch(e){} r.ext_pair = null; }
       const n1 = hs[i+1], o2 = hs[i+2] && has(hs[i+2].open) ? hs[i+2].open : null;
       const g = n => o2 && hs[i+1+n] && has(hs[i+1+n].price) ? (hs[i+1+n].price/o2 - 1)*100 : null;   // 다음 봉 확인 뒤 진입(이틀 뒤 시가) — 미래 참조 없음
       const nxUp = !!(n1 && has(n1.price) && has(n1.open) && n1.price > n1.open && n1.price > r.price);
       out.push({ k: has(r.stoch_k) ? r.stoch_k : null, rsi: has(r.rsi) ? r.rsi : null, sc: r.stoch_cross || null, up: has(r.upw) ? r.upw : null, lw: has(r.loww) ? r.loww : null, bd: has(r.body) ? r.body : null, nxUp, g3: g(3), g5: g(5), g10: g(10),
-        d, t: r.ticker, kr: /\\.(KS|KQ)$/.test(r.ticker), rg: RG[/\\.(KS|KQ)$/.test(r.ticker) ? 'kr' : 'us'][d] || null, blk: r._blk, g: r.sig.grade, tier, bull, qt: QT[d] ?? null, atr: has(r.atr_pct) ? r.atr_pct : null, dj: has(r.body) && has(r.upw) && has(r.loww) && r.body <= 0.3 && r.upw >= 0.25 && r.loww >= 0.25, bbp: has(r.bb_pos) ? r.bb_pos : null, f3: f(3), f5: f(5), f10: f(10) }); }); });
+        ep: r._ep === 1, bullP, d, t: r.ticker, kr: /\\.(KS|KQ)$/.test(r.ticker), rg: RG[/\\.(KS|KQ)$/.test(r.ticker) ? 'kr' : 'us'][d] || null, blk: r._blk, g: r.sig.grade, tier, bull, qt: QT[d] ?? null, atr: has(r.atr_pct) ? r.atr_pct : null, dj: has(r.body) && has(r.upw) && has(r.loww) && r.body <= 0.3 && r.upw >= 0.25 && r.loww >= 0.25, bbp: has(r.bb_pos) ? r.bb_pos : null, f3: f(3), f5: f(5), f10: f(10) }); }); });
   return out; };`);
 const R = page.__run(raw);
+if (process.env.PAIR){   /* 화면과 같은 페어 리버설 포함 vs 지금 도구(제외) — 황금 일봉 쪽 */
+  const all = [...new Set(R.map(r => r.d))].sort(), cut1 = all[Math.max(0, all.length - 252)];
+  const pct = (a, k) => { const v = a.map(r => r[k]).filter(x => x != null), u = v.filter(x => x > 1).length, dn = v.filter(x => x < -1).length; return u + dn ? `${Math.round(u / (u + dn) * 100)}%(${u}/${u + dn})` : '—'; };
+  const avg = (a, k) => { const v = a.map(r => r[k]).filter(x => x != null); return v.length ? (v.reduce((x, y) => x + y, 0) / v.length).toFixed(2) + '%' : '—'; };
+  console.log(`페어 리버설=1 행 ${R.filter(r => r.ep).length}`);
+  for (const [per, pf] of [['3년', () => true], ['최근 1년', r => r.d >= cut1]]) for (const [mn, mf, g0, g1] of [
+      ['미장', r => !r.kr, r => r.tier && r.bull, r => r.tier && r.bullP], ['국장', r => r.kr, r => r.tier && (r.bull || (r.bbp != null && r.bbp <= 10)), r => r.tier && (r.bullP || (r.bbp != null && r.bbp <= 10))]]) {
+    const A = R.filter(r => !r.blk && mf(r) && pf(r)), X = A.filter(g0), Y = A.filter(g1), add = Y.filter(r => !g0(r));
+    console.log(`\n■ 페어 리버설 ${per} ${mn}: 제외(지금 도구) ${X.length}건 3·5·10일 ${pct(X, 'f3')} ${pct(X, 'f5')} ${pct(X, 'f10')} 평균5 ${avg(X, 'f5')}`
+      + ` | 포함(화면과 같음) ${Y.length}건 ${pct(Y, 'f3')} ${pct(Y, 'f5')} ${pct(Y, 'f10')} 평균5 ${avg(Y, 'f5')} | 새로 들어온 ${add.length}건 ${pct(add, 'f5')} 평균5 ${avg(add, 'f5')} — ${add.slice(-8).map(r => r.d.slice(2) + ' ' + r.t).join(' · ')}`);
+  }
+  if (process.env.PAIR === 'only') process.exit(0);
+}
 if (process.env.REGIME){   /* 국면별 황금(일봉 쪽) 성적 — 최근 1년 · 전체 · 기준선과 나란히 */
   const all = [...new Set(R.map(r => r.d))].sort(), cut1 = all[Math.max(0, all.length - 252)];
   const pct = (a, k) => { const v = a.map(r => r[k]).filter(x => x != null), u = v.filter(x => x > 1).length, dn = v.filter(x => x < -1).length; return u + dn ? `${Math.round(u / (u + dn) * 100)}%(${u}/${u + dn})` : '—'; };

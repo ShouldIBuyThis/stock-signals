@@ -9073,14 +9073,15 @@ function prHlCard(ms){
   const pc = v => v == null ? "—" : Math.round(v * 100) + "%", m = ms[0], q = m.h.readers.Q, f = m.h.readers.F, dg = m.h.diag || {};
   const cls = q && q.class ? Object.entries(q.class).filter(([, v]) => v).map(([k, v]) => `${k} ${v}`).join(" · ") : "";
   const rate = z => `날짜 가중 <b>${pc(z.zb)}</b> · 사건 기준 ${pc(z.zb_r != null ? z.zb_r : z.zb_hit / z.zb_n)} (${z.zb_hit}/${z.zb_n}건)`;
-  const volOk = !!(dg.beyond_vol && dg.beyond_vol.includes("Q20"));
+  const volOk = !!(dg.beyond_vol && dg.beyond_vol.includes("Q20")), dOk = !!(PR_HL && PR_HL.diag_comparable);   /* 진단 입력 시세가 연구와 다르면 비교 불가 */
   return `<div class="pr-hl"><div><b class="t">🔴 고점 붕괴 위험 조합</b> <small class="pr-dim">${esc(idMDsafe(m.d))} 켜짐</small></div>
-    <div style="font-size:11.5px;margin-top:2px"><span class="pr-hlb">사전등록 검증 통과</span> <span class="pr-badge">${volOk ? "변동성 추가 검증 통과" : "변동성 추가 검증 미통과"}</span></div>
+    <div style="font-size:11.5px;margin-top:2px"><span class="pr-hlb">사전등록 검증 통과</span> <span class="pr-badge">${!dOk ? "변동성 추가 검증: 비교 불가(다른 시세 · 재실행 필요)" : volOk ? "변동성 추가 검증 통과" : "변동성 추가 검증 미통과"}</span></div>
     <div style="font-size:12.5px;margin-top:4px">${esc(m.h.name)}</div>
     <ul>${q ? `<li>과거 같은 조합 뒤 <b>20거래일 안에 고점 대비 −10% 급락</b>(미사용 자료): ${rate(q)} · ${q.zb_tickers}종목 · 탐색 자료 날짜 가중 ${pc(q.ex)}${cls ? `<br><small class="pr-dim">${esc(cls)}</small>` : ""}</li>` : ""}
       ${dg["R20"] ? `<li>신호일 <b>종가</b>보다 −10% 아래로 내려간 비율은 ${pc(dg["R20"].obs)} — 일부는 먼저 더 오른 뒤 꺾였어요${q && q.timing && q.timing.rise_before_med != null ? ` (급락 전 추가 상승 중앙값 +${Math.round(q.timing.rise_before_med * 100)}%)` : ""}</li>` : ""}
       ${f ? `<li>🟡 5거래일 안 −3% 조정(다음 날 시가 기준 · 미사용 자료): ${rate(f)} · 1/3 익절이 보유보다 유리 ${pc(f.trim_win5)}</li>` : ""}
-      ${dg["Q20"] ? `<li><small class="pr-dim">변동성 추가 검증: 변동성이 비슷한 종목의 평소 비율은 ${pc(dg["Q20"].exp)}이고 이 조합의 추가 효과는 ${dg["Q20"].diff >= 0 ? "+" : ""}${Math.round(dg["Q20"].diff * 100)}%p예요(기준 +15%p${volOk ? " — 통과" : " — 미달"}). 높은 비율의 상당 부분은 '20일선보다 25% 넘게 오른 종목은 원래 크게 흔들린다'는 데서 올 수 있어요. 과거 통계이고 매도 지시가 아니에요.</small></li>` : ""}</ul>
+      ${dg["Q20"] && !dOk ? `<li><small class="pr-dim">변동성 추가 검증은 연구와 다른 날 받은 시세로 계산돼 같은 자료 검증으로 인정하지 않아요(같은 시세로 재실행 필요).</small></li>` : ""}
+      ${dg["Q20"] && dOk ? `<li><small class="pr-dim">변동성 추가 검증: 변동성이 비슷한 종목의 평소 비율은 ${pc(dg["Q20"].exp)}이고 이 조합의 추가 효과는 ${dg["Q20"].diff >= 0 ? "+" : ""}${Math.round(dg["Q20"].diff * 100)}%p예요(기준 +15%p${volOk ? " — 통과" : " — 미달"}). 높은 비율의 상당 부분은 '20일선보다 25% 넘게 오른 종목은 원래 크게 흔들린다'는 데서 올 수 있어요. 과거 통계이고 매도 지시가 아니에요.</small></li>` : ""}</ul>
     ${ms.length > 1 ? `<small class="pr-dim">같은 날 함께 켜진 사전등록 통과 조합 ${ms.length - 1}개 더: ${ms.slice(1, 4).map(x => esc(x.h.name)).join(" / ")}${ms.length > 4 ? " …" : ""}</small>` : ""}</div>`;
 }
 function prComboStat(k, per){ const C = PR_DATA && PR_DATA.combo_cases, z = C && C.stats && C.stats[k]; return z ? z[per || "hold"] : null; }
@@ -9102,7 +9103,7 @@ function prCaseCombo(cs, B, pi){
 function prComboTables(){
   const pc = v => v == null ? "—" : Math.round(v * 100) + "%", out = [];
   const L = PR_HL && PR_HL.highlights;
-  if (L && L.length) out.push(`<b>사전등록 검증 통과 조합 ${L.length}개</b> (미사용 자료 ZB = 연구에 한 번도 안 쓴 S&P500·나스닥100 227종목 · 변동성 추가 검증 통과 ${L.filter(h => h.diag && (h.diag.beyond_vol || []).includes("Q20")).length}개)
+  if (L && L.length) out.push(`<b>사전등록 검증 통과 조합 ${L.length}개</b> (미사용 자료 ZB = 연구에 한 번도 안 쓴 S&P500·나스닥100 227종목 · 변동성 추가 검증 ${PR_HL.diag_comparable ? `통과 ${L.filter(h => h.diag && (h.diag.beyond_vol || []).includes("Q20")).length}개` : "비교 불가(다른 시세)"})
     <table class="pr-t"><tr><th>조합</th><th>20일 고점 대비 −10% (ZB · 날짜 가중 / 사건)</th><th>신호일 종가 −10%</th><th>변동성 맞춘 기대</th><th>🟡 5일 −3%</th></tr>
     ${L.map(h => { const q = h.readers.Q, f = h.readers.F, d = h.diag || {}; return `<tr><td>${esc(h.name)}${h.live ? "" : " <small>(외부 조건 · 화면 판정 안 함)</small>"}</td><td>${q ? `${pc(q.zb)} / ${pc(q.zb_r)} <small>${q.zb_hit}/${q.zb_n}</small>` : "—"}</td><td>${d.R20 ? pc(d.R20.obs) : "—"}</td><td>${d.Q20 ? `${pc(d.Q20.exp)} <small>(${d.Q20.diff >= 0 ? "+" : ""}${Math.round(d.Q20.diff * 100)}%p)</small>` : "—"}</td><td>${f ? `${pc(f.zb)} / ${pc(f.zb_r)} <small>${f.zb_hit}/${f.zb_n}</small>` : "—"}</td></tr>`; }).join("")}</table>
     모두 '20일선 이격 25%↑'가 들어 있어요. 사전등록 기준은 넘었지만, 변동성이 비슷한 종목과 비교한 추가 검증(+15%p)은 22개 모두 넘지 못했어요(추가 효과 0~+14%p). 비율은 날짜 가중이고 괄호는 사건 수예요.`);
@@ -9144,7 +9145,7 @@ function prPanelHtml(mine){
     ${(() => { if (!PR_HL) return PR_HL_STATE === "fail" ? `<div class="pr-empty">검증 조합 자료(peak-highlights.json)를 불러오지 못했어요. <button class="pr-btn" data-prhlretry="1">다시 불러오기</button></div>` : "";
       const held = []; const hit = allStocks().map(s => ({ s, m: prHlMatch(s, { held }) })).filter(x => x.m.length);
       const nHeld = new Set(held.map(h => h.name)).size, H = PR_HL.highlights || [], nVol = H.filter(h => h.diag && (h.diag.beyond_vol || []).includes("Q20")).length;
-      return `<div class="pr-h">🔴 고점 붕괴 위험 조합 <small>사전등록 검증 통과 ${H.length}개(변동성 추가 검증 통과 ${nVol}개) · 관심종목 전체 · 각 종목의 최근 3거래일</small></div>
+      return `<div class="pr-h">🔴 고점 붕괴 위험 조합 <small>사전등록 검증 통과 ${H.length}개(변동성 추가 검증 ${PR_HL.diag_comparable ? `통과 ${nVol}개` : "비교 불가 — 재실행 필요"}) · 관심종목 전체 · 각 종목의 최근 3거래일</small></div>
       ${nHeld ? `<small class="pr-dim">52주 고가가 들어간 ${nHeld}개 조합은 화면 자료(야후 1년치)로는 연구와 같은 값을 낼 수 없어 판정 보류예요.</small>` : ""}
       ${hit.length ? `<div class="pr-hlscan">${hit.map(x => `<button data-goto="${esc(x.s.ticker)}">${esc(x.s.ticker)} <small>${esc(idMDsafe(x.m[0].d))}</small></button>`).join("")}</div><small class="pr-dim">누르면 종목 카드로 가요. 보유 표시한 종목은 아래 목록에 자세한 근거가 나와요.</small>`
         : `<div class="pr-empty">지금 켜진 종목이 없어요. 이 조합들은 20일선보다 25% 넘게 오른 종목에서만 켜져서 드물어요.</div>`}`; })()}

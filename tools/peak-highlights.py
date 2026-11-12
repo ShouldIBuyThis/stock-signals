@@ -5,7 +5,9 @@
 import json
 ROOT = __file__.rsplit("/", 2)[0]
 src = json.load(open(f"{ROOT}/backtest/peak-combo2.json", encoding="utf-8"))
-dg = {tuple(r["combo"]): r for r in json.load(open(f"{ROOT}/backtest/peak-combo-diag.json", encoding="utf-8"))["rows"]}
+DG = json.load(open(f"{ROOT}/backtest/peak-combo-diag.json", encoding="utf-8")); dg = {tuple(r["combo"]): r for r in DG["rows"]}
+# 재현성(2026-11-12 사용자 지시): 진단과 연구의 입력 시세 해시가 같을 때만 진단을 '같은 자료 검증'으로 쓴다. 다르거나 없으면 비교 불가로 표시.
+DIAG_OK = bool(src.get("data_hash")) and DG.get("data_hash") == src.get("data_hash")
 BN = src["blocks"]; STOCK_ONLY = lambda cb: not any(b.startswith("X_") for b in cb)
 out = {}
 for rd in ("Q", "F"):
@@ -24,7 +26,7 @@ for rd in ("Q", "F"):
                                                                   "ci": [round(x, 3) for x in d[f"{k}|zb"].get("ci", [])] or None, "n": d[f"{k}|zb"]["n"]}) for k in ("Q20", "Q′20", "R20", "F5", "M5", "D5", "D20")}
             h["diag"]["beyond_vol"] = [k for k, v in d["beyond_vol"].items() if v]; h["atr_med_zb"] = d["atr_med"]["zb"]
 L = sorted(out.values(), key=lambda h: -max(v["zb"] for v in h["readers"].values()))
-res = {"generated": src["generated"], "kind": "research-highlight", "doc": "docs/2026-11-12-peak-combo.md §12·§13·§14",
+res = {"generated": src["generated"], "data_hash": src.get("data_hash"), "diag_data_hash": DG.get("data_hash"), "diag_comparable": DIAG_OK, "kind": "research-highlight", "doc": "docs/2026-11-12-peak-combo.md §12·§13·§14",
        "rule": "미사용 자료(ZB)에서 사전 등록 검증 통과(독립 사건 30↑ · 적중률 65%↑ · 윌슨 하한 55%↑ · 평소 대비 +15%p · 부트스트랩 하한>0 · 종목·연도 편중 제한) 조합만",
        "defs": {"Q": "신호 뒤 형성된 고점 대비 20거래일 안 −10% 급락(신호일 고가 포함)", "F": "다음 날 시가 대비 5거래일 안 −3% 조정 도달"},
        "summary": {rd: src["readers"][rd]["summary"] | {"name": src["readers"][rd]["name"]} for rd in src["readers"]},

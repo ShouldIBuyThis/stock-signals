@@ -8,7 +8,9 @@
 const { chromium, devices } = require('playwright');
 const URL = process.argv[2] || 'http://localhost:8765/index.html';
 (async () => {
-  const b = await chromium.launch(); let fail = 0;
+  let fail = 0; const PW = require('playwright');
+  /* 브라우저: 기본 chromium · BROWSERS=chromium,webkit 이면 WebKit(사파리 엔진)도 */
+  for (const bn of (process.env.BROWSERS || 'chromium').split(',')) { const b = await PW[bn].launch();
   for (const mode of ['mobile', 'pc']) {
     const ctx = await b.newContext(mode === 'mobile' ? { ...devices['iPhone 13'] } : { viewport: { width: 1280, height: 900 } });
     const pg = await ctx.newPage(); const errs = []; pg.on('pageerror', e => errs.push(e.message));
@@ -32,8 +34,9 @@ const URL = process.argv[2] || 'http://localhost:8765/index.html';
     r.sw = await pg.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
     r.errs = errs;
     const bad = errs.length || r.sw[0] > r.sw[1] + 1 || !r.prItems || r.hl !== 'ok' && !String(r.hl).startsWith('ok') || !r.cart || r.prData;
-    console.log(`${bad ? '✗' : '✓'} ${mode}`, JSON.stringify(r)); if (bad) fail++;
+    console.log(`${bad ? '✗' : '✓'} ${bn} ${mode}`, JSON.stringify(r)); if (bad) fail++;
     await ctx.close();
   }
-  await b.close(); process.exit(fail ? 1 : 0);
+  await b.close(); }
+  process.exit(fail ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

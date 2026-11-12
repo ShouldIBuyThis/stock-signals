@@ -131,8 +131,8 @@ def binom_tail_gt(n, p, thr):
 def diag(a, M, O_, MT, tick, cald):
     """§14 통과·재현 후보 진단 — 변동성(ATR 구간) 맞춘 대조 · Q′ · 정의별 열. 새 후보를 고르지 않는다."""
     src = json.load(open(a.diag, encoding="utf-8")); NT = len(MT["tk"]); part, di = MT["part"], MT["di"]
-    same = src.get("data_hash") == a._hash
-    print(f"입력 시세 해시: 연구 {src.get('data_hash')} · 진단 {a._hash} → {'같은 입력' if same else '다른 입력(시세를 다시 받음) — 사건 수가 조금 다를 수 있음'}")
+    same = bool(src.get("data_hash")) and src.get("data_hash") == a._hash
+    print(f"입력 시세 해시: 연구 {src.get('data_hash')} · 진단 {a._hash} → {'같은 입력' if same else '비교 불가(다른 시세) — 연구 실행의 시세 캐시로 다시 실행해야 한다(peak-diag.yml source_run_id)'}")
     want = {}
     for rd, R in src["readers"].items():
         for c in R["cands"]:
@@ -174,9 +174,13 @@ def diag(a, M, O_, MT, tick, cald):
         print(f"  {' ∩ '.join(cb)} {tags} ATR중앙 ZB {row['atr_med']['zb'] and round(row['atr_med']['zb']*100, 1)}% | ZB F5 {f_('F5')} · T5 {f_('T5')} · M5 {f_('M5')} · D5 {f_('D5')} · Q20 {f_('Q20')} · Q′20 {f_('Q′20')} · R20 {f_('R20')} · D20 {f_('D20')} · 20일 평균 {row['avg20|zb'] and round(row['avg20|zb']*100, 1)}%")
     if a.emit:
         json.dump({"generated": datetime.now(timezone.utc).strftime("%Y-%m-%d"), "kind": "research", "doc": "docs/2026-11-12-peak-combo.md#14",
-                   "data_hash": a._hash, "data_last": a._last, "source_data_hash": src.get("data_hash"), "same_input": same, "atr_bins": [float(x) for x in qs],
+                   "data_hash": a._hash, "data_last": a._last, "source_data_hash": src.get("data_hash"), "same_input": same,
+                   "status": "비교 가능(같은 시세)" if same else "비교 불가 — 같은 시세 캐시로 재실행 필요", "atr_bins": [float(x) for x in qs],
                    "ctrl": {f"{k}|{pm}": [None if not np.isfinite(x) else float(x) for x in v] for (k, pm), v in ctrl.items()}, "rows": out}, open(a.emit, "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
         print(f"→ {a.emit} 저장")
+    if not same:
+        print("::error::진단 입력 시세가 연구와 다르다 — 동일 자료 재현 검증으로 인정하지 않는다. source_run_id로 같은 캐시를 써서 다시 실행할 것.")
+        sys.exit(2)
 
 
 def main():
