@@ -2679,21 +2679,6 @@ function highLowSummaryText(){
   const x = highLowLatest(); if(!x) return "";
   return ` · 신고가 ${x.nh} · 신저가 ${x.nl}`;
 }
-function hlSvg(pts, key, color, title){
-  const W = 600, Hh = 170, L = 34, R = 10, T = 14, B = 26;
-  const vals = pts.map(p => p[key]); const mx = Math.max(5, ...vals), mn = 0;
-  const x = i => L + (pts.length > 1 ? i * (W - L - R) / (pts.length - 1) : 0);
-  const y = v => T + (1 - (v - mn) / (mx - mn)) * (Hh - T - B);
-  const line = pts.map((p,i) => `${x(i).toFixed(1)},${y(p[key]).toFixed(1)}`).join(" ");
-  const ticks = [0, Math.round(mx/2), mx].map(v => `<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line,#e5e7eb)" stroke-width="1"/><text x="${L-6}" y="${y(v)+4}" text-anchor="end" font-size="11" fill="var(--muted)">${v}</text>`).join("");
-  const di = [0, Math.floor((pts.length-1)/2), pts.length-1].filter((v,i,a)=>a.indexOf(v)===i);
-  const dl = di.map(i => `<text x="${x(i)}" y="${Hh-6}" text-anchor="${i===0?"start":i===pts.length-1?"end":"middle"}" font-size="11" fill="var(--muted)">${esc(String(pts[i].date).slice(5))}</text>`).join("");
-  const last = pts[pts.length-1];
-  return `<div class="hl-chart"><div class="hl-title">${title} <b style="color:${color}">${last[key]}</b><small> (${esc(String(last.date).slice(5))})</small></div>
-    <svg viewBox="0 0 ${W} ${Hh}" width="100%" role="img" aria-label="${esc(title)}">${ticks}
-      <polyline points="${line}" fill="none" stroke="${color}" stroke-width="2"/>
-      <circle cx="${x(pts.length-1)}" cy="${y(last[key])}" r="3.5" fill="${color}"/>${dl}</svg></div>`;
-}
 function qqqStreakOn(date){
   const d = state.data;
   if(!d || !date) return null;
@@ -8657,54 +8642,6 @@ function cartExitBlock(mine){
 /* 보유기간 비교 — 같은 신호를 며칠 들고 있었느냐로 성적이 어떻게 달라지는지.
    승률과 평균수익을 나란히 둔다: 실측에서 두 지표의 정점이 서로 다르기 때문이다
    (승률은 +3~4일 부근, 평균수익은 그 뒤로도 계속 상승). */
-function openHoldPerf(){
-  const v=strategyValidation();
-  const HS=EXIT_HS;                       // [7,10,20] — 짧은 쪽은 이미 검증표에 있다
-  const pct=x=>x==null?"—":x+"%"; const av=x=>x==null?"—":`${x>=0?"+":""}${Number(x).toFixed(2)}%`;
-  const bl=v._baseline||{};
-  const cellOf=(o,h,muted)=>{
-    if(!o||!o.n) return `<td><span class="hp-n">표본 없음</span></td>`;
-    const b=bl[h];
-    const e=(!muted && o.rate!==null && b && b.rate!==null) ? o.rate-b.rate : null;
-    const ec=e===null?"":`<span class="hp-edge" style="color:${e>0?"var(--buy)":e<0?"var(--sell)":"var(--muted)"}">기준선 ${e>=0?"+":""}${e}%p</span>`;
-    const thin=o.n<15?`<span class="hp-n" style="color:var(--sell)">표본 부족</span>`:"";
-    return `<td><span class="hp-rate"${muted?' style="color:var(--muted)"':''}>${pct(o.rate)}</span>`+
-           `<span class="hp-avg">${av(o.avg)}</span><span class="hp-n">${o.n}건</span>${ec}${thin}</td>`;
-  };
-  const rowOf=(label,sub,src,muted,cls)=>
-    `<tr${cls?` class="${cls}"`:""}><td><b>${label}</b>${sub?`<span class="hp-sub">${sub}</span>`:""}</td>`+
-    HS.map(h=>cellOf(src&&src[h],h,muted)).join("")+`</tr>`;
-  /* 평균수익이 가장 높은 보유일 — §5-1(표본 15건) 이상 구간에서만 고른다 */
-  const bestOf=src=>{
-    let b=null; HS.forEach(h=>{const o=src&&src[h]; if(o&&o.n>=15&&o.avg!=null&&(!b||o.avg>b.avg)) b={h,...o};});
-    return b;
-  };
-  const bb=bestOf(v._strict), bg=bestOf(v._strongBuy);
-  const tip=(nm,b)=>b
-    ? `<b>${nm}</b>는 <b>+${b.h}거래일</b>이 가장 좋았어요 (평균수익 ${av(b.avg)}, 승률 ${pct(b.rate)}, 표본 ${b.n}건).`
-    : `<b>${nm}</b>는 이 구간 표본이 15건에 못 미쳐 추천을 보류합니다.`;
-  openModal(`<h3>⏳ 더 오래 들고 있었다면?</h3>
-    <p style="font-size:12.5px;color:var(--reason);line-height:1.7;margin:0 0 8px">
-      검증표의 <b>+1·+3·+5일</b> 다음이 궁금할 때 봅니다.
-      <b>큰 숫자</b>는 오를 확률, <b>가운데</b>는 평균수익, <b>작은 숫자</b>는 표본 수예요.</p>
-    <table class="cmp holdp"><tr><th>신호</th>${HS.map(h=>`<th>+${h}일</th>`).join("")}</tr>
-      ${rowOf("💡 강한다중","전구 신호만",v._strict)}
-      ${rowOf("🔵 다중신호","강한+일반",v.multi)}
-      ${rowOf("🟢 강한매수","초록뱃지",v._strongBuy)}
-      ${rowOf(`<span class="baseline-term" onclick="openBaselineHelp()">기준선</span>`,"전 종목 매수 시",bl,true,"vbase")}
-    </table>
-    <div class="perf-story" style="margin-top:10px">
-      <span class="ex-badge">읽는 법</span>
-      ${tip("💡 강한다중",bb)}<br>${tip("🟢 강한매수",bg)}
-      <div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);color:var(--muted)">
-        <b>기준선</b>은 반대로 갑니다 — 그냥 전 종목을 산 사람은 오래 들수록
-        평균수익이 줄어듭니다. 신호가 고른 종목만 계속 올랐다는 뜻이에요.</div>
-    </div>
-    <p style="font-size:11px;color:var(--faint);line-height:1.7;margin:8px 0 0">
-      종가 매수 · N거래일 뒤 종가 매도 · 실적 영향 구간 제외 · 승률은 보합(±1%) 빼고 계산<br>
-      ⚠ 오래 들수록 <b>표본이 줄어듭니다</b> — 신호일로부터 그만큼 지난 날이 있어야 세거든요.
-      특히 <b>+20일</b>은 표본이 적으니 참고만 하세요.</p>`);
-}
 
 /* 시장 국면별 승률 — 강세장·약세장에서 신호가 어떻게 다른지 쉬운 비교.
    신호일의 QQQ 국면(washoutLevel 적용, 판정과 동일 규칙)으로 표본을 나눈다.
@@ -8814,43 +8751,6 @@ function openBaselineHelp(){
 
 /* 매수관심(4등급)까지 전부 샀다면 — 강한매수와 매수관심 표본을 실제로 합산한다.
    승률은 합산 후 다시 계산하므로(가중평균 아님) 두 표의 숫자와 어긋나지 않는다. */
-function openAllBuyersPerf(){
-  const v=strategyValidation();
-  const merge=(a,b)=>{
-    const A=a||{n:0,wins:0,flats:0,losses:0,avg:null}, B=b||{n:0,wins:0,flats:0,losses:0,avg:null};
-    const n=A.n+B.n;
-    if(!n) return {n:0,rate:null,avg:null,wins:0,flats:0,losses:0};
-    const wins=(A.wins||0)+(B.wins||0), flats=(A.flats||0)+(B.flats||0), losses=(A.losses||0)+(B.losses||0);
-    const dir=wins+losses;
-    const avg=((A.avg||0)*A.n+(B.avg||0)*B.n)/n;
-    return {n,wins,flats,losses,rate:dir?Math.round(wins/dir*100):null,avg};
-  };
-  const bl=v._baseline||{};
-  const pct=x=>x==null?"—":x+"%"; const av=x=>x==null?"—":`${x>=0?"+":""}${Number(x).toFixed(2)}%`;
-  const cell=o=>{
-    if(!o||!o.n) return "—";
-    const e=(bl[o._h]&&bl[o._h].rate!==null&&o.rate!==null)?o.rate-bl[o._h].rate:null;
-    const ec=e===null?"":`<br><span style="font-size:10.5px;font-weight:800;color:${e>0?"var(--buy)":e<0?"var(--sell)":"var(--muted)"}">기준선 대비 ${e>=0?"+":""}${e}%p</span>`;
-    return `<span class="vrate">${pct(o.rate)}</span><br><span class="vavg">평균수익 ${av(o.avg)}</span><br><span class="vsplit vflat">표본 ${o.n}건</span>${ec}`;
-  };
-  const mk=(label,src)=>`<tr><td><b>${label}</b></td>`+[1,3,5].map(h=>{const o=src(h); if(o) o._h=h; return `<td>${cell(o)}</td>`;}).join("")+`</tr>`;
-  const rows=[
-    mk("추세", h=>merge(v.pull[h], v._interest&&v._interest.pull&&v._interest.pull[h])),
-    mk("반등", h=>merge(v.rev[h], v._interest&&v._interest.rev&&v._interest.rev[h])),
-    mk("다중(전체)", h=>v.multi[h]),
-  ].join("");
-  const baseRow=`<tr class="vbase"><td><b class="baseline-term" onclick="openBaselineHelp()">기준선</b><br><span style="font-size:10px;color:var(--faint);display:inline-block;padding-left:9px">└ 전 종목 매수 시</span></td>`+
-    [1,3,5].map(h=>{const o=bl[h];return `<td>${o&&o.n?`<span class="vrate" style="color:var(--muted)">${pct(o.rate)}</span><br><span class="vavg">평균수익 ${av(o.avg)}</span><br><span class="vsplit vflat">표본 ${o.n}건</span>`:"—"}</td>`;}).join("")+`</tr>`;
-  openModal(`<h3>매수관심&강한매수를 다 매수했다면? 💡</h3>
-    <p style="font-size:12.5px;color:var(--reason);line-height:1.7;margin:0 0 8px">
-      강한매수뿐 아니라 <b>매수관심(주황뱃지)까지 전부</b> 샀을 때의 성적입니다.
-      메인 표(💡·초록뱃지)보다 표본은 많지만 승률은 보통 낮습니다 —
-      매수관심은 확신이 덜한 신호이기 때문입니다.</p>
-    <table class="cmp validation-cmp"><tr><th>전략</th><th>+1일</th><th>+3일</th><th>+5일</th></tr>${rows}${baseRow}</table>
-    <p style="font-size:11px;color:var(--faint);line-height:1.7;margin:8px 0 0">
-      종가 기준 · 실적 영향 구간 제외 · 승률은 상승 ÷ (상승 + 하락), 보합(±1%)은 빼고 계산합니다.<br>
-      다중은 원래 매수관심 개념이 없어 강한·일반 다중을 합친 값입니다.</p>`);
-}
 
 function openStrictMultiPerf(){
   const v=strategyValidation();
@@ -9016,7 +8916,6 @@ async function prToggle(){
 /* 단계 판정에 쓰는 '유효' = 날 단위 사전 기준 통과(valid)만.
    2026-11-12 사용자 지시: EXT는 사례 단위 재검증을 통과했지만 '변동성인지 붕괴 경고인지' 추가 연구 전까지 판정 보류 유지(🟡 켜지 않음) — 참고 표시만. */
 const prValid = () => PR_DATA ? (PR_DATA.valid || []) : [];
-const prCaseOk = c => !!(PR_DATA && (PR_DATA.valid_case || []).includes(c));
 const prName = c => (PR_DATA && PR_DATA.names && PR_DATA.names[c]) || c;
 const prHold = c => PR_DATA && PR_DATA.stats && PR_DATA.stats.all && PR_DATA.stats.all.codes[c] ? PR_DATA.stats.all.codes[c].hold : null;
 const prBase = () => PR_DATA && PR_DATA.stats && PR_DATA.stats.all ? PR_DATA.stats.all.base.hold : null;
@@ -9032,15 +8931,6 @@ function prJudge(s){
   return { st: 0, label: "⚪ 특이 신호 없음", cls: "pr-s0", why: "급등 국면이지만 최근 5거래일 켜진 조건이 없어요", on };
 }
 /* 사례 단위 재검증 통과 조건(EXT)은 그 결과(2023년 이후 고점: 붕괴 포착 vs 지속 오경보)를 먼저 적는다 — 사전 등록 문구 그대로 '방향 예측 아님' */
-function prCaseLine(c){
-  const T = PR_DATA && PR_DATA.ext_test; if (c !== "EXT" || !T || !T.pass) return "";
-  const x = T.table["25|A|hold"]; return `2023년 이후 급등 고점 중 급락(60일 안 −35%↓) ${x.bust}건의 ${x.cap}%에서 고점 무렵 나타났고, 상승이 이어진 ${x.cont}건에서는 ${x.far}%였어요`;
-}
-function prStatLine(c){
-  const h = prHold(c), b = prBase(); if (!h || !b) return "";
-  const f = x => x == null ? "—" : Math.round(x);
-  return `3·5·7일 뒤 하락 ${f(h.dn3)}·${f(h.dn5)}·${f(h.dn7)}%(평소 ${f(b.dn3)}·${f(b.dn5)}·${f(b.dn7)}%) · ${h.dates}일`;
-}
 /* ── 2차 연구 참고 블록(2026-11-12 사용자 지시) — 전부 '참고 · 검증 미통과'. 숫자는 backtest/peak-reader2.json 그대로,
    세 자료 묶음(탐색 E · 독립 T · 독립 X)의 날짜 가중 비율을 사건 수로 가중 평균해 한 줄로 보인다. 단계·매수 산식과 무관. */
 const PR_PARTS = ["E", "T", "X"];
@@ -9048,11 +8938,6 @@ const PR_PARTS = ["E", "T", "X"];
    ③ 65%에 못 미치는 조합은 숫자 없이 '65% 미만 · 검증 미통과'라고만 적는다(전체 표는 docs/). 검증 자료(T·X)가 **같은 평가 기간**에서 둘 다 넘어야 '65% 이상'으로 본다. */
 const PR_MIN = 0.65;
 const prHigh = (sg) => !!sg && [3, 5, 7].some(h => ["T", "X"].every(P => sg[P] && (sg[P].n || 0) >= 6 && sg[P]["dn" + h] != null && sg[P]["dn" + h] >= PR_MIN));   /* 같은 평가 기간에서 T·X 둘 다 65% 이상이어야 한다(기간이 서로 달라도 통과되던 문제 수정) */
-function prPool(byPart, key){
-  let w = 0, x = 0; PR_PARTS.forEach(P => { const z = byPart && byPart[P]; if (z && z[key] != null && z.n){ x += z[key] * z.n; w += z.n; } });
-  return w ? x / w : null;
-}
-const prN = byPart => PR_PARTS.reduce((a, P) => a + ((byPart && byPart[P] && byPart[P].n) || 0), 0);
 const prPct = v => v == null ? "—" : `${Math.round(v * 100)}%`;
 function prExtBlock(pr){
   const A = PR2 && PR2.A; if (!pr.on || !pr.on.EXT || !A) return "";
@@ -9106,13 +8991,6 @@ function prRcBlock(pr, s){
     ${mom.length ? `<div class="pr-rc-sub">추가 조합 — 모멘텀 약화 신호 <small>(52주 고점 ∩ 볼밴 상단 ∩ 그날 이 신호)</small></div>${mom.map(one).join("")}` : ""}
     ${stack}
     <small class="pr-dim">하락 비율 = n거래일 뒤 종가가 1% 넘게 내린 비율(±1% 안 보합 제외). 위 조합(52주 고점 ∩ 볼밴 상단 ∩ 위험 캔들)은 검증 자료에서 65%를 넘지 못했어요. 65%를 넘긴 조합은 패널 위 '🔴 고점 붕괴 위험 조합'에 따로 보여 줘요.</small></div>`;
-}
-function prCondTable(pr){
-  const valid = prValid(), G = (PR_DATA && PR_DATA.groups) || {}, b = prBase() || {};
-  const rows = Object.keys(G).map(c => { const h = prHold(c); return `<tr${pr.on && pr.on[c] ? ' class="on"' : ""}><td>${pr.on && pr.on[c] ? "● " : ""}${esc(prName(c))}</td>${[3, 5, 7].map(k => `<td>${h && h["dn" + k] != null ? Math.round(h["dn" + k]) + "%" : "—"}</td>`).join("")}<td>${h ? h.dates : "—"}</td><td>${valid.includes(c) ? "통과" : "미통과"}</td></tr>`; }).join("");
-  const bf = k => b["dn" + k] != null ? Math.round(b["dn" + k]) + "%" : "—";
-  return `<details class="pr-ct"><summary>단독 조건 참고 통계 <small>(조합 성적 아님 · 2023년 이후 급등 국면 · 하락 비율 · 평소 3·5·7일 ${bf(3)}·${bf(5)}·${bf(7)})</small></summary>
-    <table class="pr-t"><tr><th>조건</th><th>3일</th><th>5일</th><th>7일</th><th>날</th><th>판정</th></tr>${rows}</table></details>`;
 }
 /* 2026-11-12 사용자 지시: 고점판독기에 '일부익절 가능성' 작은 불(참고) — 고점 위험과 별개.
    새 산식 없음 — 사이트가 이미 띄우는 것만 모은다: evaluate() 과열 익절 태그 · 캔들 신호등 🟡 일부 익절 후보(patternBadges) · 오늘의 신호 🟠 단기과열·일부익절(sbItemsFor orange). */
