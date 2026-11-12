@@ -25,6 +25,8 @@ jobs:
         run: pip install -q yfinance pandas numpy
       - name: 연구 실행
         run: python tools/peak-reader-lab.py --emit "$RUNNER_TEMP/peak-reader.json"
+      - name: 2차 연구 실행(EXT 변동성 vs 붕괴 · 52주∧볼밴 교집합 · 누적)
+        run: python tools/peak-reader-lab2.py --emit "$RUNNER_TEMP/peak-reader2.json"
       - name: 결과만 main에 커밋
         shell: bash
         run: |
@@ -35,9 +37,10 @@ jobs:
             git fetch origin main
             git switch -C pr-out origin/main
             cp "$RUNNER_TEMP/peak-reader.json" backtest/peak-reader.json
-            git add backtest/peak-reader.json
+            cp "$RUNNER_TEMP/peak-reader2.json" backtest/peak-reader2.json
+            git add backtest/peak-reader.json backtest/peak-reader2.json
             if git diff --cached --quiet; then echo "변경 없음"; exit 0; fi
-            git commit -m "auto: 고점판독기 연구 결과(backtest/peak-reader.json)"
+            git commit -m "auto: 고점판독기 연구 결과(backtest/peak-reader.json · peak-reader2.json)"
             if git push origin HEAD:main; then exit 0; fi
             sleep $((i * 5))
           done
