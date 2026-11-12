@@ -1335,6 +1335,33 @@ def _swing_highs_lows(H, L, k=3):
         if L[i] == min(L[i-k:i+k+1]): lo.append(i)
     return hi, lo
 
+def restore_52w_blocks(ticker, blk, lev=1, fetch=None):
+    """2026-11-12 사용자 지시: 고점판독기 52주 블록(P_NEAR·P_RT5·C_FB)은 야후 1년치(약 250봉)로는 연구와 같은 '이전 251봉'을 못 채워 판정 보류였다.
+    전 종목 호출을 늘리지 않고, 고점 위험 후보(검증 통과 조합 22개의 공통 조건 '이격 25%↑(3일 안)'이 최근 5거래일에 켜진 종목)만
+    2년치를 따로 받아 52주 블록만 다시 계산한다. 매수 산식 입력(1년치 df·hist)은 건드리지 않는다. 표시 전용.
+    받은 2년치의 마지막 5거래일 날짜·종가가 1년치와 같을 때만 쓴다(출처 일치). 실패하면 판정 보류 그대로."""
+    if not isinstance(blk, dict) or not blk.get("na"): return blk
+    days = blk.get("days") or {}
+    if not any("O_EXT" in v for v in days.values()): return blk
+    try:
+        long = (fetch or (lambda tk: yf.Ticker(tk).history(period="2y", interval="1d", auto_adjust=False)))(ticker)
+        long = drop_invalid_price_rows(drop_unclosed(long, ticker), ticker)
+        if long is None or len(long) < 260: blk["na_reason"] = f"2년치 {0 if long is None else len(long)}봉"; return blk
+        ld = [d.strftime("%Y-%m-%d") for d in long.index]
+        keys = list(days.keys())
+        if ld[-len(keys):] != keys: blk["na_reason"] = "2년치 날짜가 1년치와 다름"; return blk
+        nb = pattern_flags.combo_blocks_now(long["Open"].values, long["High"].values, long["Low"].values, long["Close"].values, long["Volume"].values,
+                                            ld, lev=lev, ticker=ticker, win=len(keys))
+        if nb["na"]: blk["na_reason"] = "2년치도 251봉 부족"; return blk
+        na = set(blk["na"])
+        blk["days"] = {d: [k for k in pattern_flags.COMBO_STOCK_BLOCKS if k in days[d] or (k in na and k in nb["days"].get(d, []))] for d in keys}
+        blk["na"] = []; blk["src52"] = "2y"
+    except Exception as e:
+        blk["na_reason"] = f"2년치 조회 실패: {type(e).__name__}"
+        print(f"  ⚠ {ticker} 52주 블록 복구 실패: {e}")
+    return blk
+
+
 def ext_pair_reversal(C, H, L, end):
     """페어 리버설 일봉 근사 — end-1 봉이 '하락 추세선 + 수평 넥라인 동시 상향 돌파'인가.
     추세선: 최근 60봉 스윙고점 마지막 3개 회귀선(기울기 음수, 터치 ±1.5%). 넥라인: 최근 40봉 고점(2회 이상 반응).
@@ -1681,8 +1708,9 @@ def analyze(ticker, name, category):
                 # 2026-11-12 5차 교집합 연구 블록(최근 5거래일 · 표시 전용 · 원장 아님) — 조합 판정은 화면이 backtest/peak-highlights.json(검증 통과 조합)으로만 한다.
                 # 실패해도 다른 표시를 지우지 않도록 따로 잡고, 실패 사실은 blk_err로 남긴다(tools/check-display-data.py가 갱신마다 감지).
                 try:
-                    row["peak_reader"]["blk"] = pattern_flags.combo_blocks_now(op.values, high.values, low.values, close.values, vol.values, _dates,
-                                                                               lev=LEV_X.get(ticker, 3) if ticker in LEVERAGED else 1, ticker=ticker)
+                    row["peak_reader"]["blk"] = restore_52w_blocks(ticker, pattern_flags.combo_blocks_now(op.values, high.values, low.values, close.values, vol.values, _dates,
+                                                                               lev=LEV_X.get(ticker, 3) if ticker in LEVERAGED else 1, ticker=ticker),
+                                                                   lev=LEV_X.get(ticker, 3) if ticker in LEVERAGED else 1)
                 except Exception as e:
                     row["peak_reader"]["blk"] = None; row["peak_reader"]["blk_err"] = f"{type(e).__name__}: {e}"[:200]
                     print(f"  ⚠ {ticker} 교집합 블록 계산 실패: {e}")

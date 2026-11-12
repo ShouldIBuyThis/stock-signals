@@ -35,7 +35,9 @@ jobs:
         run: |
           pip install -q pandas numpy yfinance requests lxml   # 연구 도구가 모듈 첫머리에서 import한다(네트워크는 쓰지 않음)
           npm install --no-save --silent playwright@1.48.2
-          npx playwright install --with-deps chromium
+          npx playwright install --with-deps chromium webkit
+      - name: 연구 결과 JSON 배포 경로(빠진 워크플로 없음)
+        run: python tools/check-pages-routes.py
       - name: 브라우저 스크립트 문법(node --check)
         run: python tools/check-inline-js.py
       - name: 화면 블록 = 연구 블록 대조
@@ -50,4 +52,4 @@ jobs:
         run: |
           python -m http.server 8765 >/dev/null 2>&1 &
           for i in $(seq 1 20); do curl -sf http://localhost:8765/index.html >/dev/null && break; sleep 1; done
-          node tools/test-site-mobile.js
+          BROWSERS=chromium,webkit node tools/test-site-mobile.js
