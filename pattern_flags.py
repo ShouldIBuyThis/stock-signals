@@ -640,3 +640,33 @@ def pos52_bucket(x):
     for name, lo_, hi_ in POS52_BUCKETS:
         if lo_ <= x < hi_ or (name == "0~5" and x >= -0.05): return name
     return None
+
+
+# ══ 고점 터치 후 종가 급락(고점 돌파 실패) — docs/2026-11-12-peak-touch-fail.md 사전 등록 정의 ══
+def touch_fail_flags(o, h, l, c, v, lev=1.0, ticker=""):
+    o, h, l, c, v = (np.asarray(x, dtype=float) for x in (o, h, l, c, v))
+    s = pd.Series(c)
+    h52p = pd.Series(h).shift(1).rolling(251, min_periods=251).max().to_numpy()   # 그날 제외 이전 251봉
+    p52h = h / h52p - 1
+    p52c = c / np.fmax(h52p, h) - 1
+    ma, sd = s.rolling(20).mean().to_numpy(), s.rolling(20).std(ddof=0).to_numpy()
+    up, lo = ma + 2 * sd, ma - 2 * sd
+    den = np.where(up - lo > 0, up - lo, np.nan)
+    pbh, pbc = (h - lo) / den, (c - lo) / den
+    rng = np.where(h - l > 0, h - l, np.nan)
+    upw = (h - np.maximum(o, c)) / rng
+    cpos = (c - l) / rng
+    chg = (c / _shift(c) - 1) / max(lev, 1.0)
+    T = _gt(p52h, -0.02 - 1e-12) & _gt(pbh, 1.0 - 1e-9)
+    W = _gt(upw, 0.5 - 1e-9)
+    L = _lt(cpos, 0.3 + 1e-9)
+    D = _lt(chg, -0.03 + 1e-12)
+    fl = peak_reader_flags(o, h, l, c, v, lev=lev, ticker=ticker)
+    m1 = np.asarray(fl["RSI_DIV"], bool) | np.asarray(fl["MACD_FADE"], bool) | np.asarray(fl["STOCH_DEAD"], bool)
+    M = pd.Series(m1.astype(float)).rolling(3, min_periods=1).max().to_numpy() > 0.5
+    BW = T & _gt(cpos, 0.7 - 1e-9) & ~_lt(c, _shift(c))
+    TF = T & W & (L | D)
+    ok = np.isfinite(h52p)
+    z = lambda a: np.asarray(a, bool) & ok
+    return {"T": z(T), "TF": z(TF), "TF_M": z(TF & M), "T_W": z(T & W), "T_L": z(T & L), "T_D": z(T & D), "BW": z(BW),
+            "_aux": {"p52h": p52h, "p52c": p52c, "pbh": pbh, "pbc": pbc, "upw": upw, "cpos": cpos, "chg": chg}}
