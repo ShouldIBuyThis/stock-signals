@@ -41,7 +41,8 @@ page.runInPage(`this.__run = j => { const RAW = JSON.parse(j); state.data = norm
       const g = n => o2 && hs[i+1+n] && has(hs[i+1+n].price) ? (hs[i+1+n].price/o2 - 1)*100 : null;   // 다음 봉 확인 뒤 진입(이틀 뒤 시가) — 미래 참조 없음
       const nxUp = !!(n1 && has(n1.price) && has(n1.open) && n1.price > n1.open && n1.price > r.price);
       out.push({ k: has(r.stoch_k) ? r.stoch_k : null, rsi: has(r.rsi) ? r.rsi : null, sc: r.stoch_cross || null, up: has(r.upw) ? r.upw : null, lw: has(r.loww) ? r.loww : null, bd: has(r.body) ? r.body : null, nxUp, g3: g(3), g5: g(5), g10: g(10),
-        px: __GT && o1 ? Array.from({ length: 10 }, (_, k) => hs[i+1+k] && has(hs[i+1+k].price) ? hs[i+1+k].price / o1 - 1 : null) : null, cat: r.category || '기타', lev: !!LEVERAGED[r.ticker],
+        px: __GT && o1 ? Array.from({ length: 10 }, (_, k) => hs[i+1+k] && has(hs[i+1+k].price) ? hs[i+1+k].price / o1 - 1 : null) : null,
+        pxc: __GT && has(r.price) && r.price > 0 ? Array.from({ length: 10 }, (_, k) => hs[i+1+k] && has(hs[i+1+k].price) ? hs[i+1+k].price / r.price - 1 : null) : null,   /* 2026-11-12 정정: 신호일 종가 진입(주) */ cat: r.category || '기타', lev: !!LEVERAGED[r.ticker],
         ep: r._ep === 1, bullP, d, t: r.ticker, kr: /\\.(KS|KQ)$/.test(r.ticker), rg: RG[/\\.(KS|KQ)$/.test(r.ticker) ? 'kr' : 'us'][d] || null, blk: r._blk, g: r.sig.grade, tier, bull, qt: QT[d] ?? null, atr: has(r.atr_pct) ? r.atr_pct : null, dj: has(r.body) && has(r.upw) && has(r.loww) && r.body <= 0.3 && r.upw >= 0.25 && r.loww >= 0.25, bbp: has(r.bb_pos) ? r.bb_pos : null, f3: f(3), f5: f(5), f10: f(10) }); }); });
   return out; };`);
 const R = page.__run(raw);

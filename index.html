@@ -5683,7 +5683,7 @@ function patternWidget(list){
    정의 = docs/2026-11-12-theme-top3-hit.md §3 D 그대로: 그 테마의 미국 상장·레버리지 아닌 종목(4개 이상) 중 신저가권(52주 저가 +1% 안) 비율의 5일 평균이
    5거래일 전보다 줄었고, 5거래일 전 값이 0보다 큼. 값은 원장(hist)의 pct_from_low 그대로 · 그날까지만.
    성적(독립 2017~2023): 23건 · 5일 안 +1% 도달 74%(17승 6패) · 기존 TOP3 나머지 대비 +11.6%p(90% 구간 −3~+22) · 최근 3년 2건 — 표본 부족. */
-const THEME_LRDN_STAT = "독립 검증 23건 · 5일 안 +1% 도달 74%(17승 6패) · 기존 TOP3 62% · 최근 3년 2건 — 표본 부족";
+const THEME_LRDN_STAT = "독립 검증 23건 · 다음 날 시가 진입 기준 5일 안 +1% 도달 74%(17승 6패) · 기존 TOP3 62% · 최근 3년 2건 — 표본 부족 · 신호일 종가 기준 재검증 중";
 function themeLowDown(name){
   try {
     const ms = themeStocks().filter(s => (s.category || "기타") === name && !s._benchmark && !isKR(s.ticker) && !LEVERAGED[s.ticker] && !CONGRESS_TICKERS.has(s.ticker));

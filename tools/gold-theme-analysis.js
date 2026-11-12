@@ -10,6 +10,11 @@ const NM = { T_HRUP: '테마 신고가 참여 증가', T_LRDN: '테마 신저가
 
 function run(R, mem, GB, outPath) {
   const kr = t => /\.(KS|KQ)$/.test(t);
+  /* 진입 기준(2026-11-12 사용자 정정): 주 = 신호일 정규장 종가(애프터마켓 종가 지정가 · 체결 보장 아님) · 보조 = 다음 날 시가.
+     GENTRY=close면 종가 경로(pxc)를 주 기준으로 쓴다. 사전 등록 원래 실험(다음 날 시가)은 GENTRY 없이 그대로 재현된다. */
+  const CLOSE = process.env.GENTRY === 'close';
+  if (CLOSE) R.forEach(r => { r.pxo = r.px; r.px = r.pxc; });
+  console.log(`진입 기준: ${CLOSE ? '신호일 종가(주 · 체결 보장 아님) — 보조로 다음 날 시가 5일 +1%를 괄호에 병기' : '다음 날 시가(원래 사전 등록)'}`);
   // ── 테마 구성(레버리지·벤치마크 제외) · 테마별 날짜 색인 ──
   const byCat = {}; mem.forEach(s => { if (s.lev || s.bench) return; (byCat[s.cat] = byCat[s.cat] || []).push(s); });
   const catDates = {}; for (const [c, ms] of Object.entries(byCat)) { const ds = [...new Set(ms.flatMap(s => Object.keys(s.m)))].sort(); catDates[c] = { ds, ix: new Map(ds.map((d, i) => [d, i])) }; }
@@ -70,6 +75,7 @@ function run(R, mem, GB, outPath) {
   const stat = E => { if (!E.length) return null; const z = { n: E.length, dates: new Set(E.map(r => r.d)).size };
     for (const N of [3, 5, 7, 10]) { for (const x of [0.01, 0.02, 0.03]) z[`h${N}_${x * 100}`] = E.filter(r => reach(r, x, N)).length / E.length; z[`r${N}`] = E.reduce((a, r) => a + r.px[N - 1], 0) / E.length; }
     z.win5 = E.filter(r => reach(r, 0.01, 5)).length; z.loss5 = E.length - z.win5;
+    if (E[0].pxo) { const o = E.filter(r => r.pxo && r.pxo.every(x => x != null)); z.open_h5_1 = o.length ? o.filter(r => { for (let k = 0; k < 5; k++) if (r.pxo[k] >= 0.01 - 1e-12) return true; return false; }).length / o.length : null; z.open_r5 = o.length ? o.reduce((a, r) => a + r.pxo[4], 0) / o.length : null; }
     const dd = E.map(r => { const k = reach(r, 0.01, 5) || 5; return Math.min(0, ...r.px.slice(0, k)); }).sort((a, b) => a - b); z.dd_med = dd[dd.length >> 1];
     z.worst5 = Math.min(...E.map(r => r.px[4]));
     const tc = {}, cc = {}; E.forEach(r => { tc[r.t] = (tc[r.t] || 0) + 1; cc[r.cat] = (cc[r.cat] || 0) + 1; });
@@ -102,7 +108,7 @@ function run(R, mem, GB, outPath) {
     rows.sort((a, b) => b.z3.h5_1 - a.z3.h5_1 || b.z3.n - a.z3.n);
     console.log(`  조합 ${combos.length}개 중 3년 사건 5↑ ${rows.length}개 · 그중 5일+1% ≥80% ${n80}개(우연 기대 ${chance == null ? '—' : chance.toFixed(1)}) · 이전 기간에서도 재현(10건↑·80%↑·황금 대비 +5%p) ${repl.length}개`);
     rows.slice(0, 10).forEach((x, i) => { const z = x.z3, o = x.zo;
-      console.log(`  ${String(i + 1).padStart(2)}. ${x.name.slice(0, 46).padEnd(46)} | 3년 ${z.n}건(${z.dates}일·${z.tier}) 5일+1% ${pc(z.h5_1)}(${z.win5}승 ${z.loss5}패) 3·7·10일 ${pc(z.h3_1)}·${pc(z.h7_1)}·${pc(z.h10_1)} +2/+3% ${pc(z.h5_2)}/${pc(z.h5_3)} 5일 수익 ${pr(z.r5)} 낙폭 ${pr(z.dd_med)} 최악 ${pr(z.worst5)} 집중 ${z.top_t[0]} ${pc(z.top_t[1])}·${z.top_c[0]} ${pc(z.top_c[1])}`
+      console.log(`  ${String(i + 1).padStart(2)}. ${x.name.slice(0, 46).padEnd(46)} | 3년 ${z.n}건(${z.dates}일·${z.tier}) 5일+1% ${pc(z.h5_1)}(${z.win5}승 ${z.loss5}패) 3·7·10일 ${pc(z.h3_1)}·${pc(z.h7_1)}·${pc(z.h10_1)} +2/+3% ${pc(z.h5_2)}/${pc(z.h5_3)} 5일 수익 ${pr(z.r5)}${z.open_h5_1 != null ? ` [시가 진입 ${pc(z.open_h5_1)} · ${pr(z.open_r5)}]` : ''} 낙폭 ${pr(z.dd_med)} 최악 ${pr(z.worst5)} 집중 ${z.top_t[0]} ${pc(z.top_t[1])}·${z.top_c[0]} ${pc(z.top_c[1])}`
         + ` | 황금∖조합 ${x.rest3 ? pc(x.rest3.h5_1) : '—'} · 황금 대비 ${g3 ? ((z.h5_1 - g3.h5_1) * 100).toFixed(0) + '%p' : '—'} · 1년 ${x.z1 ? `${x.z1.n}건 ${pc(x.z1.h5_1)}` : '0건'} · 이전 ${o ? `${o.n}건 ${pc(o.h5_1)} 5일 수익 ${pr(o.r5)}` : '0건'} | ${x.ex.join(' · ')}`); });
     OUT.markets[mn + '|' + rg] = { gold, base, n_rows: rows.length, n80, chance, replicated: repl.map(x => x.name), top: rows.slice(0, 10).map(({ key, name, z3, rest3, zo, resto, z1, ex }) => ({ key, name, z3, rest3, zo, resto, z1, ex })) };
   }
