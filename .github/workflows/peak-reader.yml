@@ -1,0 +1,44 @@
+name: 고점판독기 연구 (실험실 데이터 생성)
+
+# 수동 실행 전용. docs/2026-11-12-peak-reader.md 사전 등록 그대로 tools/peak-reader-lab.py를 돌려
+# backtest/peak-reader.json(조건별 검증 결과 · 사례 차트)만 main에 커밋한다.
+# ⚠ 원장(signals.json·history/)은 건드리지 않는다. 백테스트(생존 편향 있음)이며 화면 '실험실' 전용.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: peak-reader
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: 의존성 설치
+        run: pip install -q yfinance pandas numpy
+      - name: 연구 실행
+        run: python tools/peak-reader-lab.py --emit "$RUNNER_TEMP/peak-reader.json"
+      - name: 결과만 main에 커밋
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for i in 1 2 3; do
+            git fetch origin main
+            git switch -C pr-out origin/main
+            cp "$RUNNER_TEMP/peak-reader.json" backtest/peak-reader.json
+            git add backtest/peak-reader.json
+            if git diff --cached --quiet; then echo "변경 없음"; exit 0; fi
+            git commit -m "auto: 고점판독기 연구 결과(backtest/peak-reader.json)"
+            if git push origin HEAD:main; then exit 0; fi
+            sleep $((i * 5))
+          done
+          echo "::error::푸시 3회 실패"; exit 1
