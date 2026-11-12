@@ -49,7 +49,7 @@ def main():
     W = bb.wl_names(); wl = set(W)
     uni = list(W) + [t for t in EXTRA if t not in wl]
     rows = {k: [] for k in ["tk", "date", "wl", "lev", "mae"] + [f"f{k}" for k in H] + CODES}
-    series = {}
+    series = {}; combo = {}
     for t in uni:
         df = tr.fetch(t)
         if df is None or len(df) < (60 if t in EXTRA else 200):
@@ -60,6 +60,14 @@ def main():
         fl = pf.peak_reader_flags(o, h, l, c, v, lev=LEV.get(t, 1), ticker=t)
         f, mae = fwd(c)
         series[t] = (dates, o, h, l, c, fl)
+        # 3차(조합 사례 집계 · docs 사전 등록): I = 52주 고가 5% 안 ∧ %B≥0.8 · A = I ∧ 같은 날 위험 캔들 · A+M = A ∧ 최근 3일 모멘텀 약화
+        rc, pb, p52 = pf.risk_candle_flags(o, h, l, c, v, t)
+        I8 = (np.nan_to_num(p52, nan=-9) >= -0.05) & (np.nan_to_num(pb, nan=-9) >= 0.8)
+        M3 = pd.Series(np.asarray(fl["RSI_DIV"], bool) | np.asarray(fl["MACD_FADE"], bool) | np.asarray(fl["STOCH_DEAD"], bool)).rolling(3, min_periods=1).max().to_numpy().astype(bool)
+        cx = {"I": I8}
+        for k in pf.RC_NAMES: cx[k] = I8 & np.asarray(rc[k], bool)
+        cx["A"] = np.any([cx[k] for k in pf.RC_NAMES], axis=0); cx["A+M"] = cx["A"] & M3
+        combo[t] = cx
         idx = np.nonzero(fl["RUN"])[0]
         for i in idx:
             rows["tk"].append(t); rows["date"].append(dates[i]); rows["wl"].append(t in wl); rows["lev"].append(t in LEV); rows["mae"].append(mae[i])
@@ -126,6 +134,37 @@ def main():
         cr, fr = (len(cap) / len(bw) * 100 if bw else None), (len(fa) / len(cw) * 100 if cw else None)
         case_stats[nm] = {"bust": len(bw), "caught": len(cap), "cont": len(cw), "false": len(fa), "lead_med": float(np.median(lead)) if lead else None, "left_med": float(np.median(left)) if left else None}
         print(f"  {nm:<16}| {cr:5.1f}% ({len(cap)}/{len(bw)}) · {np.median(lead) if lead else float('nan'):+.0f}일 · {np.median(left) if left else float('nan'):.0f}일 | {fr:5.1f}% ({len(fa)}/{len(cw)}) | {cr / fr if fr else float('nan'):.2f}")
+
+    # ── 3차: 조합(교집합) 사례 단위 집계 — 같은 사례·같은 창 · 전체/탐색/보류 ──
+    CKEYS = ["I", "A", "A+M"] + list(pf.RC_NAMES)
+    CNAMES = {"I": "기본 교집합(52주 고점 0~5% ∩ 볼밴 %B 80↑ · 캔들 없음)", "A": "교집합 ∩ 위험 캔들", "A+M": "교집합 ∩ 위험 캔들 ∩ 모멘텀 약화(최근 3일)"}
+    CNAMES.update({k: "교집합 ∩ " + pf.RC_NAMES[k] for k in pf.RC_NAMES})
+    def caught_c(pk, key):
+        arr = combo[pk["tk"]][key]; P = pk["P"]; end = min(P + 10, (pk["D"] - 1) if pk["D"] else P + 10)
+        hit = [j for j in range(max(0, P - 10), end + 1) if arr[j]]
+        return hit[0] if hit else None
+    def cstat(key, sel):
+        bw = [(p, caught_c(p, key)) for p in sel if p["kind"] == "bust"]; cw = [(p, caught_c(p, key)) for p in sel if p["kind"] == "cont"]
+        cap = [x for x in bw if x[1] is not None]; fa = [x for x in cw if x[1] is not None]; lead = [p["P"] - j for p, j in cap]
+        return {"bust": len(bw), "caught": len(cap), "cont": len(cw), "false": len(fa), "cap": round(len(cap) / len(bw) * 100, 1) if bw else None,
+                "far": round(len(fa) / len(cw) * 100, 1) if cw else None, "lead_med": float(np.median(lead)) if lead else None}
+    dd_ = lambda x: None if x["cap"] is None or x["far"] is None else x["cap"] - x["far"]
+    combo_stats, combo_verdict = {}, {}
+    print("\n■ 3차 — 조합 사례 단위(창 = 고점 −10 ~ 본격 하락 전 / +10) · 보류(2023~) | 탐색 | 전체")
+    for key in CKEYS:
+        z = {"all": cstat(key, peaks), "disc": cstat(key, [p for p in peaks if p["date"] < SPLIT]), "hold": cstat(key, [p for p in peaks if p["date"] >= SPLIT])}
+        combo_stats[key] = z
+    bI = dd_(combo_stats["I"]["hold"])
+    for key in CKEYS:
+        z = combo_stats[key]; hh, dc = z["hold"], z["disc"]; dh, ddc = dd_(hh), dd_(dc)
+        if key == "I": vd = "기준선"
+        elif hh["bust"] < 30 or hh["cont"] < 15: vd = "표본 부족"
+        else:
+            ok = (dh is not None and dh >= 20 and (hh["far"] == 0 or hh["cap"] / hh["far"] >= 2) and ddc is not None and ddc > 0 and bI is not None and dh > bI)
+            vd = "통과" if ok else "미통과"
+        combo_verdict[key] = vd
+        f_ = lambda x: f"붕괴 {x['caught']}/{x['bust']}={x['cap']}% · 지속 {x['false']}/{x['cont']}={x['far']}%"
+        print(f"  {key:<8}| {f_(hh)} (차 {dh if dh is None else round(dh, 1)}) | {f_(dc)} | {f_(z['all'])} · 리드 {z['all']['lead_med']} | {vd}")
 
     # ── 추가 연구: 이격 과열(EXT) 사례 단위 재검증 — docs 사전 등록(2026-11-12) 그대로 ──
     def ext_arr(t, thr):
@@ -203,8 +242,11 @@ def main():
         rnd = lambda x: float(f"{x:.4g}")
         marks = {dates[j]: [cd for cd in CODES if fl[cd][j]] for j in range(a0, a1) if any(fl[cd][j] for cd in CODES)}
         fv = caught(p, valid) if valid else None; fa = caught(p, CODES)
+        cxm = combo[p["tk"]]; fc = {k: caught_c(p, k) for k in ("I", "A", "A+M")}
+        cmarks = {dates[j]: [k for k in pf.RC_NAMES if cxm[k][j]] + (["M"] if cxm["A+M"][j] else []) for j in range(a0, a1) if cxm["A"][j]}
         return {"ticker": p["tk"], "kind": p["kind"], "tag": tag, "peak": dates[P], "peak_high": rnd(h[P]), "dd60": round(p["dd"] * 100, 1),
                 "drop_day": dates[p["D"]] if p["D"] else None, "first_valid": dates[fv] if fv is not None else None, "first_any": dates[fa] if fa is not None else None,
+                "first_combo": {k: (dates[j] if j is not None else None) for k, j in fc.items()}, "combo_marks": cmarks, "ib_days": [dates[j] for j in range(a0, a1) if cxm["I"][j]],
                 "bars": [[dates[j], rnd(o[j]), rnd(h[j]), rnd(l[j]), rnd(c[j])] for j in range(a0, a1)], "marks": marks}
     by_date = sorted(peaks, key=lambda p: p["date"], reverse=True)
     cases = [case(p, "최근 붕괴") for p in [p for p in by_date if p["kind"] == "bust"][:6]] + [case(p, "최근 지속(대조군)") for p in [p for p in by_date if p["kind"] == "cont"][:3]]
@@ -217,6 +259,8 @@ def main():
                "period": [min(R["date"]), max(R["date"])], "split": SPLIT, "universe": {"watchlist": len(wl & set(series)), "extra": [t for t in EXTRA if t in series]},
                "rule": "보류 기간 10일 하락 비율·큰 하락(20일 안 −15%) 비율 모두 대조+5%p ∧ 서로 다른 날 50+ ∧ 탐색 기간 같은 방향",
                "names": pf.PR_NAMES, "groups": pf.PR_GROUPS, "valid": valid, "stats": res, "cases_stats": case_stats, "cases": cases,
+               "combo_cases": {"names": CNAMES, "stats": combo_stats, "verdict": combo_verdict, "doc": "docs/2026-11-12-peak-reader.md#3차",
+                               "rule": "보류 기간 포착−오경보 ≥ 20%p ∧ 포착÷오경보 ≥ 2 ∧ 붕괴 30↑·지속 15↑ ∧ 탐색 같은 방향 ∧ 기준선 I보다 차이가 큼"},
                "ext_test": {"pass": bool(ext_pass), "criteria": crit, "table": ET, "doc": "docs/2026-11-12-peak-reader.md#추가-연구"},
                "valid_case": ["EXT"] if ext_pass else []}
         json.dump(out, open(a.emit, "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
