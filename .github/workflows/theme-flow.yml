@@ -1,0 +1,45 @@
+name: 테마·4그룹 52주 신고가 흐름 (자료 + 탐색 연구)
+
+# 수동 실행 전용. docs/2026-11-12-theme-flow.md 사전 등록 그대로.
+# backtest/group-breadth.json · theme-breadth.json · theme-flow.json 만 main에 커밋한다. 원장(signals.json·history/)은 건드리지 않는다.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: theme-flow
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: 의존성 설치
+        run: pip install -q yfinance pandas numpy requests lxml
+      - name: 4그룹(S&P500·나스닥100·경기방어·배당) 신고가 비율 + 상태 연구
+        run: python tools/group-breadth-lab.py --emit "$RUNNER_TEMP/group-breadth.json"
+      - name: 테마 신고가 흐름 + 고점권 조합·일부익절 연구
+        run: python tools/theme-flow-lab.py --groups "$RUNNER_TEMP/group-breadth.json" --breadth "$RUNNER_TEMP/theme-breadth.json" --emit "$RUNNER_TEMP/theme-flow.json"
+      - name: 결과만 main에 커밋
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for i in 1 2 3; do
+            git fetch origin main
+            git switch -C flow-out origin/main
+            for f in group-breadth theme-breadth theme-flow; do cp "$RUNNER_TEMP/$f.json" "backtest/$f.json"; done
+            git add backtest/group-breadth.json backtest/theme-breadth.json backtest/theme-flow.json
+            if git diff --cached --quiet; then echo "변경 없음"; exit 0; fi
+            git commit -m "auto: 테마·4그룹 신고가 흐름 자료·탐색 연구 결과"
+            if git push origin HEAD:main; then exit 0; fi
+            sleep $((i * 5))
+          done
+          echo "::error::푸시 3회 실패"; exit 1
