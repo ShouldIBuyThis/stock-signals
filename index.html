@@ -616,7 +616,11 @@ html[data-theme="dark"] .lev{background:#33191b;color:#ff8080;border-bottom-colo
 .pr-ref p{margin:2px 0 4px;font-size:12px;line-height:1.55}
 .pr-rc{border-top:1px solid var(--line);padding-top:8px;margin-top:8px} .pr-rc:first-of-type{border-top:0;margin-top:2px;padding-top:2px}
 .pr-rc-h{font-size:12.5px} .pr-tag{font-style:normal;font-size:10.5px;color:var(--neutral);background:var(--neutral-soft);border-radius:999px;padding:1px 7px;margin-left:4px}
-.pr-rc-pos{display:flex;gap:12px;font-size:12px;color:var(--reason);margin:4px 0 2px;flex-wrap:wrap}
+.pr-rc-pos{display:flex;gap:4px 12px;font-size:12px;color:var(--reason);margin:4px 0 2px;flex-wrap:wrap} .pr-rc-pos .no{color:var(--faint)} .pr-rc-pos small{color:var(--faint)}
+.pr-rc-miss{font-size:12px;color:var(--muted);background:var(--surface);border-radius:10px;padding:8px 10px;margin:6px 0}
+.pr-rc-combo{font-size:12px;font-weight:700;color:var(--ink);margin:6px 0 2px} .pr-tag.ok{background:var(--buy-soft);color:var(--buy)}
+.pr-rc-sub{font-size:12px;font-weight:800;color:var(--ink);margin:12px 0 0;padding-top:8px;border-top:1px solid var(--line)} .pr-rc-sub small{font-weight:500;color:var(--faint)}
+.pr-t2 td{vertical-align:top} .pr-t2 td b{display:block;font-size:13px;color:var(--ink)} .pr-t2 td small{display:block;font-size:10.5px;line-height:1.35}
 .pr-t tr.pr-base td{color:var(--faint)} .pr-t tr.on td{color:var(--ink);font-weight:700}
 .pr-badges{display:inline-flex;gap:4px;align-items:center;justify-content:flex-end;flex-wrap:wrap}
 .pr-trim{font-size:10.5px;font-weight:700;border-radius:999px;padding:2px 7px;background:#fdf6e3;color:#946200;white-space:nowrap}
@@ -8954,25 +8958,53 @@ function prExtBlock(pr){
       ${row("독립 검증 T(2008~15)", "T")}${row("독립 검증 X(새 종목)", "X")}${row("탐색(2016~)", "E")}</table>
     <small class="pr-dim">괄호 = 변동성이 비슷한 급등 국면의 평소. 판정: ${esc(A.verdict || "—")} · 버블 붕괴 조기 경고 기준은 통과하지 못했어요.</small></div>`;
 }
-function prRcBlock(pr){
-  const B = PR2 && PR2.B; const X = pr.rcx || {}; const ks = Object.keys(X).filter(k => B && B.signals.includes(k));
-  if (!B || !ks.length) return "";
-  ks.sort((a, b) => String(X[b][0]).localeCompare(String(X[a][0])));
-  const one = k => { const [d, p52, pb] = X[k]; const nm = B.names[k] || k;
-    const L = pb != null && pb >= 1 ? "100" : pb != null && pb >= 0.9 ? "90" : pb != null && pb >= 0.8 ? "80" : null;
-    const inInt = L && p52 != null && p52 >= -0.05; const lv = B.levels[L || "90"]; const sg = lv && lv.signals[k];
-    const alone = sg && sg.alone, comb = inInt && sg ? sg.in : null, base = inInt ? lv.groups["교집합(0~5%∧%B)"] : null, all = lv && lv.groups["전체"];
-    const cells = (bp, cls) => [3, 5, 7].map(h => `<td class="${cls || ""}">${prPct(prPool(bp, "dn" + h))}</td>`).join("");
-    const diff = (a, b) => { const x = prPool(a, "dn5"), y = prPool(b, "dn5"); return x == null || y == null ? "—" : `${x - y >= 0 ? "+" : ""}${Math.round((x - y) * 100)}%p`; };
-    return `<div class="pr-rc"><div class="pr-rc-h"><b>🕯 ${esc(nm)}</b> <small>${esc(idMDsafe(d))}</small> <em class="pr-tag">${sg && sg.pass ? "검증 통과(참고)" : "참고 · 검증 미통과"}</em></div>
-      <div class="pr-rc-pos"><span>52주 고점 대비 <b>${p52 == null ? "판정 보류(1년 미만)" : (p52 * 100).toFixed(1) + "%"}</b></span><span>볼밴 %B <b>${pb == null ? "—" : Math.round(pb * 100)}</b></span></div>
-      <table class="pr-t"><tr><th>과거 하락 비율</th><th>3일</th><th>5일</th><th>7일</th><th>사건</th><th>차(5일)</th></tr>
-        <tr><td>단독 캔들(위치 무관)</td>${cells(alone)}<td>${prN(alone)}</td><td>${diff(alone, all)}</td></tr>
-        ${inInt ? `<tr><td>52주 고점 ∩ 볼밴 %B ${L}↑ ∩ ${esc(nm)}</td>${cells(comb)}<td>${prN(comb)}</td><td>${diff(comb, base)}</td></tr>
-        <tr class="pr-base"><td>평소: 52주 고점 ∩ %B ${L}↑</td>${cells(base)}<td>${prN(base)}</td><td></td></tr>` : `<tr><td colspan="6" class="pr-dim">조합 통계 해당 없음 — 그날 52주 고점 0~5% ∩ 볼밴 %B 80↑가 아니었어요</td></tr>`}
-        <tr class="pr-base"><td>평소: 모든 날</td>${cells(all)}<td>${prN(all)}</td><td></td></tr></table></div>`; };
-  return `<div class="pr-ref"><div class="pr-ref-h">🕯 위험 캔들 참고 분석 <small>최근 5거래일</small></div>${ks.map(one).join("")}
-    <small class="pr-dim">차(5일) = 같은 위치의 평소 대비. 탐색(2016~)+독립 T(2008~15)+독립 X(새 종목) 합산 · ±1% 안은 보합으로 빼고 셌어요. 52주 고점 ∩ 볼밴 상단 조합도 하락 예측력이 확인되지 않아 '참고'로만 보여요.</small></div>`;
+/* 2026-11-12 사용자 지시: 고점판독기의 핵심은 '단독 캔들'이 아니라 고점권 교집합 조합 —
+   기본 교집합 = 신호 당일 52주 고점 0~5% 이내 ∧ 당일 볼밴 %B 상단권(80↑) ∧ 같은 날 위험 캔들(또는 모멘텀 약화 신호).
+   교집합이 아니면 단독 승률로 대신하지 않고 '교집합 조건 미충족'만 적는다. 단독 통계는 접힌 '단독 조건 참고 통계'에만.
+   숫자는 backtest/peak-reader2.json(B) 그대로: 탐색 E · 검증 T · 검증 X 따로 · 3·5·7거래일 하락 비율·평균 수익 · 기준선 = 같은 교집합에서 캔들만 뺀 날.
+   판정은 사전 등록 기준(세 묶음 모두 사건 50+ ∧ 5일 +3%p ∧ 10일 +5%p) 그대로 — 표본이 부족하면 승률이 높아도 통과가 아니다. */
+const PR_RC_CANDLES = ["ESTAR", "SHOOTS", "HANGS", "TOP", "UPW", "BIGBEAR"], PR_RC_MOM = ["RSI_DIV", "MACD_FADE", "MACD_DEAD", "STOCH_DEAD"];
+const PR_PART_NAME = { E: "탐색 E (2016~)", T: "검증 T (2008~15)", X: "검증 X (새 종목)" };
+function prRcBlock(pr, s){
+  const B = PR2 && PR2.B; const X = pr.rcx || {}; if (!B) return "";
+  const ks = Object.keys(X).filter(k => B.signals.includes(k)).sort((a, b) => String(X[b][0]).localeCompare(String(X[a][0])));
+  if (!ks.length) return "";
+  const lvOf = pb => pb != null && pb >= 1 ? "100" : pb != null && pb >= 0.9 ? "90" : pb != null && pb >= 0.8 ? "80" : null;
+  const pc = v => v == null ? "—" : Math.round(v * 100) + "%", rt = v => v == null ? "—" : (v >= 0 ? "+" : "") + (v * 100).toFixed(1) + "%";
+  const dp = (a, b) => a == null || b == null ? "—" : `${a - b >= 0 ? "+" : ""}${Math.round((a - b) * 100)}%p`;
+  const verdict = sg => { if (!sg) return "표본 부족"; if (sg.pass) return "검증 통과"; return PR_PARTS.some(P => !sg.in[P] || (sg.in[P].n || 0) < 50) ? "표본 부족" : "검증 미통과"; };
+  const one = k => { const [d, p52, pb] = X[k], nm = B.names[k] || k, L = lvOf(pb), okHi = p52 != null && p52 >= -0.05, inInt = !!L && okHi;
+    const head = `<div class="pr-rc-h"><b>${PR_RC_MOM.includes(k) ? "📉" : "🕯"} ${esc(nm)}</b> <small>${esc(idMDsafe(d))}</small></div>
+      <div class="pr-rc-pos"><span class="${okHi ? "ok" : "no"}">${okHi ? "✓" : "✗"} 52주 고점 대비 <b>${p52 == null ? "판정 보류(1년 미만)" : (p52 * 100).toFixed(1) + "%"}</b> <small>(0~5% 이내)</small></span><span class="${L ? "ok" : "no"}">${L ? "✓" : "✗"} 볼밴 %B <b>${pb == null ? "—" : Math.round(pb * 100)}</b> <small>(80 이상)</small></span><span class="ok">✓ 같은 날 ${esc(nm)}</span></div>`;
+    if (!inInt) return `<div class="pr-rc">${head}<div class="pr-rc-miss">교집합 조건 미충족 — 그날 ${[okHi ? null : "52주 고점 0~5% 이내", L ? null : "볼밴 상단권(%B 80↑)"].filter(Boolean).join(" · ")}가 아니었어요. 조합 성적은 표시하지 않아요.</div></div>`;
+    const lv = B.levels[L], sg = lv.signals[k], base = lv.groups["교집합(0~5%∧%B)"], v = verdict(sg);
+    const row = P => { const e = sg.in[P] || {}, g = base[P] || {};
+      const cell = h => `<td><b>${pc(e["dn" + h])}</b><small>${rt(e["avg" + h])}</small><small class="pr-dim">기준 ${pc(g["dn" + h])} · ${dp(e["dn" + h], g["dn" + h])}</small></td>`;
+      return `<tr><td>${PR_PART_NAME[P]}<small class="pr-dim">${e.n || 0}건 · ${e.dates || 0}일</small></td>${cell(3)}${cell(5)}${cell(7)}</tr>`; };
+    return `<div class="pr-rc">${head}
+      <div class="pr-rc-combo">52주 고점 0~5% ∩ 볼밴 %B ${L}↑ ∩ ${esc(nm)} <em class="pr-tag${v === "검증 통과" ? " ok" : ""}">${v}</em></div>
+      <table class="pr-t pr-t2"><tr><th>하락 비율 · 평균 수익</th><th>3일 뒤</th><th>5일 뒤</th><th>7일 뒤</th></tr>${PR_PARTS.map(row).join("")}</table></div>`; };
+  const cand = ks.filter(k => PR_RC_CANDLES.includes(k)), mom = ks.filter(k => PR_RC_MOM.includes(k));
+  /* 최근 3거래일 누적(별도 분석) — 오늘이 교집합일 때만: 켜진 신호 종류 수(오늘 포함 3거래일) */
+  let stack = "";
+  const Lt = lvOf(pr.pb), today = !!Lt && pr.pos52 != null && pr.pos52 >= -0.05;
+  if (today && s && Array.isArray(s.ohlc60)){ const d3 = s.ohlc60.slice(-3).map(r => r[0]), k3 = Math.min(4, ks.filter(k => d3.includes(X[k][0])).length), lv = B.levels[Lt];
+    const cell = (P, h) => { const z = lv.stack[`${P}|${k3}`] || {}; return `${pc(z["dn" + h])}`; };
+    stack = `<details class="pr-ct"><summary>최근 3거래일 신호 누적 ${k3}${k3 === 4 ? "개 이상" : "개"} <small>(별도 분석 · 오늘 교집합 %B ${Lt}↑)</small></summary>
+      <table class="pr-t"><tr><th>누적 ${k3}${k3 === 4 ? "+" : ""}개일 때 하락 비율</th><th>3일</th><th>5일</th><th>7일</th><th>표본</th></tr>
+      ${PR_PARTS.map(P => `<tr><td>${PR_PART_NAME[P]}</td><td>${cell(P, 3)}</td><td>${cell(P, 5)}</td><td>${cell(P, 7)}</td><td>${(lv.stack[`${P}|${k3}`] || {}).n || 0}</td></tr>`).join("")}</table>
+      <small class="pr-dim">신호가 겹칠수록 하락이 늘어나는지 본 분석 — 결과: ${lv.stack_pass ? "늘어남" : "일관되게 늘지 않음(검증 미통과)"}.</small></details>`; }
+  const aloneRow = k => { const lv = B.levels["90"], a = lv.signals[k] && lv.signals[k].alone; const c = h => `<td>${prPct(prPool(a, "dn" + h))}</td>`; return `<tr><td>${esc(B.names[k] || k)}</td>${c(3)}${c(5)}${c(7)}<td>${prN(a)}</td></tr>`; };
+  const allB = B.levels["90"].groups["전체"], ac = h => `<td>${prPct(prPool(allB, "dn" + h))}</td>`;
+  return `<div class="pr-ref"><div class="pr-ref-h">🔬 고점권 교집합 분석 <small>최근 5거래일 · 참고</small></div>
+    <p class="pr-dim" style="margin:0 0 4px">기본 조건: 신호가 난 <b>그날</b> 52주 고점 0~5% 이내 ∩ 볼밴 %B 상단권 ∩ 위험 캔들. 셋이 같은 날 겹칠 때의 과거 성적만 보여 줘요.</p>
+    ${cand.length ? cand.map(one).join("") : `<div class="pr-rc-miss">최근 5거래일에 위험 캔들이 없었어요.</div>`}
+    ${mom.length ? `<div class="pr-rc-sub">추가 조합 — 모멘텀 약화 신호 <small>(52주 고점 ∩ 볼밴 상단 ∩ 그날 이 신호)</small></div>${mom.map(one).join("")}` : ""}
+    ${stack}
+    <details class="pr-ct"><summary>단독 조건 참고 통계 <small>(위치 무관 — 교집합 성적이 아니에요)</small></summary>
+      <table class="pr-t"><tr><th>단독 조건</th><th>3일</th><th>5일</th><th>7일</th><th>사건</th></tr>${ks.map(aloneRow).join("")}
+      <tr class="pr-base"><td>평소: 모든 날</td>${ac(3)}${ac(5)}${ac(7)}<td>${prN(allB)}</td></tr></table></details>
+    <small class="pr-dim">각 칸: 하락 비율(±1% 안은 보합 제외) · 평균 수익 · 기준 = 같은 교집합에서 이 신호만 뺀 날과의 차이. 판정은 연구 전에 정한 기준(세 묶음 모두 사건 50건 이상 ∩ 5일 +3%p ∩ 10일 +5%p) 그대로예요. 탐색 E는 이미 본 자료, T는 기간만·X는 종목만 새로운 검증이에요. 위험 캔들 ∩ 모멘텀 약화 ∩ 테마 약화 조합은 별도 연구 중이에요.</small></div>`;
 }
 function prCondTable(pr){
   const valid = prValid(), G = (PR_DATA && PR_DATA.groups) || {}, b = prBase() || {};
@@ -9009,7 +9041,7 @@ function prItemHtml(s){
       <div class="pr-kv"><div><small>120일 저점 대비</small><b>${pct(pr.up120)}</b></div><div><small>52주 고점 대비</small><b>${pct(hi52)}</b></div><div><small>RSI</small><b>${pr.rsi ?? "—"}</b></div></div>
       ${J.on.length ? `<div class="pr-sub">최근 5거래일에 켜진 조건</div><ul class="pr-on">${onRows}</ul>` : `<div class="pr-sub">최근 5거래일에 켜진 조건이 없어요</div>`}
       ${(() => { const T = prTrimSrc(s); return T.length ? `<div class="pr-ref"><div class="pr-ref-h">🟡 일부익절 가능성 <small>참고 · 고점 위험과 별개</small></div><ul class="pr-on">${T.map(x => `<li>${esc(x.t)}<br><small class="pr-dim">${esc(prTrimLine(x.k))}</small></li>`).join("")}</ul>${PR_TRIM ? `<small class="pr-dim">3년 백테스트(${esc((PR_TRIM.period || []).join("~"))}) · 같은 종목 3거래일 안 재발생 제외 · 생존 편향 있음. </small>` : ""}<small class="pr-dim">사이트가 이미 띄우는 과열·익절 신호(오늘의 신호·캔들 신호등·과열 뱃지)를 그대로 모은 거예요. 새 판정이 아니고, 매도 지시가 아니에요.</small></div>` : ""; })()}
-      ${prExtBlock(pr)}${prRcBlock(pr)}
+      ${prExtBlock(pr)}${prRcBlock(pr, s)}
       <div class="pr-sub">조건 충족 현황 <small class="pr-dim">● 켜짐 · ○ 꺼짐</small></div><div class="pr-chips">${chips}</div>
       ${prCondTable(pr)}
     </div></details>`;
