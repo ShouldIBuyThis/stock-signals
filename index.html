@@ -5679,6 +5679,23 @@ function patternWidget(list){
       <button class="pl-pill pl-yellow" data-explain="패턴익절">조금 팔기</button> <button class="pl-pill pl-blue" data-explain="패턴반등">살 만함</button> · ⚠️ = 변동성 주의도 있음</div>
   </div>`;
 }
+/* 2026-11-12 사용자 지시: 앞설 테마 TOP3 ∩ '테마 신저가 비율 감소'(D)를 연구 후보로 표시 — 순위·산식은 그대로, 표본 부족 명시.
+   정의 = docs/2026-11-12-theme-top3-hit.md §3 D 그대로: 그 테마의 미국 상장·레버리지 아닌 종목(4개 이상) 중 신저가권(52주 저가 +1% 안) 비율의 5일 평균이
+   5거래일 전보다 줄었고, 5거래일 전 값이 0보다 큼. 값은 원장(hist)의 pct_from_low 그대로 · 그날까지만.
+   성적(독립 2017~2023): 23건 · 5일 안 +1% 도달 74%(17승 6패) · 기존 TOP3 나머지 대비 +11.6%p(90% 구간 −3~+22) · 최근 3년 2건 — 표본 부족. */
+const THEME_LRDN_STAT = "독립 검증 23건 · 5일 안 +1% 도달 74%(17승 6패) · 기존 TOP3 62% · 최근 3년 2건 — 표본 부족";
+function themeLowDown(name){
+  try {
+    const ms = themeStocks().filter(s => (s.category || "기타") === name && !s._benchmark && !isKR(s.ticker) && !LEVERAGED[s.ticker] && !CONGRESS_TICKERS.has(s.ticker));
+    if (ms.length < 4) return null;
+    const H = ms.map(s => { const m = new Map(); (histStocks(s) || []).forEach(h => { if (has(h.pct_from_low)) m.set(String(h.last_date), h.pct_from_low); }); return m; });
+    const days = [...new Set(H.flatMap(m => [...m.keys()]))].sort().slice(-10); if (days.length < 10) return null;
+    const lr = days.map(d => { let k = 0, l = 0; H.forEach(m => { if (!m.has(d)) return; k++; if (m.get(d) <= 1) l++; }); return k >= 4 ? l / k : null; });
+    const m5 = j => { const w = lr.slice(j - 4, j + 1); return w.length === 5 && w.every(x => x != null) ? w.reduce((a, b) => a + b, 0) / 5 : null; };
+    const now = m5(9), before = m5(4); if (now == null || before == null) return null;
+    return before > 0 && now < before ? { now, before } : false;
+  } catch(e){ return null; }
+}
 function themeForecastHtml(){
   const f = themeForecast(); if(f.today.length < 3) return "";
   const pct = v => has(v) ? `${v>=0?"+":""}${v.toFixed(1)}%` : "—";
@@ -5692,6 +5709,7 @@ function themeForecastHtml(){
       <span class="tf-medal">${medal[i]}</span>
       <div class="tf-body">
         <div class="tf-name"><b data-themefilter="${esc(t.name)}" role="button" tabindex="0">${esc(t.name)}</b> <span class="tkrec-n">${t.n}종목</span></div>
+        ${(() => { const D = themeLowDown(t.name); return D ? `<div class="tf-tags"><span class="tag t-cool" title="${esc(THEME_LRDN_STAT)}">🔬 연구 후보 · 신저가 감소 (${Math.round(D.before * 100)}% → ${Math.round(D.now * 100)}%)</span></div><div class="tkrec-sub" style="margin:2px 0 4px">${esc(THEME_LRDN_STAT)}. 순위·매수 판단에는 쓰지 않아요.</div>` : ""; })()}
         <div class="tf-tags">${t.flags.map(x=>`<span class="tag t-good">${esc(x)}</span>`).join("")}</div>
         <div class="tf-nums">한 달(20거래일) <b class="num ${chgCls(t.m20)}">${pct(t.m20)}</b> · 일주일(5거래일) <b class="num ${chgCls(t.r5)}">${pct(t.r5)}</b> · 20일선 위 종목 <b class="num">${Math.round(t.br)}%</b></div>
       </div></div>`).join("")}
