@@ -604,3 +604,39 @@ def peak_reader_now(fl, dates, c, stats=None, win=5):
     return {"date": dates[t], "run": bool(fl["RUN"][t]), "run_recent": bool(np.any(fl["RUN"][lo:n])),
             "on": on, "rsi": f(ax["rsi"][t]), "hh60": f(ax["hh60"][t]), "lo120": f(ax["lo120"][t]),
             "ma20": f(ax["ma20"][t]), "ma60": f(ax["ma60"][t]), "up120": f(c[t] / ax["lo120"][t] - 1) if np.isfinite(ax["lo120"][t]) and ax["lo120"][t] > 0 else None}
+
+
+# ══ 🔬 고점판독기 2차 — 위험 캔들 · 52주 위치 · %B (docs/2026-11-12-peak-reader.md '2차 연구') ══
+# 캔들 문턱은 화면 캔들 분류(index.html todayShape)와 같다. 그날까지의 값만 쓴다.
+RC_NAMES = {"ESTAR": "석별형", "SHOOTS": "유성형", "HANGS": "교수형", "TOP": "팽이·도지", "UPW": "윗꼬리(50%↑)", "BIGBEAR": "장대음봉"}
+POS52_BUCKETS = [("0~5", -0.05, 1e9), ("5~10", -0.10, -0.05), ("10~20", -0.20, -0.10), ("20+", -1e9, -0.20)]
+
+
+def risk_candle_flags(o, h, l, c, v, ticker=""):
+    o, h, l, c, v = (np.asarray(x, dtype=float) for x in (o, h, l, c, v))
+    rng = np.where(h - l > 0, h - l, np.nan)
+    upw, loww, body = (h - np.maximum(o, c)) / rng, (np.minimum(o, c) - l) / rng, np.abs(c - o) / rng
+    avg14 = pd.Series(h - l).rolling(14).mean().to_numpy()
+    fs = flag_series(o, h, l, c, v, ticker)
+    out = {
+        "ESTAR": np.asarray(fs["X_ESTAR"], dtype=bool),
+        "SHOOTS": _gt(upw, 0.6 - 1e-9) & _lt(body, 0.3 + 1e-9) & _lt(loww, 0.15 + 1e-9),
+        "HANGS": _gt(loww, 0.6 - 1e-9) & _lt(body, 0.3 + 1e-9) & _lt(upw, 0.15 + 1e-9),
+        "TOP": _lt(body, 0.3 + 1e-9) & _gt(upw, 0.2 - 1e-9) & _gt(loww, 0.2 - 1e-9),
+        "UPW": _gt(upw, 0.5 - 1e-9),
+        "BIGBEAR": _lt(c, o) & _gt(body, 0.6 - 1e-9) & _gt(h - l, avg14 * 1.3 - 1e-12),
+    }
+    s = pd.Series(c)
+    ma, sd = s.rolling(20).mean().to_numpy(), s.rolling(20).std(ddof=0).to_numpy()
+    up, lo = ma + 2 * sd, ma - 2 * sd
+    pb = (c - lo) / np.where(up - lo > 0, up - lo, np.nan)
+    hh252 = pd.Series(h).rolling(252, min_periods=252).max().to_numpy()   # 252봉 미만 = 52주 고점 판정 보류(NaN)
+    pos52 = c / hh252 - 1
+    return out, pb, pos52
+
+
+def pos52_bucket(x):
+    if x is None or not np.isfinite(x): return None
+    for name, lo_, hi_ in POS52_BUCKETS:
+        if lo_ <= x < hi_ or (name == "0~5" and x >= -0.05): return name
+    return None
