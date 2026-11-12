@@ -96,6 +96,13 @@ def outcomes(o, h, l, c, lev):
             for N in (10, 20): out[f"R{N}{tag}"] = rday <= N; out[f"Q{N}{tag}"] = qday <= N
             if not tag:
                 out["xr_day"], out["xq_day"], out["xr_rise"], out["xq_rise"] = rday, qday, rise_r, rise_q
+        # §14 진단 Q′(W): 다음 날부터의 최고 고가 기준 −10%
+        wday = np.full(n, 99); runw = np.full(n, -np.inf)
+        for j in range(1, 21):
+            lj, hj = nxt(l, j), nxt(h, j)
+            if j > 1: wday = np.where((lj <= runw * (1 - 0.10 * lev)) & (wday == 99), j, wday)
+            runw = np.fmax(runw, hj)
+        for N in (10, 20): out[f"W{N}"] = wday <= N
         hw = np.full(n, -np.inf); pkd = np.zeros(n)
         for j in range(1, 21):
             hj = nxt(h, j); pkd = np.where(hj > hw, j, pkd); hw = np.fmax(hw, hj)
@@ -121,8 +128,56 @@ def binom_tail_gt(n, p, thr):
     return sum(math.exp(math.lgamma(n + 1) - math.lgamma(k + 1) - math.lgamma(n - k + 1) + k * lp + (n - k) * lq) for k in range(k0, n + 1))
 
 
+def diag(a, M, O_, MT, tick, cald):
+    """§14 통과·재현 후보 진단 — 변동성(ATR 구간) 맞춘 대조 · Q′ · 정의별 열. 새 후보를 고르지 않는다."""
+    src = json.load(open(a.diag, encoding="utf-8")); NT = len(MT["tk"]); part, di = MT["part"], MT["di"]
+    want = {}
+    for rd, R in src["readers"].items():
+        for c in R["cands"]:
+            if c.get("k") and (c["verdict"] == "검증 통과" or c["replicate"] == "재현"):
+                want.setdefault(tuple(c["combo"]), []).append(f"{rd}:{c['verdict']}/{c['replicate']}")
+    atr = O_["atr"]; vB = O_["vB"]; vA = O_["vA"]
+    qs = np.nanquantile(atr[(part == 1) & vB & np.isfinite(atr)], [.1, .2, .3, .4, .5, .6, .7, .8, .9, .95, .98, .99]); bins = np.digitize(np.nan_to_num(atr, nan=0), qs)
+    KEYS = {"F5": ("F5", vA, None), "T5": ("T5", vA, None), "M5": ("M5", vA, None), "D5": ("D5", vA, "dec5"), "D20": ("D20", vB, "dec20"),
+            "R20": ("R20", vB, None), "Q20": ("Q20", vB, None), "Q′20": ("W20", vB, None), "Q′10": ("W10", vB, None)}
+    ctrl = {}
+    for k, (ok, V, dk) in KEYS.items():
+        for pm in (1, 2):
+            m = (part == pm) & V & (O_[dk] if dk else True); hit = O_[ok].astype(float)
+            ctrl[(k, pm)] = np.array([hit[m & (bins == b)].mean() if (m & (bins == b)).any() else np.nan for b in range(len(qs) + 1)])
+    def evs(mask):
+        cs = np.concatenate([[0], np.cumsum(mask)]); i = np.arange(NT); prev = (cs[i] - cs[np.maximum(i - 5, 0)]) > 0
+        return np.nonzero(mask & ~prev)[0]
+    out = []; rng = np.random.default_rng(7)
+    print(f"■ §14 진단 — 대상 조합 {len(want)}개 · ATR 구간 경계(탐색 분위수) {[round(x * 100, 1) for x in qs]}")
+    for cb, tags in want.items():
+        ev = evs(np.logical_and.reduce([M[b] for b in cb])); row = {"combo": list(cb), "tags": tags, "atr_med": {}}
+        for pm, pn in ((1, "ex"), (2, "zb")):
+            e0 = ev[part[ev] == pm]; row["atr_med"][pn] = float(np.nanmedian(atr[e0])) if len(e0) else None
+            for k, (ok, V, dk) in KEYS.items():
+                e = e0[V[e0]];
+                if dk: e = e[O_[dk][e]]
+                if not len(e): row[f"{k}|{pn}"] = None; continue
+                hit = O_[ok][e].astype(float); exp = ctrl[(k, pm)][bins[e]]; d_ = hit - exp
+                z = {"n": int(len(e)), "ind": int(len(np.unique(di[e]))), "obs": float(hit.mean()), "exp": float(np.nanmean(exp)), "diff": float(np.nanmean(d_))}
+                if pn == "zb" and z["ind"] >= 6:
+                    u, inv = np.unique(di[e], return_inverse=True); dm = np.array([np.nanmean(d_[inv == j]) for j in range(len(u))])
+                    bs = [np.nanmean(dm[rng.integers(0, len(dm), len(dm))]) for _ in range(2000)]; z["ci"] = [float(np.percentile(bs, 5)), float(np.percentile(bs, 95))]
+                row[f"{k}|{pn}"] = z
+            e = e0[vB[e0]]; row[f"avg20|{pn}"] = float(np.nanmean(O_["f20"][e])) if len(e) else None
+        zq = row.get("Q20|zb") or {}; zf = row.get("F5|zb") or {}
+        row["beyond_vol"] = {k: bool((row.get(f"{k}|zb") or {}).get("ci", [0])[0] > 0 and (row.get(f"{k}|zb") or {}).get("diff", 0) >= 0.15) for k in KEYS}
+        out.append(row)
+        f_ = lambda k: "—" if not row.get(f"{k}|zb") else f"{row[f'{k}|zb']['obs']*100:.0f}(기대 {row[f'{k}|zb']['exp']*100:.0f}, {row[f'{k}|zb']['diff']*100:+.0f}{'' if 'ci' not in row[f'{k}|zb'] else ' [' + format(row[f'{k}|zb']['ci'][0]*100, '+.0f') + '~' + format(row[f'{k}|zb']['ci'][1]*100, '+.0f') + ']'})"
+        print(f"  {' ∩ '.join(cb)} {tags} ATR중앙 ZB {row['atr_med']['zb'] and round(row['atr_med']['zb']*100, 1)}% | ZB F5 {f_('F5')} · T5 {f_('T5')} · M5 {f_('M5')} · D5 {f_('D5')} · Q20 {f_('Q20')} · Q′20 {f_('Q′20')} · R20 {f_('R20')} · D20 {f_('D20')} · 20일 평균 {row['avg20|zb'] and round(row['avg20|zb']*100, 1)}%")
+    if a.emit:
+        json.dump({"generated": datetime.now(timezone.utc).strftime("%Y-%m-%d"), "kind": "research", "doc": "docs/2026-11-12-peak-combo.md#14", "atr_bins": [float(x) for x in qs],
+                   "ctrl": {f"{k}|{pm}": [None if not np.isfinite(x) else float(x) for x in v] for (k, pm), v in ctrl.items()}, "rows": out}, open(a.emit, "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
+        print(f"→ {a.emit} 저장")
+
+
 def main():
-    ap = argparse.ArgumentParser(); ap.add_argument("--emit", default=""); ap.add_argument("--cache", required=True); ap.add_argument("--only", default=""); a = ap.parse_args()
+    ap = argparse.ArgumentParser(); ap.add_argument("--emit", default=""); ap.add_argument("--cache", required=True); ap.add_argument("--only", default=""); ap.add_argument("--diag", default=""); a = ap.parse_args()
     Z = pickle.load(open(a.cache, "rb")); data, orig, newx, zset, sector, SP, Wl = (Z[k] for k in ("data", "orig", "newx", "zset", "sector", "SP", "Wl"))
     zs = sorted(t for t in zset if t in data); ZA, ZB = set(zs[0::2]), set(zs[1::2])
     cal = pd.DatetimeIndex(sorted(set().union(*[set(d.index) for d in data.values()]))); cald = np.array([str(x.date()) for x in cal]); cpos = {d: i for i, d in enumerate(cal)}
@@ -178,9 +233,11 @@ def main():
         push(meta, "bull", bull.reindex(d.index).fillna(False).to_numpy(bool), False); push(meta, "lev", np.full(n, lev), 1)
     M = {b: np.concatenate(cols[b]) for b in ALLB}; O_ = {k: np.concatenate(v_) for k, v_ in OUT.items()}; MT = {k: np.concatenate(v_) for k, v_ in meta.items()}
     for k in list(O_):
-        if (k[0] in "ABDRQFTM" and k[1:].replace("_", "").isdigit()) or k.startswith("dec") or k in ("vA", "vB", "early"): O_[k] = O_[k].astype(bool)
+        if (k[0] in "ABDRQFTMW" and k[1:].replace("_", "").isdigit()) or k.startswith("dec") or k in ("vA", "vB", "early"): O_[k] = O_[k].astype(bool)
     NT = len(MT["tk"]); print(f"종목 {len(tick)} (탐색 E·T·X {sum(t not in ZA and t not in ZB for t in tick)} · ZA {len(ZA)} · ZB {len(ZB)}) · 이어 붙인 봉 {NT:,}")
     part = MT["part"]; di = MT["di"]
+    if a.diag:
+        return diag(a, M, O_, MT, tick, cald)
     def events(mask):
         cs = np.concatenate([[0], np.cumsum(mask)]); i = np.arange(NT); prev = (cs[i] - cs[np.maximum(i - 5, 0)]) > 0
         return np.nonzero(mask & ~prev)[0]

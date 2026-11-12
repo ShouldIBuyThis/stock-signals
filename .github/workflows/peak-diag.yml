@@ -1,0 +1,46 @@
+name: 고점판독기 5차 통과 후보 진단 (§14 · 수동)
+
+# docs/2026-11-12-peak-combo.md §14 사전 등록(caaf771) 그대로: 통과·재현 후보의 변동성(ATR 구간) 맞춘 대조 · Q′ · 정의별 열.
+# 결과 JSON만 main에 커밋. 원장·화면 판정은 건드리지 않는다.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: peak-precision
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: 의존성 설치
+        run: pip install -q yfinance pandas numpy requests lxml
+      - name: 시세·구성(4차 도구가 같은 자료를 캐시로 만든다 · 4차 결과는 커밋하지 않음)
+        run: python tools/peak-precision-lab.py --emit "$RUNNER_TEMP/pp-unused.json" --cache "$RUNNER_TEMP/pp.pkl"
+      - name: §14 진단
+        run: python tools/peak-combo-lab.py --cache "$RUNNER_TEMP/pp.pkl" --diag backtest/peak-combo2.json --emit "$RUNNER_TEMP/peak-combo-diag.json"
+      - name: 결과만 main에 커밋
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for i in 1 2 3; do
+            git fetch origin main
+            git switch -C diag-out origin/main
+            cp "$RUNNER_TEMP/peak-combo-diag.json" backtest/peak-combo-diag.json
+            git add backtest/peak-combo-diag.json
+            if git diff --cached --quiet; then echo "변경 없음"; exit 0; fi
+            git commit -m "auto: 5차 통과 후보 진단(backtest/peak-combo-diag.json)"
+            if git push origin HEAD:main; then exit 0; fi
+            sleep $((i * 5))
+          done
+          echo "::error::푸시 3회 실패"; exit 1
