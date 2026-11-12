@@ -670,3 +670,18 @@ def touch_fail_flags(o, h, l, c, v, lev=1.0, ticker=""):
     z = lambda a: np.asarray(a, bool) & ok
     return {"T": z(T), "TF": z(TF), "TF_M": z(TF & M), "T_W": z(T & W), "T_L": z(T & L), "T_D": z(T & D), "BW": z(BW),
             "_aux": {"p52h": p52h, "p52c": p52c, "pbh": pbh, "pbc": pbc, "upw": upw, "cpos": cpos, "chg": chg}}
+
+
+def risk_candle_now(o, h, l, c, v, fl, dates, win=5, ticker=""):
+    """화면용(고점판독기 위험 캔들 참고): 최근 win 거래일 안 마지막 발생일과 그날의 52주 위치(종가)·%B(종가). 252봉 미만이면 위치 None."""
+    rc, pb, p52 = risk_candle_flags(o, h, l, c, v, ticker)
+    sig = dict(rc)
+    for k in ("RSI_DIV", "MACD_FADE", "MACD_DEAD", "STOCH_DEAD"):
+        if k in fl: sig[k] = np.asarray(fl[k], dtype=bool)
+    n = len(c); lo = max(0, n - win); out = {}
+    f = lambda x: None if x is None or not np.isfinite(x) else round(float(x), 4)
+    for k, a in sig.items():
+        hits = [j for j in range(lo, n) if a[j]]
+        if hits:
+            j = hits[-1]; out[k] = [dates[j], f(p52[j]), f(pb[j])]
+    return {"rcx": out, "pos52": f(p52[n - 1]) if n else None, "pb": f(pb[n - 1]) if n else None}

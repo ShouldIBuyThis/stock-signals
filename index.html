@@ -611,6 +611,15 @@ html[data-theme="dark"] .lev{background:#33191b;color:#ff8080;border-bottom-colo
 .pr-fine{margin-top:14px;font-size:11.5px;color:var(--muted)} .pr-fine summary{cursor:pointer;color:var(--faint)} .pr-fine>div{line-height:1.65;padding:6px 2px}
 .pr-t{width:100%;border-collapse:collapse;margin:8px 0;font-size:11px} .pr-t th,.pr-t td{padding:4px 3px;border-bottom:1px solid var(--line);text-align:right} .pr-t th:first-child,.pr-t td:first-child{text-align:left}
 .pr-empty{font-size:12.5px;color:var(--muted);padding:8px 2px}
+.pr-ref{background:var(--surface2);border-radius:12px;padding:10px 10px 8px;margin:10px 0 2px}
+.pr-ref-h{font-size:12.5px;font-weight:800;color:var(--ink);margin-bottom:4px} .pr-ref-h small{font-weight:500;color:var(--faint);margin-left:4px}
+.pr-ref p{margin:2px 0 4px;font-size:12px;line-height:1.55}
+.pr-rc{border-top:1px solid var(--line);padding-top:8px;margin-top:8px} .pr-rc:first-of-type{border-top:0;margin-top:2px;padding-top:2px}
+.pr-rc-h{font-size:12.5px} .pr-tag{font-style:normal;font-size:10.5px;color:var(--neutral);background:var(--neutral-soft);border-radius:999px;padding:1px 7px;margin-left:4px}
+.pr-rc-pos{display:flex;gap:12px;font-size:12px;color:var(--reason);margin:4px 0 2px;flex-wrap:wrap}
+.pr-t tr.pr-base td{color:var(--faint)} .pr-t tr.on td{color:var(--ink);font-weight:700}
+.pr-ct{margin-top:8px;font-size:11.5px} .pr-ct summary{cursor:pointer;color:var(--muted)}
+.pr-ref .pr-t td,.pr-ref .pr-t th{padding:4px 2px}
 html[data-theme="dark"] .pr-btn{background:#232c42;color:#dbe3f5}
 .holdpanel .phead{padding:8px 12px;font-size:11px;color:var(--faint);border-bottom:1px solid var(--line);font-weight:700}
 .btn-admin.on{background:#46567c;color:#fff}
@@ -8840,7 +8849,7 @@ btnHoldTop.onclick = () => {
    조건 정의는 pattern_flags.peak_reader_flags 한 곳(main.py → s.peak_reader: 오늘 급등 국면 여부 · 최근 5거래일에 켜진 조건).
    단계(🟡 고점 경계 · 🟠 상승세 약화 · 🔴 하락 전환 위험)는 backtest/peak-reader.json에서 사전 기준을 통과한 '유효' 조건으로만 낸다.
    유효 조건이 없으면 단계를 만들지 않고 '판정 보류' — 확률·점수를 지어내지 않는다. 매수 신호·등급·원장과 무관(표시 전용). */
-let PR_OPEN = false, PR_DATA = null, PR_LOADING = false, PR_CASE = 0;
+let PR_OPEN = false, PR_DATA = null, PR2 = null, PR_LOADING = false, PR_CASE = 0;   /* PR2 = backtest/peak-reader2.json(2차 연구: EXT 변동성 · 52주∧%B 위험 캔들) */
 const PR_STAGE_OF = { "과열": 1, "약화": 2, "캔들": 2, "거래량": 2, "이탈": 3 };
 const PR_BADGE = { 0: ["⚪", "특이 신호 없음", "pr-s0"], 1: ["🟡", "고점 경계", "pr-s1"], 2: ["🟠", "상승세 약화", "pr-s2"], 3: ["🔴", "하락 전환 위험", "pr-s3"] };
 /* 추천기능 안내에서 바로 열기 — 보유 패널을 열고 실험실을 펼친 뒤 그 자리로 스크롤 */
@@ -8851,7 +8860,7 @@ async function openPeakReader(){
 }
 async function prToggle(){
   PR_OPEN = !PR_OPEN;
-  if (PR_OPEN && !PR_DATA && !PR_LOADING){ PR_LOADING = true; try { PR_DATA = await loadJsonFromRepo("peak-reader.json"); } catch(e){} PR_LOADING = false; }
+  if (PR_OPEN && !PR_DATA && !PR_LOADING){ PR_LOADING = true; try { [PR_DATA, PR2] = await Promise.all([loadJsonFromRepo("peak-reader.json"), loadJsonFromRepo("peak-reader2.json").catch(() => null)]); } catch(e){} PR_LOADING = false; }
   if (holdPanel.dataset.mode === "hold") renderHoldPanel();
   if (PR_OPEN){ const w = holdPanel.querySelector(".pr-wrap"); if (w) w.scrollIntoView({ block: "nearest" }); }
 }
@@ -8882,18 +8891,65 @@ function prStatLine(c){
   const h = prHold(c), b = prBase(); if (!h || !b) return "";
   return `10일 뒤 하락 ${h.dn10 ?? "—"}%(평소 ${b.dn10}%) · 20일 안 −15% ${h.big ?? "—"}%(평소 ${b.big}%) · ${h.dates}일`;
 }
+/* ── 2차 연구 참고 블록(2026-11-12 사용자 지시) — 전부 '참고 · 검증 미통과'. 숫자는 backtest/peak-reader2.json 그대로,
+   세 자료 묶음(탐색 E · 독립 T · 독립 X)의 날짜 가중 비율을 사건 수로 가중 평균해 한 줄로 보인다. 단계·매수 산식과 무관. */
+const PR_PARTS = ["E", "T", "X"];
+function prPool(byPart, key){
+  let w = 0, x = 0; PR_PARTS.forEach(P => { const z = byPart && byPart[P]; if (z && z[key] != null && z.n){ x += z[key] * z.n; w += z.n; } });
+  return w ? x / w : null;
+}
+const prN = byPart => PR_PARTS.reduce((a, P) => a + ((byPart && byPart[P] && byPart[P].n) || 0), 0);
+const prPct = v => v == null ? "—" : `${Math.round(v * 100)}%`;
+function prExtBlock(pr){
+  const A = PR2 && PR2.A; if (!pr.on || !pr.on.EXT || !A) return "";
+  const row = (lab, P) => { const e = A.by_part[`${P}|25`]; if (!e || !e.ev || !e.ev.n) return "";
+    const m = e.matched || {}; return `<tr><td>${lab}</td><td>${prPct(e.ev.dn25_40)} <small>(${prPct(m.dn25_40)})</small></td><td>${prPct(e.ev.up20_40)} <small>(${prPct(m.up20_40)})</small></td><td>${e.ev.n}</td></tr>`; };
+  return `<div class="pr-ref"><div class="pr-ref-h">🌪 변동성 과열 <small>참고 · ${esc(idMDsafe(pr.on.EXT))} 발생</small></div>
+    <p class="pr-dim">20일선보다 25% 이상 위에 있어요. 과거에는 <b>크게 떨어지는 경우와 크게 더 오르는 경우가 모두 많아졌어요</b> — 매도 신호가 아니에요.</p>
+    <table class="pr-t"><tr><th>과거 사건 뒤 40일</th><th>−25% 하락 경험</th><th>+20% 추가 상승</th><th>사건</th></tr>
+      ${row("독립 검증 T(2008~15)", "T")}${row("독립 검증 X(새 종목)", "X")}${row("탐색(2016~)", "E")}</table>
+    <small class="pr-dim">괄호 = 변동성이 비슷한 급등 국면의 평소. 판정: ${esc(A.verdict || "—")} · 버블 붕괴 조기 경고 기준은 통과하지 못했어요.</small></div>`;
+}
+function prRcBlock(pr){
+  const B = PR2 && PR2.B; const X = pr.rcx || {}; const ks = Object.keys(X).filter(k => B && B.signals.includes(k));
+  if (!B || !ks.length) return "";
+  ks.sort((a, b) => String(X[b][0]).localeCompare(String(X[a][0])));
+  const one = k => { const [d, p52, pb] = X[k]; const nm = B.names[k] || k;
+    const L = pb != null && pb >= 1 ? "100" : pb != null && pb >= 0.9 ? "90" : pb != null && pb >= 0.8 ? "80" : null;
+    const inInt = L && p52 != null && p52 >= -0.05; const lv = B.levels[L || "90"]; const sg = lv && lv.signals[k];
+    const alone = sg && sg.alone, comb = inInt && sg ? sg.in : null, base = inInt ? lv.groups["교집합(0~5%∧%B)"] : null, all = lv && lv.groups["전체"];
+    const cells = (bp, cls) => [3, 5, 7, 10].map(h => `<td class="${cls || ""}">${prPct(prPool(bp, "dn" + h))}</td>`).join("");
+    const diff = (a, b) => { const x = prPool(a, "dn10"), y = prPool(b, "dn10"); return x == null || y == null ? "—" : `${x - y >= 0 ? "+" : ""}${Math.round((x - y) * 100)}%p`; };
+    return `<div class="pr-rc"><div class="pr-rc-h"><b>🕯 ${esc(nm)}</b> <small>${esc(idMDsafe(d))}</small> <em class="pr-tag">${sg && sg.pass ? "검증 통과(참고)" : "참고 · 검증 미통과"}</em></div>
+      <div class="pr-rc-pos"><span>52주 고점 대비 <b>${p52 == null ? "판정 보류(1년 미만)" : (p52 * 100).toFixed(1) + "%"}</b></span><span>볼밴 %B <b>${pb == null ? "—" : Math.round(pb * 100)}</b></span></div>
+      <table class="pr-t"><tr><th>과거 하락 비율</th><th>3일</th><th>5일</th><th>7일</th><th>10일</th><th>사건</th><th>차(10일)</th></tr>
+        <tr><td>단독 캔들(위치 무관)</td>${cells(alone)}<td>${prN(alone)}</td><td>${diff(alone, all)}</td></tr>
+        ${inInt ? `<tr><td>52주 고점 ∩ 볼밴 %B ${L}↑ ∩ ${esc(nm)}</td>${cells(comb)}<td>${prN(comb)}</td><td>${diff(comb, base)}</td></tr>
+        <tr class="pr-base"><td>평소: 52주 고점 ∩ %B ${L}↑</td>${cells(base)}<td>${prN(base)}</td><td></td></tr>` : `<tr><td colspan="7" class="pr-dim">조합 통계 해당 없음 — 그날 52주 고점 0~5% ∩ 볼밴 %B 80↑가 아니었어요</td></tr>`}
+        <tr class="pr-base"><td>평소: 모든 날</td>${cells(all)}<td>${prN(all)}</td><td></td></tr></table></div>`; };
+  return `<div class="pr-ref"><div class="pr-ref-h">🕯 위험 캔들 참고 분석 <small>최근 5거래일</small></div>${ks.map(one).join("")}
+    <small class="pr-dim">차(10일) = 같은 위치의 평소 대비. 탐색(2016~)+독립 T(2008~15)+독립 X(새 종목) 합산 · ±1% 안은 보합으로 빼고 셌어요. 52주 고점 ∩ 볼밴 상단 조합도 하락 예측력이 확인되지 않아 '참고'로만 보여요.</small></div>`;
+}
+function prCondTable(pr){
+  const valid = prValid(), G = (PR_DATA && PR_DATA.groups) || {}, b = prBase() || {};
+  const rows = Object.keys(G).map(c => { const h = prHold(c); return `<tr${pr.on && pr.on[c] ? ' class="on"' : ""}><td>${pr.on && pr.on[c] ? "● " : ""}${esc(prName(c))}</td><td>${h && h.dn10 != null ? h.dn10 + "%" : "—"}</td><td>${h && h.big != null ? h.big + "%" : "—"}</td><td>${h ? h.dates : "—"}</td><td>${valid.includes(c) ? "통과" : "미통과"}</td></tr>`; }).join("");
+  return `<details class="pr-ct"><summary>조건별 과거 성적 펼치기 <small>(2023년 이후 급등 국면 · 평소 10일 하락 ${b.dn10 ?? "—"}% · 20일 안 −15% ${b.big ?? "—"}%)</small></summary>
+    <table class="pr-t"><tr><th>조건</th><th>10일 하락</th><th>20일 −15%</th><th>날</th><th>판정</th></tr>${rows}</table></details>`;
+}
 function prItemHtml(s){
   const J = prJudge(s), pr = s.peak_reader || {}, valid = prValid();
   const pct = v => v == null ? "—" : `${v >= 0 ? "+" : ""}${(v * 100).toFixed(0)}%`;
   const hi52 = has(s.high_52w) && has(s.price) && s.high_52w > 0 ? s.price / s.high_52w - 1 : null;
   const groups = ["과열", "약화", "캔들", "거래량", "이탈"], G = (PR_DATA && PR_DATA.groups) || {};
   const chips = groups.map(g => `<div class="pr-g"><span>${g}</span>${Object.keys(G).filter(c => G[c] === g).map(c => `<i class="${pr.on && pr.on[c] ? "on" : ""}${valid.includes(c) ? " v" : ""}" title="${esc(prStatLine(c))}">${pr.on && pr.on[c] ? "●" : "○"} ${esc(prName(c))}</i>`).join("")}</div>`).join("");
-  const onRows = J.on.map(c => `<li><b>${esc(prName(c))}</b> <small>${esc(idMDsafe(pr.on[c]))}</small><br><small class="pr-dim">${valid.includes(c) ? "검증 통과" : prCaseOk(c) ? "참고 · 사례 재검증 통과 · 날 단위 미통과 · 추가 연구 중" : "참고 · 검증 미통과"} — ${prCaseLine(c) ? esc(prCaseLine(c)) + ". 날 단위로는 " : ""}${esc(prStatLine(c))}${prCaseLine(c) ? " — 변동성이 커진 구간일 수 있어 하락 방향 예측으로 보지 않아요" : ""}</small></li>`).join("");
+  const onRows = J.on.map(c => c === "EXT" && PR2 && PR2.A ? `<li><b>🌪 변동성 과열(이격 25%↑)</b> <small>${esc(idMDsafe(pr.on[c]))}</small><br><small class="pr-dim">참고 — 아래 🌪 블록에 상승·하락 경험 비율이 있어요</small></li>` : `<li><b>${esc(prName(c))}</b> <small>${esc(idMDsafe(pr.on[c]))}</small><br><small class="pr-dim">${valid.includes(c) ? "검증 통과" : prCaseOk(c) ? "참고 · 사례 재검증 통과 · 날 단위 미통과 · 추가 연구 중" : "참고 · 검증 미통과"} — ${prCaseLine(c) ? esc(prCaseLine(c)) + ". 날 단위로는 " : ""}${esc(prStatLine(c))}${prCaseLine(c) ? " — 변동성이 커진 구간일 수 있어 하락 방향 예측으로 보지 않아요" : ""}</small></li>`).join("");
   return `<details class="pr-item"><summary><span class="pr-tk">${esc(s.ticker)}</span><span class="pr-nm">${esc(s.name || "")}</span><span class="pr-badge ${J.cls}">${esc(J.label)}</span><span class="pr-why">${esc(J.why)}</span></summary>
     <div class="pr-body">
       <div class="pr-kv"><div><small>120일 저점 대비</small><b>${pct(pr.up120)}</b></div><div><small>52주 고점 대비</small><b>${pct(hi52)}</b></div><div><small>RSI</small><b>${pr.rsi ?? "—"}</b></div></div>
       ${J.on.length ? `<div class="pr-sub">최근 5거래일에 켜진 조건</div><ul class="pr-on">${onRows}</ul>` : `<div class="pr-sub">최근 5거래일에 켜진 조건이 없어요</div>`}
+      ${prExtBlock(pr)}${prRcBlock(pr)}
       <div class="pr-sub">조건 충족 현황 <small class="pr-dim">● 켜짐 · ○ 꺼짐</small></div><div class="pr-chips">${chips}</div>
+      ${prCondTable(pr)}
     </div></details>`;
 }
 function prCaseChart(cs){
