@@ -4955,7 +4955,7 @@ async function loadBoardData(){
     if (t && t.markets) THEME_BR = t; if (g && g.groups) GROUP_BR = g;
     if ((THEME_BR || GROUP_BR) && state.data && typeof render === "function") { try { render(); } catch(e){} } }).catch(() => {});
   /* 고점판독기 검증 통과 조합(장바구니 모의점검의 같은 테마 알림에도 쓴다) — 작은 파일이라 미리 받아 둔다 */
-  if (!PR_HL) loadJsonFromRepo("peak-highlights.json").then(h => { if (h && h.highlights) PR_HL = h; }).catch(() => {});
+  if (!PR_HL) prHlLoad(false);
 }
 const SB_KIND = {
   green:  {icon:"🟢", title:"반등 신호", head:"반등 신호 발생", pill:"pl-green"},
@@ -6226,7 +6226,7 @@ function openCartReview(){
     if (PR_HL && typeof prHlMatch === "function"){
       const all = allStocks(), lit = new Map(all.map(x => [x.ticker, prHlMatch(x)]).filter(([, m]) => m.length));
       const own = F.mine.filter(s => lit.has(s.ticker));
-      if (own.length) B.care.unshift(`🔴 <b>고점 붕괴 위험 조합</b>(고점판독기 · 미사용 자료 검증 통과)이 켜진 종목: <b>${own.map(s => `${esc(s.ticker)} ${esc(idMDsafe(lit.get(s.ticker)[0].d))}`).join(" · ")}</b> — 과거 같은 조합 뒤 20거래일 안에 고점 대비 −10% 급락이 잦았어요(변동성이 큰 종목 효과가 대부분). 매도 지시는 아니에요.`);
+      if (own.length) B.care.unshift(`🔴 <b>고점 붕괴 위험 조합</b>(고점판독기 · 사전등록 검증 통과 · 변동성 추가 검증은 미통과)이 켜진 종목: <b>${own.map(s => `${esc(s.ticker)} ${esc(idMDsafe(lit.get(s.ticker)[0].d))}`).join(" · ")}</b> — 과거 같은 조합 뒤 20거래일 안에 고점 대비 −10% 급락이 잦았어요(상당 부분은 변동성이 큰 종목 효과일 수 있어요). 매도 지시는 아니에요.`);
       const cats = [...new Set(F.mine.map(s => s.category).filter(c => c && c !== "기타"))];
       cats.forEach(c => { const mates = all.filter(x => x.category === c && lit.has(x.ticker) && !F.mine.some(m => m.ticker === x.ticker)); if (!mates.length) return;
         const mine = F.mine.filter(s => s.category === c).map(s => esc(s.ticker)).join(" · ");
@@ -8988,7 +8988,7 @@ btnHoldTop.onclick = () => {
    조건 정의는 pattern_flags.peak_reader_flags 한 곳(main.py → s.peak_reader: 오늘 급등 국면 여부 · 최근 5거래일에 켜진 조건).
    단계(🟡 고점 경계 · 🟠 상승세 약화 · 🔴 하락 전환 위험)는 backtest/peak-reader.json에서 사전 기준을 통과한 '유효' 조건으로만 낸다.
    유효 조건이 없으면 단계를 만들지 않고 '판정 보류' — 확률·점수를 지어내지 않는다. 매수 신호·등급·원장과 무관(표시 전용). */
-let PR_OPEN = false, PR_DATA = null, PR2 = null, PR_TRIM = null, PR_TF = null, PR_HL = null, PR_LOADING = false, PR_CASE = 0;   /* PR2 = backtest/peak-reader2.json(2차 연구: EXT 변동성 · 52주∧%B 위험 캔들) */
+let PR_OPEN = false, PR_DATA = null, PR2 = null, PR_TRIM = null, PR_TF = null, PR_HL = null, PR_HL_STATE = "", PR_LOADING = false, PR_CASE = 0;   /* PR2 = backtest/peak-reader2.json(2차 연구: EXT 변동성 · 52주∧%B 위험 캔들) */
 const PR_STAGE_OF = { "과열": 1, "약화": 2, "캔들": 2, "거래량": 2, "이탈": 3 };
 const PR_BADGE = { 0: ["⚪", "특이 신호 없음", "pr-s0"], 1: ["🟡", "고점 경계", "pr-s1"], 2: ["🟠", "상승세 약화", "pr-s2"], 3: ["🔴", "하락 전환 위험", "pr-s3"] };
 /* 추천기능 안내에서 바로 열기 — 보유 패널을 열고 실험실을 펼친 뒤 그 자리로 스크롤 */
@@ -8997,9 +8997,19 @@ async function openPeakReader(){
   if (!PR_OPEN) await prToggle();
   const w = holdPanel.querySelector(".pr-wrap"); if (w){ holdPanel.scrollTop = w.offsetTop - 8; holdPanel.scrollIntoView({ block: "start", behavior: "smooth" }); }
 }
+/* 검증 조합 파일은 연구 자료와 따로 받는다 — 하나가 실패해도 다른 쪽을 막지 않고, 실패하면 다시 시도할 수 있다. */
+async function prHlLoad(force){
+  if (PR_HL || PR_HL_STATE === "loading") return PR_HL;
+  if (PR_HL_STATE === "fail" && !force) return null;
+  PR_HL_STATE = "loading";
+  try { const h = await loadJsonFromRepo("peak-highlights.json"); if (h && Array.isArray(h.highlights)) { PR_HL = h; PR_HL_STATE = "ok"; } else PR_HL_STATE = "fail"; }
+  catch(e){ PR_HL_STATE = "fail"; }
+  return PR_HL;
+}
 async function prToggle(){
   PR_OPEN = !PR_OPEN;
-  if (PR_OPEN && !PR_DATA && !PR_LOADING){ PR_LOADING = true; try { [PR_DATA, PR2, PR_TRIM, PR_TF] = await Promise.all([loadJsonFromRepo("peak-reader.json"), loadJsonFromRepo("peak-reader2.json").catch(() => null), loadJsonFromRepo("trim-stats.json").catch(() => null), loadJsonFromRepo("theme-flow.json").catch(() => null)]); PR_HL = await loadJsonFromRepo("peak-highlights.json").catch(() => null); } catch(e){} PR_LOADING = false; }
+  if (PR_OPEN && !PR_DATA && !PR_LOADING){ PR_LOADING = true; try { [PR_DATA, PR2, PR_TRIM, PR_TF] = await Promise.all([loadJsonFromRepo("peak-reader.json"), loadJsonFromRepo("peak-reader2.json").catch(() => null), loadJsonFromRepo("trim-stats.json").catch(() => null), loadJsonFromRepo("theme-flow.json").catch(() => null)]); } catch(e){} PR_LOADING = false; }
+  if (PR_OPEN && !PR_HL) await prHlLoad(true);   /* 연구 자료가 이미 있어도 검증 조합 파일이 없으면 다시 시도 */
   if (holdPanel.dataset.mode === "hold") renderHoldPanel();
   if (PR_OPEN){ const w = holdPanel.querySelector(".pr-wrap"); if (w) w.scrollIntoView({ block: "nearest" }); }
 }
@@ -9073,7 +9083,8 @@ function prRcBlock(pr, s){
     if (!inInt) return `<div class="pr-rc">${head}<div class="pr-rc-miss">교집합 조건 미충족 — 그날 ${[okHi ? null : "52주 고점 0~5% 이내", L ? null : "볼밴 상단권(%B 80↑)"].filter(Boolean).join(" · ")}가 아니었어요. 조합 성적은 표시하지 않아요.</div></div>`;
     const lv = B.levels[L], sg = lv.signals[k], base = lv.groups["교집합(0~5%∧%B)"], v = verdict(sg);
     const row = P => { const e = sg.in[P] || {}, g = base[P] || {};
-      const cell = h => `<td><b>${pc(e["dn" + h])}</b><small>${rt(e["avg" + h])}</small><small class="pr-dim">기준 ${pc(g["dn" + h])} · ${dp(e["dn" + h], g["dn" + h])}</small></td>`;
+      const cell = h => { const v = e["dn" + h]; if (v == null) return `<td class="pr-dim">자료 없음</td>`; if ((e.n || 0) < 6) return `<td class="pr-dim">표본 부족</td>`; if (v < PR_MIN) return `<td class="pr-dim">65% 미만</td>`;
+        return `<td><b>${pc(v)}</b><small>${rt(e["avg" + h])}</small><small class="pr-dim">기준 ${pc(g["dn" + h])} · ${dp(v, g["dn" + h])}</small></td>`; };
       return `<tr><td>${PR_PART_NAME[P]}<small class="pr-dim">${e.n || 0}건 · ${e.dates || 0}일</small></td>${cell(3)}${cell(5)}${cell(7)}</tr>`; };
     return `<div class="pr-rc">${head}
       <div class="pr-rc-combo">52주 고점 0~5% ∩ 볼밴 %B ${L}↑ ∩ ${esc(nm)} <em class="pr-tag${v === "검증 통과" ? " ok" : ""}">${v}</em></div>
@@ -9083,7 +9094,7 @@ function prRcBlock(pr, s){
   let stack = "";
   const Lt = lvOf(pr.pb), today = !!Lt && pr.pos52 != null && pr.pos52 >= -0.05;
   if (today && s && Array.isArray(s.ohlc60)){ const d3 = s.ohlc60.slice(-3).map(r => r[0]), k3 = Math.min(4, ks.filter(k => d3.includes(X[k][0])).length), lv = B.levels[Lt];
-    const cell = (P, h) => { const z = lv.stack[`${P}|${k3}`] || {}; return `${pc(z["dn" + h])}`; };
+    const cell = (P, h) => { const z = lv.stack[`${P}|${k3}`] || {}, v = z["dn" + h]; return v == null ? "자료 없음" : (z.n || 0) < 6 ? "표본 부족" : v < PR_MIN ? "65% 미만" : pc(v); };
     const zs = Object.fromEntries(["T", "X"].map(P => [P, lv.stack[`${P}|${k3}`]]));
     stack = k3 >= 2 ? (prHigh(zs) ? `<div class="pr-rc"><div class="pr-rc-combo">다중 신호 — 교집합(%B ${Lt}↑) ∩ 최근 3거래일 신호 ${k3}${k3 === 4 ? "개 이상" : "개"}</div>
       <table class="pr-t"><tr><th>하락 비율</th><th>3일</th><th>5일</th><th>7일</th><th>사건</th></tr>
@@ -9094,7 +9105,7 @@ function prRcBlock(pr, s){
     ${cand.length ? cand.map(one).join("") : `<div class="pr-rc-miss">최근 5거래일에 위험 캔들이 없었어요.</div>`}
     ${mom.length ? `<div class="pr-rc-sub">추가 조합 — 모멘텀 약화 신호 <small>(52주 고점 ∩ 볼밴 상단 ∩ 그날 이 신호)</small></div>${mom.map(one).join("")}` : ""}
     ${stack}
-    <small class="pr-dim">하락 비율 = n거래일 뒤 종가가 1% 넘게 내린 비율(±1% 안 보합 제외). 지금까지 검증한 조합 가운데 65% 이상은 아직 없어요 — 더 드물고 정확한 조합은 별도 연구(고정밀 교집합) 중이에요.</small></div>`;
+    <small class="pr-dim">하락 비율 = n거래일 뒤 종가가 1% 넘게 내린 비율(±1% 안 보합 제외). 위 조합(52주 고점 ∩ 볼밴 상단 ∩ 위험 캔들)은 검증 자료에서 65%를 넘지 못했어요. 65%를 넘긴 조합은 패널 위 '🔴 고점 붕괴 위험 조합'에 따로 보여 줘요.</small></div>`;
 }
 function prCondTable(pr){
   const valid = prValid(), G = (PR_DATA && PR_DATA.groups) || {}, b = prBase() || {};
@@ -9128,7 +9139,7 @@ function prItemHtml(s){
   const chips = groups.map(g => `<div class="pr-g"><span>${g}</span>${Object.keys(G).filter(c => G[c] === g).map(c => `<i class="${pr.on && pr.on[c] ? "on" : ""}${valid.includes(c) ? " v" : ""}" title="단독 조건 — 조합 성적이 아니에요">${pr.on && pr.on[c] ? "●" : "○"} ${esc(prName(c))}</i>`).join("")}</div>`).join("");
   const HM = prHlMatch(s);
   const onRows = J.on.map(c => c === "EXT" && PR2 && PR2.A ? `<li><b>🌪 변동성 과열(이격 25%↑)</b> <small>${esc(idMDsafe(pr.on[c]))}</small><br><small class="pr-dim">참고 — 아래 🌪 블록에 상승·하락 경험 비율이 있어요</small></li>` : `<li><b>${esc(prName(c))}</b> <small>${esc(idMDsafe(pr.on[c]))}</small><br><small class="pr-dim">${valid.includes(c) ? "검증 통과" : "단독 조건 · 참고(검증 미통과)"} — 승률은 단독이 아니라 아래 '조합(교집합)' 성적으로 봐요</small></li>`).join("");
-  return `<details class="pr-item"><summary><span class="pr-tk">${esc(s.ticker)}</span><span class="pr-nm">${esc(s.name || "")}</span><span class="pr-badges"><span class="pr-badge ${J.cls}">${esc(J.label)}</span>${HM.length ? `<span class="pr-hlb" title="미사용 자료 검증 통과 조합">🔴 붕괴 위험 조합</span>` : ""}${prTrim(s).length ? `<span class="pr-trim" title="사이트 기존 익절 신호(참고)">🟡 일부익절</span>` : ""}</span><span class="pr-why">${esc(J.why)}</span></summary>
+  return `<details class="pr-item"><summary><span class="pr-tk">${esc(s.ticker)}</span><span class="pr-nm">${esc(s.name || "")}</span><span class="pr-badges"><span class="pr-badge ${J.cls}">${esc(J.label)}</span>${HM.length ? `<span class="pr-hlb" title="사전등록 검증 통과 조합(변동성 추가 검증은 미통과)">🔴 붕괴 위험 조합</span>` : ""}${prTrim(s).length ? `<span class="pr-trim" title="사이트 기존 익절 신호(참고)">🟡 일부익절</span>` : ""}</span><span class="pr-why">${esc(J.why)}</span></summary>
     <div class="pr-body">${prHlCard(HM)}
       <div class="pr-kv"><div><small>120일 저점 대비</small><b>${pct(pr.up120)}</b></div><div><small>52주 고점 대비</small><b>${pct(hi52)}</b></div><div><small>RSI</small><b>${pr.rsi ?? "—"}</b></div></div>
       ${J.on.length ? `<div class="pr-sub">최근 5거래일에 켜진 조건</div><ul class="pr-on">${onRows}</ul>` : `<div class="pr-sub">최근 5거래일에 켜진 조건이 없어요</div>`}
@@ -9159,23 +9170,40 @@ function prCaseChart(cs){
 /* 2026-11-12 사용자 승인(“65% 넘긴 것 사이트에 반영 · 고점판독에만”): 5차 교집합 연구에서 미사용 자료(ZB) 검증을 통과한 조합만.
    조합 정의는 pattern_flags.combo_blocks(main.py가 최근 5거래일 블록을 peak_reader.blk로 넣는다) · 숫자는 backtest/peak-highlights.json 그대로.
    매수 산식·황금신호·일부익절 불·고점판독기 단계 판정과 무관(표시 전용). 외부 조건(테마·시장)이 들어간 조합은 화면에서 판정하지 않는다. */
-function prHlMatch(s){
-  const H = PR_HL && PR_HL.highlights, blk = s && s.peak_reader && s.peak_reader.blk; if (!H || !blk) return [];
-  const days = Object.keys(blk).sort().slice(-3), out = [];
-  H.forEach(h => { if (!h.live) return; const d = days.slice().reverse().find(x => h.combo.every(b => (blk[x] || []).includes(b))); if (d) out.push({ h, d }); });
+/* 그 종목의 최신 확정 거래일 n개(오래된 → 최근). ohlc60(main.py 실제 일봉) → 없으면 원장 날짜. 기록이 띄엄띄엄이어도 '최근 n거래일'만 본다. */
+function prLastDays(s, n){
+  let d = Array.isArray(s && s.ohlc60) ? s.ohlc60.map(r => r && r[0]).filter(Boolean) : [];
+  if (!d.length) { try { d = (histStocks(s) || []).map(r => r.last_date).filter(Boolean); } catch(e){} }
+  d = [...new Set(d.map(String))].sort(); if (s && s.last_date) d = d.filter(x => x <= String(s.last_date));
+  return d.slice(-n);
+}
+/* blk = {days:{날짜:[블록]}, na:[판정 보류 블록]} (2026-11-12 뒤) 또는 예전 형식 {날짜:[블록]} */
+function prBlk(s){
+  const b = s && s.peak_reader && s.peak_reader.blk; if (!b || typeof b !== "object") return null;
+  return b.days && typeof b.days === "object" ? { days: b.days, na: Array.isArray(b.na) ? b.na : [] } : { days: b, na: ["P_NEAR", "P_RT5", "C_FB"] };
+}
+function prHlMatch(s, opt){
+  const H = PR_HL && PR_HL.highlights, B = prBlk(s); if (!H || !B) return [];
+  const days = prLastDays(s, 3), out = [];
+  H.forEach(h => { if (!h.live) return;
+    if (h.combo.some(b => B.na.includes(b))) { if (opt && opt.held) opt.held.push(h); return; }   /* 52주 자료 부족 → 판정 보류(연구와 다른 값으로 판정하지 않음) */
+    const d = days.slice().reverse().find(x => h.combo.every(b => ((B.days[x] || [])).includes(b))); if (d) out.push({ h, d }); });
   return out;
 }
 function prHlCard(ms){
   if (!ms.length) return "";
   const pc = v => v == null ? "—" : Math.round(v * 100) + "%", m = ms[0], q = m.h.readers.Q, f = m.h.readers.F, dg = m.h.diag || {};
   const cls = q && q.class ? Object.entries(q.class).filter(([, v]) => v).map(([k, v]) => `${k} ${v}`).join(" · ") : "";
-  return `<div class="pr-hl"><div><b class="t">🔴 고점 붕괴 위험 조합</b> <small class="pr-dim">${esc(idMDsafe(m.d))} 켜짐 · 미사용 자료 검증 통과</small></div>
+  const rate = z => `날짜 가중 <b>${pc(z.zb)}</b> · 사건 기준 ${pc(z.zb_r != null ? z.zb_r : z.zb_hit / z.zb_n)} (${z.zb_hit}/${z.zb_n}건)`;
+  const volOk = !!(dg.beyond_vol && dg.beyond_vol.includes("Q20"));
+  return `<div class="pr-hl"><div><b class="t">🔴 고점 붕괴 위험 조합</b> <small class="pr-dim">${esc(idMDsafe(m.d))} 켜짐</small></div>
+    <div style="font-size:11.5px;margin-top:2px"><span class="pr-hlb">사전등록 검증 통과</span> <span class="pr-badge">${volOk ? "변동성 추가 검증 통과" : "변동성 추가 검증 미통과"}</span></div>
     <div style="font-size:12.5px;margin-top:4px">${esc(m.h.name)}</div>
-    <ul>${q ? `<li>과거 같은 조합 뒤 <b>20거래일 안에 고점 대비 −10% 급락</b>: 미사용 자료 <b>${pc(q.zb)}</b> (${q.zb_hit}/${q.zb_n}건 · ${q.zb_tickers}종목) · 탐색 자료 ${pc(q.ex)}${cls ? `<br><small class="pr-dim">${esc(cls)}</small>` : ""}</li>` : ""}
+    <ul>${q ? `<li>과거 같은 조합 뒤 <b>20거래일 안에 고점 대비 −10% 급락</b>(미사용 자료): ${rate(q)} · ${q.zb_tickers}종목 · 탐색 자료 날짜 가중 ${pc(q.ex)}${cls ? `<br><small class="pr-dim">${esc(cls)}</small>` : ""}</li>` : ""}
       ${dg["R20"] ? `<li>신호일 <b>종가</b>보다 −10% 아래로 내려간 비율은 ${pc(dg["R20"].obs)} — 일부는 먼저 더 오른 뒤 꺾였어요${q && q.timing && q.timing.rise_before_med != null ? ` (급락 전 추가 상승 중앙값 +${Math.round(q.timing.rise_before_med * 100)}%)` : ""}</li>` : ""}
-      ${f ? `<li>🟡 5거래일 안 −3% 조정(다음 날 시가 기준): 미사용 자료 <b>${pc(f.zb)}</b> · 1/3 익절이 보유보다 유리 ${pc(f.trim_win5)}</li>` : ""}
-      ${dg["Q20"] ? `<li><small class="pr-dim">주의: 변동성이 비슷한 종목의 평소 비율은 ${pc(dg["Q20"].exp)}예요. 이 조합의 추가 효과는 ${dg["Q20"].diff >= 0 ? "+" : ""}${Math.round(dg["Q20"].diff * 100)}%p로, 높은 비율의 대부분은 '20일선보다 25% 넘게 오른 종목은 원래 크게 흔들린다'는 데서 와요. 매도 지시가 아니에요.</small></li>` : ""}</ul>
-    ${ms.length > 1 ? `<small class="pr-dim">같은 날 함께 켜진 검증 통과 조합 ${ms.length - 1}개 더: ${ms.slice(1, 4).map(x => esc(x.h.name)).join(" / ")}${ms.length > 4 ? " …" : ""}</small>` : ""}</div>`;
+      ${f ? `<li>🟡 5거래일 안 −3% 조정(다음 날 시가 기준 · 미사용 자료): ${rate(f)} · 1/3 익절이 보유보다 유리 ${pc(f.trim_win5)}</li>` : ""}
+      ${dg["Q20"] ? `<li><small class="pr-dim">변동성 추가 검증: 변동성이 비슷한 종목의 평소 비율은 ${pc(dg["Q20"].exp)}이고 이 조합의 추가 효과는 ${dg["Q20"].diff >= 0 ? "+" : ""}${Math.round(dg["Q20"].diff * 100)}%p예요(기준 +15%p${volOk ? " — 통과" : " — 미달"}). 높은 비율의 상당 부분은 '20일선보다 25% 넘게 오른 종목은 원래 크게 흔들린다'는 데서 올 수 있어요. 과거 통계이고 매도 지시가 아니에요.</small></li>` : ""}</ul>
+    ${ms.length > 1 ? `<small class="pr-dim">같은 날 함께 켜진 사전등록 통과 조합 ${ms.length - 1}개 더: ${ms.slice(1, 4).map(x => esc(x.h.name)).join(" / ")}${ms.length > 4 ? " …" : ""}</small>` : ""}</div>`;
 }
 function prComboStat(k, per){ const C = PR_DATA && PR_DATA.combo_cases, z = C && C.stats && C.stats[k]; return z ? z[per || "hold"] : null; }
 function prCaseCombo(cs, B, pi){
@@ -9196,10 +9224,10 @@ function prCaseCombo(cs, B, pi){
 function prComboTables(){
   const pc = v => v == null ? "—" : Math.round(v * 100) + "%", out = [];
   const L = PR_HL && PR_HL.highlights;
-  if (L && L.length) out.push(`<b>미사용 자료 검증 통과 조합 ${L.length}개</b> (사전 등록 기준 · ZB = 연구에 한 번도 안 쓴 S&P500·나스닥100 227종목)
-    <table class="pr-t"><tr><th>조합</th><th>20일 고점 대비 −10% (ZB)</th><th>신호일 종가 −10%</th><th>변동성 맞춘 기대</th><th>🟡 5일 −3%</th></tr>
-    ${L.map(h => { const q = h.readers.Q, f = h.readers.F, d = h.diag || {}; return `<tr><td>${esc(h.name)}${h.live ? "" : " <small>(외부 조건 · 화면 판정 안 함)</small>"}</td><td>${q ? `${pc(q.zb)} <small>${q.zb_hit}/${q.zb_n}</small>` : "—"}</td><td>${d.R20 ? pc(d.R20.obs) : "—"}</td><td>${d.Q20 ? `${pc(d.Q20.exp)} <small>(${d.Q20.diff >= 0 ? "+" : ""}${Math.round(d.Q20.diff * 100)}%p)</small>` : "—"}</td><td>${f ? `${pc(f.zb)} <small>${f.zb_hit}/${f.zb_n}</small>` : "—"}</td></tr>`; }).join("")}</table>
-    모두 '20일선 이격 25%↑'가 들어 있어요. 변동성이 비슷한 종목과 비교하면 추가 효과는 0~+14%p라, 높은 비율의 대부분은 크게 오른 종목의 큰 변동성에서 와요.`);
+  if (L && L.length) out.push(`<b>사전등록 검증 통과 조합 ${L.length}개</b> (미사용 자료 ZB = 연구에 한 번도 안 쓴 S&P500·나스닥100 227종목 · 변동성 추가 검증 통과 ${L.filter(h => h.diag && (h.diag.beyond_vol || []).includes("Q20")).length}개)
+    <table class="pr-t"><tr><th>조합</th><th>20일 고점 대비 −10% (ZB · 날짜 가중 / 사건)</th><th>신호일 종가 −10%</th><th>변동성 맞춘 기대</th><th>🟡 5일 −3%</th></tr>
+    ${L.map(h => { const q = h.readers.Q, f = h.readers.F, d = h.diag || {}; return `<tr><td>${esc(h.name)}${h.live ? "" : " <small>(외부 조건 · 화면 판정 안 함)</small>"}</td><td>${q ? `${pc(q.zb)} / ${pc(q.zb_r)} <small>${q.zb_hit}/${q.zb_n}</small>` : "—"}</td><td>${d.R20 ? pc(d.R20.obs) : "—"}</td><td>${d.Q20 ? `${pc(d.Q20.exp)} <small>(${d.Q20.diff >= 0 ? "+" : ""}${Math.round(d.Q20.diff * 100)}%p)</small>` : "—"}</td><td>${f ? `${pc(f.zb)} / ${pc(f.zb_r)} <small>${f.zb_hit}/${f.zb_n}</small>` : "—"}</td></tr>`; }).join("")}</table>
+    모두 '20일선 이격 25%↑'가 들어 있어요. 사전등록 기준은 넘었지만, 변동성이 비슷한 종목과 비교한 추가 검증(+15%p)은 22개 모두 넘지 못했어요(추가 효과 0~+14%p). 비율은 날짜 가중이고 괄호는 사건 수예요.`);
   const S = PR_HL && PR_HL.summary;
   if (S) { const nm = { D: "3·5·7일 뒤 종가 하락(방향)", R: "🔴 신호일 종가 −10%(20일)", Q: "🔴 신호 뒤 고점 −10%(20일)", F: "🟡 −3% 조정(5일)", T: "🟡 −1.5×ATR 조정(5일)", M: "🟡 −max(3%,1.5×ATR) 조정(5일)" };
     out.push(`<details class="pr-ct"><summary>실패 결과·대조군 보존 <small>(정의별 · 섞지 않음)</small></summary><div>
@@ -9235,8 +9263,11 @@ function prPanelHtml(mine){
   const rows = Object.keys(D.names || {}).map(c => { const h = prHold(c), k = cst[c]; return `<tr><td>${esc(prName(c))}</td>${[3, 5, 7].map(q => `<td>${h && h["dn" + q] != null ? Math.round(h["dn" + q]) + "%" : "—"}</td>`).join("")}<td>${rate(k)} / ${far(k)}</td><td>${h ? h.dates : "—"}</td><td>${valid.includes(c) ? "통과" : "미통과"}</td></tr>`; }).join("");
   return `<p class="pr-lead">과거 급등 뒤 급락한 사례에서 반복된 기술적 신호와 지금 보유종목을 비교하는 실험실이에요. 미래 고점을 맞히는 기능이 아니에요.</p>
     <div class="pr-note">${valid.length ? `<b>검증을 통과한 조건은 ${valid.map(prName).join(" · ")} ${valid.length}개예요.</b> 이것으로 🟡 고점 경계만 판정해요(흔들림이 커지는 구간 — 하락 방향 예측 아님). 🟠 상승세 약화 · 🔴 하락 전환 위험은 통과한 조건이 없어 내지 않아요. 나머지 켜진 신호는 참고용이에요.` : `<b>검증 결과: 조건 ${n}개 모두 사전 기준을 통과하지 못했어요.</b> 그래서 🟡🟠🔴 단계는 내지 않고 '판정 보류'로만 보여 줘요. 켜진 신호는 참고용이에요.`}</div>
-    ${(() => { if (!PR_HL) return ""; const hit = allStocks().map(s => ({ s, m: prHlMatch(s) })).filter(x => x.m.length);
-      return `<div class="pr-h">🔴 고점 붕괴 위험 조합 <small>미사용 자료 검증 통과 ${(PR_HL.highlights || []).length}개 조합 · 관심종목 전체 · 최근 3거래일</small></div>
+    ${(() => { if (!PR_HL) return PR_HL_STATE === "fail" ? `<div class="pr-empty">검증 조합 자료(peak-highlights.json)를 불러오지 못했어요. <button class="pr-btn" data-prhlretry="1">다시 불러오기</button></div>` : "";
+      const held = []; const hit = allStocks().map(s => ({ s, m: prHlMatch(s, { held }) })).filter(x => x.m.length);
+      const nHeld = new Set(held.map(h => h.name)).size, H = PR_HL.highlights || [], nVol = H.filter(h => h.diag && (h.diag.beyond_vol || []).includes("Q20")).length;
+      return `<div class="pr-h">🔴 고점 붕괴 위험 조합 <small>사전등록 검증 통과 ${H.length}개(변동성 추가 검증 통과 ${nVol}개) · 관심종목 전체 · 각 종목의 최근 3거래일</small></div>
+      ${nHeld ? `<small class="pr-dim">52주 고가가 들어간 ${nHeld}개 조합은 화면 자료(야후 1년치)로는 연구와 같은 값을 낼 수 없어 판정 보류예요.</small>` : ""}
       ${hit.length ? `<div class="pr-hlscan">${hit.map(x => `<button data-goto="${esc(x.s.ticker)}">${esc(x.s.ticker)} <small>${esc(idMDsafe(x.m[0].d))}</small></button>`).join("")}</div><small class="pr-dim">누르면 종목 카드로 가요. 보유 표시한 종목은 아래 목록에 자세한 근거가 나와요.</small>`
         : `<div class="pr-empty">지금 켜진 종목이 없어요. 이 조합들은 20일선보다 25% 넘게 오른 종목에서만 켜져서 드물어요.</div>`}`; })()}
     <div class="pr-h">① 보유종목 고점 위험 현황</div>
@@ -9247,7 +9278,7 @@ function prPanelHtml(mine){
       <b>승률은 단일 지표가 아니라 조합(교집합)으로만 보여 줘요.</b><br>
       ${prComboTables()}
 <br>대상 ${D.universe ? D.universe.watchlist : "—"}종목(관심종목) + 연구용 ${D.universe && D.universe.extra ? D.universe.extra.length : 0}종목 · ${esc(String(D.period && D.period[0]))}~${esc(String(D.period && D.period[1]))} 일봉. 조합 = 같은 날 52주 고점 0~5% ∩ 볼밴 상단 ∩ 위험 캔들(＋모멘텀·테마·시장 조건).
-      판정 기준은 결과를 보기 전에 정해 문서에 남겼어요. 드물지만 정확한 조합을 찾는 고정밀 교집합 연구(목표 65% 이상)를 따로 진행하고 있고, 미사용 자료에서 확인되기 전에는 경고로 쓰지 않아요.<br>
+      판정 기준은 결과를 보기 전에 정해 문서에 남겼어요(docs/2026-11-12-peak-combo.md). 고정밀 교집합 연구는 끝났고, 사전등록 기준을 넘긴 조합만 위 표와 패널 맨 위에 보여 줘요.<br>
       백테스트라 지금 관심종목 위주의 생존 편향이 있어요. 매수 신호·등급·원장에는 영향이 없어요. 자세한 내용: docs/2026-11-12-peak-reader.md
     </div></details>`;
 }
@@ -9307,6 +9338,7 @@ holdPanel.addEventListener("click", e=>{
     save(); render(); renderCartPanel(); return;
   }
   if (e.target.closest("[data-peakreader]")){ e.stopPropagation(); prToggle(); return; }
+  if (e.target.closest("[data-prhlretry]")){ e.stopPropagation(); prHlLoad(true).then(() => { if (holdPanel.dataset.mode === "hold") renderHoldPanel(); }); return; }
   const pc = e.target.closest("[data-prcase]");
   if (pc){ e.stopPropagation(); PR_CASE = +pc.dataset.prcase; const box = holdPanel.querySelector(".pr-lab"); if (box) box.outerHTML = prLabHtml(); return; }
   if (e.target.closest("[data-review]")){

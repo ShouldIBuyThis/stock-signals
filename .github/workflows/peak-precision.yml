@@ -28,6 +28,12 @@ jobs:
       - name: 5차 2회 — 방향 기준 D(§10·§11) · 🔴 고점 붕괴 R·Q(§12) · 🟡 일부익절 F·T·M(§13) · 봉인 검증 ZB
         # 1회(ATR 기준 🟡A·🔴B) 결과 backtest/peak-combo.json · 4차 결과 peak-precision.json은 보존(덮어쓰지 않음)
         run: python tools/peak-combo-lab.py --cache "$RUNNER_TEMP/pp.pkl" --emit "$RUNNER_TEMP/peak-combo2.json" --only D,R,Q,F,T,M
+      - name: 입력 시세 스냅샷 보관(진단·재현용 · 30일)
+        uses: actions/upload-artifact@v4
+        with:
+          name: peak-price-cache
+          path: ${{ runner.temp }}/pp.pkl
+          retention-days: 30
       - name: 결과만 main에 커밋
         shell: bash
         run: |

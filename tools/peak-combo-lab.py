@@ -131,6 +131,8 @@ def binom_tail_gt(n, p, thr):
 def diag(a, M, O_, MT, tick, cald):
     """§14 통과·재현 후보 진단 — 변동성(ATR 구간) 맞춘 대조 · Q′ · 정의별 열. 새 후보를 고르지 않는다."""
     src = json.load(open(a.diag, encoding="utf-8")); NT = len(MT["tk"]); part, di = MT["part"], MT["di"]
+    same = src.get("data_hash") == a._hash
+    print(f"입력 시세 해시: 연구 {src.get('data_hash')} · 진단 {a._hash} → {'같은 입력' if same else '다른 입력(시세를 다시 받음) — 사건 수가 조금 다를 수 있음'}")
     want = {}
     for rd, R in src["readers"].items():
         for c in R["cands"]:
@@ -171,14 +173,15 @@ def diag(a, M, O_, MT, tick, cald):
         f_ = lambda k: "—" if not row.get(f"{k}|zb") else f"{row[f'{k}|zb']['obs']*100:.0f}(기대 {row[f'{k}|zb']['exp']*100:.0f}, {row[f'{k}|zb']['diff']*100:+.0f}{'' if 'ci' not in row[f'{k}|zb'] else ' [' + format(row[f'{k}|zb']['ci'][0]*100, '+.0f') + '~' + format(row[f'{k}|zb']['ci'][1]*100, '+.0f') + ']'})"
         print(f"  {' ∩ '.join(cb)} {tags} ATR중앙 ZB {row['atr_med']['zb'] and round(row['atr_med']['zb']*100, 1)}% | ZB F5 {f_('F5')} · T5 {f_('T5')} · M5 {f_('M5')} · D5 {f_('D5')} · Q20 {f_('Q20')} · Q′20 {f_('Q′20')} · R20 {f_('R20')} · D20 {f_('D20')} · 20일 평균 {row['avg20|zb'] and round(row['avg20|zb']*100, 1)}%")
     if a.emit:
-        json.dump({"generated": datetime.now(timezone.utc).strftime("%Y-%m-%d"), "kind": "research", "doc": "docs/2026-11-12-peak-combo.md#14", "atr_bins": [float(x) for x in qs],
+        json.dump({"generated": datetime.now(timezone.utc).strftime("%Y-%m-%d"), "kind": "research", "doc": "docs/2026-11-12-peak-combo.md#14",
+                   "data_hash": a._hash, "data_last": a._last, "source_data_hash": src.get("data_hash"), "same_input": same, "atr_bins": [float(x) for x in qs],
                    "ctrl": {f"{k}|{pm}": [None if not np.isfinite(x) else float(x) for x in v] for (k, pm), v in ctrl.items()}, "rows": out}, open(a.emit, "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
         print(f"→ {a.emit} 저장")
 
 
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("--emit", default=""); ap.add_argument("--cache", required=True); ap.add_argument("--only", default=""); ap.add_argument("--diag", default=""); a = ap.parse_args()
-    Z = pickle.load(open(a.cache, "rb")); data, orig, newx, zset, sector, SP, Wl = (Z[k] for k in ("data", "orig", "newx", "zset", "sector", "SP", "Wl"))
+    Z = pickle.load(open(a.cache, "rb")); a._hash, a._last = Z.get("data_hash"), Z.get("data_last"); data, orig, newx, zset, sector, SP, Wl = (Z[k] for k in ("data", "orig", "newx", "zset", "sector", "SP", "Wl"))
     zs = sorted(t for t in zset if t in data); ZA, ZB = set(zs[0::2]), set(zs[1::2])
     cal = pd.DatetimeIndex(sorted(set().union(*[set(d.index) for d in data.values()]))); cald = np.array([str(x.date()) for x in cal]); cpos = {d: i for i, d in enumerate(cal)}
     qq = data["QQQ"]["Close"].reindex(cal).ffill(); q5, q10 = qq / qq.shift(5) - 1, qq / qq.shift(10) - 1; bull = (qq > qq.rolling(200).mean())
@@ -445,6 +448,7 @@ def main():
             for r_ in rows: print(f"   {r_['d']} ({r_['rel']:+d}) 종 {r_['c']} 고점대비 {r_['from_peak']}% 거래량 {r_['vol_x']}x RSI {r_['rsi']} | 단계 {r_['stage']} 석별 {int(r_['estar'])} 유사 {int(r_['estar_like'])} | {' '.join(r_['on'])} | 뒤 3·5·7·10일 {r_['fwd']['3']}·{r_['fwd']['5']}·{r_['fwd']['7']}·{r_['fwd']['10']}")
     if a.emit:
         out = {"generated": datetime.now(timezone.utc).strftime("%Y-%m-%d"), "kind": "research", "doc": "docs/2026-11-12-peak-combo.md", "prereg": ["59d32c7", "f58e5fc"], "blocks": BN,
+               "data_hash": a._hash, "data_last": a._last,
                "universe": {"explore_etx": sum(t not in ZA and t not in ZB and t not in LEV for t in tick), "za": len(ZA), "zb": len(ZB), "lev": sum(t in LEV for t in tick)},
                "period": [cald[0], cald[-1]], "leak_check": {"pairs": chk, "mismatch": int(mism)}, "readers": RES, "nvda": nv}
         json.dump(out, open(a.emit, "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"), default=lambda x: x.item() if hasattr(x, "item") else str(x))

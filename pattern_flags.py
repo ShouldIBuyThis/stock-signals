@@ -721,10 +721,10 @@ def combo_blocks(o, h, l, c, v, lev=1.0, ticker="", min52=251):
 
 
 def combo_blocks_now(o, h, l, c, v, dates, lev=1.0, ticker="", win=5):
-    """화면용: 최근 win 거래일 각각 켜진 블록 목록 {날짜: [블록…]} — 조합 판정은 화면(index.html)이 backtest/peak-highlights.json으로 한다."""
-    B = combo_blocks(o, h, l, c, v, lev=lev, ticker=ticker, min52=240)
-    n = len(c); out = {}
-    for j in range(max(0, n - win), n):
-        on = [k for k in COMBO_STOCK_BLOCKS if B[k][j]]
-        if on: out[str(dates[j])] = on
-    return out
+    """화면용: 최근 win 거래일 각각의 켜진 블록 {날짜: [블록…]}(꺼진 날은 빈 목록) + 판정 보류 블록.
+    52주 블록(P_NEAR·P_RT5·C_FB)은 연구와 같은 '이전 251봉'이 있어야 계산한다 — 야후 1년치(약 250봉)면 판정 보류(na)로 둔다.
+    조합 판정은 화면(index.html prHlMatch)이 backtest/peak-highlights.json으로만 한다."""
+    B = combo_blocks(o, h, l, c, v, lev=lev, ticker=ticker, min52=251)
+    n = len(c); na = [k for k in ("P_NEAR", "P_RT5", "C_FB") if n < 252]
+    days = {str(dates[j]): [k for k in COMBO_STOCK_BLOCKS if B[k][j] and k not in na] for j in range(max(0, n - win), n)}
+    return {"days": days, "na": na}
