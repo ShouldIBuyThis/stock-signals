@@ -1,0 +1,51 @@
+name: 반도체·양자·우주 폭락 진단 (수동)
+
+# 2026-11-12 사용자 질문: 반도체·우주·양자 폭락을 지금 고점판독 산식이 잡았나 — 연구 블록 그대로 읽는 진단(검증 표본 아님).
+# 연구와 같은 시세 스냅샷(peak-price-cache)을 써야 한다 — 해시가 다르면 '비교 불가'로 끝난다. 결과 JSON만 main에 커밋.
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: '연구 시세 스냅샷 — peak-precision.yml run id (시세 스냅샷)'
+        required: true
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  crash:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: 의존성 설치
+        run: pip install -q yfinance pandas numpy requests lxml exchange_calendars
+      - name: 연구 실행의 시세 스냅샷 받기
+        uses: actions/download-artifact@v4
+        with:
+          name: peak-price-cache
+          path: ${{ runner.temp }}
+          run-id: ${{ inputs.source_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: 폭락 진단
+        run: python tools/peak-combo-lab.py --cache "$RUNNER_TEMP/pp.pkl" --crash "$RUNNER_TEMP/peak-crash-diag.json"
+      - name: 결과만 main에 커밋
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for i in 1 2 3; do
+            git fetch origin main
+            git switch -C crash-out origin/main
+            cp "$RUNNER_TEMP/peak-crash-diag.json" backtest/peak-crash-diag.json
+            git add backtest/peak-crash-diag.json
+            if git diff --cached --quiet; then echo "변경 없음"; exit 0; fi
+            git commit -m "auto: 반도체·양자·우주 폭락 진단(backtest/peak-crash-diag.json)"
+            if git push origin HEAD:main; then exit 0; fi
+            sleep $((i * 5))
+          done
