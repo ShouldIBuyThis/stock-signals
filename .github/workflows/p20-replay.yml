@@ -1,0 +1,51 @@
+name: 20일 하락 연구 후보 과거 사례 재현 (수동)
+
+# 2026-11-12 사용자 지시: 연구가 잡은 사건을 사이트 운영 함수(1년치 → 2년치 52주 복구)로 사건일까지만 잘라 다시 판정.
+# 연구와 같은 시세 스냅샷(peak-price-cache)을 써야 한다 — 해시가 다르면 '비교 불가'로 끝난다. 결과 JSON만 main에 커밋.
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: '20일 연구를 만든 peak-precision.yml run id (시세 스냅샷)'
+        required: true
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: 의존성 설치
+        run: pip install -q yfinance pandas numpy requests lxml
+      - name: 연구 실행의 시세 스냅샷 받기
+        uses: actions/download-artifact@v4
+        with:
+          name: peak-price-cache
+          path: ${{ runner.temp }}
+          run-id: ${{ inputs.source_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: 재현
+        run: python tools/p20-replay.py --cache "$RUNNER_TEMP/pp.pkl" --out "$RUNNER_TEMP/peak-p20-replay.json"
+      - name: 결과만 main에 커밋
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for i in 1 2 3; do
+            git fetch origin main
+            git switch -C replay-out origin/main
+            cp "$RUNNER_TEMP/peak-p20-replay.json" backtest/peak-p20-replay.json
+            git add backtest/peak-p20-replay.json
+            if git diff --cached --quiet; then echo "변경 없음"; exit 0; fi
+            git commit -m "auto: 20일 하락 연구 후보 과거 사례 재현(backtest/peak-p20-replay.json)"
+            if git push origin HEAD:main; then exit 0; fi
+            sleep $((i * 5))
+          done
