@@ -33,7 +33,7 @@ jobs:
           node-version: '22'
       - name: 의존성
         run: |
-          pip install -q pandas numpy
+          pip install -q pandas numpy yfinance requests lxml   # 연구 도구가 모듈 첫머리에서 import한다(네트워크는 쓰지 않음)
           npm install --no-save --silent playwright@1.48.2
           npx playwright install --with-deps chromium
       - name: 브라우저 스크립트 문법(node --check)
