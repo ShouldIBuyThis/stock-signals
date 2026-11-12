@@ -580,7 +580,7 @@ html[data-theme="dark"] .lev{background:#33191b;color:#ff8080;border-bottom-colo
 /* 🔬 고점판독기(실험실) — 보유 패널 안 마지막 요소 · 고정 버튼 아님 */
 .holdpanel.pr-open{max-height:min(86vh,1400px)}
 .pr-wrap{padding:12px 12px 14px;border-top:1px solid var(--line)}
-.pr-btn{width:100%;display:flex;align-items:center;gap:6px;background:var(--navy-soft);color:var(--navy);border:0;border-radius:12px;padding:11px 14px;font:inherit;font-size:13.5px;font-weight:700;cursor:pointer}
+.holdpanel .pr-wrap .pr-btn{width:100%;display:flex;align-items:center;gap:6px;background:var(--navy-soft);color:var(--navy);border:0;border-radius:12px;padding:11px 14px;font:inherit;font-size:13.5px;font-weight:700;cursor:pointer}
 .pr-btn small{font-weight:500;color:var(--muted)} .pr-btn .pr-car{margin-left:auto;font-size:11.5px;font-weight:600;color:var(--muted)}
 .pr-box{padding:10px 2px 0}
 .pr-lead{margin:2px 2px 8px;font-size:12.5px;color:var(--reason);line-height:1.6}
@@ -604,7 +604,7 @@ html[data-theme="dark"] .lev{background:#33191b;color:#ff8080;border-bottom-colo
 .pr-g i{font-style:normal;font-size:11px;color:var(--faint);background:var(--surface2);border-radius:999px;padding:2px 7px}
 .pr-g i.on{color:var(--ink);background:var(--neutral-soft);font-weight:600}
 .pr-tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
-.pr-tab{flex:0 0 auto;width:auto;border:0;background:var(--surface2);border-radius:999px;padding:6px 10px;font:inherit;font-size:12px;cursor:pointer;color:var(--reason)}
+.holdpanel .pr-tabs .pr-tab{display:inline-flex;align-items:center;gap:3px;flex:0 0 auto;width:auto;border:0;background:var(--surface2);border-radius:999px;padding:6px 10px;font:inherit;font-size:12px;cursor:pointer;color:var(--reason)}
 .pr-tab.on{background:var(--navy);color:#fff} .pr-tab small{opacity:.75} .pr-tab em{font-style:normal;font-size:10.5px;margin-left:4px;opacity:.85}
 .pr-case{background:var(--surface);border-radius:14px;box-shadow:var(--shadow);padding:10px 10px 8px;margin-top:6px}
 .pr-cap{margin:6px 2px 0;font-size:12px;color:var(--reason);line-height:1.6}
@@ -8865,6 +8865,11 @@ function prJudge(s){
   if (on.length) return { st: null, label: "판정 보류", cls: "pr-sh", why: `${on.slice(0, 2).map(prName).join(" · ")}${on.length > 2 ? ` 외 ${on.length - 2}` : ""} — 과거 검증 미통과`, on };
   return { st: 0, label: "⚪ 특이 신호 없음", cls: "pr-s0", why: "급등 국면이지만 최근 5거래일 켜진 조건이 없어요", on };
 }
+/* 사례 단위 재검증 통과 조건(EXT)은 그 결과(2023년 이후 고점: 붕괴 포착 vs 지속 오경보)를 먼저 적는다 — 사전 등록 문구 그대로 '방향 예측 아님' */
+function prCaseLine(c){
+  const T = PR_DATA && PR_DATA.ext_test; if (c !== "EXT" || !T || !T.pass) return "";
+  const x = T.table["25|A|hold"]; return `2023년 이후 급등 고점 중 급락(60일 안 −35%↓) ${x.bust}건의 ${x.cap}%에서 고점 무렵 나타났고, 상승이 이어진 ${x.cont}건에서는 ${x.far}%였어요`;
+}
 function prStatLine(c){
   const h = prHold(c), b = prBase(); if (!h || !b) return "";
   return `10일 뒤 하락 ${h.dn10 ?? "—"}%(평소 ${b.dn10}%) · 20일 안 −15% ${h.big ?? "—"}%(평소 ${b.big}%) · ${h.dates}일`;
@@ -8875,7 +8880,7 @@ function prItemHtml(s){
   const hi52 = has(s.high_52w) && has(s.price) && s.high_52w > 0 ? s.price / s.high_52w - 1 : null;
   const groups = ["과열", "약화", "캔들", "거래량", "이탈"], G = (PR_DATA && PR_DATA.groups) || {};
   const chips = groups.map(g => `<div class="pr-g"><span>${g}</span>${Object.keys(G).filter(c => G[c] === g).map(c => `<i class="${pr.on && pr.on[c] ? "on" : ""}${valid.includes(c) ? " v" : ""}" title="${esc(prStatLine(c))}">${pr.on && pr.on[c] ? "●" : "○"} ${esc(prName(c))}</i>`).join("")}</div>`).join("");
-  const onRows = J.on.map(c => `<li><b>${esc(prName(c))}</b> <small>${esc(idMDsafe(pr.on[c]))}</small><br><small class="pr-dim">${valid.includes(c) ? "검증 통과" : "참고 · 검증 미통과"} — ${esc(prStatLine(c))}</small></li>`).join("");
+  const onRows = J.on.map(c => `<li><b>${esc(prName(c))}</b> <small>${esc(idMDsafe(pr.on[c]))}</small><br><small class="pr-dim">${valid.includes(c) ? "검증 통과" : "참고 · 검증 미통과"} — ${prCaseLine(c) ? esc(prCaseLine(c)) + ". 날 단위로는 " : ""}${esc(prStatLine(c))}${prCaseLine(c) ? " — 흔들림이 커지는 구간이라는 뜻이고, 하락 방향을 예측하지는 않아요" : ""}</small></li>`).join("");
   return `<details class="pr-item"><summary><span class="pr-tk">${esc(s.ticker)}</span><span class="pr-nm">${esc(s.name || "")}</span><span class="pr-badge ${J.cls}">${esc(J.label)}</span><span class="pr-why">${esc(J.why)}</span></summary>
     <div class="pr-body">
       <div class="pr-kv"><div><small>120일 저점 대비</small><b>${pct(pr.up120)}</b></div><div><small>52주 고점 대비</small><b>${pct(hi52)}</b></div><div><small>RSI</small><b>${pr.rsi ?? "—"}</b></div></div>
@@ -8903,12 +8908,19 @@ function prLabHtml(){
   const i = Math.min(PR_CASE, C.length - 1), cs = C[i], B = cs.bars || [];
   const pi = B.findIndex(r => r[0] === cs.peak), fi = cs.first_any ? B.findIndex(r => r[0] === cs.first_any) : -1;
   const lead = pi >= 0 && fi >= 0 ? pi - fi : null;
+  /* 검증 통과 조건(사례 단위 통과 EXT 포함)의 첫 경고 — 연구와 같은 창: 고점 −10봉 ~ min(고점+10, −10% 도달 전날) */
+  const V = prValid(), di = cs.drop_day ? B.findIndex(r => r[0] === cs.drop_day) : -1, wEnd = Math.min(pi + 10, di >= 0 ? di - 1 : pi + 10);
+  const fvi = pi < 0 ? -1 : B.findIndex((r, k) => k >= pi - 10 && k <= wEnd && cs.marks && (cs.marks[r[0]] || []).some(c => V.includes(c)));
+  const fv = cs.first_valid || (fvi >= 0 ? B[fvi][0] : null), vlead = fvi >= 0 ? pi - fvi : null;
   const firstCodes = cs.first_any && cs.marks && cs.marks[cs.first_any] ? cs.marks[cs.first_any].map(prName).join(", ") : "";
   const tabs = C.map((c, k) => `<button class="pr-tab${k === i ? " on" : ""}" data-prcase="${k}">${esc(c.ticker)} <small>${esc(String(c.peak).slice(2, 7).replace("-", "/"))}</small><em class="${c.kind === "bust" ? "b" : "c"}">${c.kind === "bust" ? "붕괴" : "지속"}</em></button>`).join("");
   return `<div class="pr-lab"><div class="pr-tabs">${tabs}</div>
     <div class="pr-case"><div class="pr-ch">${prCaseChart(cs)}</div>
       <p class="pr-cap"><b>${esc(cs.ticker)}</b> ${esc(idMDsafe(cs.peak))} 고점 → 60일 안 최저 <b class="${cs.dd60 < 0 ? "down" : ""}">${cs.dd60}%</b> · ${cs.kind === "bust" ? "급락(붕괴)" : "조정 뒤 상승 지속(대조군)"}<br>
-      ${cs.first_valid ? `검증된 조건의 첫 경고 ${esc(idMDsafe(cs.first_valid))}` : "검증된 경고 조건 없음"} · 참고 신호 첫 발생 ${cs.first_any ? `${esc(idMDsafe(cs.first_any))}${lead != null ? `(고점 ${lead > 0 ? lead + "거래일 전" : lead < 0 ? -lead + "거래일 뒤" : "당일"})` : ""} — ${esc(firstCodes)}` : "없음"}${cs.drop_day ? ` · −10% 도달 ${esc(idMDsafe(cs.drop_day))}` : ""}</p></div></div>`;
+      ${(() => { const bust = cs.kind === "bust", when = vlead != null ? `(고점 ${vlead > 0 ? vlead + "거래일 전" : vlead < 0 ? -vlead + "거래일 뒤" : "당일"})` : "";
+        if (!V.length) return "검증된 경고 조건 없음";
+        if (fv) return bust ? `<b>검증된 조건 경고 ${esc(idMDsafe(fv))}${when} — 포착</b>` : `<b>검증된 조건 경고 ${esc(idMDsafe(fv))}${when} — 오경보(이후 상승 지속)</b>`;
+        return bust ? "검증된 조건 경고 없음 — 놓친 사례" : "검증된 조건 경고 없음 — 오경보 없음"; })()} · 참고 신호 첫 발생 ${cs.first_any ? `${esc(idMDsafe(cs.first_any))}${lead != null ? `(고점 ${lead > 0 ? lead + "거래일 전" : lead < 0 ? -lead + "거래일 뒤" : "당일"})` : ""} — ${esc(firstCodes)}` : "없음"}${cs.drop_day ? ` · −10% 도달 ${esc(idMDsafe(cs.drop_day))}` : ""}</p></div></div>`;
 }
 function prPanelHtml(mine){
   if (!PR_DATA) return `<div class="pr-empty">${PR_LOADING ? "연구 자료를 불러오는 중…" : "연구 자료(backtest/peak-reader.json)를 불러오지 못했어요."}</div>`;
@@ -8917,7 +8929,7 @@ function prPanelHtml(mine){
   const rate = x => x && x.bust ? `${Math.round(x.caught / x.bust * 100)}%` : "—", far = x => x && x.cont ? `${Math.round(x.false / x.cont * 100)}%` : "—";
   const rows = Object.keys(D.names || {}).map(c => { const h = prHold(c), k = cst[c]; return `<tr><td>${esc(prName(c))}</td><td>${h && h.dn10 != null ? h.dn10 + "%" : "—"}</td><td>${h && h.big != null ? h.big + "%" : "—"}</td><td>${rate(k)} / ${far(k)}</td><td>${h ? h.dates : "—"}</td><td>${valid.includes(c) ? "통과" : "미통과"}</td></tr>`; }).join("");
   return `<p class="pr-lead">과거 급등 뒤 급락한 사례에서 반복된 기술적 신호와 지금 보유종목을 비교하는 실험실이에요. 미래 고점을 맞히는 기능이 아니에요.</p>
-    <div class="pr-note">${valid.length ? `검증을 통과한 조건 ${valid.length}개로 단계를 판정해요.` : `<b>검증 결과: 조건 ${n}개 모두 사전 기준을 통과하지 못했어요.</b> 그래서 🟡🟠🔴 단계는 내지 않고 '판정 보류'로만 보여 줘요. 켜진 신호는 참고용이에요.`}</div>
+    <div class="pr-note">${valid.length ? `<b>검증을 통과한 조건은 ${valid.map(prName).join(" · ")} ${valid.length}개예요.</b> 이것으로 🟡 고점 경계만 판정해요(흔들림이 커지는 구간 — 하락 방향 예측 아님). 🟠 상승세 약화 · 🔴 하락 전환 위험은 통과한 조건이 없어 내지 않아요. 나머지 켜진 신호는 참고용이에요.` : `<b>검증 결과: 조건 ${n}개 모두 사전 기준을 통과하지 못했어요.</b> 그래서 🟡🟠🔴 단계는 내지 않고 '판정 보류'로만 보여 줘요. 켜진 신호는 참고용이에요.`}</div>
     <div class="pr-h">① 보유종목 고점 위험 현황</div>
     ${mine.length ? `<div class="pr-list">${mine.map(prItemHtml).join("")}</div>` : `<div class="pr-empty">보유 표시한 종목이 없어요.</div>`}
     <div class="pr-h">② 과거 고점 사례 연구실 <small>최근 고점 순 · 급락·지속 모두</small></div>
