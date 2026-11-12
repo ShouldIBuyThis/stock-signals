@@ -32,7 +32,11 @@ def constituents():
     SP = [ysym(x) for x in sp["Symbol"]]
     DEF = [ysym(x) for x, sec, sb in zip(sp["Symbol"], sp["GICS Sector"], sp[sub] if sub else [""] * len(sp)) if sec in DEF_SECTORS or (sec == "Health Care" and sb in DEF_SUBS)]
     nd, seen = None, []
-    for t in wiki_tables("Nasdaq-100"):
+    tabs = []
+    for title in ("List of NASDAQ-100 companies", "List of Nasdaq-100 companies", "Nasdaq-100"):   # 구성 종목 표가 별도 문서로 옮겨져 있다
+        try: tabs += wiki_tables(title)
+        except Exception as e: print(f"  위키 '{title}' 건너뜀: {type(e).__name__}")
+    for t in tabs:
         cols = [" ".join(map(str, c)) if isinstance(c, tuple) else str(c) for c in t.columns]
         seen.append((len(t), cols[:5]))
         k = next((i for i, c in enumerate(cols) if any(w in c.lower() for w in ("ticker", "symbol"))), None)
