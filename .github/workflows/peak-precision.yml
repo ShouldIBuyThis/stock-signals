@@ -25,7 +25,7 @@ jobs:
         run: pip install -q yfinance pandas numpy requests lxml
       - name: 4차 — 고정밀 소수 신호 13개(판정 = 미사용 Z)
         run: python tools/peak-precision-lab.py --emit "$RUNNER_TEMP/peak-precision.json" --cache "$RUNNER_TEMP/pp.pkl"
-      - name: 5차 — 교집합 통합 탐색(🟡 일부익절 · 🔴 고점판독 · 봉인 검증 ZB · NVDA 진단)
+      - name: 5차 — 교집합 통합 탐색(🟡 일부익절 · 🔴 고점판독 · 방향 기준 보조 §10 · 봉인 검증 ZB · NVDA 진단)
         run: python tools/peak-combo-lab.py --cache "$RUNNER_TEMP/pp.pkl" --emit "$RUNNER_TEMP/peak-combo.json"
       - name: 결과만 main에 커밋
         shell: bash
