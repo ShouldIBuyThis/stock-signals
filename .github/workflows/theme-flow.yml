@@ -22,6 +22,11 @@ jobs:
           python-version: '3.11'
       - name: 의존성 설치
         run: pip install -q yfinance pandas numpy requests lxml
+      - name: 배당 그룹 구성 자료(SCHD 공식 보유 종목 · 사용자 승인 · 막히면 우회 없이 건너뜀)
+        continue-on-error: true
+        run: |
+          python tools/fetch-schd-holdings.py
+          if [ -f data/groups/schd-holdings.csv ]; then cp data/groups/schd-holdings.csv "$RUNNER_TEMP/schd-holdings.csv"; fi
       - name: 4그룹(S&P500·나스닥100·경기방어·배당) 신고가 비율 + 상태 연구
         run: python tools/group-breadth-lab.py --emit "$RUNNER_TEMP/group-breadth.json"
       - name: 테마 신고가 흐름 + 고점권 조합·일부익절 연구
@@ -37,6 +42,7 @@ jobs:
             git switch -C flow-out origin/main
             for f in group-breadth theme-breadth theme-flow; do cp "$RUNNER_TEMP/$f.json" "backtest/$f.json"; done
             git add backtest/group-breadth.json backtest/theme-breadth.json backtest/theme-flow.json
+            if [ -f "$RUNNER_TEMP/schd-holdings.csv" ]; then mkdir -p data/groups; cp "$RUNNER_TEMP/schd-holdings.csv" data/groups/schd-holdings.csv; git add data/groups/schd-holdings.csv; fi
             if git diff --cached --quiet; then echo "변경 없음"; exit 0; fi
             git commit -m "auto: 테마·4그룹 신고가 흐름 자료·탐색 연구 결과"
             if git push origin HEAD:main; then exit 0; fi
