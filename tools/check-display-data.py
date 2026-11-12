@@ -2,7 +2,7 @@
 """표시 전용 신규 자료 점검 — 원장(hist·history/)과 무관. 갱신 뒤에 돌려 '빠졌는지'를 자동으로 잡는다.
 - signals.json: peak_reader가 있는 종목은 peak_reader.blk({days, na})가 있어야 하고 blk_err가 없어야 한다.
 - backtest/peak-highlights.json: 구조(조합 블록 이름 · Q/F 숫자 범위 · 진단 열).
-사용: python3 tools/check-display-data.py [--strict]   (--strict면 문제가 있을 때 종료 코드 1, 아니면 경고만)
+사용: python3 tools/check-display-data.py [--strict] [--highlights-only]   (--strict면 문제가 있을 때 종료 코드 1, 아니면 경고만)
 """
 import json, sys
 from pathlib import Path
@@ -11,7 +11,8 @@ sys.path.insert(0, str(ROOT))
 import pattern_flags as pf
 
 probs = []
-d = json.load(open(ROOT / "signals.json", encoding="utf-8"))
+ONLY_HL = "--highlights-only" in sys.argv   # 사이트 점검(push)용: signals.json은 다음 자동 갱신에서 새 형식이 되므로 여기서는 연구 파일만 엄격히 본다
+d = json.load(open(ROOT / "signals.json", encoding="utf-8")) if not ONLY_HL else {}
 rows = []
 def walk(o):
     if isinstance(o, dict):
