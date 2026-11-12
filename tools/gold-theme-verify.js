@@ -13,6 +13,9 @@ page.raw = raw; page.gb = fs.readFileSync('backtest/group-breadth.json', 'utf8')
 page.cases = fs.readFileSync('backtest/gold-cases.json', 'utf8');
 const R = page.runInPage(`(() => { state.data = normalize(JSON.parse(raw)); GROUP_BR = JSON.parse(gb); GOLD_TH = JSON.parse(ap);
   const C = JSON.parse(cases).events || [], out = { ledger: [], research: [], leak: [] };
+  { const k = qqqBenchmarkStock(), hs = (k && histStocks(k)) || [], i = hs.findIndex(h => String(h.last_date) === '2026-03-31');
+    out.diag = { qqq: !!k, raw_hist: (state.data.qqq_card && state.data.qqq_card.hist || []).length, rows: hs.length, first: hs[0] && hs[0].last_date, last: hs.length && hs[hs.length - 1].last_date,
+      i, price_ok: hs.filter(h => has(h.price)).length, mr: state.data.qqq_card && state.data.qqq_card.mkt_regime }; }
   const find = t => allStocks().find(x => x.ticker === t);
   const at = (s, d) => Object.assign({}, s, { last_date: d });
   // ① 원장 황금 사건
@@ -39,6 +42,7 @@ const R = page.runInPage(`(() => { state.data = normalize(JSON.parse(raw)); GROU
     cutTo(r.d); const cut = { rg: gkRegime(r.d, kr), G: JSON.stringify(gkGroupConds(r.d, kr)), I: JSON.stringify(gkThemeConds(allStocks().find(x => x.ticker === r.t).category || '기타', r.d, null)) }; restore();
     out.leak.push({ d: r.d, t: r.t, same: full.rg === cut.rg && full.G === cut.G && full.I === cut.I, full, cut }); });
   return out; })()`);
+console.log('진단(QQQ 시세 기록):', JSON.stringify(R.diag));
 console.log('■ ① 원장 황금 사건(gold-cases.json) — 그날 국면 · 4그룹 · 일치 조합');
 R.ledger.forEach(x => console.log(`  ${x.d} ${x.t.padEnd(10)} ${x.src || ''} ${x.tier || ''} | 국면 ${x.rg ?? '모름'} | 4그룹 ${JSON.stringify(x.G)} | 테마 20일선 증가 ${x.I ? x.I.T_AB20 : '자료 부족'} | 조합 ${x.match.join(', ') || '없음'}`));
 console.log('\n■ ② 연구 예시와 화면 함수 일치'); R.research.forEach(x => console.log(`  ${x.d} ${x.t} ${x.err || `국면 ${x.rg}(연구 ${x.want_rg}) · 화면 ${x.got.join(',') || '없음'} · 연구 ${x.want.join(',')} → ${x.ok ? '일치' : '불일치'}`}`));
