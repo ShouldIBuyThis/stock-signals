@@ -675,6 +675,12 @@ def touch_fail_flags(o, h, l, c, v, lev=1.0, ticker=""):
 def risk_candle_now(o, h, l, c, v, fl, dates, win=5, ticker=""):
     """화면용(고점판독기 위험 캔들 참고): 최근 win 거래일 안 마지막 발생일과 그날의 52주 위치(종가)·%B(종가). 252봉 미만이면 위치 None."""
     rc, pb, p52 = risk_candle_flags(o, h, l, c, v, ticker)
+    # 화면 전용 보정(2026-11-12): main.py는 야후 1y(250~252봉)를 받는데 연구 정의는 252봉을 꽉 채워야 해서, 251봉인 날은 전 종목이
+    # '판정 보류(1년 미만)'가 됐다. 240봉 이상이면 받은 범위의 최고 고가로 52주 위치를 낸다(사이트 high_52w와 같은 범위).
+    # 진짜 1년 미만 상장(240봉 미만)은 그대로 보류. 연구 도구가 쓰는 risk_candle_flags 정의는 바꾸지 않는다.
+    if len(c) >= 240 and not np.isfinite(p52[len(c) - 1]):
+        hh = pd.Series(np.asarray(h, dtype=float)).rolling(252, min_periods=240).max().to_numpy()
+        p52 = np.asarray(c, dtype=float) / hh - 1
     sig = dict(rc)
     for k in ("RSI_DIV", "MACD_FADE", "MACD_DEAD", "STOCH_DEAD"):
         if k in fl: sig[k] = np.asarray(fl[k], dtype=bool)
