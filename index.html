@@ -4908,8 +4908,8 @@ function ledgerTrack(code, kind, h){
   d._ltrack = d._ltrack || {};
   const key = code+"|"+h;
   if (d._ltrack[key]) return d._ltrack[key];
-  const F = histFields(), iD = F.indexOf("date"), iP = F.indexOf("price"), iPat = F.indexOf("pat"), iO = F.indexOf("open"), iEP = F.indexOf("ext_pair");
-  const isHit = r => code==="EXT_PAIR" ? (iEP>=0 && Number(r[iEP])===1) : (iPat>=0 && String(r[iPat]||"").split(",").includes(code));
+  const F = histFields(), iD = F.indexOf("date"), iP = F.indexOf("price"), iPat = F.indexOf("pat"), iO = F.indexOf("open"), iEP = F.indexOf("ext_pair"), iER = F.indexOf("ext_root");
+  const isHit = r => code==="EXT_PAIR" ? (iEP>=0 && Number(r[iEP])===1) : code==="EXT_ROOT" ? (iER>=0 && Number(r[iER])===1) : (iPat>=0 && String(r[iPat]||"").split(",").includes(code));
   const up = kind==="green" || kind==="blue";
   let done = [], pend = 0, noOpen = 0, first = null;
   (d.stocks||[]).forEach(st=>{ const hs = st._hist || [];
@@ -5008,6 +5008,13 @@ const RARE_FACTS = {
      3년 실측(run 42220336475)에서 바뀌는 표본이 0건이었다(페어 리버설이 뜬 날은 이미 강한매수이거나 매수관심이 아니었다).
      그래서 산식은 그대로 두고, 신호판에 🔵 연구 후보로 따로 보여 준다. 판정은 main.py ext_pair_reversal()(원장 ext_pair).
      수치: tools/fractal-fvg-lab.py run 42214815471 — 관심종목 89개 10년 · 다음 날 시가 · 10일 · 보합 ±1% 제외. */
+  /* 2026-11-12 사용자 지시 "Root 타격 되돌림도 연구 후보로, 장바구니도" — 산식·등급·점수 변경 없음(가점 시험 무효 · docs/승률-검증-방법론.md).
+     판정은 main.py ext_root_strike()(원장 ext_root) 그대로. 수치: tools/external-lab.py 81종목 3년 일봉 근사 · 다음 날 시가 · 보합 제외. */
+  EXT_ROOT: {title:"Root 타격 되돌림", kind:"green", suffix:" (연구 후보)", h:10,
+    rule:"20봉 저점을 장중에 깼다가 그 위로 마감(스윕) → 3봉 안에 ATR 이상 큰 양봉이 직전 고가를 넘음(변위) → 5봉 안에 그 양봉 구간으로 되돌아와 중간 위 마감(되돌림 확인)한 날(외부 매매법 'Root 타격'의 일봉 근사)",
+    hitTxt:"과거 10일 뒤 상승 70% (103건 · 평소 57%)", tr:"60%(103)", va:"—", te:"70%(103)", base:"52~57%", lift:"+8~13%p", avg:"—", maeMed:"—", maeWorst:"—", p:"—", tickers:"관심종목 81개 3년",
+    period:"1·3·5·10일 뒤 상승 60·64·62·70%(평소 52·54·55·57) · 앞 반 59·63·61·71 · 뒤 반 62·65·63·69",
+    one:"저점을 한 번 깨고 바로 되돌아온 뒤, 힘 있게 반등하고 다시 눌림을 확인한 자리예요. 3년 103건에서 10일 뒤 오른 비율이 70%(평소 57%)였지만 일봉으로 근사한 것이고, 매수 등급에는 넣지 않았어요."},
   EXT_PAIR: {title:"페어 리버설 돌파", kind:"blue", suffix:" (연구 후보)", h:10,
     rule:"최근 60봉 스윙고점 3개로 그은 하락 추세선과 40봉 수평 넥라인(2번 이상 반응)을 같은 날 또는 1봉 차로 함께 위로 넘은 날(외부 매매법 '페어 리버설'의 일봉 근사)",
     tr:"66%(130)", va:"—", te:"68%(223)", base:"56%", lift:"+12%p", avg:"+1.1%", maeMed:"—", maeWorst:"—", p:"—", tickers:"관심종목 전체",
@@ -5116,6 +5123,8 @@ function sbItemsFor(s, opts){
   }
   if (s.ext_pair === 1){ const RF = RARE_FACTS.EXT_PAIR;
     items.push({s, kind:RF.kind, code:"EXT_PAIR", name:RF.title+RF.suffix, stat:null, rare:RF, verdict:"연구 후보"}); }
+  if (s.ext_root === 1){ const RF = RARE_FACTS.EXT_ROOT;
+    items.push({s, kind:RF.kind, code:"EXT_ROOT", name:RF.title+RF.suffix, stat:null, rare:RF, verdict:"연구 후보", noGold:true}); }   /* 황금신호 캔들 조건에는 안 쓴다(황금 산식 불변) */
   items.forEach(x=>{ x.good = /검증 완료|검증됨|75% 달성/.test(x.verdict); x.research = x.verdict==="연구 후보";
     x.judge = x.research ? "연구 후보 · 관망" : sbJudge(x.kind, x.verdict); });
   return items;
@@ -5165,6 +5174,7 @@ function sbBadge(x){
 function sbShortHit(x){
   const up = x.kind==="green" || x.kind==="blue";
   if (x.rare && x.rare.simple) return x.rare.parts ? `주의 조건 ${x.rare.parts.length}개 겹침` : `${x.rare.hit} (${x.rare.n})`;
+  if (x.rare && x.rare.hitTxt) return x.rare.hitTxt;
   if (x.rare && x.rare.period) return `과거 상승 68% (223건)`;
   if (x.rare && x.rare.va!=="—"){ const T = rareTotal(x.rare); if (T) return `과거 상승 ${Math.round(T.hit*100)}% (${T.n}건 · ${x.rare.h}일)`; }
   if (x.rare) return `과거 상승 ${x.rare.te.replace(/\((\d+)\)/," ($1건)")}`;
@@ -5291,7 +5301,7 @@ function sbGoldCands(list){
   (list || []).forEach(s => {
     const tier = sbDailyTier(s, mm); if (!tier || !goldRankOk(s.ticker) || !goldMarketOk(s, s.last_date, tier)) return;
     const items = sbItemsFor(s, {main:true});
-    const pats = items.filter(x => !x.site && (x.kind === "green" || x.kind === "blue"));
+    const pats = items.filter(x => !x.site && !x.noGold && (x.kind === "green" || x.kind === "blue"));
     const kr = !!(s._kr || /\.(KS|KQ)$/.test(s.ticker)), band = kr && goldKrBand(s);
     /* 국장(2026-11-11 사용자 결정): 🏆 = 일봉 등급 ∩ (상승 캔들 또는 볼밴 %B≤10) · 장중 ▲ 조건 없음(▲은 참고 표시).
        계기: 229200 11/9 강한매수(팽이 · %B≈0)가 캔들 조건에 걸려 빠졌는데 2거래일 +12.8% — 3년 연구에서 '캔들 없음 ∩ %B≤10'이 현행보다 좋았다.
@@ -5400,7 +5410,7 @@ function researchFooterHtml(){
             + ` · 측정 대기 ${wait}${na ? ` · 측정 불가 ${na}` : ""}`
             + (done60.length ? ` · 60일 완료 ${done60.length}건의 최대 하락 중간 ${f1(med(done60.map(e=>e.max_down)))} · 최대 상승 중간 ${f1(med(done60.map(e=>e.max_up)))}` : "") : "")
           + (R.hit ? ` <span style="color:var(--muted)">(연구: ${esc(R.hit)} · ${esc(R.base)})</span>` : "") + `</div>`; };
-      const TR = [["K_LLD_UP","blue",10,"상승"],["K_HW_UP","blue",10,"상승"],["EXT_PAIR","blue",10,"상승"],["R5_SEMI","green",5,"상승"],["R10_NVDA","green",10,"상승"]];
+      const TR = [["K_LLD_UP","blue",10,"상승"],["K_HW_UP","blue",10,"상승"],["EXT_PAIR","blue",10,"상승"],["EXT_ROOT","green",10,"상승"],["R5_SEMI","green",5,"상승"],["R10_NVDA","green",10,"상승"]];
       const rows = TR.map(([c,k,h,w])=>{ const t = ledgerTrack(c,k,h); const R = RARE_FACTS[c]||{};
         return `<div class="sb-note"><b>${esc(R.title||c)}</b> — ${t && t.n ? `확정 ${t.n}건 · ${h}일 뒤 ${w} ${Math.round(t.hit*100)}% · 평균 ${t.avg>=0?"+":""}${t.avg.toFixed(1)}%` : "확정 0건"}${t && t.pend ? ` · 결과 대기 ${t.pend}건` : ""}${t && t.noOpen ? ` · 시가 기록 전이라 제외 ${t.noOpen}건` : ""}${t && t.first ? ` · 첫 기록 ${esc(t.first)}` : ""}</div>`; }).join("");
       const ctHtml = ["K_SV1","K_SV2","K_SV3","K_TOP3","K_FLAG"].map(ctRow).join("");
@@ -7813,7 +7823,7 @@ function goldStrongMissed(){
     hs.forEach((h, i) => { if (!h.last_date || !has(h.price) || h.pat == null || (ew && ew.blocked.has(h.last_date)) || gold.has(s.ticker + "|" + h.last_date)) return;
       const row = Object.assign({}, s, h); if (i > 0) withPrev(row, hs[i-1]); row._prevOverallGrade = i > 0 ? evaluate(hs[i-1]).grade : null;
       row.sig = evaluate(row); if (row.sig.grade !== 5) return; row.earnings_hold = false; row.ext_pair = null;
-      let bull = false; try { bull = sbItemsFor(row, {main:true}).some(x => !x.site && (x.kind === "green" || x.kind === "blue")); } catch(e){}
+      let bull = false; try { bull = sbItemsFor(row, {main:true}).some(x => !x.site && !x.noGold && (x.kind === "green" || x.kind === "blue")); } catch(e){}
       if (bull) return;
       const o = goldOutcome(s, h.last_date); if (!o || o.entry == null || o.i < 0) return;
       const n = Math.min(3, o.D.length - 1 - o.i); if (n < 1) return;
