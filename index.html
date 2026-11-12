@@ -8977,7 +8977,7 @@ btnHoldTop.onclick = () => {
    조건 정의는 pattern_flags.peak_reader_flags 한 곳(main.py → s.peak_reader: 오늘 급등 국면 여부 · 최근 5거래일에 켜진 조건).
    단계(🟡 고점 경계 · 🟠 상승세 약화 · 🔴 하락 전환 위험)는 backtest/peak-reader.json에서 사전 기준을 통과한 '유효' 조건으로만 낸다.
    유효 조건이 없으면 단계를 만들지 않고 '판정 보류' — 확률·점수를 지어내지 않는다. 매수 신호·등급·원장과 무관(표시 전용). */
-let PR_OPEN = false, PR_DATA = null, PR2 = null, PR_TRIM = null, PR_TF = null, PR_HL = null, PR_HL_STATE = "", PR_LOADING = false, PR_CASE = 0;   /* PR2 = backtest/peak-reader2.json(2차 연구: EXT 변동성 · 52주∧%B 위험 캔들) */
+let PR_OPEN = false, PR_DATA = null, PR2 = null, PR_TRIM = null, PR_TF = null, PR_HL = null, PR_HL_STATE = "", PR_LOADING = false, PR_CASE = 0, PR_EX = null;   /* PR_EX = backtest/peak-examples.json(승률 산식별 실제 사례 · 연구 JSON 그대로) */   /* PR2 = backtest/peak-reader2.json(2차 연구: EXT 변동성 · 52주∧%B 위험 캔들) */
 const PR_STAGE_OF = { "과열": 1, "약화": 2, "캔들": 2, "거래량": 2, "이탈": 3 };
 const PR_BADGE = { 0: ["⚪", "특이 신호 없음", "pr-s0"], 1: ["🟡", "고점 경계", "pr-s1"], 2: ["🟠", "상승세 약화", "pr-s2"], 3: ["🔴", "하락 전환 위험", "pr-s3"] };
 /* 추천기능 안내에서 바로 열기 — 보유 패널을 열고 실험실을 펼친 뒤 그 자리로 스크롤 */
@@ -8998,6 +8998,7 @@ async function prHlLoad(force){
 async function prToggle(){
   PR_OPEN = !PR_OPEN;
   if (PR_OPEN && !PR_DATA && !PR_LOADING){ PR_LOADING = true; try { [PR_DATA, PR2, PR_TRIM, PR_TF] = await Promise.all([loadJsonFromRepo("peak-reader.json"), loadJsonFromRepo("peak-reader2.json").catch(() => null), loadJsonFromRepo("trim-stats.json").catch(() => null), loadJsonFromRepo("theme-flow.json").catch(() => null)]); } catch(e){} PR_LOADING = false; }
+  if (PR_OPEN && !PR_EX) PR_EX = await loadJsonFromRepo("peak-examples.json").catch(() => null);
   if (PR_OPEN && !PR_HL) await prHlLoad(true);   /* 연구 자료가 이미 있어도 검증 조합 파일이 없으면 다시 시도 */
   if (holdPanel.dataset.mode === "hold") renderHoldPanel();
   if (PR_OPEN){ const w = holdPanel.querySelector(".pr-wrap"); if (w) w.scrollIntoView({ block: "nearest" }); }
@@ -9260,6 +9261,26 @@ function prLabHtml(){
       ${prCaseCombo(cs, B, pi)}</p>
       <p class="pr-cap" style="margin:0">${cs.drop_day ? `−10% 도달 ${esc(idMDsafe(cs.drop_day))}` : ""}</p></div></div>`;
 }
+/* 2026-11-12 사용자 지적: 연구실에 '승률 산식'의 실제 사례가 하나도 없었다 — 9개 차트는 예전 A 조합(검증 탈락)에만 연결돼 있었다.
+   backtest/peak-examples.json = 연구 결과 JSON의 사건을 그대로 옮긴 것(tools/peak-examples.py · 새 계산 없음). */
+function prExHtml(){
+  const X = PR_EX; if (!X || !X.p20) return `<div class="pr-empty">사례 자료(backtest/peak-examples.json)를 불러오지 못했어요.</div>`;
+  const wl = new Set(allStocks().map(s => s.ticker)), pct = v => v == null ? "—" : `${v > 0 ? "+" : ""}${v.toFixed(1)}%`;
+  const row = (e, okTxt, ngTxt, rep) => `<tr><td>${esc(e[1])}</td><td>${esc(e[0])}${wl.has(e[0]) ? " <small>⭐관심</small>" : ""}</td><td>${e[3] ? `<b class="down">${okTxt}</b>` : ngTxt}</td><td class="${e[4] < 0 ? "down" : ""}">${pct(e[4])}</td><td class="${e[5] < 0 ? "down" : ""}">${pct(e[5])}</td>${rep ? `<td>${e[6] === true ? "✓" : e[6] === false ? "✗" : "—"}</td>` : ""}</tr>`;
+  const tbl = (E, okTxt, ngTxt, rep) => `<table class="pr-t"><tr><th>신호일</th><th>종목</th><th>결과</th><th>10일 뒤</th><th>20일 뒤</th>${rep ? "<th>화면 재현</th>" : ""}</tr>${E.slice().sort((a, b) => a[1] < b[1] ? 1 : -1).map(e => row(e, okTxt, ngTxt, rep)).join("")}</table>`;
+  const P = X.p20, pe = P.parts, rp = P.replay;
+  const p20 = `<details class="pr-ct" open><summary>🔴 20일 종가 하락 연구 후보 — 실제 사례 ${pe.ex.events.length + pe.zb.events.length}건 <small>(${esc(PR_P20.name)} · 52주 고가 터치판과 60일 고가 3% 안판의 사건 목록이 같아요)</small></summary><div>
+    <small class="pr-dim">적중 = ${esc(P.hit_def)} · 수익률 = 신호일 정규장 종가 기준(체결 보장 아님) · ${rp ? `화면 재현 = 그날까지만 자른 시세로 이 화면과 같은 계산 경로에 넣었을 때 가격 조건 4개가 켜졌나(${rp.site_ok}/${rp.events} · 테마 약화는 원장 이전이라 연구 값)` : ""}</small>
+    <div class="pr-ref-h">미사용 자료 ${pe.zb.hit}/${pe.zb.n}건 하락 <small>연구에 한 번도 안 쓴 S&P500·나스닥100 종목</small></div>${tbl(pe.zb.events, "하락 ✓", "상승 ✗", !!rp)}
+    <div class="pr-ref-h">탐색 자료 ${pe.ex.hit}/${pe.ex.n}건 하락 <small>관심종목 + 탐색용 종목 · ⭐관심 = 지금 관심종목</small></div>${tbl(pe.ex.events, "하락 ✓", "상승 ✗", !!rp)}
+    <small class="pr-dim">소표본 연구 결과예요 — 확정된 미래 확률이 아니에요. 정식 검증은 통과하지 못했어요.</small></div></details>`;
+  const q = (X.q || []).map(h => `<details class="pr-ct"><summary>${esc(h.name)} <small>미사용 ${h.zb_hit}/${h.zb_n}건 적중</small></summary><div>
+    ${h.stored < h.zb_n ? `<small class="pr-dim">연구 도구가 오래된 순 ${h.stored}건까지만 저장했어요(그중 ${h.stored_hit}건 적중) — 나머지 ${h.zb_n - h.stored}건은 개수만 있어요.</small>` : ""}
+    ${tbl(h.events, "−10% ✓", "✗", false)}</div></details>`).join("");
+  return `${p20}
+    <details class="pr-ct"><summary>📁 과거 연구(Q · 고점 대비 −10% 조정) 22개 조합 — 실제 사례 <small>다른 성공 기준 · 20일 종가 하락과 섞지 않음</small></summary><div>
+    <small class="pr-dim">적중 = ${esc(X.q_def || "")} · 미사용 자료(ZB) 사건만 저장돼 있어요(관심종목 사건은 연구 도구가 저장하지 않았어요) · 22개 모두 '20일선 이격 25%↑'가 들어 있어 사건이 서로 많이 겹쳐요.</small>${q}</div></details>`;
+}
 function prPanelHtml(mine){
   if (!PR_DATA) return `<div class="pr-empty">${PR_LOADING ? "연구 자료를 불러오는 중…" : "연구 자료(backtest/peak-reader.json)를 불러오지 못했어요."}</div>`;
   const D = PR_DATA, valid = prValid(), b = prBase() || {}, cst = D.cases_stats || {}, n = Object.keys(D.names || {}).length;
@@ -9280,7 +9301,9 @@ function prPanelHtml(mine){
         : `<div class="pr-empty">지금 켜진 종목이 없어요. 이 조합들은 20일선보다 25% 넘게 오른 종목에서만 켜져서 드물어요.</div>`}`; })()}
     <div class="pr-h">① 보유종목 고점 위험 현황</div>
     ${mine.length ? `<div class="pr-list">${mine.map(prItemHtml).join("")}</div>` : `<div class="pr-empty">보유 표시한 종목이 없어요.</div>`}
-    <div class="pr-h">② 과거 고점 사례 연구실 <small>최근 고점 순 · 급락·지속 모두</small></div>
+    <div class="pr-h">② 과거 고점 사례 연구실 <small>승률 산식별 실제 사례 · 최근 고점 차트</small></div>
+    ${prExHtml()}
+    <div class="pr-ref-h" style="margin-top:10px">최근 관심종목 고점 차트 9개 <small>예전 1차 조합(52주 고점 ∩ 볼밴 상단 ∩ 위험 캔들 · 검증 탈락) 기준 표시 — 위 승률 산식과 다른 조합</small></div>
     ${prLabHtml()}
     <details class="pr-fine"><summary>연구 방법 · 조합별 결과</summary><div>
       <b>승률은 단일 지표가 아니라 조합(교집합)으로만 보여 줘요.</b><br>
