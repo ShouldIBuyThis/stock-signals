@@ -38,7 +38,7 @@ const PATX = process.argv[3] ? JSON.parse(require('fs').readFileSync(process.arg
         const mm = new Map(multiSignalRank(uni).map(x => [x.ticker, x]));
         uni.filter(r => mk(r) === m).forEach(r => {
           const tier = sbDailyTier(r, mm); if (!tier) return;
-          const items = sbItemsFor(r, {main:true}), pats = items.filter(x => !x.site && (x.kind === 'green' || x.kind === 'blue'));
+          const items = sbItemsFor(r, {main:true}), pats = items.filter(x => !x.site && !x.noGold && (x.kind === 'green' || x.kind === 'blue'));
           /* 국장(2026-11-11 사용자 결정): 상승 캔들 또는 볼밴 %B≤10(화면 goldKrBand 그대로) */
           const band = m === 'kr' && typeof goldKrBand === 'function' && goldKrBand(r);
           res.push({ m, date: d, ticker: r.ticker, name: r.name || '', tier, src: r._src, pats: [...new Set(pats.map(x => x.name))], band: !pats.length && band, bb: has(r.bb_pos) ? +r.bb_pos.toFixed(2) : null, red: items.some(x => x.kind === 'red'), price: r.price });
