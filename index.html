@@ -8849,11 +8849,13 @@ async function prToggle(){
   if (holdPanel.dataset.mode === "hold") renderHoldPanel();
   if (PR_OPEN){ const w = holdPanel.querySelector(".pr-wrap"); if (w) w.scrollIntoView({ block: "nearest" }); }
 }
+/* 유효 = 날 단위 사전 기준 통과(valid) ∪ 사례 단위 사전 등록 재검증 통과(valid_case, 2026-11-12 EXT 재검증) */
+const prValid = () => PR_DATA ? (PR_DATA.valid || []).concat(PR_DATA.valid_case || []) : [];
 const prName = c => (PR_DATA && PR_DATA.names && PR_DATA.names[c]) || c;
 const prHold = c => PR_DATA && PR_DATA.stats && PR_DATA.stats.all && PR_DATA.stats.all.codes[c] ? PR_DATA.stats.all.codes[c].hold : null;
 const prBase = () => PR_DATA && PR_DATA.stats && PR_DATA.stats.all ? PR_DATA.stats.all.base.hold : null;
 function prJudge(s){
-  const pr = s && s.peak_reader, valid = (PR_DATA && PR_DATA.valid) || [];
+  const pr = s && s.peak_reader, valid = prValid();
   if (!pr) return { st: null, label: "판정 보류", cls: "pr-sh", why: "고점판독 자료가 아직 없어요(다음 갱신부터)", on: [] };
   const on = Object.keys(pr.on || {});
   if (!pr.run && !pr.run_recent) return { st: null, label: "급등 국면 아님", cls: "pr-s0", why: "120일 저점 대비 +50% 미만이거나 60일 고점에서 15% 넘게 내려와 있어 판독 대상이 아니에요", on };
@@ -8868,7 +8870,7 @@ function prStatLine(c){
   return `10일 뒤 하락 ${h.dn10 ?? "—"}%(평소 ${b.dn10}%) · 20일 안 −15% ${h.big ?? "—"}%(평소 ${b.big}%) · ${h.dates}일`;
 }
 function prItemHtml(s){
-  const J = prJudge(s), pr = s.peak_reader || {}, valid = (PR_DATA && PR_DATA.valid) || [];
+  const J = prJudge(s), pr = s.peak_reader || {}, valid = prValid();
   const pct = v => v == null ? "—" : `${v >= 0 ? "+" : ""}${(v * 100).toFixed(0)}%`;
   const hi52 = has(s.high_52w) && has(s.price) && s.high_52w > 0 ? s.price / s.high_52w - 1 : null;
   const groups = ["과열", "약화", "캔들", "거래량", "이탈"], G = (PR_DATA && PR_DATA.groups) || {};
@@ -8910,7 +8912,7 @@ function prLabHtml(){
 }
 function prPanelHtml(mine){
   if (!PR_DATA) return `<div class="pr-empty">${PR_LOADING ? "연구 자료를 불러오는 중…" : "연구 자료(backtest/peak-reader.json)를 불러오지 못했어요."}</div>`;
-  const D = PR_DATA, valid = D.valid || [], b = prBase() || {}, cst = D.cases_stats || {}, n = Object.keys(D.names || {}).length;
+  const D = PR_DATA, valid = prValid(), b = prBase() || {}, cst = D.cases_stats || {}, n = Object.keys(D.names || {}).length;
   const vs = cst["유효 조건 전부"], cur = cst["현행 1~3단계"], ext = cst["EXT"];
   const rate = x => x && x.bust ? `${Math.round(x.caught / x.bust * 100)}%` : "—", far = x => x && x.cont ? `${Math.round(x.false / x.cont * 100)}%` : "—";
   const rows = Object.keys(D.names || {}).map(c => { const h = prHold(c), k = cst[c]; return `<tr><td>${esc(prName(c))}</td><td>${h && h.dn10 != null ? h.dn10 + "%" : "—"}</td><td>${h && h.big != null ? h.big + "%" : "—"}</td><td>${rate(k)} / ${far(k)}</td><td>${h ? h.dates : "—"}</td><td>${valid.includes(c) ? "통과" : "미통과"}</td></tr>`; }).join("");
@@ -8926,6 +8928,7 @@ function prPanelHtml(mine){
       평소(급등 국면 모든 날, 보류 기간): 10일 뒤 하락 ${b.dn10 ?? "—"}% · 20일 안 −15% ${b.big ?? "—"}%.<br>
       <table class="pr-t"><tr><th>조건</th><th>10일 하락</th><th>−15%</th><th>붕괴 포착 / 지속 오경보</th><th>날</th><th>판정</th></tr>${rows}</table>
       사례 단위: 급등 뒤 국소 고점에서 60일 안 −35% 이상 떨어진 '붕괴' ${vs ? vs.bust : cur ? cur.bust : "—"}건, −15% 안에서 고점을 다시 넘은 '지속' ${cur ? cur.cont : "—"}건. 고점 10일 전 ~ −10% 도달 전에 신호가 났으면 포착이에요.<br>
+      ${D.ext_test ? `이격 과열 사례 단위 재검증(2023년 이후 고점만 · 결과 전 기준 고정): ${D.ext_test.pass ? "통과 — 🟡 고점 경계에 사용" : "미통과"} · 붕괴 포착 ${D.ext_test.table["25|A|hold"].cap}% vs 지속 오경보 ${D.ext_test.table["25|A|hold"].far}% (붕괴 ${D.ext_test.table["25|A|hold"].bust} · 지속 ${D.ext_test.table["25|A|hold"].cont}건).<br>` : ""}
       현행 고점 위험 1~3단계는 붕괴 ${rate(cur)} 포착 · 지속 ${far(cur)} 오경보였어요.${ext ? ` 20일선 과열(이격 25%↑)은 사례 단위로 붕괴 ${rate(ext)} 포착 · 지속 ${far(ext)} 오경보로 차이가 컸지만, 날 단위 기준에서는 10일 뒤 하락 비율이 평소와 같아(오르내림이 모두 큼) 통과하지 못했어요.` : ""}<br>
       백테스트라 지금 관심종목 위주의 생존 편향이 있어요. 매수 신호·등급·원장에는 영향이 없어요. 자세한 내용: docs/2026-11-12-peak-reader.md
     </div></details>`;
