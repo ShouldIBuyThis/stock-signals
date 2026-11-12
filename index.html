@@ -9227,7 +9227,7 @@ function prComboTables(){
   const pc = v => v == null ? "—" : Math.round(v * 100) + "%", out = [];
   const L = PR_HL && PR_HL.highlights;
   { const z = (o, nm) => `<tr><td>${nm}</td><td>${o.hit}/${o.n}</td><td>${Math.round(o.hit / o.n * 100)}%</td><td>${Math.round(o.dw * 100)}%</td><td>${(o.avg20 * 100).toFixed(1)}%</td><td>${Math.round(o.base * 100)}%</td></tr>`;
-    out.push(`<b>🔴 고점 경계 · 20일 종가 하락 연구 후보</b> — ${esc(PR_P20.name)}<br><small class="pr-dim">신호일 종가 대비 정확히 20거래일 뒤 종가가 낮았던 비율 · 소표본 연구 결과(확정 확률 아님) · 정식 검증 미통과</small>
+    out.push(`<b>🔴 고점 경계 · 20일 종가 하락 연구 후보</b> — ${esc(PR_P20.name)}<br><small class="pr-dim">신호일 종가 대비 정확히 20거래일 뒤 종가가 낮았던 비율 · 소표본 연구 결과(확정 확률 아님) · 정식 검증 미통과 · 과거 사건 35건을 사건일까지만 자른 시세로 이 화면과 같은 계산 경로에 다시 넣어 가격 조건 4개 35/35 재현(미래 자료 누수 0건 · backtest/peak-p20-replay.json)</small>
     <table class="pr-t"><tr><th>자료</th><th>하락/사건</th><th>사건 기준</th><th>날짜 가중</th><th>20일 평균</th><th>평소 하락률</th></tr>${z(PR_P20.ex, "탐색")}${z(PR_P20.zb, "미사용(ZB)")}</table>`); }
   if (L && L.length) out.push(`<b>📁 과거 연구 결과 · 다른 성공 기준(신호 뒤 고점 대비 −10% 조정, Q)</b> — 위 20일 종가 하락 확률과 섞지 않아요.<br><b>사전등록 검증 통과 조합 ${L.length}개</b> (미사용 자료 ZB = 연구에 한 번도 안 쓴 S&P500·나스닥100 227종목 · 변동성 추가 검증 ${PR_HL.diag_comparable ? `통과 ${L.filter(h => h.diag && (h.diag.beyond_vol || []).includes("Q20")).length}개` : "비교 불가(다른 시세)"})
     <table class="pr-t"><tr><th>조합</th><th>20일 고점 대비 −10% (ZB · 날짜 가중 / 사건)</th><th>신호일 종가 −10%</th><th>변동성 맞춘 기대</th><th>🟡 5일 −3%</th></tr>
