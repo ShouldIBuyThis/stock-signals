@@ -8886,7 +8886,7 @@ function renderHoldPanel(){
       mine.map(s=>`<div class="panelrow"><button class="panelgoto" data-goto="${esc(s.ticker)}"><span class="tk">${esc(s.ticker)}</span><span class="nm">${esc(s.name||"")}</span><span class="val ${chgCls(s.change_1d)} num">${fmtChg(s.change_1d)}</span></button><button class="panelx" data-remove-hold="${esc(s.ticker)}" title="보유 해제">×</button></div>`).join("")
     : `<div class="empty">아직 보유 표시한 종목이 없어요. 종목 카드의 ☆를 누르면 여기에 모입니다.</div>`;
   /* 2026-11-12 🔬 고점판독기(실험실) — 보유 패널 안 맨 마지막 요소(고정 버튼 아님). 패널을 닫으면 같이 숨는다. */
-  holdPanel.insertAdjacentHTML("beforeend", `<div class="pr-wrap"><button class="pr-btn" data-peakreader="1" aria-expanded="${PR_OPEN ? "true" : "false"}">🔬 고점판독기 <small>(실험실)</small><span class="pr-car">${PR_OPEN ? "접기 ▴" : "펼치기 ▾"}</span></button><div class="pr-box"${PR_OPEN ? "" : " hidden"}>${PR_OPEN ? prPanelHtml(mine) : ""}</div></div>`);
+  holdPanel.innerHTML += (`<div class="pr-wrap"><button class="pr-btn" data-peakreader="1" aria-expanded="${PR_OPEN ? "true" : "false"}">🔬 고점판독기 <small>(실험실)</small><span class="pr-car">${PR_OPEN ? "접기 ▴" : "펼치기 ▾"}</span></button><div class="pr-box"${PR_OPEN ? "" : " hidden"}>${PR_OPEN ? prPanelHtml(mine) : ""}</div></div>`);
   holdPanel.classList.toggle("pr-open", PR_OPEN);
 }
 function toggleHoldPanel(force){
@@ -8905,7 +8905,7 @@ btnHoldTop.onclick = () => {
    조건 정의는 pattern_flags.peak_reader_flags 한 곳(main.py → s.peak_reader: 오늘 급등 국면 여부 · 최근 5거래일에 켜진 조건).
    단계(🟡 고점 경계 · 🟠 상승세 약화 · 🔴 하락 전환 위험)는 backtest/peak-reader.json에서 사전 기준을 통과한 '유효' 조건으로만 낸다.
    유효 조건이 없으면 단계를 만들지 않고 '판정 보류' — 확률·점수를 지어내지 않는다. 매수 신호·등급·원장과 무관(표시 전용). */
-let PR_OPEN = false, PR_DATA = null, PR2 = null, PR_LOADING = false, PR_CASE = 0;   /* PR2 = backtest/peak-reader2.json(2차 연구: EXT 변동성 · 52주∧%B 위험 캔들) */
+let PR_OPEN = false, PR_DATA = null, PR2 = null, PR_TRIM = null, PR_LOADING = false, PR_CASE = 0;   /* PR2 = backtest/peak-reader2.json(2차 연구: EXT 변동성 · 52주∧%B 위험 캔들) */
 const PR_STAGE_OF = { "과열": 1, "약화": 2, "캔들": 2, "거래량": 2, "이탈": 3 };
 const PR_BADGE = { 0: ["⚪", "특이 신호 없음", "pr-s0"], 1: ["🟡", "고점 경계", "pr-s1"], 2: ["🟠", "상승세 약화", "pr-s2"], 3: ["🔴", "하락 전환 위험", "pr-s3"] };
 /* 추천기능 안내에서 바로 열기 — 보유 패널을 열고 실험실을 펼친 뒤 그 자리로 스크롤 */
@@ -8916,7 +8916,7 @@ async function openPeakReader(){
 }
 async function prToggle(){
   PR_OPEN = !PR_OPEN;
-  if (PR_OPEN && !PR_DATA && !PR_LOADING){ PR_LOADING = true; try { [PR_DATA, PR2] = await Promise.all([loadJsonFromRepo("peak-reader.json"), loadJsonFromRepo("peak-reader2.json").catch(() => null)]); } catch(e){} PR_LOADING = false; }
+  if (PR_OPEN && !PR_DATA && !PR_LOADING){ PR_LOADING = true; try { [PR_DATA, PR2, PR_TRIM] = await Promise.all([loadJsonFromRepo("peak-reader.json"), loadJsonFromRepo("peak-reader2.json").catch(() => null), loadJsonFromRepo("trim-stats.json").catch(() => null)]); } catch(e){} PR_LOADING = false; }
   if (holdPanel.dataset.mode === "hold") renderHoldPanel();
   if (PR_OPEN){ const w = holdPanel.querySelector(".pr-wrap"); if (w) w.scrollIntoView({ block: "nearest" }); }
 }
@@ -8996,12 +8996,19 @@ function prCondTable(pr){
 }
 /* 2026-11-12 사용자 지시: 고점판독기에 '일부익절 가능성' 작은 불(참고) — 고점 위험과 별개.
    새 산식 없음 — 사이트가 이미 띄우는 것만 모은다: evaluate() 과열 익절 태그 · 캔들 신호등 🟡 일부 익절 후보(patternBadges) · 오늘의 신호 🟠 단기과열·일부익절(sbItemsFor orange). */
-function prTrim(s){
-  const why = [];
-  try { ((s.sig && s.sig.tags) || []).forEach(t => { if (/익절/.test(t.t || "")) why.push(t.t); }); } catch(e){}
-  try { patternBadges(s).forEach(b => { if (b.key === "🟡 일부 익절 후보") why.push(b.text); }); } catch(e){}
-  try { sbItemsFor(s, {main:true}).forEach(x => { if (x.kind === "orange") why.push(`🟠 ${x.name}`); }); } catch(e){}
-  return [...new Set(why)];
+function prTrimSrc(s){   /* [{t: 화면 문구, k: backtest/trim-stats.json 출처 키}] — tools/trim-lab.js와 같은 분류 */
+  const out = [], seen = new Set(), add = (t, k) => { if (!seen.has(t)){ seen.add(t); out.push({t, k}); } };
+  try { ((s.sig && s.sig.tags) || []).forEach(t => { if (/분할익절/.test(t.t || "")) add(t.t, "TAG_SPLIT"); else if (/익절/.test(t.t || "")) add(t.t, "TAG_CAUTION"); }); } catch(e){}
+  try { patternBadges(s).forEach(b => { if (b.key === "🟡 일부 익절 후보") add(b.text, "PAT_TRIM"); }); } catch(e){}
+  try { sbItemsFor(s, {main:true}).forEach(x => { if (x.kind === "orange") add(`🟠 ${x.name}`, "OR_" + x.code); }); } catch(e){}
+  return out;
+}
+function prTrim(s){ return prTrimSrc(s).map(x => x.t); }
+/* 2026-11-12 사용자 지시: 일부익절은 1·3·5거래일 뒤 승률로 — 적중 = 그 뒤 종가가 1% 넘게 낮음(±1% 보합 제외). 숫자는 trim-stats.json(3년 백테스트) 그대로. */
+function prTrimLine(k){
+  const T = PR_TRIM, z = T && T.src && T.src[k], b = T && T.base; if (!z || !b) return "과거 통계 준비 중";
+  const f = v => v == null ? "—" : Math.round(v);
+  return `1·3·5일 뒤 하락(익절 적중) ${f(z.win1)}·${f(z.win3)}·${f(z.win5)}% · 평소 ${f(b.win1)}·${f(b.win3)}·${f(b.win5)}% · ${z.n}건${z.n < 30 ? "(표본 적음)" : ""}`;
 }
 function prItemHtml(s){
   const J = prJudge(s), pr = s.peak_reader || {}, valid = prValid();
@@ -9014,7 +9021,7 @@ function prItemHtml(s){
     <div class="pr-body">
       <div class="pr-kv"><div><small>120일 저점 대비</small><b>${pct(pr.up120)}</b></div><div><small>52주 고점 대비</small><b>${pct(hi52)}</b></div><div><small>RSI</small><b>${pr.rsi ?? "—"}</b></div></div>
       ${J.on.length ? `<div class="pr-sub">최근 5거래일에 켜진 조건</div><ul class="pr-on">${onRows}</ul>` : `<div class="pr-sub">최근 5거래일에 켜진 조건이 없어요</div>`}
-      ${(() => { const T = prTrim(s); return T.length ? `<div class="pr-ref"><div class="pr-ref-h">🟡 일부익절 가능성 <small>참고 · 고점 위험과 별개</small></div><ul class="pr-on">${T.map(x => `<li>${esc(x)}</li>`).join("")}</ul><small class="pr-dim">사이트가 이미 띄우는 과열·익절 신호(오늘의 신호·캔들 신호등·과열 뱃지)를 그대로 모은 거예요. 새 판정이 아니고, 매도 지시가 아니에요.</small></div>` : ""; })()}
+      ${(() => { const T = prTrimSrc(s); return T.length ? `<div class="pr-ref"><div class="pr-ref-h">🟡 일부익절 가능성 <small>참고 · 고점 위험과 별개</small></div><ul class="pr-on">${T.map(x => `<li>${esc(x.t)}<br><small class="pr-dim">${esc(prTrimLine(x.k))}</small></li>`).join("")}</ul>${PR_TRIM ? `<small class="pr-dim">3년 백테스트(${esc((PR_TRIM.period || []).join("~"))}) · 같은 종목 3거래일 안 재발생 제외 · 생존 편향 있음. </small>` : ""}<small class="pr-dim">사이트가 이미 띄우는 과열·익절 신호(오늘의 신호·캔들 신호등·과열 뱃지)를 그대로 모은 거예요. 새 판정이 아니고, 매도 지시가 아니에요.</small></div>` : ""; })()}
       ${prExtBlock(pr)}${prRcBlock(pr)}
       <div class="pr-sub">조건 충족 현황 <small class="pr-dim">● 켜짐 · ○ 꺼짐</small></div><div class="pr-chips">${chips}</div>
       ${prCondTable(pr)}

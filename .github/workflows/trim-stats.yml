@@ -1,0 +1,48 @@
+name: 일부익절 1·3·5일 적중률 생성
+
+# 수동 실행 전용. tools/trim-lab.js(화면 함수 그대로)로 고점판독기 🟡 일부익절 출처별 1·3·5거래일 뒤 하락 비율을 3년 백테스트로 재고
+# backtest/trim-stats.json만 main에 커밋한다. ⚠ 원장(signals.json·history/)은 건드리지 않는다. 생존 편향 있음(표시에 명시).
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: trim-stats
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: 의존성 설치
+        run: pip install -q yfinance pandas numpy exchange_calendars
+      - name: 장기 원본 수집 (야후 3년)
+        run: python tools/backfill_backtest.py --years 3 --days 690 --out "$RUNNER_TEMP/raw.json"
+      - name: 일부익절 적중률 계산
+        run: node tools/trim-lab.js "$RUNNER_TEMP/raw.json" "$RUNNER_TEMP/trim-stats.json"
+      - name: 결과만 main에 커밋
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for i in 1 2 3; do
+            git fetch origin main
+            git switch -C trim-out origin/main
+            cp "$RUNNER_TEMP/trim-stats.json" backtest/trim-stats.json
+            git add backtest/trim-stats.json
+            if git diff --cached --quiet; then echo "변경 없음"; exit 0; fi
+            git commit -m "auto: 일부익절 1·3·5일 적중률(backtest/trim-stats.json)"
+            if git push origin HEAD:main; then exit 0; fi
+            sleep $((i * 5))
+          done
+          echo "::error::푸시 3회 실패"; exit 1
