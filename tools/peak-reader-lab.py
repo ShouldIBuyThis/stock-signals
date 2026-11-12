@@ -17,7 +17,7 @@ tr = _load("tr", "theme-research.py"); bb = _load("bb", "bb-walk-lab.py")
 EXTRA = ["QUBT", "000660.KS", "0023B0.KS", "SMCI", "MSTR", "COIN", "ARM", "CVNA", "UPST", "AFRM", "SOUN", "HOOD", "RIVN", "PLUG", "ENPH", "ZM", "PTON", "MRNA"]
 LEV = {"SOXL": 3, "GDXU": 3, "NAIL": 3, "UYG": 2, "DUSL": 3, "FNGU": 3, "BULZ": 3}
 STARTS = {"QUBT": "2018-03-01"}
-H = (3, 5, 10, 20)
+H = (3, 5, 7, 10, 20)   # 7일은 2026-11-12 화면 표시(3·5·7일)용으로 추가 — 유효 판정 기준(10일·20일 −15%)은 사전 등록 그대로
 SPLIT = "2023-01-01"
 CODES = list(pf.PR_GROUPS)
 
