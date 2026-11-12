@@ -4954,6 +4954,8 @@ async function loadBoardData(){
   Promise.all([loadJsonFromRepo("theme-breadth.json"), loadJsonFromRepo("group-breadth.json")]).then(([t, g]) => {
     if (t && t.markets) THEME_BR = t; if (g && g.groups) GROUP_BR = g;
     if ((THEME_BR || GROUP_BR) && state.data && typeof render === "function") { try { render(); } catch(e){} } }).catch(() => {});
+  /* 고점판독기 검증 통과 조합(장바구니 모의점검의 같은 테마 알림에도 쓴다) — 작은 파일이라 미리 받아 둔다 */
+  if (!PR_HL) loadJsonFromRepo("peak-highlights.json").then(h => { if (h && h.highlights) PR_HL = h; }).catch(() => {});
 }
 const SB_KIND = {
   green:  {icon:"🟢", title:"반등 신호", head:"반등 신호 발생", pill:"pl-green"},
@@ -6219,6 +6221,17 @@ function openCartReview(){
     if (red.length) B.care.unshift(`🔴 고점·하락 위험 패턴이 뜬 종목: <b>${red.map(esc).join(" · ")}</b> — 아래 🕯 칸에서 과거 성적을 확인하세요.`);
     if (org.length) B.care.push(`🟠 단기 과열 패턴: <b>${org.map(esc).join(" · ")}</b> — 추격보다 눌림을 기다리는 편이 보수적입니다.`);
     if (nl.length) B.care.push(`📉 52주 신저가 근처: <b>${nl.map(esc).join(" · ")}</b> — 1년 중 가장 싼 자리라 바닥인지 하락 지속인지 아직 모릅니다.`);
+    /* 2026-11-12 사용자 지시: 고점판독기 위험 조합(미사용 자료 검증 통과)이 뜨면 같은 테마 종목을 담은 장바구니에도 알린다.
+       판정은 prHlMatch() 하나(고점판독기와 같음) · 같은 테마로 번지는지는 검증하지 않은 참고 안내 · 등급·점수 변경 없음. */
+    if (PR_HL && typeof prHlMatch === "function"){
+      const all = allStocks(), lit = new Map(all.map(x => [x.ticker, prHlMatch(x)]).filter(([, m]) => m.length));
+      const own = F.mine.filter(s => lit.has(s.ticker));
+      if (own.length) B.care.unshift(`🔴 <b>고점 붕괴 위험 조합</b>(고점판독기 · 미사용 자료 검증 통과)이 켜진 종목: <b>${own.map(s => `${esc(s.ticker)} ${esc(idMDsafe(lit.get(s.ticker)[0].d))}`).join(" · ")}</b> — 과거 같은 조합 뒤 20거래일 안에 고점 대비 −10% 급락이 잦았어요(변동성이 큰 종목 효과가 대부분). 매도 지시는 아니에요.`);
+      const cats = [...new Set(F.mine.map(s => s.category).filter(c => c && c !== "기타"))];
+      cats.forEach(c => { const mates = all.filter(x => x.category === c && lit.has(x.ticker) && !F.mine.some(m => m.ticker === x.ticker)); if (!mates.length) return;
+        const mine = F.mine.filter(s => s.category === c).map(s => esc(s.ticker)).join(" · ");
+        B.care.push(`🔴 같은 테마(<b>${esc(c)}</b>)의 <b>${mates.map(x => `${esc(x.ticker)} ${esc(idMDsafe(lit.get(x.ticker)[0].d))}`).join(" · ")}</b>에서 고점 붕괴 위험 조합이 켜졌어요 — 장바구니 <b>${mine}</b>와 같은 테마예요. 테마가 함께 흔들릴 수 있다는 참고이고, 같은 테마로 번지는지는 아직 검증하지 않았어요.`); });
+    }
     if (nh.length) B.good.push(`📈 52주 신고가 근처: <b>${nh.map(esc).join(" · ")}</b> — 1년 중 가장 비싼 자리에서도 버티는 강한 종목입니다(과열 여부는 따로 확인).`);
   } catch(e) {}
   const n = F.mine.length, activeN=F.activeMine.length;
