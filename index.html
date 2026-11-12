@@ -577,6 +577,41 @@ html[data-theme="dark"] .principle .plink{color:#a9c6ff;border-bottom-color:#a9c
 html[data-theme="dark"] .lev{background:#33191b;color:#ff8080;border-bottom-color:#ff8080}
 /* 내 보유종목 아코디언 */
 .holdpanel{position:static;margin:12px 0 0;max-height:280px;box-shadow:var(--shadow)}
+/* 🔬 고점판독기(실험실) — 보유 패널 안 마지막 요소 · 고정 버튼 아님 */
+.holdpanel.pr-open{max-height:min(86vh,1400px)}
+.pr-wrap{padding:12px 12px 14px;border-top:1px solid var(--line)}
+.pr-btn{width:100%;display:flex;align-items:center;gap:6px;background:var(--navy-soft);color:var(--navy);border:0;border-radius:12px;padding:11px 14px;font:inherit;font-size:13.5px;font-weight:700;cursor:pointer}
+.pr-btn small{font-weight:500;color:var(--muted)} .pr-btn .pr-car{margin-left:auto;font-size:11.5px;font-weight:600;color:var(--muted)}
+.pr-box{padding:10px 2px 0}
+.pr-lead{margin:2px 2px 8px;font-size:12.5px;color:var(--reason);line-height:1.6}
+.pr-note{background:var(--surface2);border-radius:12px;padding:10px 12px;font-size:12px;color:var(--reason);line-height:1.6}
+.pr-h{margin:16px 2px 8px;font-size:13px;font-weight:800;color:var(--ink)} .pr-h small{font-weight:500;color:var(--faint);margin-left:4px}
+.pr-list{display:flex;flex-direction:column;gap:8px}
+.pr-item{background:var(--surface);border-radius:14px;box-shadow:var(--shadow)}
+.pr-item>summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:auto 1fr auto;gap:2px 8px;align-items:center;padding:11px 12px}
+.pr-item>summary::-webkit-details-marker{display:none}
+.pr-tk{font-weight:800;font-size:13.5px} .pr-nm{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pr-badge{font-size:11.5px;font-weight:700;border-radius:999px;padding:3px 9px;white-space:nowrap;background:var(--neutral-soft);color:var(--neutral)}
+.pr-badge.pr-s1{background:#fdf6e3;color:#946200} .pr-badge.pr-s2{background:var(--sell-soft);color:#b45309} .pr-badge.pr-s3{background:#fdecec;color:#b42318}
+.pr-why{grid-column:1/-1;font-size:11.5px;color:var(--muted);line-height:1.5}
+.pr-body{padding:0 12px 12px;font-size:12.5px;color:var(--reason)}
+.pr-kv{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:2px 0 6px}
+.pr-kv div{background:var(--surface2);border-radius:10px;padding:7px 8px} .pr-kv small{display:block;font-size:10.5px;color:var(--faint)} .pr-kv b{font-size:14px;color:var(--ink)}
+.pr-sub{margin:10px 0 4px;font-size:12px;font-weight:700;color:var(--ink)} .pr-dim{color:var(--faint);font-weight:400}
+.pr-on{margin:0;padding-left:16px;line-height:1.55} .pr-on li{margin:3px 0}
+.pr-chips{display:flex;flex-direction:column;gap:5px}
+.pr-g{display:flex;flex-wrap:wrap;gap:4px;align-items:center} .pr-g>span{font-size:10.5px;color:var(--faint);width:38px}
+.pr-g i{font-style:normal;font-size:11px;color:var(--faint);background:var(--surface2);border-radius:999px;padding:2px 7px}
+.pr-g i.on{color:var(--ink);background:var(--neutral-soft);font-weight:600}
+.pr-tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+.pr-tab{flex:0 0 auto;width:auto;border:0;background:var(--surface2);border-radius:999px;padding:6px 10px;font:inherit;font-size:12px;cursor:pointer;color:var(--reason)}
+.pr-tab.on{background:var(--navy);color:#fff} .pr-tab small{opacity:.75} .pr-tab em{font-style:normal;font-size:10.5px;margin-left:4px;opacity:.85}
+.pr-case{background:var(--surface);border-radius:14px;box-shadow:var(--shadow);padding:10px 10px 8px;margin-top:6px}
+.pr-cap{margin:6px 2px 0;font-size:12px;color:var(--reason);line-height:1.6}
+.pr-fine{margin-top:14px;font-size:11.5px;color:var(--muted)} .pr-fine summary{cursor:pointer;color:var(--faint)} .pr-fine>div{line-height:1.65;padding:6px 2px}
+.pr-t{width:100%;border-collapse:collapse;margin:8px 0;font-size:11px} .pr-t th,.pr-t td{padding:4px 3px;border-bottom:1px solid var(--line);text-align:right} .pr-t th:first-child,.pr-t td:first-child{text-align:left}
+.pr-empty{font-size:12.5px;color:var(--muted);padding:8px 2px}
+html[data-theme="dark"] .pr-btn{background:#232c42;color:#dbe3f5}
 .holdpanel .phead{padding:8px 12px;font-size:11px;color:var(--faint);border-bottom:1px solid var(--line);font-weight:700}
 .btn-admin.on{background:#46567c;color:#fff}
 html[data-theme="dark"] .btn-admin.on{background:#3b4a6d;color:#fff}
@@ -1636,7 +1671,8 @@ function normalize(raw){
       ext_pair: num(it.ext_pair), ext_root: num(it.ext_root),   /* 외부 산식 근사 표시(페어 리버설·Root 타격) — 표시 전용 */
       pat: (typeof it.pat === "string") ? it.pat : "",   /* 2026-11-05 패턴 뱃지 코드 — 표시 전용(patternBadges) */
       ohlc60: Array.isArray(it.ohlc60) ? it.ohlc60 : null,   /* 2026-11-06 실제 일봉 차트용(원장 아님) */
-      peak_risk: (it.peak_risk && typeof it.peak_risk === "object") ? it.peak_risk : null,   /* 2026-11-10 고점 위험 3단계 경고 — 표시 전용(pattern_flags.peak_risk_series) */
+      peak_risk: (it.peak_risk && typeof it.peak_risk === "object") ? it.peak_risk : null,
+      peak_reader: (it.peak_reader && typeof it.peak_reader === "object") ? it.peak_reader : null,   /* 2026-11-12 🔬 고점판독기(실험실) — 표시 전용(pattern_flags.peak_reader_flags) */   /* 2026-11-10 고점 위험 3단계 경고 — 표시 전용(pattern_flags.peak_risk_series) */
       /* 진입 위치(Positioning) 파생값 — 빠뜨리면 오늘 카드에서만 관련 로직이 통째로 죽는다 */
       ma20_slope: num(it.ma20_slope), run5_max: num(it.run5_max), run3_sum: num(it.run3_sum),
       range3: num(it.range3), range10: num(it.range10), vol3_ratio: num(it.vol3_ratio),
@@ -8784,11 +8820,14 @@ function renderHoldPanel(){
     ? `<div class="phead">보유 ${mine.length}종목 · 누르면 상세 카드로 이동</div>` +
       mine.map(s=>`<div class="panelrow"><button class="panelgoto" data-goto="${esc(s.ticker)}"><span class="tk">${esc(s.ticker)}</span><span class="nm">${esc(s.name||"")}</span><span class="val ${chgCls(s.change_1d)} num">${fmtChg(s.change_1d)}</span></button><button class="panelx" data-remove-hold="${esc(s.ticker)}" title="보유 해제">×</button></div>`).join("")
     : `<div class="empty">아직 보유 표시한 종목이 없어요. 종목 카드의 ☆를 누르면 여기에 모입니다.</div>`;
+  /* 2026-11-12 🔬 고점판독기(실험실) — 보유 패널 안 맨 마지막 요소(고정 버튼 아님). 패널을 닫으면 같이 숨는다. */
+  holdPanel.insertAdjacentHTML("beforeend", `<div class="pr-wrap"><button class="pr-btn" data-peakreader="1" aria-expanded="${PR_OPEN ? "true" : "false"}">🔬 고점판독기 <small>(실험실)</small><span class="pr-car">${PR_OPEN ? "접기 ▴" : "펼치기 ▾"}</span></button><div class="pr-box"${PR_OPEN ? "" : " hidden"}>${PR_OPEN ? prPanelHtml(mine) : ""}</div></div>`);
+  holdPanel.classList.toggle("pr-open", PR_OPEN);
 }
 function toggleHoldPanel(force){
   const open = force !== undefined ? force : (holdPanel.classList.contains("hidden") || holdPanel.dataset.mode !== "hold");
   if (open){ holdPanel.dataset.mode="hold"; renderHoldPanel(); holdPanel.classList.remove("hidden"); }
-  else { holdPanel.classList.add("hidden"); holdPanel.dataset.mode=""; }
+  else { holdPanel.classList.add("hidden"); holdPanel.dataset.mode=""; PR_OPEN = false; holdPanel.classList.remove("pr-open"); }
   btnHoldTop.classList.toggle("on", open);
   const bc = document.getElementById("btnCart"); if (bc) bc.classList.remove("on");
 }
@@ -8796,6 +8835,101 @@ btnHoldTop.onclick = () => {
   if (holdPanel.dataset.mode === "cart" && !holdPanel.classList.contains("hidden")) toggleCartPanel(false);
   toggleHoldPanel();
 };
+
+/* ══════════ 🔬 고점판독기 (실험실) — 2026-11-12 사용자 지시 · docs/2026-11-12-peak-reader.md ══════════
+   조건 정의는 pattern_flags.peak_reader_flags 한 곳(main.py → s.peak_reader: 오늘 급등 국면 여부 · 최근 5거래일에 켜진 조건).
+   단계(🟡 고점 경계 · 🟠 상승세 약화 · 🔴 하락 전환 위험)는 backtest/peak-reader.json에서 사전 기준을 통과한 '유효' 조건으로만 낸다.
+   유효 조건이 없으면 단계를 만들지 않고 '판정 보류' — 확률·점수를 지어내지 않는다. 매수 신호·등급·원장과 무관(표시 전용). */
+let PR_OPEN = false, PR_DATA = null, PR_LOADING = false, PR_CASE = 0;
+const PR_STAGE_OF = { "과열": 1, "약화": 2, "캔들": 2, "거래량": 2, "이탈": 3 };
+const PR_BADGE = { 0: ["⚪", "특이 신호 없음", "pr-s0"], 1: ["🟡", "고점 경계", "pr-s1"], 2: ["🟠", "상승세 약화", "pr-s2"], 3: ["🔴", "하락 전환 위험", "pr-s3"] };
+async function prToggle(){
+  PR_OPEN = !PR_OPEN;
+  if (PR_OPEN && !PR_DATA && !PR_LOADING){ PR_LOADING = true; try { PR_DATA = await loadJsonFromRepo("peak-reader.json"); } catch(e){} PR_LOADING = false; }
+  if (holdPanel.dataset.mode === "hold") renderHoldPanel();
+  if (PR_OPEN){ const w = holdPanel.querySelector(".pr-wrap"); if (w) w.scrollIntoView({ block: "nearest" }); }
+}
+const prName = c => (PR_DATA && PR_DATA.names && PR_DATA.names[c]) || c;
+const prHold = c => PR_DATA && PR_DATA.stats && PR_DATA.stats.all && PR_DATA.stats.all.codes[c] ? PR_DATA.stats.all.codes[c].hold : null;
+const prBase = () => PR_DATA && PR_DATA.stats && PR_DATA.stats.all ? PR_DATA.stats.all.base.hold : null;
+function prJudge(s){
+  const pr = s && s.peak_reader, valid = (PR_DATA && PR_DATA.valid) || [];
+  if (!pr) return { st: null, label: "판정 보류", cls: "pr-sh", why: "고점판독 자료가 아직 없어요(다음 갱신부터)", on: [] };
+  const on = Object.keys(pr.on || {});
+  if (!pr.run && !pr.run_recent) return { st: null, label: "급등 국면 아님", cls: "pr-s0", why: "120일 저점 대비 +50% 미만이거나 60일 고점에서 15% 넘게 내려와 있어 판독 대상이 아니에요", on };
+  const vOn = on.filter(c => valid.includes(c));
+  if (vOn.length){ const st = Math.max(...vOn.map(c => PR_STAGE_OF[(PR_DATA.groups || {})[c]] || 0)); const b = PR_BADGE[st];
+    return { st, label: `${b[0]} ${b[1]}`, cls: b[2], why: vOn.slice(0, 3).map(prName).join(" · "), on }; }
+  if (on.length) return { st: null, label: "판정 보류", cls: "pr-sh", why: `${on.slice(0, 2).map(prName).join(" · ")}${on.length > 2 ? ` 외 ${on.length - 2}` : ""} — 과거 검증 미통과`, on };
+  return { st: 0, label: "⚪ 특이 신호 없음", cls: "pr-s0", why: "급등 국면이지만 최근 5거래일 켜진 조건이 없어요", on };
+}
+function prStatLine(c){
+  const h = prHold(c), b = prBase(); if (!h || !b) return "";
+  return `10일 뒤 하락 ${h.dn10 ?? "—"}%(평소 ${b.dn10}%) · 20일 안 −15% ${h.big ?? "—"}%(평소 ${b.big}%) · ${h.dates}일`;
+}
+function prItemHtml(s){
+  const J = prJudge(s), pr = s.peak_reader || {}, valid = (PR_DATA && PR_DATA.valid) || [];
+  const pct = v => v == null ? "—" : `${v >= 0 ? "+" : ""}${(v * 100).toFixed(0)}%`;
+  const hi52 = has(s.high_52w) && has(s.price) && s.high_52w > 0 ? s.price / s.high_52w - 1 : null;
+  const groups = ["과열", "약화", "캔들", "거래량", "이탈"], G = (PR_DATA && PR_DATA.groups) || {};
+  const chips = groups.map(g => `<div class="pr-g"><span>${g}</span>${Object.keys(G).filter(c => G[c] === g).map(c => `<i class="${pr.on && pr.on[c] ? "on" : ""}${valid.includes(c) ? " v" : ""}" title="${esc(prStatLine(c))}">${pr.on && pr.on[c] ? "●" : "○"} ${esc(prName(c))}</i>`).join("")}</div>`).join("");
+  const onRows = J.on.map(c => `<li><b>${esc(prName(c))}</b> <small>${esc(idMDsafe(pr.on[c]))}</small><br><small class="pr-dim">${valid.includes(c) ? "검증 통과" : "참고 · 검증 미통과"} — ${esc(prStatLine(c))}</small></li>`).join("");
+  return `<details class="pr-item"><summary><span class="pr-tk">${esc(s.ticker)}</span><span class="pr-nm">${esc(s.name || "")}</span><span class="pr-badge ${J.cls}">${esc(J.label)}</span><span class="pr-why">${esc(J.why)}</span></summary>
+    <div class="pr-body">
+      <div class="pr-kv"><div><small>120일 저점 대비</small><b>${pct(pr.up120)}</b></div><div><small>52주 고점 대비</small><b>${pct(hi52)}</b></div><div><small>RSI</small><b>${pr.rsi ?? "—"}</b></div></div>
+      ${J.on.length ? `<div class="pr-sub">최근 5거래일에 켜진 조건</div><ul class="pr-on">${onRows}</ul>` : `<div class="pr-sub">최근 5거래일에 켜진 조건이 없어요</div>`}
+      <div class="pr-sub">조건 충족 현황 <small class="pr-dim">● 켜짐 · ○ 꺼짐</small></div><div class="pr-chips">${chips}</div>
+    </div></details>`;
+}
+function prCaseChart(cs){
+  const B = cs.bars || []; if (!B.length) return "";
+  const W = 600, Hh = 170, L = 6, R = 46, T = 20, hi = Math.max(...B.map(r => r[2])), lo = Math.min(...B.map(r => r[3]));
+  const cw = (W - L - R) / B.length, x = i => L + cw * (i + 0.5), y = v => T + (1 - (v - lo) / Math.max(1e-9, hi - lo)) * (Hh - T - 6);
+  const pi = B.findIndex(r => r[0] === cs.peak), di = cs.drop_day ? B.findIndex(r => r[0] === cs.drop_day) : -1, fi = cs.first_any ? B.findIndex(r => r[0] === cs.first_any) : -1;
+  let g = "";
+  if (fi >= 0) g += `<line x1="${x(fi)}" x2="${x(fi)}" y1="${T - 4}" y2="${Hh}" stroke="var(--faint)" stroke-dasharray="3 3"/><text x="${x(fi) + 3}" y="${Hh - 2}" font-size="10" fill="var(--muted)">첫 참고 신호</text>`;
+  if (di >= 0) g += `<line x1="${x(di)}" x2="${x(di)}" y1="${T - 4}" y2="${Hh}" stroke="var(--down)" stroke-dasharray="3 3" opacity=".6"/><text x="${x(di) + 3}" y="${Hh - 14}" font-size="10" fill="var(--down)">−10% 도달</text>`;
+  B.forEach((r, i) => { const col = r[4] >= r[1] ? "var(--up)" : "var(--down)";
+    g += `<line x1="${x(i)}" x2="${x(i)}" y1="${y(r[2])}" y2="${y(r[3])}" stroke="${col}" stroke-width="1"/><rect x="${(x(i) - cw * .33).toFixed(1)}" width="${(cw * .66).toFixed(1)}" y="${y(Math.max(r[1], r[4])).toFixed(1)}" height="${Math.max(1, Math.abs(y(r[1]) - y(r[4]))).toFixed(1)}" fill="${col}"><title>${esc(r[0])} 시 ${r[1]} 고 ${r[2]} 저 ${r[3]} 종 ${r[4]}${cs.marks && cs.marks[r[0]] ? " · " + cs.marks[r[0]].map(prName).join(", ") : ""}</title></rect>`;
+    if (cs.marks && cs.marks[r[0]]) g += `<circle cx="${x(i)}" cy="${Math.max(T - 6, y(r[2]) - 6)}" r="2" fill="var(--faint)"/>`; });
+  if (pi >= 0) g += `<text x="${x(pi)}" y="${Math.max(10, y(B[pi][2]) - 9)}" text-anchor="middle" font-size="11" fill="var(--ink)">▼ 고점</text>`;
+  [hi, lo].forEach(v => { g += `<text x="${W - R + 3}" y="${y(v) + 4}" font-size="10" fill="var(--muted)">${Number(v).toLocaleString(undefined, { maximumFractionDigits: v >= 100 ? 0 : 2 })}</text>`; });
+  return `<svg viewBox="0 0 ${W} ${Hh + 4}" width="100%" role="img" aria-label="${esc(cs.ticker)} 고점 전후 일봉">${g}</svg>`;
+}
+function prLabHtml(){
+  const C = (PR_DATA && PR_DATA.cases) || []; if (!C.length) return `<div class="pr-lab"></div>`;
+  const i = Math.min(PR_CASE, C.length - 1), cs = C[i], B = cs.bars || [];
+  const pi = B.findIndex(r => r[0] === cs.peak), fi = cs.first_any ? B.findIndex(r => r[0] === cs.first_any) : -1;
+  const lead = pi >= 0 && fi >= 0 ? pi - fi : null;
+  const firstCodes = cs.first_any && cs.marks && cs.marks[cs.first_any] ? cs.marks[cs.first_any].map(prName).join(", ") : "";
+  const tabs = C.map((c, k) => `<button class="pr-tab${k === i ? " on" : ""}" data-prcase="${k}">${esc(c.ticker)} <small>${esc(String(c.peak).slice(2, 7).replace("-", "/"))}</small><em class="${c.kind === "bust" ? "b" : "c"}">${c.kind === "bust" ? "붕괴" : "지속"}</em></button>`).join("");
+  return `<div class="pr-lab"><div class="pr-tabs">${tabs}</div>
+    <div class="pr-case"><div class="pr-ch">${prCaseChart(cs)}</div>
+      <p class="pr-cap"><b>${esc(cs.ticker)}</b> ${esc(idMDsafe(cs.peak))} 고점 → 60일 안 최저 <b class="${cs.dd60 < 0 ? "down" : ""}">${cs.dd60}%</b> · ${cs.kind === "bust" ? "급락(붕괴)" : "조정 뒤 상승 지속(대조군)"}<br>
+      ${cs.first_valid ? `검증된 조건의 첫 경고 ${esc(idMDsafe(cs.first_valid))}` : "검증된 경고 조건 없음"} · 참고 신호 첫 발생 ${cs.first_any ? `${esc(idMDsafe(cs.first_any))}${lead != null ? `(고점 ${lead > 0 ? lead + "거래일 전" : lead < 0 ? -lead + "거래일 뒤" : "당일"})` : ""} — ${esc(firstCodes)}` : "없음"}${cs.drop_day ? ` · −10% 도달 ${esc(idMDsafe(cs.drop_day))}` : ""}</p></div></div>`;
+}
+function prPanelHtml(mine){
+  if (!PR_DATA) return `<div class="pr-empty">${PR_LOADING ? "연구 자료를 불러오는 중…" : "연구 자료(backtest/peak-reader.json)를 불러오지 못했어요."}</div>`;
+  const D = PR_DATA, valid = D.valid || [], b = prBase() || {}, cst = D.cases_stats || {}, n = Object.keys(D.names || {}).length;
+  const vs = cst["유효 조건 전부"], cur = cst["현행 1~3단계"], ext = cst["EXT"];
+  const rate = x => x && x.bust ? `${Math.round(x.caught / x.bust * 100)}%` : "—", far = x => x && x.cont ? `${Math.round(x.false / x.cont * 100)}%` : "—";
+  const rows = Object.keys(D.names || {}).map(c => { const h = prHold(c), k = cst[c]; return `<tr><td>${esc(prName(c))}</td><td>${h && h.dn10 != null ? h.dn10 + "%" : "—"}</td><td>${h && h.big != null ? h.big + "%" : "—"}</td><td>${rate(k)} / ${far(k)}</td><td>${h ? h.dates : "—"}</td><td>${valid.includes(c) ? "통과" : "미통과"}</td></tr>`; }).join("");
+  return `<p class="pr-lead">과거 급등 뒤 급락한 사례에서 반복된 기술적 신호와 지금 보유종목을 비교하는 실험실이에요. 미래 고점을 맞히는 기능이 아니에요.</p>
+    <div class="pr-note">${valid.length ? `검증을 통과한 조건 ${valid.length}개로 단계를 판정해요.` : `<b>검증 결과: 조건 ${n}개 모두 사전 기준을 통과하지 못했어요.</b> 그래서 🟡🟠🔴 단계는 내지 않고 '판정 보류'로만 보여 줘요. 켜진 신호는 참고용이에요.`}</div>
+    <div class="pr-h">① 보유종목 고점 위험 현황</div>
+    ${mine.length ? `<div class="pr-list">${mine.map(prItemHtml).join("")}</div>` : `<div class="pr-empty">보유 표시한 종목이 없어요.</div>`}
+    <div class="pr-h">② 과거 고점 사례 연구실 <small>최근 고점 순 · 급락·지속 모두</small></div>
+    ${prLabHtml()}
+    <details class="pr-fine"><summary>연구 방법 · 조건별 결과</summary><div>
+      대상 ${D.universe ? D.universe.watchlist : "—"}종목(관심종목) + 급등락 연구용 ${D.universe && D.universe.extra ? D.universe.extra.length : 0}종목 · ${esc(String(D.period && D.period[0]))}~${esc(String(D.period && D.period[1]))} 일봉 · 급등 국면(120일 저점 +50%↑ ∧ 60일 고점 85%↑)의 날만 봐요.<br>
+      판정 기준(결과 보기 전 고정): 2023년 이후(보류 기간) 10일 뒤 하락 비율과 20일 안 −15% 하락 비율이 모두 평소보다 5%p 이상 높고, 서로 다른 날 50일 이상, 2016~2022년도 같은 방향.<br>
+      평소(급등 국면 모든 날, 보류 기간): 10일 뒤 하락 ${b.dn10 ?? "—"}% · 20일 안 −15% ${b.big ?? "—"}%.<br>
+      <table class="pr-t"><tr><th>조건</th><th>10일 하락</th><th>−15%</th><th>붕괴 포착 / 지속 오경보</th><th>날</th><th>판정</th></tr>${rows}</table>
+      사례 단위: 급등 뒤 국소 고점에서 60일 안 −35% 이상 떨어진 '붕괴' ${vs ? vs.bust : cur ? cur.bust : "—"}건, −15% 안에서 고점을 다시 넘은 '지속' ${cur ? cur.cont : "—"}건. 고점 10일 전 ~ −10% 도달 전에 신호가 났으면 포착이에요.<br>
+      현행 고점 위험 1~3단계는 붕괴 ${rate(cur)} 포착 · 지속 ${far(cur)} 오경보였어요.${ext ? ` 20일선 과열(이격 25%↑)은 사례 단위로 붕괴 ${rate(ext)} 포착 · 지속 ${far(ext)} 오경보로 차이가 컸지만, 날 단위 기준에서는 10일 뒤 하락 비율이 평소와 같아(오르내림이 모두 큼) 통과하지 못했어요.` : ""}<br>
+      백테스트라 지금 관심종목 위주의 생존 편향이 있어요. 매수 신호·등급·원장에는 영향이 없어요. 자세한 내용: docs/2026-11-12-peak-reader.md
+    </div></details>`;
+}
 
 /* 장바구니 패널 — 보유 패널과 같은 자리를 쓴다 */
 const btnCartTop = document.getElementById("btnCart");
@@ -8826,7 +8960,7 @@ function openCartFullModal(){
 }
 function toggleCartPanel(force){
   const open = force !== undefined ? force : (holdPanel.classList.contains("hidden") || holdPanel.dataset.mode !== "cart");
-  if (open){ holdPanel.dataset.mode="cart"; renderCartPanel(); holdPanel.classList.remove("hidden"); }
+  if (open){ PR_OPEN = false; holdPanel.classList.remove("pr-open"); holdPanel.dataset.mode="cart"; renderCartPanel(); holdPanel.classList.remove("hidden"); }
   else { holdPanel.classList.add("hidden"); holdPanel.dataset.mode=""; }
   btnCartTop.classList.toggle("on", open);
   btnHoldTop.classList.toggle("on", false);
@@ -8848,6 +8982,9 @@ holdPanel.addEventListener("click", e=>{
     state.cart=state.cart.filter(t=>t!==rc.dataset.removeCart);
     save(); render(); renderCartPanel(); return;
   }
+  if (e.target.closest("[data-peakreader]")){ e.stopPropagation(); prToggle(); return; }
+  const pc = e.target.closest("[data-prcase]");
+  if (pc){ e.stopPropagation(); PR_CASE = +pc.dataset.prcase; const box = holdPanel.querySelector(".pr-lab"); if (box) box.outerHTML = prLabHtml(); return; }
   if (e.target.closest("[data-review]")){
     e.stopPropagation(); toggleCartPanel(false); openCartReview(); return; }
   const b = e.target.closest("[data-goto]");

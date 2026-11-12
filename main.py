@@ -727,6 +727,7 @@ LONG_REF_BARS = 60
 
 # ── 레버리지(배수) 상품 — 대시보드에서 ❗ 경고 표시 ──────────
 LEVERAGED = {"SOXL", "GDXU", "NAIL", "UYG", "DUSL", "FNGU", "BULZ"}
+LEV_X = {"UYG": 2}   # 배수(없으면 3배) — 고점판독기 이격 조건을 1배로 환산할 때만 쓴다
 
 # ── 기업 실적발표가 없는 상품(ETF·지수) ────────────────────
 # 실적 조회를 시도해도 404만 돌아오고 응답 대기시간만 낭비한다.
@@ -1665,6 +1666,16 @@ def analyze(ticker, name, category):
             row["peak_risk"] = pattern_flags.peak_risk_now(ps, [d.strftime("%Y-%m-%d") for d in close.index], close.values)
     except Exception as e:
         print(f"  ⚠ {ticker} 고점 위험 경고 계산 실패: {e}")
+    # 2026-11-12 🔬 고점판독기(실험실) — 오늘 급등 국면 여부 · 최근 5거래일에 켜진 조건. 표시 전용.
+    # 정의는 pattern_flags.peak_reader_flags 한 곳(docs/2026-11-12-peak-reader.md). 단계 판정은 화면이
+    # backtest/peak-reader.json의 '유효' 조건으로만 한다. 원장(HIST_FIELDS)에는 넣지 않는다.
+    try:
+        if op is not None:
+            fl = pattern_flags.peak_reader_flags(op.values, high.values, low.values, close.values, vol.values,
+                                                 lev=LEV_X.get(ticker, 3) if ticker in LEVERAGED else 1, ticker=ticker)
+            row["peak_reader"] = pattern_flags.peak_reader_now(fl, [d.strftime("%Y-%m-%d") for d in close.index], close.values)
+    except Exception as e:
+        print(f"  ⚠ {ticker} 고점판독기 계산 실패: {e}")
     return row
 
 # evaluate() 재현에 필요한 입력값을 모두 보관한다. 점수 자체는 저장하지 않는다.
