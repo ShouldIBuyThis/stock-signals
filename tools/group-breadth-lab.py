@@ -31,12 +31,17 @@ def constituents():
     sub = "GICS Sub-Industry" if "GICS Sub-Industry" in sp.columns else None
     SP = [ysym(x) for x in sp["Symbol"]]
     DEF = [ysym(x) for x, sec, sb in zip(sp["Symbol"], sp["GICS Sector"], sp[sub] if sub else [""] * len(sp)) if sec in DEF_SECTORS or (sec == "Health Care" and sb in DEF_SUBS)]
-    nd = None
+    nd, seen = None, []
     for t in wiki_tables("Nasdaq-100"):
-        cols = [str(c) for c in t.columns]
-        k = next((c for c in cols if c.lower() in ("ticker", "symbol")), None)
-        if k and 90 <= len(t) <= 110: nd = [ysym(x) for x in t[k]]; break
-    if not nd: raise RuntimeError("나스닥100 구성 표를 찾지 못했다")
+        cols = [" ".join(map(str, c)) if isinstance(c, tuple) else str(c) for c in t.columns]
+        seen.append((len(t), cols[:5]))
+        k = next((i for i, c in enumerate(cols) if any(w in c.lower() for w in ("ticker", "symbol"))), None)
+        if k is not None and 80 <= len(t) <= 130:
+            cand = [ysym(x) for x in t.iloc[:, k] if isinstance(x, str) and 1 <= len(x.strip()) <= 6]
+            if len(cand) >= 80 and (nd is None or len(cand) > len(nd)): nd = cand
+    if not nd:
+        print("  나스닥100 페이지의 표:", seen)
+        raise RuntimeError("나스닥100 구성 표를 찾지 못했다")
     if not (480 <= len(SP) <= 520): raise RuntimeError(f"S&P500 구성 수 이상: {len(SP)}")
     div, div_meta = None, None
     p = f"{ROOT}/data/groups/schd-holdings.csv"
