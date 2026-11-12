@@ -11,7 +11,7 @@
 const fs = require('fs'), H = require('./_harness');
 const raw = fs.readFileSync(process.argv[2] || 'backtest/raw.json', 'utf8');
 const page = H.loadPage();
-page.runInPage(`var __EO = ${process.env.ENTRY === 'open'};`);
+page.runInPage(`var __EO = ${process.env.ENTRY === 'open'}; var __GT = ${!!process.env.GTHEME};`);
 page.runInPage(`this.__run = j => { const RAW = JSON.parse(j); state.data = normalize(RAW); const byDate = new Map(), out = [];
   /* 나스닥 전용 등급(날짜별) — 화면 qqqTierRule() 그대로: 연속 하락(QQQ 종가) · VXN(그날·전날, backfill macro) · 바닥권(breadthByDate) */
   const QT = {}; try { const q = qqqBenchmarkStock(), qh = histStocks(q) || [], vx = (RAW.macro && RAW.macro.vxn) || {}, br = breadthByDate();
@@ -41,9 +41,17 @@ page.runInPage(`this.__run = j => { const RAW = JSON.parse(j); state.data = norm
       const g = n => o2 && hs[i+1+n] && has(hs[i+1+n].price) ? (hs[i+1+n].price/o2 - 1)*100 : null;   // 다음 봉 확인 뒤 진입(이틀 뒤 시가) — 미래 참조 없음
       const nxUp = !!(n1 && has(n1.price) && has(n1.open) && n1.price > n1.open && n1.price > r.price);
       out.push({ k: has(r.stoch_k) ? r.stoch_k : null, rsi: has(r.rsi) ? r.rsi : null, sc: r.stoch_cross || null, up: has(r.upw) ? r.upw : null, lw: has(r.loww) ? r.loww : null, bd: has(r.body) ? r.body : null, nxUp, g3: g(3), g5: g(5), g10: g(10),
+        px: __GT && o1 ? Array.from({ length: 10 }, (_, k) => hs[i+1+k] && has(hs[i+1+k].price) ? hs[i+1+k].price / o1 - 1 : null) : null, cat: r.category || '기타', lev: !!LEVERAGED[r.ticker],
         ep: r._ep === 1, bullP, d, t: r.ticker, kr: /\\.(KS|KQ)$/.test(r.ticker), rg: RG[/\\.(KS|KQ)$/.test(r.ticker) ? 'kr' : 'us'][d] || null, blk: r._blk, g: r.sig.grade, tier, bull, qt: QT[d] ?? null, atr: has(r.atr_pct) ? r.atr_pct : null, dj: has(r.body) && has(r.upw) && has(r.loww) && r.body <= 0.3 && r.upw >= 0.25 && r.loww >= 0.25, bbp: has(r.bb_pos) ? r.bb_pos : null, f3: f(3), f5: f(5), f10: f(10) }); }); });
   return out; };`);
 const R = page.__run(raw);
+if (process.env.GTHEME){   /* 2026-11-12 황금 × 테마 52주 흐름 국면별 탐색 — docs/2026-11-12-gold-theme.md */
+  page.runInPage(`this.__mem = () => JSON.stringify(allStocks().map(s => { const m = {}; (histStocks(s) || []).forEach(h => { if (has(h.pct_from_high) && has(h.pct_from_low) && has(h.price) && has(h.ma20)) m[String(h.last_date)] = [h.pct_from_high, h.pct_from_low, h.price > h.ma20 ? 1 : 0]; });
+    return { t: s.ticker, cat: s.category || '기타', lev: !!LEVERAGED[s.ticker], bench: !!s._benchmark, m }; }));`);
+  let GB = null; try { GB = JSON.parse(fs.readFileSync(process.env.GTHEME_GB || 'backtest/group-breadth.json', 'utf8')); } catch (e) {}
+  require('./gold-theme-analysis').run(R, JSON.parse(page.__mem()), GB, process.env.GTHEME_OUT || '');
+  process.exit(0);
+}
 if (process.env.PAIR){   /* 화면과 같은 페어 리버설 포함 vs 지금 도구(제외) — 황금 일봉 쪽 */
   const all = [...new Set(R.map(r => r.d))].sort(), cut1 = all[Math.max(0, all.length - 252)];
   const pct = (a, k) => { const v = a.map(r => r[k]).filter(x => x != null), u = v.filter(x => x > 1).length, dn = v.filter(x => x < -1).length; return u + dn ? `${Math.round(u / (u + dn) * 100)}%(${u}/${u + dn})` : '—'; };
