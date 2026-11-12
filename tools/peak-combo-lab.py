@@ -31,7 +31,13 @@ LEG_NAMES = {"EXT": "20일선 대비 과열(이격 25%↑)", "RSI_HOT": "RSI 75 
              "MACD_DEAD": "고점권 MACD 데드크로스", "STOCH_DEAD": "스토캐스틱 과열권 데드크로스", "FAIL_HIGH": "전 고점 돌파 실패(쌍봉형)", "SHOOT": "고점권 유성형", "HANG": "고점권 교수형",
              "ESTAR": "석별형", "VOL_BEAR": "고점권 대량 음봉", "VOL_STALL": "거래량 폭증 뒤 상승 정체", "MA20_BRK": "20일선 첫 이탈", "MA60_BRK": "60일선 첫 이탈", "SUP_BRK": "고점권 지지선 붕괴", "STAGE3": "단기 지지 붕괴(현행 3단계)"}
 BN.update({"L_" + k: "사례실·" + v for k, v in LEG_NAMES.items()}); BN["P_RUN"] = "급등 국면(사례실 판독 대상)"
-ALLB = [b for r in ROLES.values() for b in r] + [x for v in NB.values() for x in v] + LROLE + ["P_RUN"]
+# 2026-11-12 사전등록(docs/2026-11-12-peak-volume.md): 거래량 이상징후 10블록 × 확인 4블록
+VROLE = ["V_S2", "V_S3", "V_R15", "V_R20", "V_SLOW", "V_FAIL", "V_SQ5D", "V_SQ5N", "V_SQ20D", "V_SQ20N"]
+VCONF = ["I_RSID", "O_BBRE", "C_FB", "L_FAIL_HIGH"]
+BN.update({"V_S2": "5일 안 거래량 2배 폭증", "V_S3": "5일 안 거래량 3배 폭증", "V_R15": "5일 거래량 평소의 1.5배↑", "V_R20": "5일 거래량 평소의 2배↑",
+           "V_SLOW": "거래량 증가 ∧ 상승 둔화", "V_FAIL": "거래량 증가 ∧ 돌파 실패", "V_SQ5D": "폭증→감소→5일선 첫 이탈", "V_SQ5N": "폭증→감소 없이 5일선 첫 이탈",
+           "V_SQ20D": "폭증→감소→20일선 첫 이탈", "V_SQ20N": "폭증→감소 없이 20일선 첫 이탈", "O_BBRE": "볼밴 상단 재진입(3일 안)"})
+ALLB = [b for r in ROLES.values() for b in r] + [x for v in NB.values() for x in v] + LROLE + ["P_RUN"] + VROLE + ["O_BBRE"]
 HA, HB, PA, PB_, DA, DB = (1, 3, 5, 7), (3, 5, 7, 10, 20), 5, 10, 5, 7      # 평가 기간 · 주 평가 · 🟣 지정 기간
 FH = (1, 3, 5, 7, 10, 20); GAP = 25
 
@@ -57,7 +63,36 @@ def blocks(t, o, h, l, c, v, lev, TW, MK, BR, RSW):
              "X_T": TW if TW is not None else z, "X_MK": MK if MK is not None else z, "X_BR": BR, "X_RS": RSW}
         B["P_RUN"] = np.asarray(fl["RUN"], bool)
         for k in LEG: B["L_" + k] = np.asarray(fl[k], bool) if k in LEG_SAME else rmax(np.asarray(fl[k], bool), 3)
+        B.update(vol_blocks(o, h, l, c, v, up, ma5, ma20, B["C_FB"], B["L_FAIL_HIGH"]))
     return {k: np.asarray(a, bool) for k, a in B.items()}, fl, rc
+
+
+def vol_blocks(o, h, l, c, v, up, ma5, ma20, cfb, lfail):
+    """사전등록 docs/2026-11-12-peak-volume.md 그대로 — 그날까지의 자료만 쓴다."""
+    n = len(c); V = pd.Series(v, dtype=float)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        a20p = V.shift(1).rolling(20, min_periods=20).mean().to_numpy()                 # 그날을 뺀 앞 20일 평균
+        sp2, sp3 = np.nan_to_num(v / a20p, nan=0) >= 2, np.nan_to_num(v / a20p, nan=0) >= 3
+        r5v = V.rolling(5).sum().to_numpy() / (5 * V.shift(5).rolling(20, min_periods=20).mean().to_numpy()); r5v = np.nan_to_num(r5v, nan=0)
+        r5 = c / sh(c, 5) - 1; r5p = sh(r5, 5)
+        R15 = r5v >= 1.5
+        out = {"V_S2": rmax(sp2, 5), "V_S3": rmax(sp3, 5), "V_R15": R15, "V_R20": r5v >= 2.0,
+               "V_SLOW": R15 & np.nan_to_num((r5 < r5p) & (r5p > 0), nan=0).astype(bool), "V_FAIL": R15 & rmax(np.asarray(cfb, bool) | np.asarray(lfail, bool), 5)}
+        below5, below20 = np.nan_to_num(c < ma5, nan=0).astype(bool), np.nan_to_num(c < ma20, nan=0).astype(bool)
+        v3 = V.rolling(3).mean().to_numpy()
+        for nm, bel in (("5", below5), ("20", below20)):
+            dry, wet = np.zeros(n, bool), np.zeros(n, bool)
+            for D in range(11, n):
+                if not bel[D]: continue
+                ss = [s_ for s_ in range(D - 10, D) if sp2[s_]]
+                if not ss: continue
+                s_ = ss[-1]
+                if bel[s_ + 1:D].any(): continue            # 폭증 뒤 '처음' 이탈만
+                (dry if v3[D] < 0.5 * v[s_] else wet)[D] = True
+            out["V_SQ" + nm + "D"], out["V_SQ" + nm + "N"] = dry, wet
+        reb = np.zeros(n, bool); reb[1:] = np.nan_to_num((c[:-1] > up[:-1]) & (c[1:] <= up[1:]), nan=0).astype(bool)
+        out["O_BBRE"] = rmax(reb, 3)
+    return {k: np.asarray(x, bool) for k, x in out.items()}
 
 
 def outcomes(o, h, l, c, lev):
@@ -81,6 +116,9 @@ def outcomes(o, h, l, c, lev):
         out["N10"] = out["f10"] < 0      # 같은 정의의 10거래일판(사용자 요청 '10일 후 · 20일 후 각각')
         out["E10"] = out["f10"] < 0      # E 판독기 보고용(10일 단독)
         out["E20"] = ((out["f10"] < 0) | (out["f20"] < 0)) & np.isfinite(out["f20"])   # 사용자 기준: 10일 또는 20일 뒤 종가 하락
+        out["U10"] = out["f10"] < 0; out["U20"] = out["f20"] < 0                       # 거래량 연구(peak-volume) 10일 판독기
+        out["V10"] = out["f10"] < 0; out["V20"] = out["f20"] < 0                       # 20일 판독기
+        out["Y10"] = out["f10"] < 0; out["Y20"] = out["E20"]                            # OR 판독기
         for N in (3, 5, 7, 10, 20): out[f"D{N}"] = out[f"f{N}"] < -0.01; out[f"dec{N}"] = np.abs(out[f"f{N}"]) > 0.01      # §10 방향 기준(±1% 보합 제외) · 10·20일은 보고 전용(§11)
         sold = P * (1 - COST) / c - 1
         for N in (3, 5, 7): out[f"tr{N}"] = sold / 3 + 2 * out[f"f{N}"] / 3
@@ -246,6 +284,45 @@ def crash(a, per, Wl):
     print(f"→ {a.crash} 저장")
 
 
+def vcases(per, RES, Wl):
+    """실제 고점 직전 점검(사전등록): 고점 사례 연구실 9건 + 반도체·양자·우주 폭락(crash와 같은 정의).
+    고점 −10~0봉에 거래량·확인 블록이 켜진 날(고점 기준 상대 봉) · 눈여겨볼 조합(ZB 재현 또는 정식 통과)이 켜진 첫날."""
+    pr = json.load(open(f"{ROOT}/backtest/peak-reader.json", encoding="utf-8"))
+    cases = [{"t": c_["ticker"], "peak": c_["peak"], "src": "사례실 · " + ("급락" if c_["kind"] == "bust" else "상승 지속(대조)")} for c_ in pr.get("cases", [])]
+    for t, P_ in per.items():
+        cat = (Wl.get(t) or [""])[0] if isinstance(Wl, dict) else ""
+        if not cat or not any(k in cat for k in CRASH_CATS): continue
+        idx, h, l = P_[0], P_[2], P_[3]; ds = [str(x.date()) for x in idx]; n = len(h)
+        for i in range(20, n - 1):
+            if ds[i] < "2025-01-01" or h[i] < np.max(h[max(0, i - 20): min(n, i + 21)]): continue
+            if np.min(l[i:min(n, i + 31)]) / h[i] - 1 <= -0.25: cases.append({"t": t, "peak": ds[i], "src": "폭락 진단 · " + cat})
+    notable = []
+    for rd, R in RES.items():
+        for d_ in R.get("cands", []):
+            if d_.get("replicate") == "재현" or d_.get("verdict") == "검증 통과": notable.append((rd, d_["name"], d_["combo"]))
+    out = []
+    for c_ in cases:
+        P_ = per.get(c_["t"])
+        if not P_: c_["err"] = "시세 없음"; out.append(c_); continue
+        idx, B = P_[0], P_[11]; ds = [str(x.date()) for x in idx]
+        if c_["peak"] not in ds: c_["err"] = "고점 날짜 봉 없음"; out.append(c_); continue
+        pk = ds.index(c_["peak"]); w0 = max(0, pk - 10)
+        c_["blocks"] = {b: [k - pk for k in range(w0, pk + 1) if B[b][k]] for b in VROLE + VCONF if b in B}
+        c_["blocks"] = {b: v for b, v in c_["blocks"].items() if v}
+        lit = []
+        for rd, nm, cb in notable:
+            ks = [k for k in range(w0, pk + 1) if all(B[b][k] for b in cb)]
+            if ks: lit.append([rd, nm, ds[ks[0]], ks[0] - pk])
+        c_["notable"] = lit; out.append(c_)
+    print(f"\n■ 실제 고점 직전 점검 — {len(out)}건 (사례실 {sum(1 for x in out if x['src'].startswith('사례실'))} · 폭락 진단 {sum(1 for x in out if x['src'].startswith('폭락'))})")
+    for c_ in out:
+        if c_["src"].startswith("사례실"):
+            print(f"  {c_['t']:6} {c_['peak']} {c_['src']} | " + (c_.get("err") or " · ".join(f"{BN[b]} {v}" for b, v in c_["blocks"].items()) or "거래량·확인 블록 없음") + f" | 눈여겨볼 조합 {len(c_.get('notable', []))}")
+    vb = {b: sum(1 for x in out if b in x.get("blocks", {})) for b in VROLE + VCONF}; nn = sum(1 for x in out if "blocks" in x)
+    print("  블록별 고점 −10~0봉 점등 사례 수: " + " · ".join(f"{BN[b]} {k}/{nn}" for b, k in vb.items()))
+    return {"cases": out, "block_counts": vb, "n": nn, "notable": [[rd, nm] for rd, nm, _ in notable]}
+
+
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("--emit", default=""); ap.add_argument("--cache", required=True); ap.add_argument("--only", default=""); ap.add_argument("--diag", default=""); ap.add_argument("--crash", default=""); a = ap.parse_args()
     Z = pickle.load(open(a.cache, "rb")); a._hash, a._last = Z.get("data_hash"), Z.get("data_last"); data, orig, newx, zset, sector, SP, Wl = (Z[k] for k in ("data", "orig", "newx", "zset", "sector", "SP", "Wl"))
@@ -303,7 +380,7 @@ def main():
         push(meta, "bull", bull.reindex(d.index).fillna(False).to_numpy(bool), False); push(meta, "lev", np.full(n, lev), 1)
     M = {b: np.concatenate(cols[b]) for b in ALLB}; O_ = {k: np.concatenate(v_) for k, v_ in OUT.items()}; MT = {k: np.concatenate(v_) for k, v_ in meta.items()}
     for k in list(O_):
-        if (k[0] in "ABDRQFTMWPNE" and k[1:].replace("_", "").isdigit()) or k.startswith("dec") or k in ("vA", "vB", "early"): O_[k] = O_[k].astype(bool)
+        if (k[0] in "ABDRQFTMWPNEUVY" and k[1:].replace("_", "").isdigit()) or k.startswith("dec") or k in ("vA", "vB", "early"): O_[k] = O_[k].astype(bool)
     NT = len(MT["tk"]); print(f"종목 {len(tick)} (탐색 E·T·X {sum(t not in ZA and t not in ZB for t in tick)} · ZA {len(ZA)} · ZB {len(ZB)}) · 이어 붙인 봉 {NT:,}")
     part = MT["part"]; di = MT["di"]
     if a.crash:
@@ -330,7 +407,10 @@ def main():
           "R": {"roles": ["O", "C", "I", "K", "X"], "H": (10, 20), "prim": 20, "des": 20, "valid": O_["vB"], "name": "🔴 고점 붕괴 포착 R(신호일 가격 −10%)", "crash": "r"},
           "Q": {"roles": ["O", "C", "I", "K", "X"], "H": (10, 20), "prim": 20, "des": 20, "valid": O_["vB"], "name": "🔴 고점 붕괴 포착 Q(신호 뒤 고점 −10%)", "crash": "q"},
           "E": {"legacy": True, "pslots": ROLES["P"] + ["P_RUN"], "H": (20,), "Hrep": (10, 20), "prim": 20, "des": 20, "valid": O_["vB"],
-                "name": "🔴 사례실 신호 — 10거래일 또는 20거래일 뒤 종가 하락(신호일 종가 기준)", "p20": True}}
+                "name": "🔴 사례실 신호 — 10거래일 또는 20거래일 뒤 종가 하락(신호일 종가 기준)", "p20": True},
+          "U": {"vol": True, "pslots": ROLES["P"] + ["P_RUN"], "H": (10,), "Hrep": (10, 20), "prim": 10, "des": 10, "valid": O_["vB"], "name": "📊 거래량 이상징후 — 10거래일 뒤 종가 하락", "p20": True},
+          "V": {"vol": True, "pslots": ROLES["P"] + ["P_RUN"], "H": (20,), "Hrep": (10, 20), "prim": 20, "des": 20, "valid": O_["vB"], "name": "📊 거래량 이상징후 — 20거래일 뒤 종가 하락", "p20": True},
+          "Y": {"vol": True, "pslots": ROLES["P"] + ["P_RUN"], "H": (20,), "Hrep": (10, 20), "prim": 20, "des": 20, "valid": O_["vB"], "name": "📊 거래량 이상징후 — 10일 또는 20일 뒤 종가 하락(OR)", "p20": True}}
     if a.only: RD = {k: v for k, v in RD.items() if k in a.only.split(",")}
     SPEC = {"U1 고점권∩볼밴상단∩RSI다이버전스∩윗꼬리": lambda m: m["P_NEAR"] & m["O_BB"] & m["I_RSID"] & m["C_W"],
             "U2 고점터치∩MACD약화∩거래량감소∩이탈": lambda m: m["P_RT5"] & m["I_MACD"] & m["I_VDN"] & m["K_5"],
@@ -350,7 +430,12 @@ def main():
             m = M[pb_] if pb_ else np.ones(NT, bool)
             base[pb_ or "ALL"] = {"ex": {N: rate(np.nonzero(m & ex)[0], O_[f"{rd}{N}"], DEC(N))[2] for N in R["H"]}, "zb": {N: rate(np.nonzero(m & zb)[0], O_[f"{rd}{N}"], DEC(N))[2] for N in R["H"]}}
         combos = []
-        if R.get("legacy"):   # 고점 칸 1개 × 사례실 신호 1~3개(사전등록)
+        if R.get("vol"):      # 고점 칸 1개 × 거래량 블록 1개 × 확인 블록 0~2개(사전등록 · 440개)
+            for pk in R["pslots"]:
+                for vb in VROLE:
+                    for k in range(0, 3):
+                        for pick in itertools.combinations(VCONF, k): combos.append((pk, vb) + pick)
+        elif R.get("legacy"):   # 고점 칸 1개 × 사례실 신호 1~3개(사전등록)
             for pk in R["pslots"]:
                 for k in range(1, 4):
                     for pick in itertools.combinations(LROLE, k): combos.append((pk,) + pick)
@@ -374,7 +459,7 @@ def main():
             pk = SPEC_P.get(cb[0][:2]) if fn else cb[0]; p0 = base[pk or "ALL"]["ex"][R["prim"]]
             rows.append((cid, len(cb) if not fn else 0, i1, w1, i2, w2, p0, n1, k1, n2, k2))
             if not fn and i1 >= 6: bysize.setdefault(len(cb), []).append((w1, i1))
-            if (i1 >= 6 and w1 is not None and w1 > 0.65) or fn:
+            if (i1 >= 6 and w1 is not None and w1 > 0.65) or fn or R.get("vol"):   # 거래량 연구는 440개 전부 상세(사전등록: 65% 여부만으로 거르지 않음)
                 rare.append((cid, cb, fn, ev, e1, e2, pk))
         tested6 = [r for r in rows if r[2] >= 6]; hi = [r for r in tested6 if r[3] is not None and r[3] > 0.65 and r[1] > 0]
         exp_chance = sum(binom_tail_gt(r[2], r[6], 0.65) for r in tested6 if r[6] is not None and r[1] > 0)
@@ -467,7 +552,7 @@ def main():
         allrows = [[(cb[0] if fn else " ∩ ".join(BN[b] for b in cb)), (0 if fn else len(cb))] + [rowmap[cid][j] for j in (2, 7, 8)] + [None if rowmap[cid][3] is None else round(rowmap[cid][3], 3)] + [rowmap[cid][j] for j in (4, 9, 10)] + [None if rowmap[cid][5] is None else round(rowmap[cid][5], 3)]
                    for cid, cb, fn, ev, e1, e2, pk in rare]
         det = []
-        for cid, cb, fn, ev, e1, e2, pk in rare[:420]:
+        for cid, cb, fn, ev, e1, e2, pk in (rare if R.get("vol") else rare[:420]):
             d_ = detail(cb, fn, ev, pk); d_["top10"] = cid in topids; d_["top_rank"] = next((q + 1 for q, r in enumerate(top) if r[0] == cid), None); det.append(d_)
         rare65 = [x for x in rare if x[2] is not None or (rowmap[x[0]][2] >= 6 and (rowmap[x[0]][3] or 0) > 0.65)]
         full = {"cand": sum(1 for x in rare65 if x[2] is None), "rep": sum(1 for x in rare65 if x[2] is None and rowmap[x[0]][4] >= 6 and (rowmap[x[0]][5] or 0) > 0.65),
@@ -489,7 +574,7 @@ def main():
             print(f"   {d_['name'][:70]:<70} | 탐색 {pc(exz[P]['w'])}% ({exz[P]['hit']}/{exz['n']} · 독립 {exz['ind']}) | ZB {pc(zbz[P]['w'])}% ({zbz[P]['hit']}/{zbz['n']} · 독립 {zbz['ind']}) | {d_['replicate']} · {d_['verdict']}{' · 🟣' if d_['purple_ex'] else ''}")
         det.sort(key=lambda d_: (-(d_["parts"]["zb"]["ind"] >= 6 and (d_["parts"]["zb"][str(R["prim"])]["w"] or 0) > 0.65), -(d_["parts"]["ex"][str(R["prim"])]["w"] or 0)))
         RES[rd] = {"name": R["name"], "prim": R["prim"], "des": R["des"], "horizons": list(R["H"]), "base": {k: {q: {str(n_): v_ for n_, v_ in w.items()} for q, w in b.items()} for k, b in base.items()}, "summary": summ,
-                   "user5": [d_ for d_ in det if d_["k"] is None], "cands": [d_ for d_ in det if d_["k"] is not None][:400], "cands_total": full["cand"],
+                   "user5": [d_ for d_ in det if d_["k"] is None], "cands": [d_ for d_ in det if d_["k"] is not None][:(None if R.get("vol") else 400)], "cands_total": full["cand"],
                    "top10": sorted([d_ for d_ in det if d_.get("top10")], key=lambda d_: d_["top_rank"]),
                    "by_horizon": {str(N): {"gt65": len(v_), "zb6": sum(1 for x in v_ if x[3] >= 6), "zb_rep": sum(1 for x in v_ if x[3] >= 6 and (x[4] or 0) > 0.65),
                                            "list": [[" ∩ ".join(BN[b] for b in combos[x[0]][0]), x[1], round(x[2], 3), x[3], None if x[4] is None else round(x[4], 3)] for x in sorted(v_, key=lambda x: -x[2])[:200]]} for N, v_ in hzc.items()},
@@ -532,6 +617,7 @@ def main():
                "data_hash": a._hash, "data_last": a._last,
                "universe": {"explore_etx": sum(t not in ZA and t not in ZB and t not in LEV for t in tick), "za": len(ZA), "zb": len(ZB), "lev": sum(t in LEV for t in tick)},
                "period": [cald[0], cald[-1]], "leak_check": {"pairs": chk, "mismatch": int(mism)}, "readers": RES, "nvda": nv}
+        if any(RD[k].get("vol") for k in RD): out["vcases"] = vcases(per, RES, Wl); out["doc"] = "docs/2026-11-12-peak-volume.md"
         json.dump(out, open(a.emit, "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"), default=lambda x: x.item() if hasattr(x, "item") else str(x))
         print(f"\n→ {a.emit} 저장")
 
