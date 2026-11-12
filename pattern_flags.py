@@ -502,3 +502,105 @@ def peak_risk_now(ps, dates, c, show=PEAK_SHOW):
     elif np.isfinite(ps["sup"][t]):
         out.update({"support": float(ps["sup"][t]), "support_src": ps["sup_src"][t]})
     return out
+
+
+# ══ 🔬 고점판독기(실험실) 조건 — docs/2026-11-12-peak-reader.md (사전 등록 정의 그대로) ══
+# 한 곳 정의: 연구(tools/peak-reader-lab.py)와 화면 데이터(main.py → signals.json peak_reader)가 함께 쓴다.
+# 모두 그날까지의 확정 일봉만 쓴다(롤링·과거 이동만 · 미래 참조 없음). 등급·점수·판정에는 쓰지 않는다.
+PR_GROUPS = {
+    "EXT": "과열", "RSI_HOT": "과열", "BB_WICK": "과열",
+    "RSI_DIV": "약화", "MACD_FADE": "약화", "MACD_DEAD": "약화", "STOCH_DEAD": "약화", "FAIL_HIGH": "약화",
+    "SHOOT": "캔들", "HANG": "캔들", "ESTAR": "캔들",
+    "VOL_BEAR": "거래량", "VOL_STALL": "거래량",
+    "MA20_BRK": "이탈", "MA60_BRK": "이탈", "SUP_BRK": "이탈", "STAGE3": "이탈",
+}
+PR_NAMES = {
+    "EXT": "20일선 대비 과열(이격 25%↑)", "RSI_HOT": "RSI 75 이상", "BB_WICK": "볼밴 상단 밖 윗꼬리 반복",
+    "RSI_DIV": "RSI 약세 다이버전스", "MACD_FADE": "MACD 상승 힘 3일 연속 감소", "MACD_DEAD": "고점권 MACD 데드크로스",
+    "STOCH_DEAD": "스토캐스틱 과열권 데드크로스", "FAIL_HIGH": "전 고점 돌파 실패(쌍봉형)",
+    "SHOOT": "고점권 유성형", "HANG": "고점권 교수형", "ESTAR": "석별형",
+    "VOL_BEAR": "고점권 대량 음봉", "VOL_STALL": "거래량 폭증 뒤 상승 정체",
+    "MA20_BRK": "20일선 첫 이탈", "MA60_BRK": "60일선 첫 이탈", "SUP_BRK": "고점권 지지선 붕괴", "STAGE3": "단기 지지 붕괴(현행 3단계)",
+}
+
+
+def _ema(a, n):
+    return pd.Series(a).ewm(span=n, adjust=False).mean().to_numpy().copy()
+
+
+def peak_reader_flags(o, h, l, c, v, lev=1.0, ticker=""):
+    """봉마다 조건 → bool 배열 + RUN(급등 국면). 입력은 확정 일봉(오래된 → 최근)."""
+    o, h, l, c, v = (np.asarray(x, dtype=float) for x in (o, h, l, c, v))
+    n = len(c); s = pd.Series(c)
+    ma20, ma60 = s.rolling(20).mean().to_numpy(), s.rolling(60).mean().to_numpy()
+    lo120 = s.rolling(120, min_periods=120).min().to_numpy()
+    hh60 = pd.Series(h).rolling(60).max().to_numpy()
+    rng = np.where(h - l > 0, h - l, np.nan)
+    upw, loww, body = (h - np.maximum(o, c)) / rng, (np.minimum(o, c) - l) / rng, np.abs(c - o) / rng
+    r14 = _rsi(c, 14)
+    vma = pd.Series(v).rolling(20).mean().to_numpy()
+    near_hi = _gt(h, hh60 * 0.97 - 1e-12)
+    out = {}
+    out["RUN"] = _gt(c, lo120 * 1.5 - 1e-12) & _gt(c, hh60 * 0.85 - 1e-12)
+    # 과열
+    out["EXT"] = _gt((c / ma20 - 1) / max(lev, 1.0), 0.25 - 1e-12)
+    out["RSI_HOT"] = _gt(r14, 75 - 1e-9)
+    fs = flag_series(o, h, l, c, v, ticker)
+    ps = peak_risk_series(o, h, l, c, fs["X_ESTAR"])
+    out["BB_WICK"] = np.asarray(ps["s1"], dtype=bool)
+    # 약화
+    hh20p = pd.Series(h).shift(1).rolling(20).max().to_numpy()
+    rmax20p = pd.Series(r14).shift(1).rolling(20).max().to_numpy()
+    out["RSI_DIV"] = _gt(h, hh20p - 1e-12) & _gt(rmax20p, 70 - 1e-9) & _lt(r14, rmax20p - 5)
+    macd = _ema(c, 12) - _ema(c, 26); sig = _ema(macd, 9).copy(); hist = (macd - sig).copy(); macd = macd.copy()
+    if n > 35:
+        macd[:34] = np.nan; sig[:34] = np.nan; hist[:34] = np.nan
+    cc20 = s.rolling(20).max().to_numpy()
+    out["MACD_FADE"] = _gt(hist, 0) & _lt(hist, _shift(hist)) & _lt(_shift(hist), _shift(hist, 2)) & _lt(_shift(hist, 2), _shift(hist, 3)) & _gt(c, cc20 * 0.97 - 1e-12)
+    hh10 = pd.Series(h).rolling(10).max().to_numpy()
+    out["MACD_DEAD"] = _lt(macd, sig) & ~_lt(_shift(macd), _shift(sig)) & np.isfinite(_shift(macd)) & _gt(hh10, hh60 * 0.97 - 1e-12)
+    ll14, hh14 = pd.Series(l).rolling(14).min().to_numpy(), pd.Series(h).rolling(14).max().to_numpy()
+    kraw = 100 * (c - ll14) / np.where(hh14 - ll14 > 0, hh14 - ll14, np.nan)
+    k = pd.Series(kraw).rolling(3).mean().to_numpy(); d = pd.Series(k).rolling(3).mean().to_numpy()
+    out["STOCH_DEAD"] = _lt(k, d) & ~_lt(_shift(k), _shift(d)) & _gt(_shift(k), 80 - 1e-9)
+    # 전 고점(10~60봉 전 구간 최고) 근처까지 왔다가 돌파 못 하고 밀림
+    prev_hi = pd.Series(h).shift(10).rolling(51).max().to_numpy()
+    hh10b = pd.Series(h).rolling(10).max().to_numpy()
+    out["FAIL_HIGH"] = _gt(hh10b, prev_hi * 0.97 - 1e-12) & _lt(hh10b, prev_hi * 1.01 + 1e-12) & _lt(c, prev_hi * 0.97) & _gt(prev_hi, 0)
+    # 캔들
+    out["SHOOT"] = _gt(upw, 0.6 - 1e-9) & _lt(body, 0.3 + 1e-9) & _lt(loww, 0.15 + 1e-9) & near_hi
+    out["HANG"] = _gt(loww, 0.6 - 1e-9) & _lt(body, 0.3 + 1e-9) & _lt(upw, 0.15 + 1e-9) & near_hi
+    out["ESTAR"] = np.asarray(fs["X_ESTAR"], dtype=bool)
+    # 거래량
+    out["VOL_BEAR"] = _lt(c, o) & _gt(body, 0.5 - 1e-9) & _gt(v, vma * 2 - 1e-9) & near_hi
+    out["VOL_STALL"] = np.asarray(fs["O_VOLSTALL"], dtype=bool)
+    # 이탈
+    above20 = _gt(c, ma20); above60 = _gt(c, ma60)
+    run20 = pd.Series(_shift(above20.astype(float))).rolling(10).sum().to_numpy()
+    run60 = pd.Series(_shift(above60.astype(float))).rolling(20).sum().to_numpy()
+    out["MA20_BRK"] = _lt(c, ma20) & _gt(run20, 9.5)
+    out["MA60_BRK"] = _lt(c, ma60) & _gt(run60, 19.5)
+    hh15 = pd.Series(h).rolling(15).max().to_numpy()
+    out["SUP_BRK"] = np.asarray(fs["X_SUPBREAK"], dtype=bool) & _gt(hh15, hh60 * 0.9 - 1e-12)
+    out["STAGE3"] = np.asarray(ps["stage"]) == 3
+    out["_aux"] = {"rsi": r14, "macd_hist": hist, "stoch_k": k, "ma20": ma20, "ma60": ma60, "hh60": hh60, "lo120": lo120, "upw": upw, "pb_hi": ps["pb_hi"]}
+    return out
+
+
+def peak_reader_now(fl, dates, c, stats=None, win=5):
+    """화면용: 오늘 RUN 여부 · 최근 win 거래일 안에 켜진 조건(가장 최근 날짜) · 오늘 보조 수치. stats(검증 결과)는 화면이 따로 읽는다."""
+    n = len(c)
+    if not n: return None
+    t = n - 1
+    lo = max(0, n - win)
+    on = {}
+    for code in PR_GROUPS:
+        a = fl.get(code)
+        if a is None: continue
+        hits = [j for j in range(lo, n) if a[j]]
+        if hits: on[code] = dates[hits[-1]]
+    ax = fl["_aux"]
+    f = lambda x: None if x is None or not np.isfinite(x) else round(float(x), 2)
+    return {"date": dates[t], "run": bool(fl["RUN"][t]), "run_recent": bool(np.any(fl["RUN"][lo:n])),
+            "on": on, "rsi": f(ax["rsi"][t]), "hh60": f(ax["hh60"][t]), "lo120": f(ax["lo120"][t]),
+            "ma20": f(ax["ma20"][t]), "ma60": f(ax["ma60"][t]), "up120": f(c[t] / ax["lo120"][t] - 1) if np.isfinite(ax["lo120"][t]) and ax["lo120"][t] > 0 else None}
