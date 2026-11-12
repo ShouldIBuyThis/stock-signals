@@ -23,7 +23,15 @@ BN = {"P_NEAR": "52주 고가 5% 안", "P_RT5": "5일 안 52주 고가 터치", 
       "C_W": "윗꼬리 50%↑", "C_SHOOT": "유성형", "C_ESTAR": "석별형", "C_BEAR": "장대음봉", "C_FB": "신고가 돌파 실패", "I_RSID": "RSI 약세 다이버전스", "I_MACD": "MACD 약화", "I_STO": "스토캐스틱 과열권 데드",
       "I_VST": "거래량 폭증 뒤 정체", "I_VDN": "거래량 감소(5일<20일)", "K_5": "전일 저가·5일선 이탈", "K_20": "20일선 이탈", "K_SUP": "지지선 붕괴", "X_T": "테마 약화", "X_MK": "시장 내부 약화(4그룹)",
       "X_BR": "S&P500 신고가 참여 감소", "X_RS": "상대강도 약화"}
-ALLB = [b for r in ROLES.values() for b in r] + [x for v in NB.values() for x in v]
+# 2026-11-12 사전등록(docs/2026-11-12-peak-legacy-either.md): 고점 사례 연구실 신호 17개 그대로 + 고점 칸 RUN
+LEG = ["EXT", "RSI_HOT", "BB_WICK", "RSI_DIV", "MACD_FADE", "MACD_DEAD", "STOCH_DEAD", "FAIL_HIGH", "SHOOT", "HANG", "ESTAR", "VOL_BEAR", "VOL_STALL", "MA20_BRK", "MA60_BRK", "SUP_BRK", "STAGE3"]
+LEG_SAME = {"MA20_BRK", "MA60_BRK", "SUP_BRK", "STAGE3"}     # 이탈·붕괴형은 그날만, 나머지는 3거래일 안
+LROLE = ["L_" + k for k in LEG]
+LEG_NAMES = {"EXT": "20일선 대비 과열(이격 25%↑)", "RSI_HOT": "RSI 75 이상", "BB_WICK": "볼밴 상단 밖 윗꼬리 반복", "RSI_DIV": "RSI 약세 다이버전스", "MACD_FADE": "MACD 상승 힘 3일 연속 감소",
+             "MACD_DEAD": "고점권 MACD 데드크로스", "STOCH_DEAD": "스토캐스틱 과열권 데드크로스", "FAIL_HIGH": "전 고점 돌파 실패(쌍봉형)", "SHOOT": "고점권 유성형", "HANG": "고점권 교수형",
+             "ESTAR": "석별형", "VOL_BEAR": "고점권 대량 음봉", "VOL_STALL": "거래량 폭증 뒤 상승 정체", "MA20_BRK": "20일선 첫 이탈", "MA60_BRK": "60일선 첫 이탈", "SUP_BRK": "고점권 지지선 붕괴", "STAGE3": "단기 지지 붕괴(현행 3단계)"}
+BN.update({"L_" + k: "사례실·" + v for k, v in LEG_NAMES.items()}); BN["P_RUN"] = "급등 국면(사례실 판독 대상)"
+ALLB = [b for r in ROLES.values() for b in r] + [x for v in NB.values() for x in v] + LROLE + ["P_RUN"]
 HA, HB, PA, PB_, DA, DB = (1, 3, 5, 7), (3, 5, 7, 10, 20), 5, 10, 5, 7      # 평가 기간 · 주 평가 · 🟣 지정 기간
 FH = (1, 3, 5, 7, 10, 20); GAP = 25
 
@@ -47,6 +55,8 @@ def blocks(t, o, h, l, c, v, lev, TW, MK, BR, RSW):
              "I_VST": rmax(fl["VOL_STALL"], 3), "I_VDN": v5 < v20,
              "K_5": (c < sh(l)) & (c < ma5), "K_20": np.asarray(fl["MA20_BRK"], bool), "K_SUP": np.asarray(fl["SUP_BRK"], bool),
              "X_T": TW if TW is not None else z, "X_MK": MK if MK is not None else z, "X_BR": BR, "X_RS": RSW}
+        B["P_RUN"] = np.asarray(fl["RUN"], bool)
+        for k in LEG: B["L_" + k] = np.asarray(fl[k], bool) if k in LEG_SAME else rmax(np.asarray(fl[k], bool), 3)
     return {k: np.asarray(a, bool) for k, a in B.items()}, fl, rc
 
 
@@ -69,6 +79,8 @@ def outcomes(o, h, l, c, lev):
         for N in FH: out[f"f{N}"] = nxt(c, N) / c - 1
         out["P20"] = out["f20"] < 0      # 2026-11-12 고점판독 유일 기준: D+20 종가 < D 종가(신호일 종가 기준)
         out["N10"] = out["f10"] < 0      # 같은 정의의 10거래일판(사용자 요청 '10일 후 · 20일 후 각각')
+        out["E10"] = out["f10"] < 0      # E 판독기 보고용(10일 단독)
+        out["E20"] = ((out["f10"] < 0) | (out["f20"] < 0)) & np.isfinite(out["f20"])   # 사용자 기준: 10일 또는 20일 뒤 종가 하락
         for N in (3, 5, 7, 10, 20): out[f"D{N}"] = out[f"f{N}"] < -0.01; out[f"dec{N}"] = np.abs(out[f"f{N}"]) > 0.01      # §10 방향 기준(±1% 보합 제외) · 10·20일은 보고 전용(§11)
         sold = P * (1 - COST) / c - 1
         for N in (3, 5, 7): out[f"tr{N}"] = sold / 3 + 2 * out[f"f{N}"] / 3
@@ -291,7 +303,7 @@ def main():
         push(meta, "bull", bull.reindex(d.index).fillna(False).to_numpy(bool), False); push(meta, "lev", np.full(n, lev), 1)
     M = {b: np.concatenate(cols[b]) for b in ALLB}; O_ = {k: np.concatenate(v_) for k, v_ in OUT.items()}; MT = {k: np.concatenate(v_) for k, v_ in meta.items()}
     for k in list(O_):
-        if (k[0] in "ABDRQFTMWPN" and k[1:].replace("_", "").isdigit()) or k.startswith("dec") or k in ("vA", "vB", "early"): O_[k] = O_[k].astype(bool)
+        if (k[0] in "ABDRQFTMWPNE" and k[1:].replace("_", "").isdigit()) or k.startswith("dec") or k in ("vA", "vB", "early"): O_[k] = O_[k].astype(bool)
     NT = len(MT["tk"]); print(f"종목 {len(tick)} (탐색 E·T·X {sum(t not in ZA and t not in ZB for t in tick)} · ZA {len(ZA)} · ZB {len(ZB)}) · 이어 붙인 봉 {NT:,}")
     part = MT["part"]; di = MT["di"]
     if a.crash:
@@ -316,7 +328,9 @@ def main():
           "P": {"roles": ["O", "C", "I", "K", "X"], "H": (20,), "prim": 20, "des": 20, "valid": O_["vB"], "name": "🔴 고점판독 — 20거래일 뒤 종가 하락(신호일 종가 기준)", "p20": True},
           "N": {"roles": ["O", "C", "I", "K", "X"], "H": (10,), "prim": 10, "des": 10, "valid": O_["vB"], "name": "🔴 고점판독 — 10거래일 뒤 종가 하락(신호일 종가 기준)", "p20": True},
           "R": {"roles": ["O", "C", "I", "K", "X"], "H": (10, 20), "prim": 20, "des": 20, "valid": O_["vB"], "name": "🔴 고점 붕괴 포착 R(신호일 가격 −10%)", "crash": "r"},
-          "Q": {"roles": ["O", "C", "I", "K", "X"], "H": (10, 20), "prim": 20, "des": 20, "valid": O_["vB"], "name": "🔴 고점 붕괴 포착 Q(신호 뒤 고점 −10%)", "crash": "q"}}
+          "Q": {"roles": ["O", "C", "I", "K", "X"], "H": (10, 20), "prim": 20, "des": 20, "valid": O_["vB"], "name": "🔴 고점 붕괴 포착 Q(신호 뒤 고점 −10%)", "crash": "q"},
+          "E": {"legacy": True, "pslots": ROLES["P"] + ["P_RUN"], "H": (20,), "Hrep": (10, 20), "prim": 20, "des": 20, "valid": O_["vB"],
+                "name": "🔴 사례실 신호 — 10거래일 또는 20거래일 뒤 종가 하락(신호일 종가 기준)", "p20": True}}
     if a.only: RD = {k: v for k, v in RD.items() if k in a.only.split(",")}
     SPEC = {"U1 고점권∩볼밴상단∩RSI다이버전스∩윗꼬리": lambda m: m["P_NEAR"] & m["O_BB"] & m["I_RSID"] & m["C_W"],
             "U2 고점터치∩MACD약화∩거래량감소∩이탈": lambda m: m["P_RT5"] & m["I_MACD"] & m["I_VDN"] & m["K_5"],
@@ -332,11 +346,16 @@ def main():
     for rd, R in RD.items():
         valid = R["valid"]; prim = O_[f"{rd}{R['prim']}"]; DEC = (lambda N: O_[f"dec{N}"]) if R.get("dec") else (lambda N: None); pdec = DEC(R["prim"]); ex = (part == 1) & valid; zb = (part == 2) & valid; lv_ = (part == 3) & valid
         base = {}
-        for pb_ in ROLES["P"] + [None]:
+        for pb_ in R.get("pslots", ROLES["P"]) + [None]:
             m = M[pb_] if pb_ else np.ones(NT, bool)
             base[pb_ or "ALL"] = {"ex": {N: rate(np.nonzero(m & ex)[0], O_[f"{rd}{N}"], DEC(N))[2] for N in R["H"]}, "zb": {N: rate(np.nonzero(m & zb)[0], O_[f"{rd}{N}"], DEC(N))[2] for N in R["H"]}}
         combos = []
-        for k in range(1, 5):
+        if R.get("legacy"):   # 고점 칸 1개 × 사례실 신호 1~3개(사전등록)
+            for pk in R["pslots"]:
+                for k in range(1, 4):
+                    for pick in itertools.combinations(LROLE, k): combos.append((pk,) + pick)
+        else:
+          for k in range(1, 5):
             for rs in itertools.combinations(R["roles"], k):
                 for pk in ROLES["P"]:
                     for pick in itertools.product(*[ROLES[r] for r in rs]): combos.append((pk,) + pick)
