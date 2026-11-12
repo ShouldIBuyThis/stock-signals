@@ -1,0 +1,1019 @@
+{
+ "generated": "2026-11-12",
+ "kind": "replay",
+ "data_hash": "f52b5a5f7ca333b0",
+ "combo": "5일 안 52주 고가 터치 ∩ 신고가 돌파 실패 ∩ 스토캐스틱 과열권 데드 ∩ 20일선 이탈 ∩ 테마 약화",
+ "events": 35,
+ "site_ok": 35,
+ "full_ok": 35,
+ "leak_free": 35,
+ "note": "테마 약화(X_T)는 원장이 없는 과거라 연구 값 그대로 · 가격 조건 4개만 사이트 운영 함수로 재현",
+ "rows": [
+  {
+   "part": "ex",
+   "ticker": "MMM",
+   "date": "2010-05-06",
+   "set": "ZA",
+   "hit20": 1,
+   "on_site": false,
+   "na_1y": [
+    "P_NEAR",
+    "P_RT5",
+    "C_FB"
+   ],
+   "src52": "2y",
+   "site_ok": true,
+   "site_blocks": [
+    "C_FB",
+    "I_MACD",
+    "I_RSID",
+    "I_STO",
+    "K_20",
+    "K_5",
+    "O_BBX",
+    "P_H60",
+    "P_RT5"
+   ],
+   "leak_free": true,
+   "full_ok": true
+  },
+  {
+   "part": "ex",
+   "ticker": "CPAY",
+   "date": "2012-05-10",
+   "set": "ZA",
+   "hit20": 1,
+   "on_site": false,
+   "na_1y": [
+    "P_NEAR",
+    "P_RT5",
+    "C_FB"
+   ],
+   "src52": "2y",
+   "site_ok": true,
+   "site_blocks": [
+    "C_FB",
+    "I_MACD",
+    "I_STO",
+    "K_20",
+    "K_5",
+    "P_H60",
+    "P_NEAR",
+    "P_RT5"
+   ],
+   "leak_free": true,
+   "full_ok": true
+  },
+  {
+   "part": "ex",
+   "ticker": "PSA",
+   "date": "2013-05-22",
+   "set": "ZA",
+   "hit20": 1,
+   "on_site": false,
+   "na_1y": [
+    "P_NEAR",
+    "P_RT5",
+    "C_FB"
+   ],
+   "src52": "2y",
+   "site_ok": true,
+   "site_blocks": [
+    "C_BEAR",
+    "C_FB",
+    "I_RSID",
+    "I_STO",
+    "K_20",
+    "K_5",
+    "P_H60",
+    "P_NEAR",
+    "P_RT5"
+   ],
+   "leak_free": true,
+   "full_ok": true
+  },
+  {
+   "part": "ex",
+   "ticker": "CL",
+   "date": "2016-04-20",
+   "set": "ZA",
+   "hit20": 1,
+   "on_site": false,
+   "na_1y": [
+    "P_NEAR",
+    "P_RT5",
+    "C_FB"
+   ],
+   "src52": "2y",
+   "site_ok": true,
+   "site_blocks": [
+    "C_BEAR",
+    "C_ESTAR",
+    "C_FB",
+    "I_RSID",
+    "I_STO",
+    "I_VDN",
+    "K_20",
+    "K_5",
+    "O_BBX",
+    "P_H60",
+    "P_NEAR",
+    "P_RT5"
+   ],
+   "leak_free": true,
+   "full_ok": true
+  },
+  {
+   "part": "ex",
+   "ticker": "KLAC",
+   "date": "2017-06-09",
+   "set": "ZA",
+   "hit20": 1,
+   "on_site": false,
+   "na_1y": [
+    "P_NEAR",
+    "P_RT5",
+    "C_FB"
+   ],
+   "src52": "2y",
+   "site_ok": true,
+   "site_blocks": [
+    "C_BEAR",
+    "C_FB",
+    "I_MACD",
+    "I_RSID",
+    "I_STO",
+    "K_20",
+    "K_5",
+    "O_BBX",
+    "O_RSI",
+    "P_H60",
+    "P_RT5"
+   ],
+   "leak_free": true,
+   "full_ok": true
+  },
+  {
+   "part": "ex",
+   "ticker": "TXN",
+   "date": "2017-06-09",
+   "set": "ZA",
+   "hit20": 1,
+   "on_site": false,
+   "na_1y": [
+    "P_NEAR",
+    "P_RT5",
+    "C_FB"
+   ],
+   "src52": "2y",
+   "site_ok": true,
+   "site_blocks": [
+    "C_BEAR",
+    "C_FB",
+    "I_STO",
+    "I_VDN",
+    "K_20",
+    "K_5",
+    "O_BBX",
+    "P_H60",
+    "P_NEAR",
+    "P_RT5"
+   ],
+   "leak_free": true,
+   "full_ok": true
+  },
+  {
+   "part": "ex",
+   "ticker": "EXPE",
+   "date": "2017-06-09",
+   "set": "ZA",
+   "hit20": 0,
+   "on_site": false,
+   "na_1y": [
+    "P_NEAR",
+    "P_RT5",
+    "C_FB"
+   ],
+   "src52": "2y",
+   "site_ok": true,
+   "site_blocks": [
+    "C_BEAR",
+    "C_FB",
+    "I_MACD",
+    "I_RSID",
+    "I_STO",
+    "I_VDN",
+    "K_20",
+    "K_5",
+    "O_BBX",
+    "P_H60",
+    "P_NEAR",
+    "P_RT5"
+   ],
+   "leak_free": true,
+   "full_ok": true
+  },
+  {
+   "part": "ex",
+   "ticker": "META",
+   "date": "2017-06-09",
+   "set": "E",
+   "hit20": 0,
+   "on_site": true,
+   "na_1y": [
+    "P_NEAR",
+    "P_RT5",
+    "C_FB"
+   ],
+   "src52": "2y",
+   "site_ok": true,
+   "site_blocks": [
+    "C_FB",
+    "I_MACD",
+    "I_STO",
+    "K_20",
+    "K_5",
+    "O_BBX",
+    "P_H60",
+    "P_NEAR",
+    "P_RT5"
+   ],
+   "leak_free": true,
+   "full_ok": true
+  },
+  {
+   "part": "ex",
+   "ticker": "ODFL",
+   "date": "2017-07-27",
+   "set": "ZA",
+   "hit20": 1,
+   "on_site": false,
+   "na_1y": [
+    "P_NEAR",
+    "P_RT5",
+    "C_FB"
+   ],
+   "src52": "2y",
+   "site_ok": true,
+   "site_blocks": [
+    "C_BEAR",
+    "C_FB",
+    "I_RSID",
+    "I_STO",
+    "K_20",
+    "K_5",
+    "O_BBX",
+    "P_H60",
+    "P_RT5"
+   ],
+   "leak_free": true,
+   "full_ok": true
+  },
+  {
+   "part": "ex",
+   "ticker": "GNRC",
+   "date": "2017-11-01",
+   "set": "ZA",
+   "hit20": 1,
+   "on_site": false,
+   "na_1y": [
+    "P_NEAR",
+    "P_RT5",
+    "C_FB"
+   ],
+   "src52": "2y",
+   "site_ok": true,
+   "site_blocks": [
+    "C_BEAR",
+    "C_FB",
+    "I_RSID",
+    "I_STO",
+    "K_20",
+    "K_5",
+    "O_BBX",
+    "O_RSI",
+    "P_H60",
+    "P_RT5"
+   ],
+   "leak_free": true,
+   "full_ok": true
+  },
+  {
+   "part": "ex",
+   "ticker": "TWLO",
+   "date": "2018-03-27",
+   "set": "X",
+   "hit20": 0,
+   "on_site": false,
+   "na_1y": [
+    "P_NEAR",
+    "P_RT5",
+    "C_FB"
+   ],
+   "src52": "2y",
+   "site_ok": true,
+   "site_blocks": [
+    "C_FB",
+    "I_RSID",
+    "I_STO",
+    "I_VDN",
+    "K_20",
+    "K_5",
+    "P_H60",
+    "P_RT5"
+   ],
+   "leak_free": true,
+   "full_ok": true
+  },
+  {
+   "part": "ex",
+   "ticker": "PAYX",
+   "date": "2018-09-25",
+   "set": "ZA",
+   "hit20": 1,
+   "on_site": false,
+   "na_1y": [
+    "P_NEAR",
+    "P_RT5",
+    "C_FB"
+   ],
+   "src52": "2y",
+   "site_ok": true,
+   "site_blocks": [
+    "C_FB",
+    "I_RSID",
+    "I_STO",
+    "K_20",
+    "K_5",
+    "O_BBX",
+    "P_H60",
+    "P_NEAR",
+    "P_RT5"
+   ],
+   "leak_free": true,
+   "full_ok": true
+  },
+  {
+   "part": "ex",
+   "ticker": "YUM",
+   "date": "2019-02-25",
+   "set": "ZA",
+   "hit20": 0,
+   "on_site": false,
+   "na_1y": [
+    "P_NEAR",
+    "P_RT5",
+    "C_FB"
+   ],
+   "src52": "2y",
+   "site_ok": true,
+   "site_blocks": [
+    "C_BEAR",
+    "C_FB",
+    "I_MACD",
+    "I_STO",
+    "K_20",
+    "K_5",
+    "O_BBX",
+    "P_H60",
+    "P_NEAR",
+    "P_RT5"
+   ],
+   "leak_free": true,
+   "full_ok": true
+  },
+  {
+   "part": "ex",
+   "ticker": "PAYX",
+   "date": "2019-05-01",
+   "set": "ZA",
+   "hit20": 0,
+   "on_site": false,
+   "na_1y": [
+    "P_NEAR",
+    "P_RT5",
+    "C_FB"
+   ],
+   "src52": "2y",
+   "site_ok": true,
+   "site_blocks": [
+    "C_BEAR",
+    "C_FB",
+    "I_MACD",
+    "I_RSID",
+    "I_STO",
+    "K_20",
+    "K_5",
+    "O_BBX",
+    "P_H60",
+    "P_NEAR",
+    "P_RT5"
+   ],
+   "leak_free": true,
+   "full_ok": true
+  },
+  {
+   "part": "ex",
+   "ticker": "MA",
+   "date": "2023-07-27",
+   "set": "E",
+   "hit20": 0,
+   "on_site": true,
+   "na_1y": [
+    "P_NEAR",
+    "P_RT5",
+    "C_FB"
+   ],
+   "src52": "2y",
+   "site_ok": true,
+   "site_blocks": [
+    "C_BEAR",
+    "C_FB",
+    "I_MACD",
+    "I_STO",
+    "K_20",
+    "K_5",
+    "P_H60",
+    "P_NEAR",
+    "P_RT5"
+   ],
+   "leak_free": true,
+   "full_ok": true
+  },
+  {
+   "part": "ex",
+   "ticker": "TER",
+   "date": "2023-07-27",
+   "set": "ZA",
+   "hit20": 1,
+   "on_site": false,
+   "na_1y": [
+    "P_NEAR",
+    "P_RT5",
+    "C_FB"
+   ],
+   "src52": "2y",
+   "site_ok": true,
+   "site_blocks": [
+    "C_BEAR",
+    "C_FB",
+    "I_MACD",
+    "I_STO",
+    "K_20",
+    "K_5",
+    "O_BBX",
+    "P_H60",
+    "P_RT5"
+   ],
+   "leak_free": true,
+   "full_ok": true
+  },
+  {
+   "part": "zb",
+   "ticker": "DOV",
+   "date": "2009-10-23",
+   "set": "ZB",
+   "hit20": 0,
+   "on_site": false,
+   "na_1y": [
+    "P_NEAR",
+    "P_RT5",
+    "C_FB"
+   ],
+   "src52": "2y",
+   "site_ok": true,
+   "site_blocks": [
+    "C_BEAR",
+    "C_FB",
+    "I_MACD",
+    "I_STO",
+    "K_20",
+    "K_5",
+    "O_BBX",
+    "P_H60",
+    "P_RT5"
+   ],
+   "leak_free": true,
+   "full_ok": true
+  },
+  {
+   "part": "zb",
+   "ticker": "GPC",
+   "date": "2011-02-22",
+   "set": "ZB",
+   "hit20": 0,
+   "on_site": false,
+   "na_1y": [
+    "P_NEAR",
+    "P_RT5",
+    "C_FB"
+   ],
+   "src52": "2y",
+   "site_ok": true,
+   "site_blocks": [
+    "C_BEAR",
+    "C_FB",
+    "I_MACD",
+    "I_RSID",
+    "I_STO",
+    "K_20",
+    "K_5",
+    "O_BBX",
+    "P_H60",
+    "P_RT5"
+   ],
+   "leak_free": true,
+   "full_ok": true
+  },
+  {
+   "part": "zb",
+   "ticker": "EL",
+   "date": "2013-05-22",
+   "set": "ZB",
+   "hit20": 1,
+   "on_site": false,
+   "na_1y": [
+    "P_NEAR",
+    "P_RT5",
+    "C_FB"
+   ],
+   "src52": "2y",
+   "site_ok": true,
+   "site_blocks": [
+    "C_FB",
+    "C_W",
+    "I_STO",
+    "I_VDN",
+    "K_20",
+    "K_5",
+    "O_BBX",
+    "P_H60",
+    "P_NEAR",
+    "P_RT5"
+   ],
+   "leak_free": true,
+   "full_ok": true
+  },
+  {
+   "part": "zb",
+   "ticker": "EXR",
+   "date": "2013-05-22",
+   "set": "ZB",
+   "hit20": 1,
+   "on_site": false,
+   "na_1y": [
+    "P_NEAR",
+    "P_RT5",
+    "C_FB"
+   ],
+   "src52": "2y",
+   "site_ok": true,
+   "site_blocks": [
+    "C_BEAR",
+    "C_FB",
+    "I_RSID",
+    "I_STO",
+    "I_VDN",
+    "K_20",
+    "K_5",
+    "P_H60",
+    "P_NEAR",
+    "P_RT5"
+   ],
+   "leak_free": true,
+   "full_ok": true
+  },
+  {
+   "part": "zb",
+   "ticker": "HST",
+   "date": "2013-05-22",
+   "set": "ZB",
+   "hit20": 1,
+   "on_site": false,
+   "na_1y": [
+    "P_NEAR",
+    "P_RT5",
+    "C_FB"
+   ],
+   "src52": "2y",
+   "site_ok": true,
+   "site_blocks": [
+    "C_FB",
+    "I_MACD",
+    "I_STO",
+    "I_VDN",
+    "K_20",
+    "K_5",
+    "P_H60",
+    "P_NEAR",
+    "P_RT5"
+   ],
+   "leak_free": true,
+   "full_ok": true
+  },
+  {
+   "part": "zb",
+   "ticker": "DPZ",
+   "date": "2013-07-23",
+   "set": "ZB",
+   "hit20": 0,
+   "on_site": false,
+   "na_1y": [
+    "P_NEAR",
+    "P_RT5",
+    "C_FB"
+   ],
+   "src52": "2y",
+   "site_ok": true,
+   "site_blocks": [
+    "C_BEAR",
+    "C_FB",
+    "I_MACD",
+    "I_RSID",
+    "I_STO",
+    "K_20",
+    "K_5",
+    "P_H60",
+    "P_RT5"
+   ],
+   "leak_free": true,
+   "full_ok": true
+  },
+  {
+   "part": "zb",
+   "ticker": "CHTR",
+   "date": "2013-10-30",
+   "set": "ZB",
+   "hit20": 1,
+   "on_site": false,
+   "na_1y": [
+    "P_NEAR",
+    "P_RT5",
+    "C_FB"
+   ],
+   "src52": "2y",
+   "site_ok": true,
+   "site_blocks": [
+    "C_BEAR",
+    "C_FB",
+    "I_STO",
+    "I_VDN",
+    "K_20",
+    "K_5",
+    "O_BBX",
+    "P_H60",
+    "P_RT5"
+   ],
+   "leak_free": true,
+   "full_ok": true
+  },
+  {
+   "part": "zb",
+   "ticker": "CRM",
+   "date": "2014-02-28",
+   "set": "ZB",
+   "hit20": 1,
+   "on_site": false,
+   "na_1y": [
+    "P_NEAR",
+    "P_RT5",
+    "C_FB"
+   ],
+   "src52": "2y",
+   "site_ok": true,
+   "site_blocks": [
+    "C_BEAR",
+    "C_FB",
+    "I_MACD",
+    "I_RSID",
+    "I_STO",
+    "K_20",
+    "K_5",
+    "O_BBX",
+    "P_H60",
+    "P_RT5"
+   ],
+   "leak_free": true,
+   "full_ok": true
+  },
+  {
+   "part": "zb",
+   "ticker": "BG",
+   "date": "2014-12-10",
+   "set": "ZB",
+   "hit20": 1,
+   "on_site": false,
+   "na_1y": [
+    "P_NEAR",
+    "P_RT5",
+    "C_FB"
+   ],
+   "src52": "2y",
+   "site_ok": true,
+   "site_blocks": [
+    "C_BEAR",
+    "C_FB",
+    "I_MACD",
+    "I_RSID",
+    "I_STO",
+    "K_20",
+    "K_5",
+    "O_BBX",
+    "P_H60",
+    "P_NEAR",
+    "P_RT5"
+   ],
+   "leak_free": true,
+   "full_ok": true
+  },
+  {
+   "part": "zb",
+   "ticker": "COST",
+   "date": "2014-12-10",
+   "set": "ZB",
+   "hit20": 0,
+   "on_site": false,
+   "na_1y": [
+    "P_NEAR",
+    "P_RT5",
+    "C_FB"
+   ],
+   "src52": "2y",
+   "site_ok": true,
+   "site_blocks": [
+    "C_BEAR",
+    "C_FB",
+    "I_MACD",
+    "I_RSID",
+    "I_STO",
+    "K_20",
+    "K_5",
+    "O_BBX",
+    "P_H60",
+    "P_NEAR",
+    "P_RT5"
+   ],
+   "leak_free": true,
+   "full_ok": true
+  },
+  {
+   "part": "zb",
+   "ticker": "CNC",
+   "date": "2015-07-02",
+   "set": "ZB",
+   "hit20": 1,
+   "on_site": false,
+   "na_1y": [
+    "P_NEAR",
+    "P_RT5",
+    "C_FB"
+   ],
+   "src52": "2y",
+   "site_ok": true,
+   "site_blocks": [
+    "C_BEAR",
+    "C_FB",
+    "I_MACD",
+    "I_RSID",
+    "I_STO",
+    "K_20",
+    "K_5",
+    "P_H60",
+    "P_RT5"
+   ],
+   "leak_free": true,
+   "full_ok": true
+  },
+  {
+   "part": "zb",
+   "ticker": "CMI",
+   "date": "2017-11-01",
+   "set": "ZB",
+   "hit20": 1,
+   "on_site": false,
+   "na_1y": [
+    "P_NEAR",
+    "P_RT5",
+    "C_FB"
+   ],
+   "src52": "2y",
+   "site_ok": true,
+   "site_blocks": [
+    "C_BEAR",
+    "C_FB",
+    "I_MACD",
+    "I_RSID",
+    "I_STO",
+    "K_20",
+    "O_BBX",
+    "O_RSI",
+    "P_H60",
+    "P_NEAR",
+    "P_RT5"
+   ],
+   "leak_free": true,
+   "full_ok": true
+  },
+  {
+   "part": "zb",
+   "ticker": "ALB",
+   "date": "2017-11-02",
+   "set": "ZB",
+   "hit20": 1,
+   "on_site": false,
+   "na_1y": [
+    "P_NEAR",
+    "P_RT5",
+    "C_FB"
+   ],
+   "src52": "2y",
+   "site_ok": true,
+   "site_blocks": [
+    "C_BEAR",
+    "C_ESTAR",
+    "C_FB",
+    "I_RSID",
+    "I_STO",
+    "K_20",
+    "K_5",
+    "O_BBX",
+    "P_H60",
+    "P_NEAR",
+    "P_RT5"
+   ],
+   "leak_free": true,
+   "full_ok": true
+  },
+  {
+   "part": "zb",
+   "ticker": "D",
+   "date": "2017-12-18",
+   "set": "ZB",
+   "hit20": 1,
+   "on_site": false,
+   "na_1y": [
+    "P_NEAR",
+    "P_RT5",
+    "C_FB"
+   ],
+   "src52": "2y",
+   "site_ok": true,
+   "site_blocks": [
+    "C_BEAR",
+    "C_FB",
+    "I_MACD",
+    "I_RSID",
+    "I_STO",
+    "K_20",
+    "K_5",
+    "P_H60",
+    "P_NEAR",
+    "P_RT5"
+   ],
+   "leak_free": true,
+   "full_ok": true
+  },
+  {
+   "part": "zb",
+   "ticker": "WRB",
+   "date": "2018-01-02",
+   "set": "ZB",
+   "hit20": 0,
+   "on_site": false,
+   "na_1y": [
+    "P_NEAR",
+    "P_RT5",
+    "C_FB"
+   ],
+   "src52": "2y",
+   "site_ok": true,
+   "site_blocks": [
+    "C_BEAR",
+    "C_FB",
+    "I_MACD",
+    "I_RSID",
+    "I_STO",
+    "I_VDN",
+    "K_20",
+    "K_5",
+    "O_BBX",
+    "P_H60",
+    "P_NEAR",
+    "P_RT5"
+   ],
+   "leak_free": true,
+   "full_ok": true
+  },
+  {
+   "part": "zb",
+   "ticker": "ES",
+   "date": "2019-07-19",
+   "set": "ZB",
+   "hit20": 0,
+   "on_site": false,
+   "na_1y": [
+    "P_NEAR",
+    "P_RT5",
+    "C_FB"
+   ],
+   "src52": "2y",
+   "site_ok": true,
+   "site_blocks": [
+    "C_BEAR",
+    "C_FB",
+    "I_STO",
+    "I_VDN",
+    "K_20",
+    "K_5",
+    "P_H60",
+    "P_NEAR",
+    "P_RT5"
+   ],
+   "leak_free": true,
+   "full_ok": true
+  },
+  {
+   "part": "zb",
+   "ticker": "OKE",
+   "date": "2021-06-17",
+   "set": "ZB",
+   "hit20": 1,
+   "on_site": false,
+   "na_1y": [
+    "P_NEAR",
+    "P_RT5",
+    "C_FB"
+   ],
+   "src52": "2y",
+   "site_ok": true,
+   "site_blocks": [
+    "C_BEAR",
+    "C_FB",
+    "I_STO",
+    "K_20",
+    "K_5",
+    "O_BBX",
+    "P_H60",
+    "P_RT5"
+   ],
+   "leak_free": true,
+   "full_ok": true
+  },
+  {
+   "part": "zb",
+   "ticker": "AIG",
+   "date": "2021-11-05",
+   "set": "ZB",
+   "hit20": 1,
+   "on_site": false,
+   "na_1y": [
+    "P_NEAR",
+    "P_RT5",
+    "C_FB"
+   ],
+   "src52": "2y",
+   "site_ok": true,
+   "site_blocks": [
+    "C_BEAR",
+    "C_FB",
+    "I_MACD",
+    "I_STO",
+    "K_20",
+    "K_5",
+    "O_BBX",
+    "P_H60",
+    "P_RT5"
+   ],
+   "leak_free": true,
+   "full_ok": true
+  },
+  {
+   "part": "zb",
+   "ticker": "ULTA",
+   "date": "2023-05-01",
+   "set": "ZB",
+   "hit20": 1,
+   "on_site": false,
+   "na_1y": [
+    "P_NEAR",
+    "P_RT5",
+    "C_FB"
+   ],
+   "src52": "2y",
+   "site_ok": true,
+   "site_blocks": [
+    "C_BEAR",
+    "C_FB",
+    "I_MACD",
+    "I_STO",
+    "K_20",
+    "K_5",
+    "P_H60",
+    "P_NEAR",
+    "P_RT5"
+   ],
+   "leak_free": true,
+   "full_ok": true
+  }
+ ]
+}
