@@ -8849,8 +8849,10 @@ async function prToggle(){
   if (holdPanel.dataset.mode === "hold") renderHoldPanel();
   if (PR_OPEN){ const w = holdPanel.querySelector(".pr-wrap"); if (w) w.scrollIntoView({ block: "nearest" }); }
 }
-/* 유효 = 날 단위 사전 기준 통과(valid) ∪ 사례 단위 사전 등록 재검증 통과(valid_case, 2026-11-12 EXT 재검증) */
-const prValid = () => PR_DATA ? (PR_DATA.valid || []).concat(PR_DATA.valid_case || []) : [];
+/* 단계 판정에 쓰는 '유효' = 날 단위 사전 기준 통과(valid)만.
+   2026-11-12 사용자 지시: EXT는 사례 단위 재검증을 통과했지만 '변동성인지 붕괴 경고인지' 추가 연구 전까지 판정 보류 유지(🟡 켜지 않음) — 참고 표시만. */
+const prValid = () => PR_DATA ? (PR_DATA.valid || []) : [];
+const prCaseOk = c => !!(PR_DATA && (PR_DATA.valid_case || []).includes(c));
 const prName = c => (PR_DATA && PR_DATA.names && PR_DATA.names[c]) || c;
 const prHold = c => PR_DATA && PR_DATA.stats && PR_DATA.stats.all && PR_DATA.stats.all.codes[c] ? PR_DATA.stats.all.codes[c].hold : null;
 const prBase = () => PR_DATA && PR_DATA.stats && PR_DATA.stats.all ? PR_DATA.stats.all.base.hold : null;
@@ -8880,7 +8882,7 @@ function prItemHtml(s){
   const hi52 = has(s.high_52w) && has(s.price) && s.high_52w > 0 ? s.price / s.high_52w - 1 : null;
   const groups = ["과열", "약화", "캔들", "거래량", "이탈"], G = (PR_DATA && PR_DATA.groups) || {};
   const chips = groups.map(g => `<div class="pr-g"><span>${g}</span>${Object.keys(G).filter(c => G[c] === g).map(c => `<i class="${pr.on && pr.on[c] ? "on" : ""}${valid.includes(c) ? " v" : ""}" title="${esc(prStatLine(c))}">${pr.on && pr.on[c] ? "●" : "○"} ${esc(prName(c))}</i>`).join("")}</div>`).join("");
-  const onRows = J.on.map(c => `<li><b>${esc(prName(c))}</b> <small>${esc(idMDsafe(pr.on[c]))}</small><br><small class="pr-dim">${valid.includes(c) ? "검증 통과" : "참고 · 검증 미통과"} — ${prCaseLine(c) ? esc(prCaseLine(c)) + ". 날 단위로는 " : ""}${esc(prStatLine(c))}${prCaseLine(c) ? " — 흔들림이 커지는 구간이라는 뜻이고, 하락 방향을 예측하지는 않아요" : ""}</small></li>`).join("");
+  const onRows = J.on.map(c => `<li><b>${esc(prName(c))}</b> <small>${esc(idMDsafe(pr.on[c]))}</small><br><small class="pr-dim">${valid.includes(c) ? "검증 통과" : prCaseOk(c) ? "참고 · 사례 재검증 통과 · 날 단위 미통과 · 추가 연구 중" : "참고 · 검증 미통과"} — ${prCaseLine(c) ? esc(prCaseLine(c)) + ". 날 단위로는 " : ""}${esc(prStatLine(c))}${prCaseLine(c) ? " — 변동성이 커진 구간일 수 있어 하락 방향 예측으로 보지 않아요" : ""}</small></li>`).join("");
   return `<details class="pr-item"><summary><span class="pr-tk">${esc(s.ticker)}</span><span class="pr-nm">${esc(s.name || "")}</span><span class="pr-badge ${J.cls}">${esc(J.label)}</span><span class="pr-why">${esc(J.why)}</span></summary>
     <div class="pr-body">
       <div class="pr-kv"><div><small>120일 저점 대비</small><b>${pct(pr.up120)}</b></div><div><small>52주 고점 대비</small><b>${pct(hi52)}</b></div><div><small>RSI</small><b>${pr.rsi ?? "—"}</b></div></div>
@@ -8940,7 +8942,7 @@ function prPanelHtml(mine){
       평소(급등 국면 모든 날, 보류 기간): 10일 뒤 하락 ${b.dn10 ?? "—"}% · 20일 안 −15% ${b.big ?? "—"}%.<br>
       <table class="pr-t"><tr><th>조건</th><th>10일 하락</th><th>−15%</th><th>붕괴 포착 / 지속 오경보</th><th>날</th><th>판정</th></tr>${rows}</table>
       사례 단위: 급등 뒤 국소 고점에서 60일 안 −35% 이상 떨어진 '붕괴' ${vs ? vs.bust : cur ? cur.bust : "—"}건, −15% 안에서 고점을 다시 넘은 '지속' ${cur ? cur.cont : "—"}건. 고점 10일 전 ~ −10% 도달 전에 신호가 났으면 포착이에요.<br>
-      ${D.ext_test ? `이격 과열 사례 단위 재검증(2023년 이후 고점만 · 결과 전 기준 고정): ${D.ext_test.pass ? "통과 — 🟡 고점 경계에 사용" : "미통과"} · 붕괴 포착 ${D.ext_test.table["25|A|hold"].cap}% vs 지속 오경보 ${D.ext_test.table["25|A|hold"].far}% (붕괴 ${D.ext_test.table["25|A|hold"].bust} · 지속 ${D.ext_test.table["25|A|hold"].cont}건).<br>` : ""}
+      ${D.ext_test ? `이격 과열 사례 단위 재검증(2023년 이후 고점만 · 결과 전 기준 고정): ${D.ext_test.pass ? "통과(추가 연구 전까지 단계 판정에는 쓰지 않음)" : "미통과"} · 붕괴 포착 ${D.ext_test.table["25|A|hold"].cap}% vs 지속 오경보 ${D.ext_test.table["25|A|hold"].far}% (붕괴 ${D.ext_test.table["25|A|hold"].bust} · 지속 ${D.ext_test.table["25|A|hold"].cont}건).<br>` : ""}
       현행 고점 위험 1~3단계는 붕괴 ${rate(cur)} 포착 · 지속 ${far(cur)} 오경보였어요.${ext ? ` 20일선 과열(이격 25%↑)은 사례 단위로 붕괴 ${rate(ext)} 포착 · 지속 ${far(ext)} 오경보로 차이가 컸지만, 날 단위 기준에서는 10일 뒤 하락 비율이 평소와 같아(오르내림이 모두 큼) 통과하지 못했어요.` : ""}<br>
       백테스트라 지금 관심종목 위주의 생존 편향이 있어요. 매수 신호·등급·원장에는 영향이 없어요. 자세한 내용: docs/2026-11-12-peak-reader.md
     </div></details>`;
