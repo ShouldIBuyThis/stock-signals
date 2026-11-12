@@ -23,7 +23,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: 의존성 설치
-        run: pip install -q yfinance pandas numpy requests lxml
+        run: pip install -q yfinance pandas numpy requests lxml exchange_calendars
       - name: 연구 실행의 시세 스냅샷 받기
         uses: actions/download-artifact@v4
         with:
