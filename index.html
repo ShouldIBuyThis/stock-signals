@@ -809,6 +809,11 @@ html[data-theme="dark"] .badge.gOh,html[data-theme="dark"] .c-badge.gOh,html[dat
 .hl-tbl{border-collapse:collapse;font-size:12px;width:100%}.hl-tbl td,.hl-tbl th{padding:3px 6px;border-bottom:1px solid var(--line,#e5e7eb);text-align:right}.hl-tbl td:first-child{text-align:left}
 .hl-note2{font-size:11px;color:var(--muted);line-height:1.6;margin-top:6px}.hl-warn{font-size:12px;color:#b45309;margin-top:4px}
 .hl-per{display:flex;gap:6px;margin:4px 0}.hl-legend{font-size:11px;display:flex;flex-wrap:wrap;gap:4px 10px;margin:4px 0}
+.hl-sub{font-size:12.5px;font-weight:800;color:var(--ink);margin:12px 0 6px} .hl-sub small{font-weight:500;color:var(--faint)}
+.hl-gm{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0} .hl-gls{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+.hl-gl{font:inherit;font-size:12px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:4px 9px;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+.hl-gl i{width:10px;height:10px;border-radius:50%;background:var(--c)} .hl-gl small{color:var(--faint)} .hl-gl.off{opacity:.45} .hl-gl.off i{background:transparent;border:1.5px solid var(--c)}
+.hl-th-r{font-size:11.5px;color:var(--reason);margin:2px 0} .hl-th-st{margin-left:auto;font-size:11px;font-weight:700;color:var(--muted)} .hl-th-st.up{color:var(--up)} .hl-th-st.down{color:var(--down)}
 .hl-ths{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin:6px 0}
 .hl-th{background:var(--surface);border-radius:12px;box-shadow:var(--shadow)} .hl-th[open]{grid-column:1/-1}
 .hl-th>summary{list-style:none;cursor:pointer;padding:8px 10px 6px} .hl-th>summary::-webkit-details-marker{display:none} .hl-th>summary::marker{content:""}
@@ -4919,6 +4924,7 @@ function ledgerTrack(code, kind, h){
        패턴 신호 → backtest/signal-stats.json(tools/signal-stats.py, 관심종목 10년 백테스트, 같은 함수)
        사이트 판정 → strategyValidation()(원장 최근 거래일 실제 기록)
    · 과거 성적이 평소와 비슷하거나 표본이 적으면 그렇게 쓴다. 신호가 없으면 '현재 신호 없음'. 등급·순위에는 영향 없음. */
+let THEME_BR = null, GROUP_BR = null;   /* 2026-11-12 테마·4그룹 52주 신고가 비율(backtest/theme-breadth.json · group-breadth.json) — 표시 전용 */
 let SIGNAL_BT = null, BREADTH_BT = null, VALID_BT = null, GOLD_CASES = null;   /* GOLD_CASES: 🏆 황금신호 발생 목록(backtest/gold-cases.json) */   /* VALID_BT: 도움말 승률표 3년 백테스트(tools/validation-3y.js) */
 async function loadJsonFromRepo(name){
   const tries = [];
@@ -4939,6 +4945,10 @@ async function loadBoardData(){
   if (b && b.rows) BREADTH_BT = b;
   if (c && c.table) VALID_BT = c;
   if ((SIGNAL_BT || BREADTH_BT || VALID_BT || GOLD_CASES) && state.data && typeof render === "function") { try { render(); } catch(e){} }
+  /* 테마·4그룹 신고가 비율은 뒤이어 따로 받는다(없어도 기존 화면은 그대로) */
+  Promise.all([loadJsonFromRepo("theme-breadth.json"), loadJsonFromRepo("group-breadth.json")]).then(([t, g]) => {
+    if (t && t.markets) THEME_BR = t; if (g && g.groups) GROUP_BR = g;
+    if ((THEME_BR || GROUP_BR) && state.data && typeof render === "function") { try { render(); } catch(e){} } }).catch(() => {});
 }
 const SB_KIND = {
   green:  {icon:"🟢", title:"반등 신호", head:"반등 신호 발생", pill:"pl-green"},
@@ -5475,38 +5485,89 @@ function hlTrendSentence(pts){
   if (dl >= 1) return "최근 2주 신저가 종목이 늘고 있어요.";
   return "최근 2주 신고가·신저가 수에 뚜렷한 변화가 없어요.";
 }
-/* 2026-11-12 사용자 제안: 52주 신고가·신저가를 테마(관심종목 카테고리)별로 — 표시 전용.
-   과거 = breadth-history.json의 그날 신고가·신저가 종목 목록 + 원장 · 테마 = 지금 관심종목의 카테고리(지금 목록에 없는 옛 종목은 셈에서 빠짐).
-   그날 테마 종목 수(분모)는 과거 자료에 없어 '개수'로만 보여 준다(비율 아님). 분석 재료로 쓰려면 별도 사전 등록 연구가 필요하다. */
-function hlThemeSeries(pts){
-  const cat = {}; allStocks().forEach(s => { if (s && !isKR(s.ticker)) cat[s.ticker] = s.category || "기타"; });
-  const th = {};
-  pts.forEach((p, i) => {
-    const add = (lst, k) => (lst || []).forEach(t => { const c = cat[t]; if (!c) return; const T = th[c] || (th[c] = pts.map(q => ({date:q.date, nh:0, nl:0, hl:[], ll:[]}))); T[i][k]++; T[i][k === "nh" ? "hl" : "ll"].push(t); });
-    add(p.hl, "nh"); add(p.ll, "nl");
-  });
-  const size = {}; Object.values(cat).forEach(c => size[c] = (size[c] || 0) + 1);
-  return Object.entries(th).map(([c, ser]) => ({ c, ser, size: size[c] || 0, last: ser[ser.length - 1],
-    act: ser.reduce((z, q) => z + q.nh + q.nl, 0) })).filter(x => x.act > 0);
+/* 2026-11-12 테마별 52주 신고가·신저가 '비율' — 표시 전용(docs/2026-11-12-theme-flow.md).
+   자료 = backtest/theme-breadth.json(현재 관심종목 고정 유니버스 소급 · 252봉 미만 제외 · 레버리지 제외 · 날짜별 분석 가능 종목 수 n이 분모).
+   그 뒤 날짜는 원장으로 잇는다(같은 정의 · 그 종목이 252봉을 채운 날 이후만). 미국·한국은 섞지 않는다. n < min_n(4)이면 '자료 부족'.
+   상태 라벨(확산·약화·혼조)은 사전 등록 §2 식 그대로의 '설명'이다 — 예측 판정이 아니고 등급·신호에 쓰지 않는다. */
+const HL_LEV = new Set(["SOXL", "GDXU", "NAIL", "UYG", "DUSL", "FNGU", "BULZ"]);
+function hlThemeData(market){
+  const M = THEME_BR && THEME_BR.markets && THEME_BR.markets[market]; if (!M) return null;
+  const key = (state.data && state.data.generated_at) + "|" + market + "|" + THEME_BR.generated;
+  if (hlThemeData._k === key) return hlThemeData._v;
+  const dates = M.dates.slice(), th = {}; Object.entries(M.themes).forEach(([c, x]) => th[c] = { members: x.members, n: x.n.slice(), nh: x.nh.slice(), nl: x.nl.slice() });
+  /* 원장으로 최신 날짜 잇기 */
+  const F = histFields(), iD = F.indexOf("date"), iH = F.indexOf("pct_from_high"), iL = F.indexOf("pct_from_low"), last = dates[dates.length - 1], add = {};
+  const catOf = {}; Object.entries(th).forEach(([c, x]) => x.members.forEach(t => catOf[t] = c));
+  ((state.data && state.data.stocks) || []).forEach(s => { const c = catOf[s.ticker], fo = M.first_ok && M.first_ok[s.ticker]; if (!c || !fo || iH < 0) return;
+    (s._hist || []).forEach(r => { const d = r && r[iD]; if (!d || d <= last || d < fo || r[iH] == null || r[iL] == null) return;
+      const a = (add[d] = add[d] || {}), z = (a[c] = a[c] || { n: 0, nh: 0, nl: 0 }); z.n++; if (r[iH] >= -1) z.nh++; if (r[iL] <= 1) z.nl++; }); });
+  Object.keys(add).sort().forEach(d => { dates.push(d); Object.keys(th).forEach(c => { const z = add[d][c] || { n: 0, nh: 0, nl: 0 }; th[c].n.push(z.n); th[c].nh.push(z.nh); th[c].nl.push(z.nl); }); });
+  const v = { dates, th, min: THEME_BR.min_n || 4, jsonLast: last };
+  hlThemeData._k = key; hlThemeData._v = v; return v;
 }
-function hlSpark(ser){
-  const W = 150, H = 34, n = ser.length; if (n < 2) return "";
-  const mx = Math.max(1, ...ser.map(q => Math.max(q.nh, q.nl))), x = i => 2 + i * (W - 4) / (n - 1), y = v => H - 3 - v / mx * (H - 8);
-  const pl = k => ser.map((q, i) => `${x(i).toFixed(1)},${y(q[k]).toFixed(1)}`).join(" ");
-  return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" aria-hidden="true"><polyline points="${pl("nh")}" fill="none" stroke="#e5484d" stroke-width="1.4"/><polyline points="${pl("nl")}" fill="none" stroke="#3b82f6" stroke-width="1.4"/></svg>`;
+function hlThemeCalc(x, min){   /* hr·lr·net(비율) · 5일 평균 · 변화 — 사전 등록 §1 */
+  const N = x.n.length, ok = x.n.map(v => v >= min), hr = x.n.map((v, i) => ok[i] ? x.nh[i] / v : null), lr = x.n.map((v, i) => ok[i] ? x.nl[i] / v : null);
+  const m5 = a => a.map((_, i) => { if (i < 4) return null; let z = 0; for (let k = i - 4; k <= i; k++){ if (a[k] == null) return null; z += a[k]; } return z / 5; });
+  const hr5 = m5(hr), lr5 = m5(lr), net5 = hr5.map((v, i) => v == null || lr5[i] == null ? null : v - lr5[i]);
+  const dk = k => { const i = N - 1; return i - k >= 0 && net5[i] != null && net5[i - k] != null ? net5[i] - net5[i - k] : null; };
+  const i = N - 1; let label = "자료 부족";
+  if (ok[i] && net5[i] != null && i >= 5 && net5[i - 5] != null){ const d5 = net5[i] - net5[i - 5];
+    label = d5 <= -0.05 && hr5[i - 5] > 0 ? "약화" : d5 >= 0.05 && x.nh.slice(-5).some(v => v >= 2) && lr5[i] <= lr5[i - 5] ? "확산" : "혼조"; }
+  return { ok, hr, lr, hr5, lr5, net5, d3: dk(3), d5: dk(5), d10: dk(10), label };
 }
-function hlThemeHtml(pts){
-  const T = hlThemeSeries(pts);
-  if (!T.length) return `<div class="hl-note2">이 기간에 테마별 신고가·신저가 기록이 없어요.</div>`;
-  T.sort((a, b) => (b.last.nh - b.last.nl) - (a.last.nh - a.last.nl) || b.act - a.act);
-  const card = x => { const sh = x.ser.reduce((z, q) => z + q.nh, 0), sl = x.ser.reduce((z, q) => z + q.nl, 0), L = x.last;
-    const tone = L.nh > L.nl ? "up" : L.nl > L.nh ? "down" : "";
-    return `<details class="hl-th"><summary><div class="hl-th-h"><b>${esc(x.c)}</b><small>${x.size}종목</small><span class="${tone}">오늘 ▲${L.nh} ▼${L.nl}</span></div>${hlSpark(x.ser)}
-      <div class="hl-th-s">기간 합계 신고가 ${sh} · 신저가 ${sl}</div></summary>
-      <div class="hl-th-b">${hlChartSvg(x.ser)}
-        ${L.hl.length || L.ll.length ? `<div class="hl-list">${L.hl.map(t => `<button class="hl-chip" data-rankgoto="${esc(t)}" data-rank-sort="overall"><b>${esc(t)}</b> <small>신고가</small></button>`).join("")}${L.ll.map(t => `<button class="hl-chip" data-rankgoto="${esc(t)}" data-rank-sort="overall"><b>${esc(t)}</b> <small>신저가</small></button>`).join("")}</div>` : ""}</div></details>`; };
-  return `<div class="hl-ths">${T.map(card).join("")}</div>
-    <div class="hl-note2">빨강 = 52주 신고가권(최고가 1% 안) 종목 수 · 파랑 = 신저가권 · 지금 관심종목(미국)의 테마 기준이라 과거에 빠진 종목은 세지 않아요. 개수만 보여 주고, 테마별 예측력은 아직 검증 전이에요.</div>`;
+function hlRatioSvg(dates, series, opt){   /* series: [{k, color, vals(0~1|null)}] · 값이 없는 구간은 선을 끊는다 */
+  const n = dates.length; if (n < 2) return "";
+  const mini = !!(opt && opt.mini), noEnd = mini || !!(opt && opt.noEnd);
+  const W = mini ? 300 : 640, Hh = (opt && opt.h) || 200, L = mini ? 2 : 34, R = mini ? 2 : (opt && opt.r) || 40, T = mini ? 4 : 12, B = mini ? 4 : 24;
+  const all = series.flatMap(z => z.vals).filter(v => v != null), mx = Math.max(0.05, ...all), mn = Math.min(0, ...all);
+  const x = i => L + i * (W - L - R) / (n - 1), y = v => T + (1 - (v - mn) / Math.max(1e-9, mx - mn)) * (Hh - T - B);
+  const path = v => { let d = "", pen = false; v.forEach((q, i) => { if (q == null){ pen = false; return; } d += `${pen ? "L" : "M"}${x(i).toFixed(1)},${y(q).toFixed(1)}`; pen = true; }); return d; };
+  const grid = [mn, 0, mx].filter((v, i, a) => a.indexOf(v) === i).map(v => `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line,#e5e7eb)"${v === 0 && mn < 0 ? ' stroke-dasharray="3 3"' : ""}/>${mini ? "" : `<text x="${L - 4}" y="${y(v) + 4}" text-anchor="end" font-size="10" fill="var(--muted)">${Math.round(v * 100)}%</text>`}`).join("");
+  const di = [0, Math.floor((n - 1) / 2), n - 1], dl = mini ? "" : di.map(i => `<text x="${x(i)}" y="${Hh - 6}" text-anchor="${i === 0 ? "start" : i === n - 1 ? "end" : "middle"}" font-size="10" fill="var(--muted)">${esc(dates[i])}</text>`).join("");
+  const lines = series.map(z => { let li = -1; for (let i = n - 1; i >= 0; i--) if (z.vals[i] != null){ li = i; break; }
+    return `<path d="${path(z.vals)}" fill="none" stroke="${z.color}" stroke-width="${mini ? 1.3 : 1.7}"/>${li >= 0 && !noEnd ? `<circle cx="${x(li)}" cy="${y(z.vals[li])}" r="3" fill="${z.color}"/><text x="${Math.min(W - 2, x(li) + 5)}" y="${y(z.vals[li]) + 4}" font-size="10.5" font-weight="700" fill="${z.color}">${Math.round(z.vals[li] * 100)}%</text>` : ""}`; }).join("");
+  return `<svg viewBox="0 0 ${W} ${Hh}" width="100%" role="img" aria-label="${esc((opt && opt.label) || "비율 그래프")}">${grid}${lines}${dl}</svg>`;
+}
+function hlThemeHtml(cnt){
+  const D = hlThemeData("us");
+  if (!D) return `<div class="hl-note2">테마별 비율 자료(backtest/theme-breadth.json)를 불러오는 중이거나 아직 없어요.</div>`;
+  const a0 = Math.max(0, D.dates.length - cnt), dates = D.dates.slice(a0), pc = v => v == null ? "—" : Math.round(v * 100) + "%", pp = v => v == null ? "—" : (v >= 0 ? "+" : "") + Math.round(v * 100) + "%p";
+  const tkToday = c => { const hi = [], lo = []; allStocks().forEach(s => { if (s.category === c && !isKR(s.ticker) && !HL_LEV.has(s.ticker)){ if (has(s.pct_from_high) && s.pct_from_high >= -1) hi.push(s.ticker); if (has(s.pct_from_low) && s.pct_from_low <= 1) lo.push(s.ticker); } }); return { hi, lo }; };
+  const rows = Object.entries(D.th).map(([c, x]) => { const k = hlThemeCalc(x, D.min), i = x.n.length - 1; return { c, x, k, n: x.n[i], okNow: k.ok[i], net: k.ok[i] ? k.hr[i] - k.lr[i] : null }; });
+  const good = rows.filter(r => r.okNow).sort((a, b) => (b.k.net5[b.x.n.length - 1] ?? -9) - (a.k.net5[a.x.n.length - 1] ?? -9)), thin = rows.filter(r => !r.okNow);
+  const card = r => { const { c, x, k } = r, i = x.n.length - 1, sl = a => a.slice(a0), t = tkToday(c), cls = { "확산": "up", "약화": "down" }[k.label] || "";
+    return `<details class="hl-th"><summary><div class="hl-th-h"><b>${esc(c)}</b><small>${x.n[i]}종목</small><span class="hl-th-st ${cls}">${k.label}</span></div>
+      <div class="hl-th-r">신고가 <b class="up">${pc(k.hr[i])}</b> · 신저가 <b class="down">${pc(k.lr[i])}</b> · 순 ${pp(k.hr[i] - k.lr[i])}</div>
+      ${hlRatioSvg(dates, [{ color: "#e5484d", vals: sl(k.hr) }, { color: "#3b82f6", vals: sl(k.lr) }], { h: 44, mini: true, label: c + " 신고가·신저가 비율" })}
+      <div class="hl-th-s">순신고가(5일 평균) 변화 3·5·10일 ${pp(k.d3)} · ${pp(k.d5)} · ${pp(k.d10)}</div></summary>
+      <div class="hl-th-b">${hlRatioSvg(dates, [{ color: "#e5484d", vals: sl(k.hr) }, { color: "#3b82f6", vals: sl(k.lr) }], { label: c + " 신고가·신저가 비율(크게)" })}
+        <div class="hl-note2">오늘 신고가권 ${x.nh[i]} · 신저가권 ${x.nl[i]} / 분석 가능 ${x.n[i]}종목(구성 ${x.members.length}) · 최근 5일 신고가 종목 수 ${x.nh.slice(-5).join("·")}${x.nh.slice(-5).every(v => v <= 1) && x.nh.slice(-5).some(v => v === 1) ? " — 소수 종목에만 집중" : ""}</div>
+        ${t.hi.length || t.lo.length ? `<div class="hl-list">${t.hi.map(q => `<button class="hl-chip" data-rankgoto="${esc(q)}" data-rank-sort="overall"><b>${esc(q)}</b> <small>신고가</small></button>`).join("")}${t.lo.map(q => `<button class="hl-chip" data-rankgoto="${esc(q)}" data-rank-sort="overall"><b>${esc(q)}</b> <small>신저가</small></button>`).join("")}</div>` : ""}</div></details>`; };
+  const K = hlThemeData("kr"), krLine = K ? Object.entries(K.th).map(([c, x]) => `${esc(c)} ${x.n[x.n.length - 1]}종목`).join(" · ") : "";
+  return `<div class="hl-ths">${good.map(card).join("")}</div>
+    ${thin.length ? `<div class="hl-note2"><b>자료 부족(분석 가능 ${D.min}종목 미만 — 비율·비교 제외)</b>: ${thin.map(r => `${esc(r.c)} ${r.n}종목`).join(" · ")}</div>` : ""}
+    ${krLine ? `<div class="hl-note2"><b>🇰🇷 한국장 테마(미국과 따로 집계)</b>: ${krLine} — 모두 ${D.min}종목 미만이라 자료 부족</div>` : ""}
+    <div class="hl-note2">비율 = 그날 신고가권(52주 고가 1% 안)·신저가권 종목 수 ÷ 그날 분석 가능 종목 수(1년 미만 상장·레버리지 제외). 기준일 ${esc(D.dates[D.dates.length - 1])} · <b>현재 관심종목 고정 유니버스 소급 분석</b>이라 과거에 목록에서 빠진 종목은 없어요(생존 편향). 상태(확산·약화·혼조)는 설명용이고 예측력은 검증 전이에요.</div>`;
+}
+/* 4그룹 통합 비교 — S&P500 · 나스닥100 · 경기방어 · 배당(SCHD 편입 종목). 각 그룹의 '구성 종목'으로 센 비율이고 ETF 한 종목의 신고가 여부가 아니다. */
+const HL_GRP = [["SP", "#2563eb"], ["NDX", "#7c3aed"], ["DEF", "#059669"], ["DIV", "#d97706"]];
+function hlGroupHtml(cnt){
+  const G = GROUP_BR; if (!G) return `<div class="hl-note2">4그룹 비교 자료(backtest/group-breadth.json)를 불러오는 중이거나 아직 없어요.</div>`;
+  const met = state.hlGrpMetric || "net", off = state.hlGrpOff || {}, a0 = Math.max(0, G.dates.length - cnt), dates = G.dates.slice(a0);
+  const val = g => { const x = G.groups[g]; return x.n.map((n, i) => !x.ok[i] || !n ? null : met === "hr" ? x.nh[i] / n : met === "lr" ? x.nl[i] / n : (x.nh[i] - x.nl[i]) / n).slice(a0); };
+  const ser = HL_GRP.filter(([g]) => G.groups[g] && !off[g]).map(([g, color]) => ({ k: g, color, vals: val(g) }));
+  const leg = HL_GRP.map(([g, color]) => { const x = G.groups[g], nm = (G.names && G.names[g]) || g;
+    const lv = x ? val(g).slice(-1)[0] : null, ls = lv == null ? "자료 부족" : (met === "net" && lv >= 0 ? "+" : "") + (lv * 100).toFixed(1) + "%";
+    return x ? `<button class="hl-gl${off[g] ? " off" : ""}" data-hlgt="${g}" style="--c:${color}"><i></i>${esc(nm)} <b>${ls}</b> <small>${x.n[x.n.length - 1]}종목</small></button>`
+             : `<span class="hl-gl off" style="--c:${color}"><i></i>${esc(nm)} <small>구성 자료 없음</small></span>`; }).join("");
+  const ov = G.overlap || {}, mlab = { net: "순신고가 비율", hr: "신고가 비율", lr: "신저가 비율" };
+  return `<div class="hl-gm">${["net", "hr", "lr"].map(k => `<button class="chip ${met === k ? "on" : ""}" data-hlgm="${k}">${mlab[k]}</button>`).join("")}</div>
+    <div class="hl-gls">${leg}</div>
+    ${ser.length ? hlRatioSvg(dates, ser, { r: 8, noEnd: true, label: "4그룹 " + mlab[met] }) : `<div class="hl-note2">표시할 그룹을 범례에서 켜 주세요.</div>`}
+    <div class="hl-note2">${mlab[met]} = ${met === "net" ? "(신고가 수 − 신저가 수)" : met === "hr" ? "신고가 수" : "신저가 수"} ÷ 분석 가능 종목 수 × 100 · 기준일 ${esc(G.dates[G.dates.length - 1])} · 각 그룹의 <b>구성 종목</b>으로 센 값이에요(ETF 한 종목이 아님).<br>
+      <b>현재 구성 종목 소급 분석</b> — 과거에 편출·상장폐지된 종목은 없어 실제 과거 구성과 달라요. 나스닥은 나스닥100 기준. 경기방어 = ${esc(G.defensive_def || "")}.
+      ${G.groups.DIV ? `배당 = ${esc(G.div_source || "SCHD 편입 종목")}.` : "배당(SCHD 편입 종목)은 구성 종목 자료가 아직 없어 표시하지 않아요(ETF 한 종목으로 대신하지 않음)."}
+      겹치는 종목: 나스닥100∩S&P500 ${ov["NDX&SP"] ?? "—"} · 경기방어⊂S&P500 ${ov["DEF&SP"] ?? "—"}.</div>`;
 }
 function hlPanelHtml(){
   /* 2026-11-06 사용자 지시 — ① 결론 ② 근거(오늘·5일·20일) ③ 종목 ④ 확인할 것(일반 해석 예시) · 그래프·사례는 접기.
@@ -5543,14 +5604,17 @@ function hlPanelHtml(){
     ${nh||nl ? `<div class="hl-list">${t.lo.map(s=>stockLine(s,false)).join("")}${t.hi.map(s=>stockLine(s,true)).join("")}</div>` : `<div class="hl-note2">오늘 52주 신고가·신저가를 기록한 관심종목이 없어요.</div>`}
     <div class="hl-guide">${guide}<br><small>일반적인 해석 예시예요(매수·매도 지시 아님) · 관심종목 기준이라 NYSE 전체와 달라요.</small></div>
     <div class="hl-pred">📊 ${esc(pred)}</div>
-    <details class="hl-more"><summary>📈 그래프 보기</summary>
+    <details class="hl-more" data-hlsec="chart"${(state.hlOpen || {}).chart ? " open" : ""}><summary>📈 그래프 보기</summary>
       <div class="hl-per">${["1M","3M","1Y","3Y"].map(k=>`<button class="chip ${per===k?"on":""}" data-hlper="${k}">${{"1M":"1개월","3M":"3개월","1Y":"1년","3Y":"3년"}[k]}</button>`).join("")}</div>
       <div class="hl-legend"><span style="color:#e5484d">━ 신고가 수</span> <span style="color:#3b82f6">━ 신저가 수</span> <span>▮ 둘의 차이</span></div>
       ${hlChartSvg(allPts.slice(-cnt))}
       <div class="hl-one">💬 ${esc(hlTrendSentence(allPts))}</div></details>
-    <details class="hl-more"><summary>🗂 테마별 신고가·신저가 그래프</summary>
+    <details class="hl-more" data-hlsec="theme"${(state.hlOpen || {}).theme ? " open" : ""}><summary>🗂 테마별 신고가·신저가 그래프</summary>
       <div class="hl-per">${["1M","3M","1Y","3Y"].map(k=>`<button class="chip ${per===k?"on":""}" data-hlper="${k}">${{"1M":"1개월","3M":"3개월","1Y":"1년","3Y":"3년"}[k]}</button>`).join("")}</div>
-      ${hlThemeHtml(allPts.slice(-cnt))}</details>
+      <div class="hl-sub">📊 S&P500 · 나스닥100 · 경기방어 · 배당 — 한 그래프 비교</div>
+      ${hlGroupHtml(cnt)}
+      <div class="hl-sub">🗂 관심종목 테마별 <small>신고가 비율(빨강) · 신저가 비율(파랑)</small></div>
+      ${hlThemeHtml(cnt)}</details>
     <details class="hl-more"><summary>📅 과거 비슷했던 날 · 숫자 자세히</summary>
       ${H ? `<table class="hl-tbl"><tr><th></th><th>이런 날</th><th>평소</th></tr>
         <tr><td>나스닥 5일 뒤 상승</td><td>${pctS(H.same.up5)}</td><td>${pctS(H.base.up5)}</td></tr>
@@ -9106,6 +9170,7 @@ function prPanelHtml(mine){
 
 /* 2026-11-12 📸 차트 캡처 분석 기능은 사용자 지시로 삭제 — 예전에 브라우저에 저장된 분석 암호만 한 번 지운다 */
 try { localStorage.removeItem("snapPass"); } catch(e){}
+document.addEventListener("toggle", e => { const d = e.target; if (d && d.dataset && d.dataset.hlsec){ (state.hlOpen = state.hlOpen || {})[d.dataset.hlsec] = d.open; } }, true);
 /* 장바구니 패널 — 보유 패널과 같은 자리를 쓴다 */
 const btnCartTop = document.getElementById("btnCart");
 function renderCartPanel(){
@@ -9396,6 +9461,8 @@ document.getElementById("main").addEventListener("click", e=>{
   if (rb){ e.preventDefault(); openRealChartModal(rb.dataset.rcbig); return; }
   const hlp = e.target.closest("[data-hlper]");
   if (hlp){ e.preventDefault(); state.hlPeriod = hlp.dataset.hlper; render(); return; }
+  const hgm = e.target.closest("[data-hlgm]"); if (hgm){ e.preventDefault(); state.hlGrpMetric = hgm.dataset.hlgm; render(); return; }
+  const hgt = e.target.closest("[data-hlgt]"); if (hgt){ e.preventDefault(); const o = state.hlGrpOff = state.hlGrpOff || {}; o[hgt.dataset.hlgt] = !o[hgt.dataset.hlgt]; render(); return; }
   const pick = e.target.closest("[data-patpick]");
   if (pick){ const st = allStocks().find(z=>z.ticker===pick.dataset.patpick); if(!st) return;
     const sh = todayShape(st), row = patternWidgetRows([st])[0];
