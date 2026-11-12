@@ -1693,6 +1693,15 @@ def analyze(ticker, name, category):
             row["peak_risk"] = pattern_flags.peak_risk_now(ps, [d.strftime("%Y-%m-%d") for d in close.index], close.values)
     except Exception as e:
         print(f"  ⚠ {ticker} 고점 위험 경고 계산 실패: {e}")
+    # 2026-11-12 국면(표시 전용 · 원장 아님): 종가 vs 200일선 · 60거래일 수익 — 황금 × 국면별 고적중 조합 표시가 QQQ(미장)·069500(국장)의 값을 쓴다.
+    # 연구(tools/gold-3y-lab.js RG)와 같은 식: 위·플러스 = 상승 / 아래·마이너스 = 하락 / 그 밖 횡보.
+    try:
+        _m200 = ma200.iloc[-1]; _r60 = (close.iloc[-1] / close.iloc[-61] - 1) if len(close) > 60 else None
+        row["mkt_regime"] = None if _r60 is None or pd.isna(_m200) else {
+            "date": close.index[-1].strftime("%Y-%m-%d"), "r60": round(float(_r60), 4), "ma200": round(float(_m200), 4),
+            "rg": "상승" if close.iloc[-1] > _m200 and _r60 > 0 else "하락" if close.iloc[-1] < _m200 and _r60 < 0 else "횡보"}
+    except Exception:
+        row["mkt_regime"] = None
     # 2026-11-12 🔬 고점판독기(실험실) — 오늘 급등 국면 여부 · 최근 5거래일에 켜진 조건. 표시 전용.
     # 정의는 pattern_flags.peak_reader_flags 한 곳(docs/2026-11-12-peak-reader.md). 단계 판정은 화면이
     # backtest/peak-reader.json의 '유효' 조건으로만 한다. 원장(HIST_FIELDS)에는 넣지 않는다.
