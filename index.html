@@ -9006,6 +9006,10 @@ function prStatLine(c){
 /* ── 2차 연구 참고 블록(2026-11-12 사용자 지시) — 전부 '참고 · 검증 미통과'. 숫자는 backtest/peak-reader2.json 그대로,
    세 자료 묶음(탐색 E · 독립 T · 독립 X)의 날짜 가중 비율을 사건 수로 가중 평균해 한 줄로 보인다. 단계·매수 산식과 무관. */
 const PR_PARTS = ["E", "T", "X"];
+/* 2026-11-12 사용자 지시 — 고점판독기 승률 표시 규칙: ① 단일 지표 승률은 전시하지 않는다 ② 조합(교집합)도 하락 비율이 65% 이상일 때만 숫자를 보인다
+   ③ 65%에 못 미치는 조합은 숫자 없이 '65% 미만 · 검증 미통과'라고만 적는다(전체 표는 docs/). 검증 자료(T·X) 둘 다 넘어야 '65% 이상'으로 본다. */
+const PR_MIN = 0.65;
+const prHigh = (sg) => !!sg && ["T", "X"].every(P => sg[P] && (sg[P].n || 0) >= 6 && [3, 5, 7].some(h => sg[P]["dn" + h] != null && sg[P]["dn" + h] >= PR_MIN));
 function prPool(byPart, key){
   let w = 0, x = 0; PR_PARTS.forEach(P => { const z = byPart && byPart[P]; if (z && z[key] != null && z.n){ x += z[key] * z.n; w += z.n; } });
   return w ? x / w : null;
@@ -9018,9 +9022,7 @@ function prExtBlock(pr){
     const m = e.matched || {}; return `<tr><td>${lab}</td><td>${prPct(e.ev.dn25_40)} <small>(${prPct(m.dn25_40)})</small></td><td>${prPct(e.ev.up20_40)} <small>(${prPct(m.up20_40)})</small></td><td>${e.ev.n}</td></tr>`; };
   return `<div class="pr-ref"><div class="pr-ref-h">🌪 변동성 과열 <small>참고 · ${esc(idMDsafe(pr.on.EXT))} 발생</small></div>
     <p class="pr-dim">20일선보다 25% 이상 위에 있어요. 과거에는 <b>크게 떨어지는 경우와 크게 더 오르는 경우가 모두 많아졌어요</b> — 매도 신호가 아니에요.</p>
-    <table class="pr-t"><tr><th>과거 사건 뒤 40일</th><th>−25% 하락 경험</th><th>+20% 추가 상승</th><th>사건</th></tr>
-      ${row("독립 검증 T(2008~15)", "T")}${row("독립 검증 X(새 종목)", "X")}${row("탐색(2016~)", "E")}</table>
-    <small class="pr-dim">괄호 = 변동성이 비슷한 급등 국면의 평소. 판정: ${esc(A.verdict || "—")} · 버블 붕괴 조기 경고 기준은 통과하지 못했어요.</small></div>`;
+    <small class="pr-dim">단일 지표라서 승률은 보여 주지 않아요(사용자 지시 · 단일 지표 승률 전시 안 함). 버블 붕괴 조기 경고 기준은 통과하지 못했어요.</small></div>`;
 }
 /* 2026-11-12 사용자 지시: 고점판독기의 핵심은 '단독 캔들'이 아니라 고점권 교집합 조합 —
    기본 교집합 = 신호 당일 52주 고점 0~5% 이내 ∧ 당일 볼밴 %B 상단권(80↑) ∧ 같은 날 위험 캔들(또는 모멘텀 약화 신호).
@@ -9047,28 +9049,24 @@ function prRcBlock(pr, s){
       return `<tr><td>${PR_PART_NAME[P]}<small class="pr-dim">${e.n || 0}건 · ${e.dates || 0}일</small></td>${cell(3)}${cell(5)}${cell(7)}</tr>`; };
     return `<div class="pr-rc">${head}
       <div class="pr-rc-combo">52주 고점 0~5% ∩ 볼밴 %B ${L}↑ ∩ ${esc(nm)} <em class="pr-tag${v === "검증 통과" ? " ok" : ""}">${v}</em></div>
-      <table class="pr-t pr-t2"><tr><th>하락 비율 · 평균 수익</th><th>3일 뒤</th><th>5일 뒤</th><th>7일 뒤</th></tr>${PR_PARTS.map(row).join("")}</table></div>`; };
+      ${prHigh(sg.in) ? `<table class="pr-t pr-t2"><tr><th>하락 비율 · 평균 수익</th><th>3일 뒤</th><th>5일 뒤</th><th>7일 뒤</th></tr>${PR_PARTS.map(row).join("")}</table>` : `<div class="pr-rc-miss">이 조합의 과거 3·5·7일 하락 비율은 65%에 못 미쳐요 — 승률을 표시하지 않아요(경고 근거로 쓰지 않음).</div>`}</div>`; };
   const cand = ks.filter(k => PR_RC_CANDLES.includes(k)), mom = ks.filter(k => PR_RC_MOM.includes(k));
   /* 최근 3거래일 누적(별도 분석) — 오늘이 교집합일 때만: 켜진 신호 종류 수(오늘 포함 3거래일) */
   let stack = "";
   const Lt = lvOf(pr.pb), today = !!Lt && pr.pos52 != null && pr.pos52 >= -0.05;
   if (today && s && Array.isArray(s.ohlc60)){ const d3 = s.ohlc60.slice(-3).map(r => r[0]), k3 = Math.min(4, ks.filter(k => d3.includes(X[k][0])).length), lv = B.levels[Lt];
     const cell = (P, h) => { const z = lv.stack[`${P}|${k3}`] || {}; return `${pc(z["dn" + h])}`; };
-    stack = `<details class="pr-ct"><summary>최근 3거래일 신호 누적 ${k3}${k3 === 4 ? "개 이상" : "개"} <small>(별도 분석 · 오늘 교집합 %B ${Lt}↑)</small></summary>
-      <table class="pr-t"><tr><th>누적 ${k3}${k3 === 4 ? "+" : ""}개일 때 하락 비율</th><th>3일</th><th>5일</th><th>7일</th><th>표본</th></tr>
-      ${PR_PARTS.map(P => `<tr><td>${PR_PART_NAME[P]}</td><td>${cell(P, 3)}</td><td>${cell(P, 5)}</td><td>${cell(P, 7)}</td><td>${(lv.stack[`${P}|${k3}`] || {}).n || 0}</td></tr>`).join("")}</table>
-      <small class="pr-dim">신호가 겹칠수록 하락이 늘어나는지 본 분석 — 결과: ${lv.stack_pass ? "늘어남" : "일관되게 늘지 않음(검증 미통과)"}.</small></details>`; }
-  const aloneRow = k => { const lv = B.levels["90"], a = lv.signals[k] && lv.signals[k].alone; const c = h => `<td>${prPct(prPool(a, "dn" + h))}</td>`; return `<tr><td>${esc(B.names[k] || k)}</td>${c(3)}${c(5)}${c(7)}<td>${prN(a)}</td></tr>`; };
-  const allB = B.levels["90"].groups["전체"], ac = h => `<td>${prPct(prPool(allB, "dn" + h))}</td>`;
+    const zs = Object.fromEntries(["T", "X"].map(P => [P, lv.stack[`${P}|${k3}`]]));
+    stack = k3 >= 2 ? (prHigh(zs) ? `<div class="pr-rc"><div class="pr-rc-combo">다중 신호 — 교집합(%B ${Lt}↑) ∩ 최근 3거래일 신호 ${k3}${k3 === 4 ? "개 이상" : "개"}</div>
+      <table class="pr-t"><tr><th>하락 비율</th><th>3일</th><th>5일</th><th>7일</th><th>사건</th></tr>
+      ${["T", "X"].map(P => `<tr><td>${PR_PART_NAME[P]}</td><td>${cell(P, 3)}</td><td>${cell(P, 5)}</td><td>${cell(P, 7)}</td><td>${(zs[P] || {}).n || 0}</td></tr>`).join("")}</table></div>`
+      : `<div class="pr-rc"><div class="pr-rc-combo">다중 신호 — 교집합(%B ${Lt}↑) ∩ 최근 3거래일 신호 ${k3}${k3 === 4 ? "개 이상" : "개"} <em class="pr-tag">검증 미통과</em></div><div class="pr-rc-miss">신호가 ${k3}${k3 === 4 ? "개 이상" : "개"} 겹친 날의 과거 하락 비율도 65%에 못 미쳐요 — 승률을 표시하지 않아요.</div></div>`) : ""; }
   return `<div class="pr-ref"><div class="pr-ref-h">🔬 고점권 교집합 분석 <small>최근 5거래일 · 참고</small></div>
-    <p class="pr-dim" style="margin:0 0 4px">기본 조건: 신호가 난 <b>그날</b> 52주 고점 0~5% 이내 ∩ 볼밴 %B 상단권 ∩ 위험 캔들. 셋이 같은 날 겹칠 때의 과거 성적만 보여 줘요.</p>
+    <p class="pr-dim" style="margin:0 0 4px">기본 조건: 신호가 난 <b>그날</b> 52주 고점 0~5% 이내 ∩ 볼밴 %B 상단권 ∩ 위험 캔들. 셋이 같은 날 겹칠 때만 보고, 과거 하락 비율이 65% 이상인 조합만 숫자를 보여 줘요. 단일 지표 승률은 보여 주지 않아요.</p>
     ${cand.length ? cand.map(one).join("") : `<div class="pr-rc-miss">최근 5거래일에 위험 캔들이 없었어요.</div>`}
     ${mom.length ? `<div class="pr-rc-sub">추가 조합 — 모멘텀 약화 신호 <small>(52주 고점 ∩ 볼밴 상단 ∩ 그날 이 신호)</small></div>${mom.map(one).join("")}` : ""}
     ${stack}
-    <details class="pr-ct"><summary>단독 조건 참고 통계 <small>(위치 무관 — 교집합 성적이 아니에요)</small></summary>
-      <table class="pr-t"><tr><th>단독 조건</th><th>3일</th><th>5일</th><th>7일</th><th>사건</th></tr>${ks.map(aloneRow).join("")}
-      <tr class="pr-base"><td>평소: 모든 날</td>${ac(3)}${ac(5)}${ac(7)}<td>${prN(allB)}</td></tr></table></details>
-    <small class="pr-dim">각 칸: 하락 비율(±1% 안은 보합 제외) · 평균 수익 · 기준 = 같은 교집합에서 이 신호만 뺀 날과의 차이. 판정은 연구 전에 정한 기준(세 묶음 모두 사건 50건 이상 ∩ 5일 +3%p ∩ 10일 +5%p) 그대로예요. 탐색 E는 이미 본 자료, T는 기간만·X는 종목만 새로운 검증이에요. 위험 캔들 ∩ 모멘텀 약화 ∩ 테마 약화 조합은 별도 연구 중이에요.</small></div>`;
+    <small class="pr-dim">하락 비율 = n거래일 뒤 종가가 1% 넘게 내린 비율(±1% 안 보합 제외). 지금까지 검증한 조합 가운데 65% 이상은 아직 없어요 — 더 드물고 정확한 조합은 별도 연구(고정밀 교집합) 중이에요.</small></div>`;
 }
 function prCondTable(pr){
   const valid = prValid(), G = (PR_DATA && PR_DATA.groups) || {}, b = prBase() || {};
@@ -9091,7 +9089,8 @@ function prTrim(s){ return prTrimSrc(s).map(x => x.t); }
 function prTrimLine(k){
   const T = PR_TRIM, z = T && T.src && T.src[k], b = T && T.base; if (!z || !b) return "과거 통계 준비 중";
   const f = v => v == null ? "—" : Math.round(v);
-  return `1·3·5일 뒤 하락(익절 적중) ${f(z.win1)}·${f(z.win3)}·${f(z.win5)}% · 평소 ${f(b.win1)}·${f(b.win3)}·${f(b.win5)}% · ${z.n}건${z.n < 30 ? "(표본 적음)" : ""}`;
+  if (![z.win1, z.win3, z.win5].some(v => v != null && v >= PR_MIN * 100)) return "과거 1·3·5일 적중률 65% 미만 — 승률을 표시하지 않아요";
+  return `1·3·5일 뒤 하락(익절 적중) ${f(z.win1)}·${f(z.win3)}·${f(z.win5)}% · ${z.n}건${z.n < 30 ? "(표본 적음)" : ""}`;
 }
 function prItemHtml(s){
   const J = prJudge(s), pr = s.peak_reader || {}, valid = prValid();
@@ -9107,7 +9106,6 @@ function prItemHtml(s){
       ${(() => { const T = prTrimSrc(s); return T.length ? `<div class="pr-ref"><div class="pr-ref-h">🟡 일부익절 가능성 <small>참고 · 고점 위험과 별개</small></div><ul class="pr-on">${T.map(x => `<li>${esc(x.t)}<br><small class="pr-dim">${esc(prTrimLine(x.k))}</small></li>`).join("")}</ul>${PR_TRIM ? `<small class="pr-dim">3년 백테스트(${esc((PR_TRIM.period || []).join("~"))}) · 같은 종목 3거래일 안 재발생 제외 · 생존 편향 있음. </small>` : ""}<small class="pr-dim">사이트가 이미 띄우는 과열·익절 신호(오늘의 신호·캔들 신호등·과열 뱃지)를 그대로 모은 거예요. 새 판정이 아니고, 매도 지시가 아니에요.</small></div>` : ""; })()}
       ${prExtBlock(pr)}${prRcBlock(pr, s)}
       <div class="pr-sub">조건 충족 현황 <small class="pr-dim">● 켜짐 · ○ 꺼짐</small></div><div class="pr-chips">${chips}</div>
-      ${prCondTable(pr)}
     </div></details>`;
 }
 function prCaseChart(cs){
@@ -9139,36 +9137,29 @@ function prCaseCombo(cs, B, pi){
   const line = fA
     ? `<b>조합 첫 발생 ${esc(idMDsafe(fA))}${when(fA)} — 52주 고점 0~5% ∩ 볼밴 상단 ∩ ${esc(nm(fA))}</b>${fM ? ` · 모멘텀 약화까지 겹친 날 ${esc(idMDsafe(fM))}` : ""} → ${bust ? "이 사례에서는 급락 전에 조합이 켜졌어요" : "조합이 켜졌지만 상승이 이어졌어요(오경보)"}`
     : `<b>조합 발생 없음</b> — ${fI ? `교집합(52주 고점 ∩ 볼밴 상단)은 ${esc(idMDsafe(fI))}에 있었지만 위험 캔들이 겹치지 않았어요` : "고점 전후에 52주 고점 ∩ 볼밴 상단 교집합 자체가 없었어요(1년 미만 상장은 판정 보류)"} → ${bust ? "조합으로는 놓친 사례" : "오경보 없음"}`;
-  const st = h && h.bust ? `<br><span class="pr-dim">이 조합의 사례 성적(2023년 이후): 급락(붕괴) ${h.bust}건 중 <b>${Math.round(h.cap)}%</b> · 상승 지속 ${h.cont}건 중 <b>${Math.round(h.far)}%</b>에서 고점 무렵 켜졌어요${h.far > h.cap ? " — 급락보다 상승 지속 앞에서 더 자주 켜져서 급락 경고로 쓸 수 없어요" : ""} · <b>${esc(v || "검증 미통과")}</b></span>` : "";
+  const st = !h || !h.bust ? "" : (h.cap >= PR_MIN * 100 && h.cap > h.far)
+    ? `<br><span class="pr-dim">이 조합의 사례 성적(2023년 이후): 급락 ${h.bust}건 중 <b>${Math.round(h.cap)}%</b> 포착 · 상승 지속 ${h.cont}건 중 ${Math.round(h.far)}% 오경보 · <b>${esc(v || "")}</b></span>`
+    : `<br><span class="pr-dim">이 조합은 과거 급락 포착률이 65%에 못 미치고, 상승이 이어진 사례에서도 자주 켜졌어요 — 승률을 표시하지 않아요 · <b>검증 미통과</b></span>`;
   return `${line}${st}`;
 }
 /* '연구 방법 · 결과'의 조합 표 3종 — ① 날 단위(교집합 ∩ 신호 · 검증 T·X) ② 사례 단위(붕괴 포착/지속 오경보) ③ 여러 조건 조합(탐색) */
 function prComboTables(){
-  const pc = v => v == null ? "—" : Math.round(v * 100), out = [];
-  const B = PR2 && PR2.B, lv = B && B.levels && B.levels["80"];
-  if (lv){ const base = lv.groups["교집합(0~5%∧%B)"] || {}, tri = (e) => e ? `${pc(e.dn3)}·${pc(e.dn5)}·${pc(e.dn7)}` : "—";
-    const dp = (a, b) => a == null || b == null ? "—" : `${a - b >= 0 ? "+" : ""}${Math.round((a - b) * 100)}`;
-    const rows = B.signals.map(k => { const sg = lv.signals[k]; if (!sg) return ""; const t = sg.in.T || {}, x = sg.in.X || {};
-      const v = sg.pass ? "통과" : ["E", "T", "X"].some(P => !sg.in[P] || (sg.in[P].n || 0) < 50) ? "표본 부족" : "미통과";
-      return `<tr><td>∩ ${esc(B.names[k] || k)}</td><td>${tri(t)}</td><td>${tri(x)}</td><td>${dp(t.dn5, (base.T || {}).dn5)} / ${dp(x.dn5, (base.X || {}).dn5)}</td><td>${t.n || 0} / ${x.n || 0}</td><td>${v}</td></tr>`; }).join("");
-    out.push(`<b>① 조합의 날 단위 성적</b> — 52주 고점 0~5% ∩ 볼밴 %B 80↑ ∩ 같은 날 신호 · 3·5·7일 뒤 하락 비율(%)
-      <table class="pr-t"><tr><th>조합</th><th>검증 T</th><th>검증 X</th><th>기준 대비 5일 %p (T / X)</th><th>사건 (T / X)</th><th>판정</th></tr>
-      <tr class="pr-base"><td>기준: 교집합만(신호 없음)</td><td>${tri(base.T)}</td><td>${tri(base.X)}</td><td>—</td><td>${(base.T || {}).n || 0} / ${(base.X || {}).n || 0}</td><td>—</td></tr>${rows}</table>`); }
-  const C = PR_DATA && PR_DATA.combo_cases;
-  if (C && C.stats){ const nmOf = k => k === "I" ? "기준: 교집합만(캔들 없음)" : k === "A" ? "교집합 ∩ 위험 캔들" : k === "A+M" ? "교집합 ∩ 위험 캔들 ∩ 모멘텀 약화" : "∩ " + (((PR2 && PR2.B && PR2.B.names) || {})[k] || k);
-    const rows = Object.keys(C.stats).map(k => { const h = C.stats[k].hold, d = C.stats[k].disc; const f = z => z && z.bust ? `${Math.round(z.cap)}% / ${Math.round(z.far)}%` : "—";
-      return `<tr${k === "I" ? ' class="pr-base"' : ""}><td>${esc(nmOf(k))}</td><td>${f(h)}</td><td>${f(d)}</td><td>${h ? h.bust : "—"} / ${h ? h.cont : "—"}</td><td>${esc((C.verdict || {})[k] || "")}</td></tr>`; }).join("");
-    out.push(`<b>② 조합의 사례 단위 성적</b> — 고점 10일 전 ~ −10% 도달 전에 조합이 켜진 비율: 급락(붕괴) 포착 / 상승 지속 오경보
-      <table class="pr-t"><tr><th>조합</th><th>2023년 이후</th><th>2016~22년</th><th>붕괴 / 지속 건수</th><th>판정</th></tr>${rows}</table>
-      조합이 급락 앞보다 <b>상승 지속 앞에서 더 자주</b> 켜졌어요. 고점권에 오래 머무는 강한 종목일수록 이 조합이 자주 뜨기 때문이에요.`); }
+  const rows = []; let total = 0;
+  const pc = v => v == null ? "—" : Math.round(v * 100) + "%";
+  const B = PR2 && PR2.B;
+  if (B && B.levels) Object.keys(B.levels).forEach(L => { const lv = B.levels[L];
+    B.signals.forEach(k => { const sg = lv.signals[k]; if (!sg) return; total++;
+      if (prHigh(sg.in)) rows.push(`<tr><td>52주 고점 0~5% ∩ %B ${L}↑ ∩ ${esc(B.names[k] || k)}</td><td>${[3, 5, 7].map(h => pc(sg.in.T["dn" + h])).join("·")}</td><td>${[3, 5, 7].map(h => pc(sg.in.X["dn" + h])).join("·")}</td><td>${sg.in.T.n} / ${sg.in.X.n}</td></tr>`); });
+    [2, 3, 4].forEach(k => { const zs = { T: lv.stack["T|" + k], X: lv.stack["X|" + k] }; total++;
+      if (prHigh(zs)) rows.push(`<tr><td>교집합(%B ${L}↑) ∩ 신호 ${k}${k === 4 ? "개 이상" : "개"}</td><td>${[3, 5, 7].map(h => pc(zs.T["dn" + h])).join("·")}</td><td>${[3, 5, 7].map(h => pc(zs.X["dn" + h])).join("·")}</td><td>${zs.T.n} / ${zs.X.n}</td></tr>`); }); });
+  const C = PR_DATA && PR_DATA.combo_cases; let caseHigh = 0;
+  if (C && C.stats) Object.keys(C.stats).forEach(k => { if (k === "I") return; total++; const h = C.stats[k].hold; if (h && h.cap >= PR_MIN * 100 && h.cap > h.far) caseHigh++; });
   const F = PR_TF && PR_TF.sets;
-  if (F){ const want = [["IB", "기준: 교집합만"], ["A 교집합", "교집합 ∩ 위험 캔들"], ["A+M", "+ 모멘텀 약화"], ["A+T 테마", "+ 테마 약화"], ["A+T+MK 시장", "+ 테마 약화 + 시장 확인"]];
-    const rows = want.map(([pre, nm]) => { const k = Object.keys(F).find(x => x.startsWith(pre)), z = k && F[k]; if (!z || !z.n) return "";
-      return `<tr${pre === "IB" ? ' class="pr-base"' : ""}><td>${esc(nm)}</td><td>${pc(z.dn1)}·${pc(z.dn3)}·${pc(z.dn5)}·${pc(z.dn7)}</td><td>${z.avg5 == null ? "—" : (z.avg5 >= 0 ? "+" : "") + (z.avg5 * 100).toFixed(1) + "%"}</td><td>${z.n}</td><td>${pre === "IB" ? "—" : "미통과"}</td></tr>`; }).join("");
-    out.push(`<b>③ 조건을 더 겹친 조합(탐색 연구 · 미국 관심종목 ${esc(String((PR_TF.period || [])[0] || "").slice(0, 4))}~)</b> — 1·3·5·7일 뒤 하락 비율(%)
-      <table class="pr-t"><tr><th>조합</th><th>1·3·5·7일</th><th>5일 평균 수익</th><th>사건</th><th>판정</th></tr>${rows}</table>
-      조건을 겹칠수록 하락 비율이 올라가지 않았어요(테마 약화·시장 확인을 붙이면 오히려 내려감).`); }
-  return out.length ? out.join("<br>") : "조합 자료 준비 중";
+  if (F) Object.keys(F).forEach(k => { if (/^(A|O|DV|OH)/.test(k)) { total++; const z = F[k]; if (z && z.n >= 6 && [3, 5, 7].some(h => z["dn" + h] != null && z["dn" + h] >= PR_MIN)) rows.push(`<tr><td>${esc(k)} <small>(탐색)</small></td><td colspan="2">${[3, 5, 7].map(h => pc(z["dn" + h])).join("·")}</td><td>${z.n}</td></tr>`); } });
+  if (!total) return "조합 자료 준비 중";
+  return rows.length
+    ? `<b>3·5·7일 하락 비율이 65% 이상인 조합</b> (검증한 조합 ${total}개 중 ${rows.length}개)<table class="pr-t"><tr><th>조합</th><th>검증 T</th><th>검증 X</th><th>사건</th></tr>${rows.join("")}</table>`
+    : `<b>지금까지 검증한 조합 ${total}개 가운데 3·5·7일 하락 비율이 65% 이상인 조합은 없어요.</b> 65%에 못 미치는 조합과 단일 지표의 승률은 화면에 보여 주지 않아요(전체 기록: docs/2026-11-12-peak-reader.md · docs/2026-11-12-theme-flow.md).`;
 }
 function prLabHtml(){
   const C = (PR_DATA && PR_DATA.cases) || []; if (!C.length) return `<div class="pr-lab"></div>`;
@@ -9185,10 +9176,6 @@ function prLabHtml(){
     <div class="pr-case"><div class="pr-ch">${prCaseChart(cs)}</div>
       <p class="pr-cap"><b>${esc(cs.ticker)}</b> ${esc(idMDsafe(cs.peak))} 고점 → 60일 안 최저 <b class="${cs.dd60 < 0 ? "down" : ""}">${cs.dd60}%</b> · ${cs.kind === "bust" ? "급락(붕괴)" : "조정 뒤 상승 지속(대조군)"}<br>
       ${prCaseCombo(cs, B, pi)}</p>
-      <details class="pr-ct"><summary>단독 조건 참고 <small>(조합 성적 아님)</small></summary><p class="pr-cap">${(() => { const bust = cs.kind === "bust", when = vlead != null ? `(고점 ${vlead > 0 ? vlead + "거래일 전" : vlead < 0 ? -vlead + "거래일 뒤" : "당일"})` : "";
-        if (!V.length) return "검증된 단독 조건 없음";
-        if (fv) return bust ? `검증된 조건 경고 ${esc(idMDsafe(fv))}${when} — 포착` : `검증된 조건 경고 ${esc(idMDsafe(fv))}${when} — 오경보(이후 상승 지속)`;
-        return bust ? "검증된 조건 경고 없음 — 놓친 사례" : "검증된 조건 경고 없음 — 오경보 없음"; })()} · 단독 참고 신호 첫 발생 ${cs.first_any ? `${esc(idMDsafe(cs.first_any))}${lead != null ? `(고점 ${lead > 0 ? lead + "거래일 전" : lead < 0 ? -lead + "거래일 뒤" : "당일"})` : ""} — ${esc(firstCodes)}` : "없음"}</p></details>
       <p class="pr-cap" style="margin:0">${cs.drop_day ? `−10% 도달 ${esc(idMDsafe(cs.drop_day))}` : ""}</p></div></div>`;
 }
 function prPanelHtml(mine){
@@ -9204,17 +9191,10 @@ function prPanelHtml(mine){
     <div class="pr-h">② 과거 고점 사례 연구실 <small>최근 고점 순 · 급락·지속 모두</small></div>
     ${prLabHtml()}
     <details class="pr-fine"><summary>연구 방법 · 조합별 결과</summary><div>
-      <b>승률은 단독 조건이 아니라 조합(교집합)으로 봐요.</b> 어떤 조합도 사전 기준을 통과하지 못했어요 — 아래 숫자는 경고가 아니라 검증 실패 기록이에요.<br>
+      <b>승률은 단일 지표가 아니라 조합(교집합)으로만, 65% 이상일 때만 보여 줘요.</b><br>
       ${prComboTables()}
-      <details class="pr-ct"><summary>단독 조건 참고 통계 <small>(조합 성적 아님)</small></summary><div>
-      대상 ${D.universe ? D.universe.watchlist : "—"}종목(관심종목) + 급등락 연구용 ${D.universe && D.universe.extra ? D.universe.extra.length : 0}종목 · ${esc(String(D.period && D.period[0]))}~${esc(String(D.period && D.period[1]))} 일봉 · 급등 국면(120일 저점 +50%↑ ∧ 60일 고점 85%↑)의 날만 봐요.<br>
-      판정 기준(결과 보기 전 고정): 2023년 이후(보류 기간) 10일 뒤 하락 비율과 20일 안 −15% 하락 비율이 모두 평소보다 5%p 이상 높고, 서로 다른 날 50일 이상, 2016~2022년도 같은 방향.<br>
-      평소(급등 국면 모든 날, 보류 기간): 10일 뒤 하락 ${b.dn10 ?? "—"}% · 20일 안 −15% ${b.big ?? "—"}%.<br>
-      <table class="pr-t"><tr><th>조건</th><th>3일</th><th>5일</th><th>7일</th><th>붕괴 포착 / 지속 오경보</th><th>날</th><th>판정</th></tr>${rows}</table>
-      사례 단위: 급등 뒤 국소 고점에서 60일 안 −35% 이상 떨어진 '붕괴' ${vs ? vs.bust : cur ? cur.bust : "—"}건, −15% 안에서 고점을 다시 넘은 '지속' ${cur ? cur.cont : "—"}건. 고점 10일 전 ~ −10% 도달 전에 신호가 났으면 포착이에요.<br>
-      ${D.ext_test ? `이격 과열 사례 단위 재검증(2023년 이후 고점만 · 결과 전 기준 고정): ${D.ext_test.pass ? "통과(추가 연구 전까지 단계 판정에는 쓰지 않음)" : "미통과"} · 붕괴 포착 ${D.ext_test.table["25|A|hold"].cap}% vs 지속 오경보 ${D.ext_test.table["25|A|hold"].far}% (붕괴 ${D.ext_test.table["25|A|hold"].bust} · 지속 ${D.ext_test.table["25|A|hold"].cont}건).<br>` : ""}
-      현행 고점 위험 1~3단계는 붕괴 ${rate(cur)} 포착 · 지속 ${far(cur)} 오경보였어요.${ext ? ` 20일선 과열(이격 25%↑)은 사례 단위로 붕괴 ${rate(ext)} 포착 · 지속 ${far(ext)} 오경보로 차이가 컸지만, 날 단위 기준에서는 10일 뒤 하락 비율이 평소와 같아(오르내림이 모두 큼) 통과하지 못했어요.` : ""}<br>
-      </div></details>
+<br>대상 ${D.universe ? D.universe.watchlist : "—"}종목(관심종목) + 연구용 ${D.universe && D.universe.extra ? D.universe.extra.length : 0}종목 · ${esc(String(D.period && D.period[0]))}~${esc(String(D.period && D.period[1]))} 일봉. 조합 = 같은 날 52주 고점 0~5% ∩ 볼밴 상단 ∩ 위험 캔들(＋모멘텀·테마·시장 조건).
+      판정 기준은 결과를 보기 전에 정해 문서에 남겼어요. 드물지만 정확한 조합을 찾는 고정밀 교집합 연구(목표 65% 이상)를 따로 진행하고 있고, 미사용 자료에서 확인되기 전에는 경고로 쓰지 않아요.<br>
       백테스트라 지금 관심종목 위주의 생존 편향이 있어요. 매수 신호·등급·원장에는 영향이 없어요. 자세한 내용: docs/2026-11-12-peak-reader.md
     </div></details>`;
 }
