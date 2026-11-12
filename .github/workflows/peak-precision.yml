@@ -1,0 +1,47 @@
+name: 고점판독기 4차·5차 연구 (고정밀 교집합 · 수동)
+
+# 수동 실행 전용. 사전 등록 그대로 돌린다 — 4차 docs/2026-11-12-peak-precision.md(5f95c3a) · 5차 docs/2026-11-12-peak-combo.md(59d32c7 · f58e5fc).
+# 결과 JSON만 main에 커밋한다. ⚠ 원장(signals.json·history/)·화면 판정은 건드리지 않는다. 백테스트(생존 편향 있음).
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: peak-precision
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: 의존성 설치
+        run: pip install -q yfinance pandas numpy requests lxml
+      - name: 4차 — 고정밀 소수 신호 13개(판정 = 미사용 Z)
+        run: python tools/peak-precision-lab.py --emit "$RUNNER_TEMP/peak-precision.json" --cache "$RUNNER_TEMP/pp.pkl"
+      - name: 5차 — 교집합 통합 탐색(🟡 일부익절 · 🔴 고점판독 · 봉인 검증 ZB · NVDA 진단)
+        run: python tools/peak-combo-lab.py --cache "$RUNNER_TEMP/pp.pkl" --emit "$RUNNER_TEMP/peak-combo.json"
+      - name: 결과만 main에 커밋
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for i in 1 2 3; do
+            git fetch origin main
+            git switch -C pp-out origin/main
+            cp "$RUNNER_TEMP/peak-precision.json" backtest/peak-precision.json
+            cp "$RUNNER_TEMP/peak-combo.json" backtest/peak-combo.json
+            git add backtest/peak-precision.json backtest/peak-combo.json
+            if git diff --cached --quiet; then echo "변경 없음"; exit 0; fi
+            git commit -m "auto: 고점판독기 4차·5차 연구 결과(backtest/peak-precision.json · peak-combo.json)"
+            if git push origin HEAD:main; then exit 0; fi
+            sleep $((i * 5))
+          done
+          echo "::error::푸시 3회 실패"; exit 1

@@ -9007,9 +9007,9 @@ function prStatLine(c){
    세 자료 묶음(탐색 E · 독립 T · 독립 X)의 날짜 가중 비율을 사건 수로 가중 평균해 한 줄로 보인다. 단계·매수 산식과 무관. */
 const PR_PARTS = ["E", "T", "X"];
 /* 2026-11-12 사용자 지시 — 고점판독기 승률 표시 규칙: ① 단일 지표 승률은 전시하지 않는다 ② 조합(교집합)도 하락 비율이 65% 이상일 때만 숫자를 보인다
-   ③ 65%에 못 미치는 조합은 숫자 없이 '65% 미만 · 검증 미통과'라고만 적는다(전체 표는 docs/). 검증 자료(T·X) 둘 다 넘어야 '65% 이상'으로 본다. */
+   ③ 65%에 못 미치는 조합은 숫자 없이 '65% 미만 · 검증 미통과'라고만 적는다(전체 표는 docs/). 검증 자료(T·X)가 **같은 평가 기간**에서 둘 다 넘어야 '65% 이상'으로 본다. */
 const PR_MIN = 0.65;
-const prHigh = (sg) => !!sg && ["T", "X"].every(P => sg[P] && (sg[P].n || 0) >= 6 && [3, 5, 7].some(h => sg[P]["dn" + h] != null && sg[P]["dn" + h] >= PR_MIN));
+const prHigh = (sg) => !!sg && [3, 5, 7].some(h => ["T", "X"].every(P => sg[P] && (sg[P].n || 0) >= 6 && sg[P]["dn" + h] != null && sg[P]["dn" + h] >= PR_MIN));   /* 같은 평가 기간에서 T·X 둘 다 65% 이상이어야 한다(기간이 서로 달라도 통과되던 문제 수정) */
 function prPool(byPart, key){
   let w = 0, x = 0; PR_PARTS.forEach(P => { const z = byPart && byPart[P]; if (z && z[key] != null && z.n){ x += z[key] * z.n; w += z.n; } });
   return w ? x / w : null;
