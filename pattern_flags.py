@@ -691,3 +691,40 @@ def risk_candle_now(o, h, l, c, v, fl, dates, win=5, ticker=""):
         if hits:
             j = hits[-1]; out[k] = [dates[j], f(p52[j]), f(pb[j])]
     return {"rcx": out, "pos52": f(p52[n - 1]) if n else None, "pb": f(pb[n - 1]) if n else None}
+
+
+# ══ 5차 교집합 연구의 종목 블록(화면용) — tools/peak-combo-lab.py blocks()와 같은 식 · docs/2026-11-12-peak-combo.md §2 ══
+# 외부 블록(X_T 테마 · X_MK 4그룹 · X_BR S&P500 참여 · X_RS 상대강도)은 화면에서 계산하지 않는다 → 그런 조합은 화면 판정 대상에서 뺀다.
+COMBO_STOCK_BLOCKS = ("P_NEAR", "P_RT5", "P_H60", "O_BB", "O_BBX", "O_RSI", "O_EXT", "C_W", "C_SHOOT", "C_ESTAR", "C_BEAR", "C_FB",
+                      "I_RSID", "I_MACD", "I_STO", "I_VST", "I_VDN", "K_5", "K_20", "K_SUP")
+
+
+def combo_blocks(o, h, l, c, v, lev=1.0, ticker="", min52=251):
+    """봉마다 블록 bool. min52 = 52주 고가에 필요한 이전 봉 수(연구 251 · 화면은 야후 1년치라 240까지 허용)."""
+    o, h, l, c, v = (np.asarray(x, dtype=float) for x in (o, h, l, c, v))
+    rmx = lambda a, k: pd.Series(np.asarray(a, float)).rolling(k, min_periods=1).max().to_numpy() > 0.5
+    fl = peak_reader_flags(o, h, l, c, v, lev=lev, ticker=ticker); rc, pb, _ = risk_candle_flags(o, h, l, c, v, ticker)
+    h52p = pd.Series(h).shift(1).rolling(251, min_periods=min52).max().to_numpy(); ok = np.isfinite(h52p)
+    s = pd.Series(c); ma20 = s.rolling(20).mean().to_numpy(); up = ma20 + 2 * s.rolling(20).std(ddof=0).to_numpy(); ma5 = s.rolling(5).mean().to_numpy()
+    hh60 = pd.Series(h).rolling(60).max().to_numpy(); v5, v20 = pd.Series(v).rolling(5).mean().to_numpy(), pd.Series(v).rolling(20).mean().to_numpy()
+    with np.errstate(invalid="ignore", divide="ignore"):
+        hi52 = np.fmax(h52p, h); TOUCH = ok & (h >= h52p * 0.99)
+        rng = np.where(h - l > 0, h - l, np.nan); upw = np.nan_to_num((h - np.maximum(o, c)) / rng, nan=0); pbz = np.nan_to_num(pb, nan=-9)
+        B = {"P_NEAR": ok & (c >= hi52 * 0.95), "P_RT5": rmx(TOUCH, 5), "P_H60": np.isfinite(hh60) & (h >= hh60 * 0.97),
+             "O_BB": pbz >= 0.8, "O_BBX": np.isfinite(up) & (h > up), "O_RSI": rmx(fl["RSI_HOT"], 3), "O_EXT": rmx(fl["EXT"], 3),
+             "C_W": upw >= 0.5, "C_SHOOT": np.asarray(rc["SHOOTS"], bool), "C_ESTAR": np.asarray(rc["ESTAR"], bool), "C_BEAR": np.asarray(rc["BIGBEAR"], bool),
+             "C_FB": ok & (h >= h52p) & (c < h52p),
+             "I_RSID": rmx(fl["RSI_DIV"], 3), "I_MACD": rmx(np.asarray(fl["MACD_FADE"], bool) | np.asarray(fl["MACD_DEAD"], bool), 3), "I_STO": rmx(fl["STOCH_DEAD"], 3),
+             "I_VST": rmx(fl["VOL_STALL"], 3), "I_VDN": v5 < v20,
+             "K_5": (c < _shift(l)) & (c < ma5), "K_20": np.asarray(fl["MA20_BRK"], bool), "K_SUP": np.asarray(fl["SUP_BRK"], bool)}
+    return {k: np.asarray(a, bool) for k, a in B.items()}
+
+
+def combo_blocks_now(o, h, l, c, v, dates, lev=1.0, ticker="", win=5):
+    """화면용: 최근 win 거래일 각각 켜진 블록 목록 {날짜: [블록…]} — 조합 판정은 화면(index.html)이 backtest/peak-highlights.json으로 한다."""
+    B = combo_blocks(o, h, l, c, v, lev=lev, ticker=ticker, min52=240)
+    n = len(c); out = {}
+    for j in range(max(0, n - win), n):
+        on = [k for k in COMBO_STOCK_BLOCKS if B[k][j]]
+        if on: out[str(dates[j])] = on
+    return out
