@@ -91,25 +91,33 @@ function run(R, mem, GB, outPath) {
   const binomTail = (n, p, thr) => { if (!(p > 0 && p < 1)) return 0; let s = 0; const k0 = Math.ceil(thr * n - 1e-9); for (let k = k0; k <= n; k++) { let lc = 0; for (let i = 0; i < k; i++) lc += Math.log(n - i) - Math.log(i + 1); s += Math.exp(lc + k * Math.log(p) + (n - k) * Math.log(1 - p)); } return s; };
   const pc = x => x == null ? '—' : Math.round(x * 100) + '%', pr = x => x == null ? '—' : (x >= 0 ? '+' : '') + (x * 100).toFixed(1) + '%';
   const OUT = { cut3, cut1, n_combos: combos.length, markets: {} };
+  const MID = dates[Math.floor(dates.length / 2)];
   for (const [mn, mf] of [['미장', r => !r.kr], ['국장', r => r.kr]]) for (const rg of ['상승', '횡보', '하락']) {
     const Gm = G.filter(r => mf(r) && r.rg === rg), Bm = BASE.filter(r => mf(r) && r.rg === rg);
-    const P = { '1y': r => per(r.d).includes('1y'), '3y': r => per(r.d).includes('3y'), old: r => per(r.d).includes('old') };
+    /* 국장(§7): 탐색 = 10년 전체('3y' 자리) · 재현 = 전반('old' 자리 대신 반쪽 둘) — 미장은 그대로 */
+    const KR10 = mn === '국장';
+    const P = KR10 ? { '1y': r => per(r.d).includes('1y'), '3y': () => true, old: r => r.d < MID, h2: r => r.d >= MID }
+                   : { '1y': r => per(r.d).includes('1y'), '3y': r => per(r.d).includes('3y'), old: r => per(r.d).includes('old') };
     const gold = {}, base = {}; for (const [pk, pf] of Object.entries(P)) { gold[pk] = stat(Gm.filter(pf)); base[pk] = stat(Bm.filter(pf)); }
     const g3 = gold['3y'];
+    if (KR10) console.log(`\n(국장 §7: 아래 '3년'은 10년 전체 · '이전'은 전반 5년(${dates[0]}~${MID}) · '후반'을 따로 적는다)`);
     console.log(`\n■ ${mn} · ${rg}장 — 황금 전체: 3년 ${g3 ? `${g3.n}건 5일+1% ${pc(g3.h5_1)}(${g3.win5}승 ${g3.loss5}패) 5일 수익 ${pr(g3.r5)}` : '0건'} · 1년 ${gold['1y'] ? `${gold['1y'].n}건 ${pc(gold['1y'].h5_1)}` : '0건'} · 이전 ${gold.old ? `${gold.old.n}건 ${pc(gold.old.h5_1)}` : '0건'} | 평소 3년 5일+1% ${base['3y'] ? pc(base['3y'].h5_1) : '—'}`);
     const rows = [];
     for (const c of combos) { const E3 = Gm.filter(r => P['3y'](r) && tdata(r, c.v) && c.f(r)); if (E3.length < 5) continue;
       const z3 = stat(E3), rest3 = stat(Gm.filter(r => P['3y'](r) && tdata(r, c.v) && !c.f(r)));
       const Eo = Gm.filter(r => P.old(r) && tdata(r, c.v) && c.f(r)), zo = stat(Eo), resto = stat(Gm.filter(r => P.old(r) && tdata(r, c.v) && !c.f(r)));
       const E1 = Gm.filter(r => P['1y'](r) && tdata(r, c.v) && c.f(r)), z1 = stat(E1);
-      rows.push({ key: c.key, name: c.name, z3, rest3, zo, resto, z1, ex: E3.slice(-6).map(r => `${r.d.slice(2)} ${r.t} ${reach(r, 0.01, 5) ? '✓' : '✗'}`) }); }
+      const zh2 = P.h2 ? stat(Gm.filter(r => P.h2(r) && tdata(r, c.v) && c.f(r))) : null;
+      rows.push({ key: c.key, name: c.name, z3, rest3, zo, resto, z1, zh2, ex: E3.slice(-6).map(r => `${r.d.slice(2)} ${r.t} ${reach(r, 0.01, 5) ? '✓' : '✗'}`) }); }
     const n80 = rows.filter(x => x.z3.h5_1 >= 0.8).length, chance = g3 ? rows.reduce((a, x) => a + binomTail(x.z3.n, g3.h5_1, 0.8), 0) : null;
-    const repl = rows.filter(x => x.z3.h5_1 >= 0.8 && x.zo && x.zo.n >= 10 && x.zo.h5_1 >= 0.8 && gold.old && x.zo.h5_1 - gold.old.h5_1 >= 0.05);
+    const repl = KR10
+      ? rows.filter(x => { const a = x.zo, b = x.zh2; return x.z3.h5_1 >= 0.8 && a && b && a.n >= 5 && b.n >= 5 && a.h5_1 >= 0.8 && b.h5_1 >= 0.8 && gold.old && gold.h2 && a.h5_1 - gold.old.h5_1 >= 0.05 && b.h5_1 - gold.h2.h5_1 >= 0.05; })
+      : rows.filter(x => x.z3.h5_1 >= 0.8 && x.zo && x.zo.n >= 10 && x.zo.h5_1 >= 0.8 && gold.old && x.zo.h5_1 - gold.old.h5_1 >= 0.05);
     rows.sort((a, b) => b.z3.h5_1 - a.z3.h5_1 || b.z3.n - a.z3.n);
     console.log(`  조합 ${combos.length}개 중 3년 사건 5↑ ${rows.length}개 · 그중 5일+1% ≥80% ${n80}개(우연 기대 ${chance == null ? '—' : chance.toFixed(1)}) · 이전 기간에서도 재현(10건↑·80%↑·황금 대비 +5%p) ${repl.length}개`);
     rows.slice(0, 10).forEach((x, i) => { const z = x.z3, o = x.zo;
       console.log(`  ${String(i + 1).padStart(2)}. ${x.name.slice(0, 46).padEnd(46)} | 3년 ${z.n}건(${z.dates}일·${z.tier}) 5일+1% ${pc(z.h5_1)}(${z.win5}승 ${z.loss5}패) 3·7·10일 ${pc(z.h3_1)}·${pc(z.h7_1)}·${pc(z.h10_1)} +2/+3% ${pc(z.h5_2)}/${pc(z.h5_3)} 5일 수익 ${pr(z.r5)}${z.open_h5_1 != null ? ` [시가 진입 ${pc(z.open_h5_1)} · ${pr(z.open_r5)}]` : ''} 낙폭 ${pr(z.dd_med)} 최악 ${pr(z.worst5)} 집중 ${z.top_t[0]} ${pc(z.top_t[1])}·${z.top_c[0]} ${pc(z.top_c[1])}`
-        + ` | 황금∖조합 ${x.rest3 ? pc(x.rest3.h5_1) : '—'} · 황금 대비 ${g3 ? ((z.h5_1 - g3.h5_1) * 100).toFixed(0) + '%p' : '—'} · 1년 ${x.z1 ? `${x.z1.n}건 ${pc(x.z1.h5_1)}` : '0건'} · 이전 ${o ? `${o.n}건 ${pc(o.h5_1)} 5일 수익 ${pr(o.r5)}` : '0건'} | ${x.ex.join(' · ')}`); });
+        + ` | 황금∖조합 ${x.rest3 ? pc(x.rest3.h5_1) : '—'} · 황금 대비 ${g3 ? ((z.h5_1 - g3.h5_1) * 100).toFixed(0) + '%p' : '—'} · 1년 ${x.z1 ? `${x.z1.n}건 ${pc(x.z1.h5_1)}` : '0건'} · 이전 ${o ? `${o.n}건 ${pc(o.h5_1)} 5일 수익 ${pr(o.r5)}` : '0건'}${KR10 ? ` · 후반 ${x.zh2 ? `${x.zh2.n}건 ${pc(x.zh2.h5_1)} 5일 수익 ${pr(x.zh2.r5)}` : '0건'}` : ''} | ${x.ex.join(' · ')}`); });
     OUT.markets[mn + '|' + rg] = { gold, base, n_rows: rows.length, n80, chance, replicated: repl.map(x => x.name), top: rows.slice(0, 10).map(({ key, name, z3, rest3, zo, resto, z1, ex }) => ({ key, name, z3, rest3, zo, resto, z1, ex })) };
   }
   if (outPath) { fs.writeFileSync(outPath, JSON.stringify(OUT)); console.log('→ ' + outPath); }
