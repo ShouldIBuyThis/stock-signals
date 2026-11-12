@@ -127,6 +127,55 @@ def main():
         case_stats[nm] = {"bust": len(bw), "caught": len(cap), "cont": len(cw), "false": len(fa), "lead_med": float(np.median(lead)) if lead else None, "left_med": float(np.median(left)) if left else None}
         print(f"  {nm:<16}| {cr:5.1f}% ({len(cap)}/{len(bw)}) · {np.median(lead) if lead else float('nan'):+.0f}일 · {np.median(left) if left else float('nan'):.0f}일 | {fr:5.1f}% ({len(fa)}/{len(cw)}) | {cr / fr if fr else float('nan'):.2f}")
 
+    # ── 추가 연구: 이격 과열(EXT) 사례 단위 재검증 — docs 사전 등록(2026-11-12) 그대로 ──
+    def ext_arr(t, thr):
+        dates, o, h, l, c, fl = series[t]
+        return np.nan_to_num((c / fl["_aux"]["ma20"] - 1) / max(LEV.get(t, 1), 1), nan=-9) >= thr - 1e-12
+    peaksB = []
+    for t, (dates, o, h, l, c, fl) in series.items():
+        n = len(c); lo120 = pd.Series(c).rolling(120, min_periods=120).min().to_numpy(); last = -99
+        for P in range(140, n - 60):
+            if P - last < 20: continue
+            if h[P] < h[P - 20:P + 21].max() or not (np.isfinite(lo120[P]) and c[P] >= lo120[P] * 1.5): continue
+            mn = c[P + 1:P + 61].min()
+            kind = "bust" if mn <= c[P] * 0.65 else ("cont" if c[P + 60] >= c[P] and mn >= c[P] * 0.75 else None)
+            if not kind: continue
+            last = P
+            Dd = next((j for j in range(P + 1, min(n, P + 61)) if c[j] <= c[P] * 0.9), None)
+            peaksB.append({"tk": t, "P": P, "kind": kind, "D": Dd, "date": dates[P], "wl": t in wl})
+    def cap_rate(pk_list, thr, period, wl_only=False):
+        sel = [p for p in pk_list if (p["date"] >= SPLIT) == (period == "hold") and (p["wl"] or not wl_only)]
+        def hit(p):
+            A = ext_arr(p["tk"], thr); P = p["P"]; end = min(P + 10, (p["D"] - 1) if p["D"] else P + 10)
+            return any(A[j] for j in range(max(0, P - 10), end + 1))
+        bw = [p for p in sel if p["kind"] == "bust"]; cw = [p for p in sel if p["kind"] == "cont"]
+        cb, cc = sum(hit(p) for p in bw), sum(hit(p) for p in cw)
+        return {"bust": len(bw), "caught": int(cb), "cont": len(cw), "false": int(cc),
+                "cap": round(cb / len(bw) * 100, 1) if bw else None, "far": round(cc / len(cw) * 100, 1) if cw else None,
+                "tk_bust": len({p["tk"] for p in bw}), "tk_cont": len({p["tk"] for p in cw})}
+    ET = {}
+    for thr in (0.20, 0.25, 0.30):
+        for ctl, pl in (("A", peaks), ("B", peaksB)):
+            for per in ("disc", "hold"):
+                ET[f"{int(thr*100)}|{ctl}|{per}"] = cap_rate(pl, thr, per)
+    ET["25|A|hold|wl"] = cap_rate(peaks, 0.25, "hold", wl_only=True)
+    g = lambda k: ET[k]
+    d = lambda x: (x["cap"] if x["cap"] is not None else -999) - (x["far"] if x["far"] is not None else 999)
+    h25 = g("25|A|hold")
+    crit = {
+        "1_holdA_diff20_ratio2_n": d(h25) >= 20 and h25["far"] is not None and h25["cap"] is not None and (h25["far"] == 0 or h25["cap"] / h25["far"] >= 2) and h25["bust"] >= 30 and h25["cont"] >= 15,
+        "2_holdB_diff10": d(g("25|B|hold")) >= 10,
+        "3_discA_same_dir": d(g("25|A|disc")) > 0,
+        "4_plateau_20_30": d(g("20|A|hold")) >= 10 and d(g("30|A|hold")) >= 10,
+        "5_watchlist_only": d(g("25|A|hold|wl")) > 0,
+    }
+    ext_pass = all(crit.values())
+    print("\n■ 이격 과열(EXT) 사례 단위 재검증 — 사전 등록 기준")
+    for k, v in ET.items():
+        print(f"  {k:<14} 붕괴 {v['caught']}/{v['bust']} = {v['cap']}% ({v['tk_bust']}종목) · 지속 {v['false']}/{v['cont']} = {v['far']}% ({v['tk_cont']}종목) · 차 {d(v):+.1f}%p")
+    for k, v in crit.items(): print(f"  기준 {k}: {'통과' if v else '미통과'}")
+    print(f"  → EXT 재검증 {'통과 — 🟡 고점 경계에 사용' if ext_pass else '미통과 — 판정 보류 유지'}")
+
     # ── 0023B0 소급(사용자 지목) ──
     if "0023B0.KS" in series:
         dates, o, h, l, c, fl = series["0023B0.KS"]
@@ -167,7 +216,9 @@ def main():
         out = {"generated": datetime.now(timezone.utc).strftime("%Y-%m-%d"), "kind": "research", "doc": "docs/2026-11-12-peak-reader.md",
                "period": [min(R["date"]), max(R["date"])], "split": SPLIT, "universe": {"watchlist": len(wl & set(series)), "extra": [t for t in EXTRA if t in series]},
                "rule": "보류 기간 10일 하락 비율·큰 하락(20일 안 −15%) 비율 모두 대조+5%p ∧ 서로 다른 날 50+ ∧ 탐색 기간 같은 방향",
-               "names": pf.PR_NAMES, "groups": pf.PR_GROUPS, "valid": valid, "stats": res, "cases_stats": case_stats, "cases": cases}
+               "names": pf.PR_NAMES, "groups": pf.PR_GROUPS, "valid": valid, "stats": res, "cases_stats": case_stats, "cases": cases,
+               "ext_test": {"pass": bool(ext_pass), "criteria": crit, "table": ET, "doc": "docs/2026-11-12-peak-reader.md#추가-연구"},
+               "valid_case": ["EXT"] if ext_pass else []}
         json.dump(out, open(a.emit, "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
         print(f"→ {a.emit} 저장")
 
