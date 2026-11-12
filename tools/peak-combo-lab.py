@@ -185,8 +185,57 @@ def diag(a, M, O_, MT, tick, cald):
         sys.exit(2)
 
 
+CRASH_CATS = ("반도체", "양자컴퓨팅", "우주")      # 2026-11-12 사용자 질문: 반도체·우주·양자 폭락을 지금 산식이 잡았나
+
+
+def crash(a, per, Wl):
+    """폭락 사례 진단(검증 표본 아님 · 새 산식 없음 — 연구 블록 B를 그대로 읽는다).
+    폭락 정의(결과 보기 전 고정): 2025-01-01 이후 고가가 앞뒤 20봉 최고 ∧ 이후 30봉 안 저가가 그 고가 대비 −25% 이하.
+    산식: 🔴 20일 하락 연구 후보(peak-p20 재현 조합) · 📁 Q 22개(peak-highlights) · 10일 재현 6개(peak-p10).
+    창: 고점 −10봉 ~ +5봉(−25% 도달 전날까지). 공통점: 창 안 하루 점등률 vs 같은 종목 전체 날 하루 점등률(같은 단위)."""
+    J = lambda f: json.load(open(f"{ROOT}/backtest/{f}", encoding="utf-8"))
+    F = {}
+    p20 = J("peak-p20.json")["readers"]["P"]; F.update({"🔴20일:" + x["name"]: x["combo"] for x in p20["cands"] if x.get("replicate") == "재현"})
+    p10 = J("peak-p10.json")["readers"]["N"]; F.update({"10일:" + x["name"]: x["combo"] for x in p10["cands"] if x.get("replicate") == "재현"})
+    F.update({"Q:" + h["name"]: h["combo"] for h in J("peak-highlights.json")["highlights"]})
+    BL = [b for b in ALLB if b not in sum(NB.values(), [])]
+    eps, inwin, alld = [], {b: 0 for b in BL}, {b: [0, 0] for b in BL}; nwin = 0
+    for t, (idx, o, h, l, c, v, lev, TW, MK, BR, RSW, B, fl, rc, oc) in per.items():
+        cat = (Wl.get(t) or [""])[0] if isinstance(Wl, dict) else ""
+        if not cat or not any(k in cat for k in CRASH_CATS): continue
+        ds = [str(x.date()) for x in idx]; n = len(c)
+        for b in BL: alld[b][0] += int(np.sum(B[b])); alld[b][1] += n
+        for i in range(20, n - 1):
+            if ds[i] < "2025-01-01" or h[i] < np.max(h[max(0, i - 20): min(n, i + 21)]): continue
+            j1 = min(n, i + 31); lo = i + int(np.argmin(l[i:j1])); dd = l[lo] / h[i] - 1
+            if dd > -0.25: continue
+            hit25 = next((k for k in range(i, j1) if l[k] <= h[i] * 0.75), lo)
+            w0, w1 = max(0, i - 10), min(n - 1, i + 5, hit25 - 1)
+            lit = {}
+            for nm, cb in F.items():
+                ks = [k for k in range(w0, w1 + 1) if all(B[b][k] for b in cb if b in B)]
+                if ks: lit[nm] = [ds[ks[0]], ks[0] - i, round(float(c[min(n - 1, ks[0] + 20)] / c[ks[0]] - 1) * 100, 1) if ks[0] + 20 < n else None]
+            on = sorted({b for k in range(w0, w1 + 1) for b in BL if B[b][k]})
+            for b in BL: inwin[b] += int(np.sum(B[b][w0:w1 + 1]))
+            nwin += w1 - w0 + 1
+            eps.append({"t": t, "cat": cat, "peak": ds[i], "high": round(float(h[i]), 2), "low": [ds[lo], round(dd * 100, 1)], "hit25": ds[hit25], "window": [ds[w0], ds[w1]], "lit": lit, "blocks": on})
+    print(f"\n■ 폭락 진단 — {len(eps)}건(반도체·양자·우주 · 2025년 이후 · 고점 뒤 30봉 안 −25%)")
+    for e in sorted(eps, key=lambda e: e["peak"]):
+        L = e["lit"]; k20 = [k for k in L if k.startswith("🔴")]; kq = [k for k in L if k.startswith("Q:")]; k10 = [k for k in L if k.startswith("10일:")]
+        print(f"  {e['peak']} {e['t']:6} {e['cat'][:8]:8} 고점 대비 {e['low'][1]}% ({e['low'][0]}) | 20일후보 {'O ' + str(L[k20[0]]) if k20 else 'X'} | Q {len(kq)}/22{' 첫 ' + str(min((L[k][1] for k in kq))) + '봉' if kq else ''} | 10일 {len(k10)}/6")
+    caught = lambda pre: sum(1 for e in eps if any(k.startswith(pre) for k in e["lit"]))
+    print(f"  잡은 사례: 🔴20일 후보 {caught('🔴')}/{len(eps)} · Q 22개 중 하나라도 {caught('Q:')}/{len(eps)} · 10일 6개 중 하나라도 {caught('10일:')}/{len(eps)}")
+    common = sorted(((b, inwin[b] / nwin if nwin else 0, alld[b][0] / alld[b][1] if alld[b][1] else 0) for b in BL), key=lambda x: -(x[1] / x[2] if x[2] else 0))
+    print("  하루 점등률 — 폭락 창(고점 −10~+5봉) vs 같은 종목 아무 날:"); [print(f"    {b:7} {BN.get(b, b)[:24]:24} 폭락 창 {r * 100:4.1f}% · 평소 {q * 100:4.1f}% · {r / q if q else 0:.1f}배") for b, r, q in common[:15]]
+    out = {"kind": "diag", "data_hash": a._hash, "data_last": a._last, "def": "2025-01-01 이후 · 고가가 앞뒤 20봉 최고 · 이후 30봉 안 저가 −25% 이하 · 창 고점 −10~+5봉(−25% 도달 전날까지)",
+           "episodes": eps, "caught": {"p20": caught("🔴"), "q": caught("Q:"), "n10": caught("10일:"), "n": len(eps)},
+           "common": [{"b": b, "name": BN.get(b, b), "win": round(r, 3), "base_day": round(q, 4)} for b, r, q in common]}
+    json.dump(out, open(a.crash, "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"), default=lambda x: x.item() if hasattr(x, "item") else str(x))
+    print(f"→ {a.crash} 저장")
+
+
 def main():
-    ap = argparse.ArgumentParser(); ap.add_argument("--emit", default=""); ap.add_argument("--cache", required=True); ap.add_argument("--only", default=""); ap.add_argument("--diag", default=""); a = ap.parse_args()
+    ap = argparse.ArgumentParser(); ap.add_argument("--emit", default=""); ap.add_argument("--cache", required=True); ap.add_argument("--only", default=""); ap.add_argument("--diag", default=""); ap.add_argument("--crash", default=""); a = ap.parse_args()
     Z = pickle.load(open(a.cache, "rb")); a._hash, a._last = Z.get("data_hash"), Z.get("data_last"); data, orig, newx, zset, sector, SP, Wl = (Z[k] for k in ("data", "orig", "newx", "zset", "sector", "SP", "Wl"))
     zs = sorted(t for t in zset if t in data); ZA, ZB = set(zs[0::2]), set(zs[1::2])
     cal = pd.DatetimeIndex(sorted(set().union(*[set(d.index) for d in data.values()]))); cald = np.array([str(x.date()) for x in cal]); cpos = {d: i for i, d in enumerate(cal)}
@@ -245,6 +294,8 @@ def main():
         if (k[0] in "ABDRQFTMWPN" and k[1:].replace("_", "").isdigit()) or k.startswith("dec") or k in ("vA", "vB", "early"): O_[k] = O_[k].astype(bool)
     NT = len(MT["tk"]); print(f"종목 {len(tick)} (탐색 E·T·X {sum(t not in ZA and t not in ZB for t in tick)} · ZA {len(ZA)} · ZB {len(ZB)}) · 이어 붙인 봉 {NT:,}")
     part = MT["part"]; di = MT["di"]
+    if a.crash:
+        return crash(a, per, Wl)
     if a.diag:
         return diag(a, M, O_, MT, tick, cald)
     def events(mask):
