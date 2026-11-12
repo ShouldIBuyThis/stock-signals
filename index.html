@@ -620,17 +620,6 @@ html[data-theme="dark"] .lev{background:#33191b;color:#ff8080;border-bottom-colo
 .pr-t tr.pr-base td{color:var(--faint)} .pr-t tr.on td{color:var(--ink);font-weight:700}
 .pr-badges{display:inline-flex;gap:4px;align-items:center;justify-content:flex-end;flex-wrap:wrap}
 .pr-trim{font-size:10.5px;font-weight:700;border-radius:999px;padding:2px 7px;background:#fdf6e3;color:#946200;white-space:nowrap}
-.snap h3 small{font-size:12px;font-weight:500;color:var(--muted)}
-.snap-note{font-size:12px;color:var(--reason);line-height:1.6;margin:4px 0 8px}
-.snap-row{display:flex;gap:8px;align-items:center;margin:6px 0;flex-wrap:wrap} .snap-row label{font-size:12px;color:var(--muted);width:64px}
-.snap-row select,.snap-row input{flex:1;min-width:120px;font:inherit;font-size:13px;padding:7px 9px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)}
-.snap-drop{border:1.5px dashed var(--line);border-radius:14px;padding:14px;text-align:center;font-size:12.5px;color:var(--muted);cursor:pointer;margin:8px 0}
-.snap-drop img{max-width:100%;max-height:200px;border-radius:8px}
-.snap-stat{font-size:12px;color:var(--reason);background:var(--surface2);border-radius:10px;padding:8px 10px;margin:6px 0;line-height:1.55}
-.snap-res{margin-top:10px;background:var(--surface2);border-radius:14px;padding:12px} .snap-res-h{font-weight:800;font-size:14px}
-.snap-meta{font-size:11.5px;color:var(--muted);margin:2px 0 8px}
-.snap-dl{margin:0;font-size:12.5px;line-height:1.6} .snap-dl dt{font-weight:700;color:var(--ink);margin-top:6px} .snap-dl dd{margin:0;color:var(--reason)} .snap-dl ul{margin:0;padding-left:16px}
-.snap-btn{background:var(--navy-soft);color:var(--navy)}
 .pr-ct{margin-top:8px;font-size:11.5px} .pr-ct summary{cursor:pointer;color:var(--muted)}
 .pr-ref .pr-t td,.pr-ref .pr-t th{padding:4px 2px}
 html[data-theme="dark"] .pr-btn{background:#232c42;color:#dbe3f5}
@@ -1732,7 +1721,6 @@ function normalize(raw){
            spy_card: raw.spy_card || null,
            market_events: Array.isArray(raw.market_events) ? raw.market_events : [],
            calendar_status: raw.calendar_status || null,
-           kr_sessions: (raw.kr_sessions && typeof raw.kr_sessions === "object") ? raw.kr_sessions : null,   /* 2026-11-12 📸 장중 차트 분석 버튼(국장 정규장만) */
            generation_status: raw.generation_status || null,
            sectors: raw.sectors||null, hist_fields: raw.hist_fields||null };
 }
@@ -5683,7 +5671,6 @@ function renderTheme(){
         <button class="${state.market==="kr"?"on":""}" data-market="kr" title="한국장">🇰🇷</button>
       </span>
       <button class="chip tgl mini2 ${state.showHoldings?"on":""}" data-hold="1">⭐ 보유종목</button>
-      ${state.market==="kr" && snapKrOpen() ? `<button class="chip mini2 snap-btn" data-snap="1" title="장중 차트 캡처를 올려 분석(참고용)">📸 실시간 차트 분석</button>` : ""}
       ${basisNote()}</div>
     <div class="widgets">
       ${widget("🔵 다중 신호","<button class=\"swinglink\" data-swing=\"1\">3~20일 스윙 관점</button>",multi,"오늘은 매수 신호가 없어요","signal")}
@@ -9085,115 +9072,8 @@ function prPanelHtml(mine){
     </div></details>`;
 }
 
-/* ══════════ 📸 국장 장중 차트 캡처 분석 — 2026-11-12 사용자 지시 ══════════
-   사이트 장중 자료(야후 약 20분 지연)와 별개인 '보조 분석'. 사용자가 올린 캡처 1장을 별도 Worker(cloudflare/chart-analyze-worker.mjs)가
-   Claude 비전 모델로 읽어 '화면에 보이는 것만' JSON으로 돌려준다. API 키는 Worker 비밀값(프런트에 없음) · 이미지 저장 없음.
-   Worker가 설정 전이면(GET configured:false 또는 연결 실패) 분석 버튼을 막고 결과를 만들지 않는다. 등급·황금신호·고점판독기·원장과 무관. */
-const CHART_API = (typeof window !== "undefined" && window.__CHART_API) || "https://chart-analyze.zzz797911.workers.dev/";
-const SNAP = { img: null, mt: null, prev: null, health: null, busy: false };
-function snapKrOpen(ms){
-  const now = new Date(ms || Date.now());
-  const f = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit", weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(now);
-  const g = k => (f.find(x => x.type === k) || {}).value, day = `${g("year")}-${g("month")}-${g("day")}`, m = +g("hour") * 60 + +g("minute");
-  const toM = hm => { const [h, mm] = String(hm).split(":"); return +h * 60 + +mm; };
-  const ks = state.data && state.data.kr_sessions;
-  if (ks && Object.keys(ks).length){ const x = ks[day]; return !!x && m >= toM(x[0]) && m < toM(x[1]); }   // 휴장일 반영(exchange_calendars XKRX)
-  return g("weekday") !== "Sat" && g("weekday") !== "Sun" && m >= 540 && m < 930;                          // 일정이 없을 때: 평일 09:00~15:30
-}
-async function snapHealth(){
-  try { const r = await fetch(CHART_API, { cache: "no-store" }); const d = await r.json(); SNAP.health = d && d.ok ? d : { ok: false }; }
-  catch(e){ SNAP.health = { ok: false }; }
-  snapPaint();
-}
-function snapKrStocks(){ return allStocks().filter(s => /\.(KS|KQ)$/.test(s.ticker)); }
-function openSnapModal(){
-  SNAP.img = null; SNAP.prev = null; SNAP.health = null;
-  const opts = snapKrStocks().map(s => `<option value="${esc(s.ticker)}">${esc((typeof GOLD_KR_LABEL !== "undefined" && GOLD_KR_LABEL[s.ticker]) || s.name || s.ticker)} (${esc(s.ticker)})</option>`).join("");
-  let pass = ""; try { pass = localStorage.getItem("snapPass") || ""; } catch(e){}
-  openModal(`<div class="snap"><h3>📸 장중 차트 분석 <small>참고용</small></h3>
-    <p class="snap-note">올린 캡처 <b>한 장</b>을 AI(Claude 비전)가 읽어 화면에 보이는 것만 정리해요. 캡처한 시점의 자료라 <b>실시간 시세가 아니에요</b>. 사이트의 장중 자료(야후 약 20분 지연)와는 별개예요. 이미지는 저장하지 않고 분석을 위해서만 전송돼요.</p>
-    <div class="snap-row"><label>종목</label><select id="snapTk"><option value="">직접 입력</option>${opts}</select><input id="snapName" placeholder="종목명 또는 코드" autocomplete="off"></div>
-    <div class="snap-row"><label>차트 주기</label><select id="snapTf">${["1분","5분","15분","30분","60분","일봉","주봉","모름"].map(x => `<option${x === "5분" ? " selected" : ""}>${x}</option>`).join("")}</select></div>
-    <div class="snap-drop" id="snapDrop" tabindex="0"><input type="file" id="snapFile" accept="image/*" hidden>
-      <div id="snapPrev"><b>여기를 눌러 이미지 선택</b><br><small>또는 캡처를 붙여넣기(Ctrl/⌘+V) · 끌어다 놓기</small></div></div>
-    <div class="snap-row"><label>분석 암호</label><input id="snapPass" type="password" value="${esc(pass)}" placeholder="Worker에 정한 개인 암호" autocomplete="off"></div>
-    <div id="snapStat" class="snap-stat">분석 서버 확인 중…</div>
-    <div class="modal-actions"><button onclick="closeModal()">닫기</button><button class="primary" id="snapGo" disabled>분석하기</button></div>
-    <div id="snapOut"></div></div>`);
-  const $ = id => document.getElementById(id);
-  $("snapTk").onchange = () => { const s = allStocks().find(x => x.ticker === $("snapTk").value); if (s) $("snapName").value = s.name || s.ticker; };
-  $("snapDrop").onclick = () => $("snapFile").click();
-  $("snapFile").onchange = () => { const f = $("snapFile").files && $("snapFile").files[0]; if (f) snapLoad(f); };
-  $("snapDrop").ondragover = e => { e.preventDefault(); };
-  $("snapDrop").ondrop = e => { e.preventDefault(); const f = e.dataTransfer.files && e.dataTransfer.files[0]; if (f) snapLoad(f); };
-  $("snapGo").onclick = snapRun;
-  snapHealth();
-}
-document.addEventListener("paste", e => {
-  if (!document.getElementById("snapDrop") || !modal.classList.contains("on")) return;
-  const it = [...((e.clipboardData && e.clipboardData.items) || [])].find(x => x.type && x.type.startsWith("image/"));
-  if (it){ e.preventDefault(); snapLoad(it.getAsFile()); }
-});
-function snapLoad(file){
-  if (!file || !/^image\//.test(file.type)){ toast("이미지 파일만 올릴 수 있어요"); return; }
-  const fr = new FileReader();
-  fr.onload = () => { const im = new Image(); im.onload = () => {
-      const L = 1600, k = Math.min(1, L / Math.max(im.width, im.height)), cv = document.createElement("canvas");
-      cv.width = Math.round(im.width * k); cv.height = Math.round(im.height * k);
-      cv.getContext("2d").drawImage(im, 0, 0, cv.width, cv.height);
-      const url = cv.toDataURL("image/jpeg", 0.9); SNAP.img = url.split(",")[1]; SNAP.mt = "image/jpeg"; SNAP.prev = url;
-      const p = document.getElementById("snapPrev"); if (p) p.innerHTML = `<img src="${url}" alt="올린 차트 미리보기"><br><small>다시 누르면 다른 이미지로 바꿔요 · ${cv.width}×${cv.height}</small>`;
-      snapPaint(); };
-    im.src = fr.result; };
-  fr.readAsDataURL(file);
-}
-function snapPaint(){
-  const st = document.getElementById("snapStat"), go = document.getElementById("snapGo"); if (!st || !go) return;
-  const H = SNAP.health;
-  if (!H){ st.textContent = "분석 서버 확인 중…"; go.disabled = true; return; }
-  if (!H.ok || !H.configured){
-    st.innerHTML = `⚠ <b>분석 서버가 아직 준비되지 않았어요</b> — 이미지를 올려도 분석 결과를 만들지 않아요.<br><small>필요: Cloudflare Worker(chart-analyze) 배포 + 비밀값 ANTHROPIC_API_KEY·CHART_PASS 설정</small>`;
-    go.disabled = true; return; }
-  st.innerHTML = `분석 서버 준비됨 · ${esc(H.model || "")}${SNAP.img ? "" : " · 이미지를 올려 주세요"}`;
-  go.disabled = !SNAP.img || SNAP.busy;
-}
-async function snapRun(){
-  const $ = id => document.getElementById(id); if (!SNAP.img || SNAP.busy) return;
-  const pass = ($("snapPass").value || "").trim(); if (!pass){ toast("분석 암호를 입력해 주세요"); return; }
-  try { localStorage.setItem("snapPass", pass); } catch(e){}
-  const tk = $("snapTk").value, nm = ($("snapName").value || "").trim(), tf = $("snapTf").value;
-  SNAP.busy = true; snapPaint(); $("snapOut").innerHTML = `<div class="snap-stat">⏳ 분석 중… (보통 10~40초)</div>`;
-  const at = new Date();
-  try {
-    const r = await fetch(CHART_API, { method: "POST", headers: { "Content-Type": "application/json", "X-Chart-Pass": pass },
-      body: JSON.stringify({ image: SNAP.img, media_type: SNAP.mt, ticker: tk, name: nm, tf, captured_at: at.toISOString() }) });
-    const d = await r.json().catch(() => ({}));
-    if (!r.ok || !d.ok){ $("snapOut").innerHTML = `<div class="snap-stat">⚠ ${esc(d.error || `분석 실패(${r.status})`)} — 분석 결과는 만들지 않았어요.</div>`; }
-    else $("snapOut").innerHTML = snapResultHtml(d, { tk, nm, tf, at });
-  } catch(e){ $("snapOut").innerHTML = `<div class="snap-stat">⚠ 분석 서버에 연결하지 못했어요 — 분석 결과는 만들지 않았어요.</div>`; }
-  SNAP.busy = false; snapPaint();
-}
-function snapResultHtml(d, q){
-  const R = d.result || {}, li = a => (a && a.length) ? a.map(x => `<li>${esc(typeof x === "string" ? x : `${x.name} — ${x.where}`)}</li>`).join("") : "<li>확인 불가</li>";
-  const t = new Date(d.analyzed_at || Date.now()).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", hour12: false });
-  const tc = R.top_check || {};
-  return `<div class="snap-res"><div class="snap-res-h">📸 장중 차트 분석 — 참고용</div>
-    <div class="snap-meta">${esc(q.nm || q.tk || "종목 미지정")} · 차트 주기 ${esc(R.chart_tf || q.tf)} · 화면 시각 ${esc(R.chart_time || "확인 불가")} · 분석 ${esc(t)} KST · 캡처 시점 자료(실시간 아님)</div>
-    <dl class="snap-dl">
-      <dt>현재 흐름</dt><dd><b>${esc(R.flow || "확인 불가")}</b> — ${esc(R.flow_reason || "")}</dd>
-      <dt>확인된 신호</dt><dd><ul>${li(R.seen_signals)}</ul></dd>
-      <dt>고점 점검</dt><dd>볼밴 상단권 ${esc(tc.bb_upper || "확인 불가")} · 고점 근접 ${esc(tc.near_high || "확인 불가")} · 위험 캔들 ${esc(tc.risk_candle || "확인 불가")}${tc.note ? `<br><small>${esc(tc.note)}</small>` : ""}</dd>
-      <dt>단기 저항 · 지지</dt><dd>저항 ${esc((R.resistance || []).join(", ") || "확인 불가")}<br>지지 ${esc((R.support || []).join(", ") || "확인 불가")}</dd>
-      <dt>일부 익절 검토</dt><dd><b>${esc(R.trim_review || "추가 확인 필요")}</b> — ${esc(R.trim_reason || "")}</dd>
-      <dt>상승 지속 시나리오</dt><dd>${esc(R.up_scenario || "확인 불가")}</dd>
-      <dt>하락 전환 시나리오</dt><dd>${esc(R.down_scenario || "확인 불가")}</dd>
-      <dt>지표</dt><dd>볼밴 ${esc(R.bb || "확인 불가")} · RSI ${esc(R.rsi || "확인 불가")} · MACD ${esc(R.macd || "확인 불가")} · 스토캐스틱 ${esc(R.stoch || "확인 불가")} · 거래량 ${esc(R.volume || "확인 불가")} · 캔들 ${esc(R.candles || "확인 불가")}</dd>
-      ${(R.unreadable || []).length ? `<dt>읽지 못한 부분</dt><dd>${esc(R.unreadable.join(" · "))}</dd>` : ""}
-    </dl>
-    <p class="snap-note">AI(${esc(d.model || "")})가 이미지에서 읽은 내용이라 틀릴 수 있어요. 사이트의 등급·황금신호·고점판독기와 별개이고, 매수·매도 지시가 아니에요.</p></div>`;
-}
-document.addEventListener("click", e => { if (e.target.closest("[data-snap]")){ e.preventDefault(); openSnapModal(); } });
-
+/* 2026-11-12 📸 차트 캡처 분석 기능은 사용자 지시로 삭제 — 예전에 브라우저에 저장된 분석 암호만 한 번 지운다 */
+try { localStorage.removeItem("snapPass"); } catch(e){}
 /* 장바구니 패널 — 보유 패널과 같은 자리를 쓴다 */
 const btnCartTop = document.getElementById("btnCart");
 function renderCartPanel(){

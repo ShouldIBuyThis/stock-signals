@@ -934,22 +934,6 @@ def latest_closed_kr_session(now=None):
     return _session_str(session)
 
 
-def kr_sessions_ahead(days=21, now=None):
-    """오늘부터 days일 안의 KRX 정규장 {날짜: [개장 HH:MM, 마감 HH:MM](KST)} — 휴장일은 빠진다(exchange_calendars XKRX).
-    화면의 📸 장중 차트 분석 버튼이 '정규장 시간에만' 보이게 하는 데만 쓴다. 실패하면 None(화면은 평일 09:00~15:30으로 대신 판단)."""
-    try:
-        now = pd.Timestamp(now if now is not None else datetime.now(_KST))
-        d0 = now.tz_convert(_KST).date()
-        out = {}
-        for s in _KR_CAL.sessions_in_range(pd.Timestamp(d0), pd.Timestamp(d0) + pd.Timedelta(days=days)):
-            o = _KR_CAL.session_open(s).tz_convert(_KST); c = _KR_CAL.session_close(s).tz_convert(_KST)
-            out[_session_str(s)] = [o.strftime("%H:%M"), c.strftime("%H:%M")]
-        return out
-    except Exception as e:
-        print(f"  ⚠ 국장 정규장 일정 계산 실패: {e}")
-        return None
-
-
 def latest_closed_session_for(ticker, now=None):
     return latest_closed_kr_session(now) if is_kr_ticker(ticker) else latest_closed_us_session(now)
 
@@ -2479,7 +2463,6 @@ def main():
         "market_events": market_events,
         "congress_holdings": congress_holdings,
         "calendar_status": calendar_status,
-        "kr_sessions": kr_sessions_ahead(),   # 2026-11-12 📸 장중 차트 분석 버튼 표시용(국장 정규장 시각 · 휴장 반영) — 표시 전용
         "sectors": sectors,
         "stocks": results, "failed": failed,
         "cand_track": cand_track,
