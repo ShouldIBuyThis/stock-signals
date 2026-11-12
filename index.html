@@ -5352,7 +5352,7 @@ function gkGroupConds(d, kr){
 function gkRegime(d, kr){   /* 국면 = 미장 QQQ · 국장 KODEX200(069500) 종가 vs 200일선 · 60일 수익(그날까지) — gold-3y-lab RG와 같은 식 */
   /* 화면: main.py가 그날 계산한 mkt_regime(1년치로 200일선·60일 수익)을 먼저 쓴다 — 원장 hist는 60거래일뿐이라 직접 못 잰다. 날짜가 다르면 판정 보류. */
   try { const src = kr ? ((state.data.stocks || []).find(x => x.ticker === "069500.KS") || {}).mkt_regime : (state.data.qqq_card || {}).mkt_regime;
-    if (src && src.rg) return String(src.date) === String(d) ? src.rg : null; } catch(e){}
+    if (src && src.rg && String(src.date) === String(d)) return src.rg; } catch(e){}   /* 날짜가 다르면 아래 시세 기록으로 계산(원장 60일이면 판정 보류) */
   let k = null; try { k = kr ? allStocks().find(x => x.ticker === "069500.KS") : qqqBenchmarkStock(); } catch(e){}
   const hs = (k && histStocks(k)) || [], i = hs.findIndex(h => String(h.last_date) === String(d));
   if (i < 200) return null; const w = hs.slice(i - 199, i + 1).map(h => h.price).filter(has); if (w.length < 180 || !has(hs[i - 60].price)) return null;
