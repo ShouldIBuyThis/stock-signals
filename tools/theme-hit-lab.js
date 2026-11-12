@@ -45,9 +45,14 @@ const NDXD = {}; if (GB && GB.groups && GB.groups.NDX) { const g = GB.groups.NDX
   GB.dates.forEach((d, i) => { if (i >= 5 && n5[i] != null && n5[i - 5] != null) NDXD[d] = n5[i] - n5[i - 5]; }); }
 const gbStart = GB && GB.dates ? GB.dates[0] : null, ssStart = GB && GB.state_series && GB.state_series.ALL_UP ? GB.state_series.ALL_UP[0] : null;
 // 결과 경로
-const OUT = (c, i) => { const ms = mem[c]; if (i + 10 >= T) return null; const d1 = dates[i + 1]; const pick = ms.filter(x => x.m[d1] && x.m[d1][0] != null && x.m[d1][0] > 0);
+/* 진입: 기본 = 다음 날 시가(원래 사전 등록) · ENTRY=close = 신호일 정규장 종가(2026-11-12 사용자 정정 — 애프터마켓 종가 지정가 · 체결 보장 아님) */
+const CLOSE = process.env.ENTRY === 'close';
+console.log(`진입 기준: ${CLOSE ? '신호일 종가(체결 보장 아님)' : '다음 날 시가(원래 사전 등록)'}`);
+const OUT = (c, i) => { const ms = mem[c]; if (i + 10 >= T) return null; const d0 = dates[i], d1 = dates[i + 1];
+  const px0 = x => CLOSE ? (x.m[d0] ? x.m[d0][1] : null) : (x.m[d1] ? x.m[d1][0] : null);
+  const pick = ms.filter(x => px0(x) != null && px0(x) > 0);
   if (pick.length < 4) return null; const V = [];
-  for (let k = 1; k <= 10; k++) { const d = dates[i + k]; let s = 0; for (const x of pick) { const r = x.m[d]; if (!r || r[1] == null) return null; s += r[1] / x.m[d1][0]; } V.push(s / pick.length - 1); }
+  for (let k = 1; k <= 10; k++) { const d = dates[i + k]; let s = 0; for (const x of pick) { const r = x.m[d]; if (!r || r[1] == null) return null; s += r[1] / px0(x); } V.push(s / pick.length - 1); }
   return V; };
 const TH_X = [0, 0.01, 0.02, 0.03], HZ = [3, 5, 7, 10];
 const cond = {
