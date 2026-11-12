@@ -17,6 +17,12 @@ page.runInPage(`this.__run = j => { const RAW = JSON.parse(j); state.data = norm
   const QT = {}; try { const q = qqqBenchmarkStock(), qh = histStocks(q) || [], vx = (RAW.macro && RAW.macro.vxn) || {}, br = breadthByDate();
     let streak = 0; qh.forEach((h, i) => { const p = i ? qh[i-1] : null; streak = p && has(h.price) && has(p.price) && h.price < p.price ? streak + 1 : 0;
       const g = qqqTierRule(streak, num(vx[h.last_date]), p ? num(vx[p.last_date]) : null, br[h.last_date] ?? null); QT[h.last_date] = g.bulb ? 3 : g.tier; }); } catch(e){}
+  /* 2026-11-12 사용자 질문 "황금 약세장 승률이 좋으면 강세장엔 더 좋았겠네? 1년치" — 시장 국면(그날까지 값만): 지수 종가 vs 200일선 · 60일 수익.
+     미장 = QQQ · 국장 = KODEX200(069500.KS). 상승 = 200일선 위 ∧ 60일 +, 하락 = 200일선 아래 ∧ 60일 −, 그 밖 = 횡보. */
+  const RG = { us: {}, kr: {} }; try { [['us', qqqBenchmarkStock()], ['kr', allStocks().find(x => x.ticker === '069500.KS')]].forEach(([m, q]) => { const qh = (q && histStocks(q)) || [];
+    qh.forEach((h, i) => { if (i < 200 || !has(h.price)) return; const w = qh.slice(i - 199, i + 1).map(x => x.price).filter(has); if (w.length < 180) return;
+      const ma = w.reduce((a, b) => a + b, 0) / w.length, r60 = has(qh[i - 60].price) ? h.price / qh[i - 60].price - 1 : null; if (r60 == null) return;
+      RG[m][h.last_date] = h.price > ma && r60 > 0 ? '상승' : h.price < ma && r60 < 0 ? '하락' : '횡보'; }); }); } catch(e){}
   allStocks().forEach(s => { const hs = histStocks(s); if (!hs) return; const ew = earningsWindowsForValidation(s, hs);
     hs.forEach((h, i) => { if (!h.last_date || !has(h.price)) return;
       const row = Object.assign({}, s, h); if (i > 0) withPrev(row, hs[i-1]);
@@ -28,14 +34,26 @@ page.runInPage(`this.__run = j => { const RAW = JSON.parse(j); state.data = norm
   byDate.forEach((uni, d) => { const ok = uni.filter(r => !r._blk); const mm = new Map(multiSignalRank(ok).map(x => [x.ticker, x]));
     uni.forEach(r => { const hs = r._hs, i = r._i, o1 = hs[i+1] && has(hs[i+1].open) ? hs[i+1].open : null;
       const f = n => (__EO ? o1 : r.price) && hs[i+n] && has(hs[i+n].price) ? (hs[i+n].price/(__EO ? o1 : r.price) - 1)*100 : null;   // 기본 = 신호일 종가 기준(사이트 승률표와 같음) · ENTRY=open이면 다음 날 시가
-      let tier = null, bull = false; if (!r._blk){ tier = sbDailyTier(r, mm); try { bull = sbItemsFor(r, {main:true}).some(x => !x.site && (x.kind === 'green' || x.kind === 'blue')); } catch(e){} }
+      let tier = null, bull = false; if (!r._blk){ tier = sbDailyTier(r, mm); try { bull = sbItemsFor(r, {main:true}).some(x => !x.site && !x.noGold && (x.kind === 'green' || x.kind === 'blue')); } catch(e){} }
       const n1 = hs[i+1], o2 = hs[i+2] && has(hs[i+2].open) ? hs[i+2].open : null;
       const g = n => o2 && hs[i+1+n] && has(hs[i+1+n].price) ? (hs[i+1+n].price/o2 - 1)*100 : null;   // 다음 봉 확인 뒤 진입(이틀 뒤 시가) — 미래 참조 없음
       const nxUp = !!(n1 && has(n1.price) && has(n1.open) && n1.price > n1.open && n1.price > r.price);
       out.push({ k: has(r.stoch_k) ? r.stoch_k : null, rsi: has(r.rsi) ? r.rsi : null, sc: r.stoch_cross || null, up: has(r.upw) ? r.upw : null, lw: has(r.loww) ? r.loww : null, bd: has(r.body) ? r.body : null, nxUp, g3: g(3), g5: g(5), g10: g(10),
-        d, t: r.ticker, kr: /\\.(KS|KQ)$/.test(r.ticker), blk: r._blk, g: r.sig.grade, tier, bull, qt: QT[d] ?? null, atr: has(r.atr_pct) ? r.atr_pct : null, dj: has(r.body) && has(r.upw) && has(r.loww) && r.body <= 0.3 && r.upw >= 0.25 && r.loww >= 0.25, bbp: has(r.bb_pos) ? r.bb_pos : null, f3: f(3), f5: f(5), f10: f(10) }); }); });
+        d, t: r.ticker, kr: /\\.(KS|KQ)$/.test(r.ticker), rg: RG[/\\.(KS|KQ)$/.test(r.ticker) ? 'kr' : 'us'][d] || null, blk: r._blk, g: r.sig.grade, tier, bull, qt: QT[d] ?? null, atr: has(r.atr_pct) ? r.atr_pct : null, dj: has(r.body) && has(r.upw) && has(r.loww) && r.body <= 0.3 && r.upw >= 0.25 && r.loww >= 0.25, bbp: has(r.bb_pos) ? r.bb_pos : null, f3: f(3), f5: f(5), f10: f(10) }); }); });
   return out; };`);
 const R = page.__run(raw);
+if (process.env.REGIME){   /* 국면별 황금(일봉 쪽) 성적 — 최근 1년 · 전체 · 기준선과 나란히 */
+  const all = [...new Set(R.map(r => r.d))].sort(), cut1 = all[Math.max(0, all.length - 252)];
+  const pct = (a, k) => { const v = a.map(r => r[k]).filter(x => x != null), u = v.filter(x => x > 1).length, dn = v.filter(x => x < -1).length; return u + dn ? `${Math.round(u / (u + dn) * 100)}%(${u}/${u + dn})` : '—'; };
+  const avg = (a, k) => { const v = a.map(r => r[k]).filter(x => x != null); return v.length ? (v.reduce((x, y) => x + y, 0) / v.length).toFixed(2) + '%' : '—'; };
+  for (const [per, pf] of [['최근 1년', r => r.d >= cut1], ['전체', () => true]]) for (const [mn, mf, gf] of [['미장', r => !r.kr, r => r.tier && r.bull], ['국장', r => r.kr, r => r.tier && (r.bull || (r.bbp != null && r.bbp <= 10))]]) {
+    const A = R.filter(r => !r.blk && mf(r) && pf(r)); console.log(`\n■ 국면별 — ${per} ${mn} (상승 = ±1% 밖에서 오른 비율 · (오름/판정 건수) · 평균)`);
+    for (const g of ['상승', '횡보', '하락', null]) { const B = A.filter(r => r.rg === g), G = B.filter(gf), days = new Set(B.map(r => r.d)).size;
+      if (!B.length) continue;
+      console.log(`  ${(g || '국면 미상').padEnd(6)} ${String(days).padStart(4)}일 | 🏆 ${String(G.length).padStart(3)}건 3일 ${pct(G, 'f3')} 5일 ${pct(G, 'f5')} 10일 ${pct(G, 'f10')} 평균5 ${avg(G, 'f5')} | 기준선 3일 ${pct(B, 'f3')} 5일 ${pct(B, 'f5')} 10일 ${pct(B, 'f10')} 평균5 ${avg(B, 'f5')}`); }
+  }
+  if (process.env.REGIME === 'only') process.exit(0);
+}
 const days = [...new Set(R.map(r => r.d))].sort(), MID = days[Math.floor(days.length/2)];
 const hasOpen = R.filter(r => r.f3 != null).length;
 console.log(`${days[0]}~${days[days.length-1]} · ${days.length}거래일 · 종목·날 ${R.length} · 다음날 시가 있는 행 ${hasOpen} · 반쪽 ${MID}`);
