@@ -4,6 +4,10 @@ name: 테마·4그룹 52주 신고가 흐름 (자료 + 탐색 연구)
 # backtest/group-breadth.json · theme-breadth.json · theme-flow.json 만 main에 커밋한다. 원장(signals.json·history/)은 건드리지 않는다.
 on:
   workflow_dispatch:
+  # 2026-11-12: 황금 × 국면별 고적중 조합(4그룹 신고가 강도) 화면 판정이 그날 그룹 값을 쓰므로 미국 장 마감 뒤 매일 갱신한다.
+  schedule:
+    - cron: '35 17 * * 1-5'
+      timezone: 'America/New_York'
 
 permissions:
   contents: write

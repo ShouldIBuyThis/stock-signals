@@ -1702,6 +1702,7 @@ function normalize(raw){
       pat: (typeof it.pat === "string") ? it.pat : "",   /* 2026-11-05 패턴 뱃지 코드 — 표시 전용(patternBadges) */
       ohlc60: Array.isArray(it.ohlc60) ? it.ohlc60 : null,   /* 2026-11-06 실제 일봉 차트용(원장 아님) */
       peak_risk: (it.peak_risk && typeof it.peak_risk === "object") ? it.peak_risk : null,
+      mkt_regime: (it.mkt_regime && typeof it.mkt_regime === "object") ? it.mkt_regime : null,   /* 2026-11-12 국면(표시 전용) */
       peak_reader: (it.peak_reader && typeof it.peak_reader === "object") ? it.peak_reader : null,   /* 2026-11-12 🔬 고점판독기(실험실) — 표시 전용(pattern_flags.peak_reader_flags) */   /* 2026-11-10 고점 위험 3단계 경고 — 표시 전용(pattern_flags.peak_risk_series) */
       /* 진입 위치(Positioning) 파생값 — 빠뜨리면 오늘 카드에서만 관련 로직이 통째로 죽는다 */
       ma20_slope: num(it.ma20_slope), run5_max: num(it.run5_max), run3_sum: num(it.run3_sum),
@@ -4939,6 +4940,8 @@ async function loadBoardData(){
   Promise.all([loadJsonFromRepo("theme-breadth.json"), loadJsonFromRepo("group-breadth.json")]).then(([t, g]) => {
     if (t && t.markets) THEME_BR = t; if (g && g.groups) GROUP_BR = g;
     if ((THEME_BR || GROUP_BR) && state.data && typeof render === "function") { try { render(); } catch(e){} } }).catch(() => {});
+  /* 황금 × 국면별 고적중 조합(표시 전용 · 미장·국장) */
+  loadJsonFromRepo("gold-theme-apply.json").then(g => { if (g && Array.isArray(g.apply)) { GOLD_TH = g; try { sbGoldPaint(); } catch(e){} } }).catch(() => {});
   /* 고점판독기 검증 통과 조합(장바구니 모의점검의 같은 테마 알림에도 쓴다) — 작은 파일이라 미리 받아 둔다 */
   if (!PR_HL) prHlLoad(false);
 }
@@ -5308,6 +5311,73 @@ function sbIdText(r){
   return `5분 재돌파 ▲ ${r.n > 1 ? `${r.n}번 · 마지막 ` : ""}${idHM(r.m + 5)} <small>(그때 30분 추세 위 ${ok(r.t30 === "up")} · 15분 지지 ${ok(r.held15 && !r.broken15)} — 참고)</small>`
     + " → <b>▲ 있음 · 장중 조건 충족</b>";
 }
+/* 2026-11-12 사용자 지시(국장 한정 · 소표본 먼저 적용): 국장 황금신호 × 테마 52주 흐름 조합 — docs/2026-11-12-gold-theme.md §7·§8.
+   조건 정의는 tools/gold-theme-analysis.js themeConds·groupConds를 그대로 옮겼다(그날까지의 원장 값 · 레버리지·벤치마크 제외 · 테마 4종목↑ · 자기 포함 I / 자기 제외 X).
+   적용 조합·성적은 backtest/gold-kr-theme.json(연구 결과 그대로)에서만 읽는다. 황금 선정·매수 산식과 무관한 표시 전용 '🔬 소표본 연구 후보'. */
+let GOLD_TH = null;   /* backtest/gold-theme-apply.json — 미장·국장 국면별 고적중 조합(보조 표시 전용) */
+function gkThemeConds(cat, d, ex){
+  const ms = allStocks().filter(x => (x.category || "기타") === cat && !LEVERAGED[x.ticker] && !x._benchmark).map(x => { const m = {};
+    (histStocks(x) || []).forEach(h => { if (has(h.pct_from_high) && has(h.pct_from_low) && has(h.price) && has(h.ma20)) m[String(h.last_date)] = [h.pct_from_high, h.pct_from_low, h.price > h.ma20 ? 1 : 0]; });
+    return { t: x.ticker, m }; });
+  const ds = [...new Set(ms.flatMap(x => Object.keys(x.m)))].sort(), di = ds.indexOf(String(d)); if (di < 0) return null;
+  const day = []; for (let j = Math.max(0, di - 31); j <= di; j++){ const dd = ds[j]; let k = 0, h = 0, l = 0, a = 0; const nh = new Set();
+    ms.forEach(x => { if (x.t === ex) return; const r = x.m[dd]; if (!r) return; k++; if (r[0] >= -1) { h++; nh.add(x.t); } if (r[1] <= 1) l++; a += r[2]; });
+    day.push(k >= 4 ? { hr: h / k, lr: l / k, ab: a / k, nh } : null); }
+  const J = day.length - 1; if (!day[J]) return null;
+  const m5 = (key, j) => { if (j < 4) return null; let sm = 0; for (let q = j - 4; q <= j; q++){ if (!day[q]) return null; sm += day[q][key]; } return sm / 5; };
+  const hr5 = j => m5("hr", j), lr5 = j => m5("lr", j), net5 = j => { const a = hr5(j), b = lr5(j); return a == null || b == null ? null : a - b; };
+  const dlt = (f, j, k) => { const a = f(j), b = f(j - k); return a == null || b == null ? null : a - b; };
+  const nh5 = (() => { const u = new Set(); for (let q = Math.max(0, J - 4); q <= J; q++) if (day[q]) day[q].nh.forEach(t => u.add(t)); return u.size; })();
+  const lrPrev = [], hrP20 = [], lrP20 = []; for (let q = J - 10; q < J; q++){ const v = lr5(q); if (v != null) lrPrev.push(v); }
+  for (let q = J - 20; q < J; q++){ const a = hr5(q), b = lr5(q); if (a != null) hrP20.push(a); if (b != null) lrP20.push(b); }
+  const nz = v => v == null ? null : v;
+  return { T_HRUP: (nz(dlt(hr5, J, 5)) ?? -1) > 0, T_LRDN: (lr5(J - 5) ?? 0) > 0 && (nz(dlt(lr5, J, 5)) ?? 1) < 0,
+    T_NET3: (dlt(net5, J, 3) ?? -1) > 0, T_NET5: (dlt(net5, J, 5) ?? -1) > 0, T_NET10: (dlt(net5, J, 10) ?? -1) > 0,
+    T_LOWSTOP: lrPrev.length > 0 && Math.max(...lrPrev) >= 0.10 && lr5(J) != null && lr5(J) <= Math.max(...lrPrev) - 0.05,
+    T_HIGHBACK: (hr5(J) ?? 0) > 0 && hrP20.length >= 15 && hrP20.every(x => x === 0) && lrP20.length > 0 && Math.max(...lrP20) >= 0.10,
+    T_SPREAD: (dlt(hr5, J, 5) ?? -1) >= 0.05 && nh5 >= 2 && lr5(J) != null && lr5(J - 5) != null && lr5(J) <= lr5(J - 5),
+    T_AB20: (dlt(j => day[j] ? day[j].ab : null, J, 5) ?? -1) > 0 };
+}
+function gkGroupConds(d, kr){
+  const G = GROUP_BR; const c = { G_NDX: null, G_SP: null, G_DEF: null, G_ALLUP: null }; if (!G || !G.dates) return c;
+  const gd = G.dates.filter(x => kr ? x < String(d) : x <= String(d)).pop(); if (!gd) return c;   /* 국장: 같은 달력 날짜의 미국 종가는 아직 모른다 → 그 전날까지 · 미장은 그날 종가까지 */
+  /* 신선도: 미장은 그날 자료가 있어야, 국장은 직전 미국 거래일(4일 안) 자료가 있어야 한다 — 아니면 판정 보류(오래된 그룹 값으로 판정하지 않음) */
+  const age = (new Date(String(d)) - new Date(gd)) / 864e5; if (!kr ? gd !== String(d) : age > 4) return c;
+  ["NDX", "SP", "DEF"].forEach(g => { const o = G.groups && G.groups[g]; if (!o) return; const net = G.dates.map((_, i) => o.n[i] ? (o.nh[i] - o.nl[i]) / o.n[i] : null);
+    const i = G.dates.indexOf(gd), n5 = j => { if (j < 4) return null; const w = net.slice(j - 4, j + 1); return w.some(x => x == null) ? null : w.reduce((a, b) => a + b, 0) / 5; };
+    const a = n5(i), b = n5(i - 5); c["G_" + g] = a == null || b == null ? null : a - b > 0; });
+  const ss = G.state_series && G.state_series.ALL_UP; if (ss && ss.length && gd >= ss[0]) c.G_ALLUP = ss.includes(gd);
+  return c;
+}
+function gkRegime(d, kr){   /* 국면 = 미장 QQQ · 국장 KODEX200(069500) 종가 vs 200일선 · 60일 수익(그날까지) — gold-3y-lab RG와 같은 식 */
+  /* 화면: main.py가 그날 계산한 mkt_regime(1년치로 200일선·60일 수익)을 먼저 쓴다 — 원장 hist는 60거래일뿐이라 직접 못 잰다. 날짜가 다르면 판정 보류. */
+  try { const src = kr ? ((state.data.stocks || []).find(x => x.ticker === "069500.KS") || {}).mkt_regime : (state.data.qqq_card || {}).mkt_regime;
+    if (src && src.rg) return String(src.date) === String(d) ? src.rg : null; } catch(e){}
+  let k = null; try { k = kr ? allStocks().find(x => x.ticker === "069500.KS") : qqqBenchmarkStock(); } catch(e){}
+  const hs = (k && histStocks(k)) || [], i = hs.findIndex(h => String(h.last_date) === String(d));
+  if (i < 200) return null; const w = hs.slice(i - 199, i + 1).map(h => h.price).filter(has); if (w.length < 180 || !has(hs[i - 60].price)) return null;
+  const ma = w.reduce((a, b) => a + b, 0) / w.length, p = hs[i].price, r60 = p / hs[i - 60].price - 1;
+  return p > ma && r60 > 0 ? "상승" : p < ma && r60 < 0 ? "하락" : "횡보";
+}
+function gkMatch(s){
+  const L = GOLD_TH && GOLD_TH.apply; if (!L || !L.length || !s) return [];
+  const kr = /\.(KS|KQ)$/.test(s.ticker), mk = kr ? "kr" : "us", rg = gkRegime(s.last_date, kr); if (!rg) return [];
+  const mine = L.filter(a => a.mkt === mk && a.rg === rg); if (!mine.length) return [];
+  const I = gkThemeConds(s.category || "기타", s.last_date, null), X = gkThemeConds(s.category || "기타", s.last_date, s.ticker), G = gkGroupConds(s.last_date, kr);
+  return mine.filter(a => (() => { const [v, body] = a.key.split(":"); const C = v === "X" ? X : I; if (!C) return false;
+    return body.split("+").every(k => k.startsWith("G_") ? G[k] === true : !!C[k]); })());
+}
+/* 🔬 국면별 고적중 조합 — 기존 🏆 황금신호 행에만(승격·제거 없음). 같은 날 여러 조합은 하나로 묶고 세부는 펼친다. */
+function gkBadgeHtml(s){
+  let M = []; try { M = gkMatch(s); } catch(e){ return ""; } if (!M.length) return "";
+  const pc = v => v == null ? "—" : Math.round(v * 100) + "%", pr = v => v == null ? "—" : `${v >= 0 ? "+" : ""}${(v * 100).toFixed(1)}%`;
+  const best = M.slice().sort((a, b) => b.h5 - a.h5 || b.n - a.n)[0], mk = /\.(KS|KQ)$/.test(s.ticker) ? "국장" : "미장";
+  const det = M.map(a => `<li><b>${esc(a.rg)}장 황금신호 ∩ ${esc(a.name)}</b><br>5일 안 +1% 도달 <b>${pc(a.h5)}</b> (${a.win}승 ${a.loss}패 · 사건 ${a.n}건 · 독립 발생일 ${a.dates}일) · 5일 최종 평균 ${pr(a.r5)} · 같은 국면 황금 전체 ${pc(a.gold_h5)}`
+    + `${a.old ? ` · 이전 기간 ${a.old[0]}건 ${pc(a.old[1])}` : ""}${a.note ? `<br><small class="pr-dim">${esc(a.note)}</small>` : ""}</li>`).join("");
+  return `<details class="sb-goldl gk-box"><summary>🔬 <b>국면별 고적중 조합</b> · ${esc(best.rg)}장 · ${M.length > 1 ? `${M.length}개 조합 겹침 · ` : ""}최고 ${pc(best.h5)}(${best.win}승 ${best.loss}패 · ${best.n}건) <small>표본 적음</small></summary>
+    <ul style="margin:4px 0 2px;padding-left:16px">${det}</ul>
+    <small class="pr-dim">평가 정의: 신호일 정규장 종가 진입(종가 지정가 · 체결 보장 아님) · 5일 이내 종가로 한 번이라도 +1% 이상 도달. ${mk} 연구(docs/2026-11-12-gold-theme.md) · 사용자 승인으로 표본이 적어도 표시 · 🏆 선정과 매수 점수에는 쓰지 않아요.</small></details>`;
+}
 function sbGoldInner(cands){
   if (!cands.length) return "";
   const res = c => SB_GOLD.m.get(sbGoldKey(c.s));
@@ -5316,6 +5386,7 @@ function sbGoldInner(cands){
   const bt = " 60거래일 소급 기준으로 이 조합(일봉∩캔들∩그날 ▲)은 3일 뒤 상승 55%(20건), ▲ 없던 날은 15%(13건)였어요.";
   const row = c => { const r = res(c), s = c.s, on = c.kr || (r && r.ok);
     return `<div class="sb-goldrow${on ? " on" : ""}"><button class="sb-go" data-rankgoto="${esc(s.ticker)}" data-rank-sort="overall">${on ? "🏆" : "·"} <b>${esc(s.ticker)}</b> <small>${esc(s.name || "")}</small></button>
+      ${on ? gkBadgeHtml(s) : ""}
       <div class="sb-goldl">📅 일봉 <b>${esc(c.tier)}</b> · 🕯 ${esc(c.pats.slice(0, 2).join(", "))}${c.pats.length > 2 ? ` 외 ${c.pats.length - 2}` : ""}${c.red ? ` · <span class="down">🔴 위험 패턴도 함께</span>` : ""}</div>
       <div class="sb-goldl">${c.kr ? `🇰🇷 국장은 일봉 등급 ∩ (캔들 또는 볼밴 하단 %B≤${GOLD_KR_BB})으로 황금(3년 백테스트 3일 ${GOLD_3Y.kr.r3}%) · 장중 참고: ` : `⏱ 장중(${esc(idMDsafe(s.last_date))}) `}${sbIdText(r && r.r ? r.r : r && r.err ? r : null)}</div></div>`; };
   const rest = cands.filter(c => !gold.includes(c));
