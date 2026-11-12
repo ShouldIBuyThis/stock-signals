@@ -8904,7 +8904,8 @@ function prCaseLine(c){
 }
 function prStatLine(c){
   const h = prHold(c), b = prBase(); if (!h || !b) return "";
-  return `10일 뒤 하락 ${h.dn10 ?? "—"}%(평소 ${b.dn10}%) · 20일 안 −15% ${h.big ?? "—"}%(평소 ${b.big}%) · ${h.dates}일`;
+  const f = x => x == null ? "—" : Math.round(x);
+  return `3·5·7일 뒤 하락 ${f(h.dn3)}·${f(h.dn5)}·${f(h.dn7)}%(평소 ${f(b.dn3)}·${f(b.dn5)}·${f(b.dn7)}%) · ${h.dates}일`;
 }
 /* ── 2차 연구 참고 블록(2026-11-12 사용자 지시) — 전부 '참고 · 검증 미통과'. 숫자는 backtest/peak-reader2.json 그대로,
    세 자료 묶음(탐색 E · 독립 T · 독립 X)의 날짜 가중 비율을 사건 수로 가중 평균해 한 줄로 보인다. 단계·매수 산식과 무관. */
@@ -8933,23 +8934,24 @@ function prRcBlock(pr){
     const L = pb != null && pb >= 1 ? "100" : pb != null && pb >= 0.9 ? "90" : pb != null && pb >= 0.8 ? "80" : null;
     const inInt = L && p52 != null && p52 >= -0.05; const lv = B.levels[L || "90"]; const sg = lv && lv.signals[k];
     const alone = sg && sg.alone, comb = inInt && sg ? sg.in : null, base = inInt ? lv.groups["교집합(0~5%∧%B)"] : null, all = lv && lv.groups["전체"];
-    const cells = (bp, cls) => [3, 5, 7, 10].map(h => `<td class="${cls || ""}">${prPct(prPool(bp, "dn" + h))}</td>`).join("");
-    const diff = (a, b) => { const x = prPool(a, "dn10"), y = prPool(b, "dn10"); return x == null || y == null ? "—" : `${x - y >= 0 ? "+" : ""}${Math.round((x - y) * 100)}%p`; };
+    const cells = (bp, cls) => [3, 5, 7].map(h => `<td class="${cls || ""}">${prPct(prPool(bp, "dn" + h))}</td>`).join("");
+    const diff = (a, b) => { const x = prPool(a, "dn5"), y = prPool(b, "dn5"); return x == null || y == null ? "—" : `${x - y >= 0 ? "+" : ""}${Math.round((x - y) * 100)}%p`; };
     return `<div class="pr-rc"><div class="pr-rc-h"><b>🕯 ${esc(nm)}</b> <small>${esc(idMDsafe(d))}</small> <em class="pr-tag">${sg && sg.pass ? "검증 통과(참고)" : "참고 · 검증 미통과"}</em></div>
       <div class="pr-rc-pos"><span>52주 고점 대비 <b>${p52 == null ? "판정 보류(1년 미만)" : (p52 * 100).toFixed(1) + "%"}</b></span><span>볼밴 %B <b>${pb == null ? "—" : Math.round(pb * 100)}</b></span></div>
-      <table class="pr-t"><tr><th>과거 하락 비율</th><th>3일</th><th>5일</th><th>7일</th><th>10일</th><th>사건</th><th>차(10일)</th></tr>
+      <table class="pr-t"><tr><th>과거 하락 비율</th><th>3일</th><th>5일</th><th>7일</th><th>사건</th><th>차(5일)</th></tr>
         <tr><td>단독 캔들(위치 무관)</td>${cells(alone)}<td>${prN(alone)}</td><td>${diff(alone, all)}</td></tr>
         ${inInt ? `<tr><td>52주 고점 ∩ 볼밴 %B ${L}↑ ∩ ${esc(nm)}</td>${cells(comb)}<td>${prN(comb)}</td><td>${diff(comb, base)}</td></tr>
-        <tr class="pr-base"><td>평소: 52주 고점 ∩ %B ${L}↑</td>${cells(base)}<td>${prN(base)}</td><td></td></tr>` : `<tr><td colspan="7" class="pr-dim">조합 통계 해당 없음 — 그날 52주 고점 0~5% ∩ 볼밴 %B 80↑가 아니었어요</td></tr>`}
+        <tr class="pr-base"><td>평소: 52주 고점 ∩ %B ${L}↑</td>${cells(base)}<td>${prN(base)}</td><td></td></tr>` : `<tr><td colspan="6" class="pr-dim">조합 통계 해당 없음 — 그날 52주 고점 0~5% ∩ 볼밴 %B 80↑가 아니었어요</td></tr>`}
         <tr class="pr-base"><td>평소: 모든 날</td>${cells(all)}<td>${prN(all)}</td><td></td></tr></table></div>`; };
   return `<div class="pr-ref"><div class="pr-ref-h">🕯 위험 캔들 참고 분석 <small>최근 5거래일</small></div>${ks.map(one).join("")}
-    <small class="pr-dim">차(10일) = 같은 위치의 평소 대비. 탐색(2016~)+독립 T(2008~15)+독립 X(새 종목) 합산 · ±1% 안은 보합으로 빼고 셌어요. 52주 고점 ∩ 볼밴 상단 조합도 하락 예측력이 확인되지 않아 '참고'로만 보여요.</small></div>`;
+    <small class="pr-dim">차(5일) = 같은 위치의 평소 대비. 탐색(2016~)+독립 T(2008~15)+독립 X(새 종목) 합산 · ±1% 안은 보합으로 빼고 셌어요. 52주 고점 ∩ 볼밴 상단 조합도 하락 예측력이 확인되지 않아 '참고'로만 보여요.</small></div>`;
 }
 function prCondTable(pr){
   const valid = prValid(), G = (PR_DATA && PR_DATA.groups) || {}, b = prBase() || {};
-  const rows = Object.keys(G).map(c => { const h = prHold(c); return `<tr${pr.on && pr.on[c] ? ' class="on"' : ""}><td>${pr.on && pr.on[c] ? "● " : ""}${esc(prName(c))}</td><td>${h && h.dn10 != null ? h.dn10 + "%" : "—"}</td><td>${h && h.big != null ? h.big + "%" : "—"}</td><td>${h ? h.dates : "—"}</td><td>${valid.includes(c) ? "통과" : "미통과"}</td></tr>`; }).join("");
-  return `<details class="pr-ct"><summary>조건별 과거 성적 펼치기 <small>(2023년 이후 급등 국면 · 평소 10일 하락 ${b.dn10 ?? "—"}% · 20일 안 −15% ${b.big ?? "—"}%)</small></summary>
-    <table class="pr-t"><tr><th>조건</th><th>10일 하락</th><th>20일 −15%</th><th>날</th><th>판정</th></tr>${rows}</table></details>`;
+  const rows = Object.keys(G).map(c => { const h = prHold(c); return `<tr${pr.on && pr.on[c] ? ' class="on"' : ""}><td>${pr.on && pr.on[c] ? "● " : ""}${esc(prName(c))}</td>${[3, 5, 7].map(k => `<td>${h && h["dn" + k] != null ? Math.round(h["dn" + k]) + "%" : "—"}</td>`).join("")}<td>${h ? h.dates : "—"}</td><td>${valid.includes(c) ? "통과" : "미통과"}</td></tr>`; }).join("");
+  const bf = k => b["dn" + k] != null ? Math.round(b["dn" + k]) + "%" : "—";
+  return `<details class="pr-ct"><summary>조건별 과거 성적 펼치기 <small>(2023년 이후 급등 국면 · 하락 비율 · 평소 3·5·7일 ${bf(3)}·${bf(5)}·${bf(7)})</small></summary>
+    <table class="pr-t"><tr><th>조건</th><th>3일</th><th>5일</th><th>7일</th><th>날</th><th>판정</th></tr>${rows}</table></details>`;
 }
 /* 2026-11-12 사용자 지시: 고점판독기에 '일부익절 가능성' 작은 불(참고) — 고점 위험과 별개.
    새 산식 없음 — 사이트가 이미 띄우는 것만 모은다: evaluate() 과열 익절 태그 · 캔들 신호등 🟡 일부 익절 후보(patternBadges) · 오늘의 신호 🟠 단기과열·일부익절(sbItemsFor orange). */
@@ -9016,7 +9018,7 @@ function prPanelHtml(mine){
   const D = PR_DATA, valid = prValid(), b = prBase() || {}, cst = D.cases_stats || {}, n = Object.keys(D.names || {}).length;
   const vs = cst["유효 조건 전부"], cur = cst["현행 1~3단계"], ext = cst["EXT"];
   const rate = x => x && x.bust ? `${Math.round(x.caught / x.bust * 100)}%` : "—", far = x => x && x.cont ? `${Math.round(x.false / x.cont * 100)}%` : "—";
-  const rows = Object.keys(D.names || {}).map(c => { const h = prHold(c), k = cst[c]; return `<tr><td>${esc(prName(c))}</td><td>${h && h.dn10 != null ? h.dn10 + "%" : "—"}</td><td>${h && h.big != null ? h.big + "%" : "—"}</td><td>${rate(k)} / ${far(k)}</td><td>${h ? h.dates : "—"}</td><td>${valid.includes(c) ? "통과" : "미통과"}</td></tr>`; }).join("");
+  const rows = Object.keys(D.names || {}).map(c => { const h = prHold(c), k = cst[c]; return `<tr><td>${esc(prName(c))}</td>${[3, 5, 7].map(q => `<td>${h && h["dn" + q] != null ? Math.round(h["dn" + q]) + "%" : "—"}</td>`).join("")}<td>${rate(k)} / ${far(k)}</td><td>${h ? h.dates : "—"}</td><td>${valid.includes(c) ? "통과" : "미통과"}</td></tr>`; }).join("");
   return `<p class="pr-lead">과거 급등 뒤 급락한 사례에서 반복된 기술적 신호와 지금 보유종목을 비교하는 실험실이에요. 미래 고점을 맞히는 기능이 아니에요.</p>
     <div class="pr-note">${valid.length ? `<b>검증을 통과한 조건은 ${valid.map(prName).join(" · ")} ${valid.length}개예요.</b> 이것으로 🟡 고점 경계만 판정해요(흔들림이 커지는 구간 — 하락 방향 예측 아님). 🟠 상승세 약화 · 🔴 하락 전환 위험은 통과한 조건이 없어 내지 않아요. 나머지 켜진 신호는 참고용이에요.` : `<b>검증 결과: 조건 ${n}개 모두 사전 기준을 통과하지 못했어요.</b> 그래서 🟡🟠🔴 단계는 내지 않고 '판정 보류'로만 보여 줘요. 켜진 신호는 참고용이에요.`}</div>
     <div class="pr-h">① 보유종목 고점 위험 현황</div>
@@ -9027,7 +9029,7 @@ function prPanelHtml(mine){
       대상 ${D.universe ? D.universe.watchlist : "—"}종목(관심종목) + 급등락 연구용 ${D.universe && D.universe.extra ? D.universe.extra.length : 0}종목 · ${esc(String(D.period && D.period[0]))}~${esc(String(D.period && D.period[1]))} 일봉 · 급등 국면(120일 저점 +50%↑ ∧ 60일 고점 85%↑)의 날만 봐요.<br>
       판정 기준(결과 보기 전 고정): 2023년 이후(보류 기간) 10일 뒤 하락 비율과 20일 안 −15% 하락 비율이 모두 평소보다 5%p 이상 높고, 서로 다른 날 50일 이상, 2016~2022년도 같은 방향.<br>
       평소(급등 국면 모든 날, 보류 기간): 10일 뒤 하락 ${b.dn10 ?? "—"}% · 20일 안 −15% ${b.big ?? "—"}%.<br>
-      <table class="pr-t"><tr><th>조건</th><th>10일 하락</th><th>−15%</th><th>붕괴 포착 / 지속 오경보</th><th>날</th><th>판정</th></tr>${rows}</table>
+      <table class="pr-t"><tr><th>조건</th><th>3일</th><th>5일</th><th>7일</th><th>붕괴 포착 / 지속 오경보</th><th>날</th><th>판정</th></tr>${rows}</table>
       사례 단위: 급등 뒤 국소 고점에서 60일 안 −35% 이상 떨어진 '붕괴' ${vs ? vs.bust : cur ? cur.bust : "—"}건, −15% 안에서 고점을 다시 넘은 '지속' ${cur ? cur.cont : "—"}건. 고점 10일 전 ~ −10% 도달 전에 신호가 났으면 포착이에요.<br>
       ${D.ext_test ? `이격 과열 사례 단위 재검증(2023년 이후 고점만 · 결과 전 기준 고정): ${D.ext_test.pass ? "통과(추가 연구 전까지 단계 판정에는 쓰지 않음)" : "미통과"} · 붕괴 포착 ${D.ext_test.table["25|A|hold"].cap}% vs 지속 오경보 ${D.ext_test.table["25|A|hold"].far}% (붕괴 ${D.ext_test.table["25|A|hold"].bust} · 지속 ${D.ext_test.table["25|A|hold"].cont}건).<br>` : ""}
       현행 고점 위험 1~3단계는 붕괴 ${rate(cur)} 포착 · 지속 ${far(cur)} 오경보였어요.${ext ? ` 20일선 과열(이격 25%↑)은 사례 단위로 붕괴 ${rate(ext)} 포착 · 지속 ${far(ext)} 오경보로 차이가 컸지만, 날 단위 기준에서는 10일 뒤 하락 비율이 평소와 같아(오르내림이 모두 큼) 통과하지 못했어요.` : ""}<br>
