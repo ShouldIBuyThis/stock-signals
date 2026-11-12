@@ -4,6 +4,15 @@ name: 고점판독기 4차·5차 연구 (고정밀 교집합 · 수동)
 # 결과 JSON만 main에 커밋한다. ⚠ 원장(signals.json·history/)·화면 판정은 건드리지 않는다. 백테스트(생존 편향 있음).
 on:
   workflow_dispatch:
+    inputs:
+      only:
+        description: '5차 판독기(쉼표) — 예: P(고점판독 20일 하락 기준) · 기본 D,R,Q,F,T,M'
+        required: false
+        default: 'D,R,Q,F,T,M'
+      out:
+        description: '5차 결과 파일 이름(backtest/ 아래)'
+        required: false
+        default: 'peak-combo2.json'
 
 permissions:
   contents: write
@@ -27,7 +36,7 @@ jobs:
         run: python tools/peak-precision-lab.py --emit "$RUNNER_TEMP/peak-precision.json" --cache "$RUNNER_TEMP/pp.pkl"
       - name: 5차 2회 — 방향 기준 D(§10·§11) · 🔴 고점 붕괴 R·Q(§12) · 🟡 일부익절 F·T·M(§13) · 봉인 검증 ZB
         # 1회(ATR 기준 🟡A·🔴B) 결과 backtest/peak-combo.json · 4차 결과 peak-precision.json은 보존(덮어쓰지 않음)
-        run: python tools/peak-combo-lab.py --cache "$RUNNER_TEMP/pp.pkl" --emit "$RUNNER_TEMP/peak-combo2.json" --only D,R,Q,F,T,M
+        run: python tools/peak-combo-lab.py --cache "$RUNNER_TEMP/pp.pkl" --emit "$RUNNER_TEMP/combo-out.json" --only "${{ inputs.only || 'D,R,Q,F,T,M' }}"
       - name: 입력 시세 스냅샷 보관(진단·재현용 · 30일)
         uses: actions/upload-artifact@v4
         with:
@@ -43,10 +52,11 @@ jobs:
           for i in 1 2 3; do
             git fetch origin main
             git switch -C pp-out origin/main
-            cp "$RUNNER_TEMP/peak-combo2.json" backtest/peak-combo2.json
-            git add backtest/peak-combo2.json
+            OUT="backtest/${{ inputs.out || 'peak-combo2.json' }}"
+            cp "$RUNNER_TEMP/combo-out.json" "$OUT"
+            git add "$OUT"
             if git diff --cached --quiet; then echo "변경 없음"; exit 0; fi
-            git commit -m "auto: 5차 2회 연구 결과(backtest/peak-combo2.json · D·R·Q·F·T·M)"
+            git commit -m "auto: 5차 연구 결과(${OUT} · ${{ inputs.only || 'D,R,Q,F,T,M' }})"
             if git push origin HEAD:main; then exit 0; fi
             sleep $((i * 5))
           done
