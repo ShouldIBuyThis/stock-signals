@@ -4,9 +4,15 @@ name: 고점판독기 5차 통과 후보 진단 (§14 · 수동)
 # 결과 JSON만 main에 커밋. 원장·화면 판정은 건드리지 않는다.
 on:
   workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: '연구 실행(peak-precision.yml)의 run id — 주면 그 실행이 받은 시세 스냅샷을 그대로 쓴다(재현성). 비우면 새로 받는다.'
+        required: false
+        default: ''
 
 permissions:
   contents: write
+  actions: read
 
 concurrency:
   group: peak-precision
@@ -23,7 +29,16 @@ jobs:
           python-version: '3.11'
       - name: 의존성 설치
         run: pip install -q yfinance pandas numpy requests lxml
-      - name: 시세·구성(4차 도구가 같은 자료를 캐시로 만든다 · 4차 결과는 커밋하지 않음)
+      - name: 연구 실행의 시세 스냅샷 받기(있으면)
+        if: inputs.source_run_id != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: peak-price-cache
+          path: ${{ runner.temp }}
+          run-id: ${{ inputs.source_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: 시세·구성(스냅샷이 없을 때만 새로 받음 · 4차 결과는 커밋하지 않음)
+        if: inputs.source_run_id == ''
         run: python tools/peak-precision-lab.py --emit "$RUNNER_TEMP/pp-unused.json" --cache "$RUNNER_TEMP/pp.pkl"
       - name: §14 진단
         run: python tools/peak-combo-lab.py --cache "$RUNNER_TEMP/pp.pkl" --diag backtest/peak-combo2.json --emit "$RUNNER_TEMP/peak-combo-diag.json"

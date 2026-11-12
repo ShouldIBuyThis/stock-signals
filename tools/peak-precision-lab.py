@@ -2,7 +2,7 @@
 후보 13개(S0~S3 · A · B · C · D · K · B∩D · C∩D · B∩MK4 · C∩MK4) · 묶음 E/T/X(재사용)·Z(미사용)·L(레버리지 따로) · 판정은 Z.
 사용: python tools/peak-precision-lab.py --emit backtest/peak-precision.json
 """
-import argparse, importlib.util, json, math, pickle, sys, time
+import argparse, hashlib, importlib.util, json, math, pickle, sys, time
 from datetime import datetime, timezone
 import numpy as np, pandas as pd, yfinance as yf
 ROOT = __file__.rsplit("/", 2)[0]; sys.path.insert(0, ROOT)
@@ -133,8 +133,15 @@ def main():
     print(f"종목: 관심·추가(E/T) {len(orig)} · 새 종목(X) {len(newx)} · 미사용(Z) {len(zset)} · 내려받기 {len(allt)}")
     data = download(allt)
     print(f"시세 확보 {len(data)} / {len(allt)}")
+    # 재현성(2026-11-12 점검 #9): 받은 시세 전체의 해시와 마지막 날짜를 결과에 남긴다 — 같은 해시면 같은 입력이다.
+    hh = hashlib.sha256()
+    for t in sorted(data):
+        df = data[t]; hh.update(t.encode()); hh.update(np.asarray([x.value for x in df.index], dtype=np.int64).tobytes())
+        hh.update(np.round(df[["Open", "High", "Low", "Close", "Volume"]].to_numpy(float), 6).tobytes())
+    data_hash = hh.hexdigest()[:16]; data_last = str(max(df.index[-1] for df in data.values()).date())
+    print(f"입력 시세 해시 {data_hash} · 마지막 날짜 {data_last}")
     if a.cache:   # 5차 도구(peak-combo-lab.py)가 같은 시세·구성으로 돌도록 넘긴다(다시 내려받지 않음)
-        pickle.dump({"data": data, "orig": orig, "newx": newx, "zset": zset, "sector": sector, "SP": list(G["SP"]), "Wl": Wl}, open(a.cache, "wb"))
+        pickle.dump({"data_hash": data_hash, "data_last": data_last, "data": data, "orig": orig, "newx": newx, "zset": zset, "sector": sector, "SP": list(G["SP"]), "Wl": Wl}, open(a.cache, "wb"))
     cal = pd.DatetimeIndex(sorted(set().union(*[set(d.index) for d in data.values()])))
     qq = data["QQQ"]["Close"].reindex(cal).ffill()
     q5, q10 = (qq / qq.shift(5) - 1), (qq / qq.shift(10) - 1); bull = (qq > qq.rolling(200).mean())
@@ -344,7 +351,7 @@ def main():
                "names": NAMES, "parts": {"E": "탐색(이미 본 자료) 2016-02~", "T": "재사용 검증 2008~2015", "X": "재사용 검증 새 종목", "Z": "미사용 S&P500∪나스닥100(E·T·X 제외)", "L": "레버리지(따로)"},
                "universe": {"orig": len([t for t in orig if t in data]), "x": len([t for t in newx if t in data]), "z": len([t for t in zset if t in data])},
                "period": [str(cal[0].date()), str(cal[-1].date())], "zmid": zmid, "mk_from": mk_from, "ticker_years": {p: round(v, 1) for p, v in tyears.items()},
-               "leak_check": {"pairs": checked, "mismatch": int(mism)}, "ctrl": CT, "res": RES, "verdict": VER}
+               "leak_check": {"pairs": checked, "mismatch": int(mism)}, "data_hash": data_hash, "data_last": data_last, "ctrl": CT, "res": RES, "verdict": VER}
         json.dump(out, open(a.emit, "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
         print(f"\n→ {a.emit} 저장")
 

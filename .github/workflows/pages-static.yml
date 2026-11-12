@@ -1,0 +1,52 @@
+name: 정적 파일 배포 (연구 결과 JSON · 문서)
+
+# 자동 갱신(update.yml)은 index.html·main.py·pattern_flags.py가 바뀔 때와 정해진 시각에만 돌아서,
+# 연구 워크플로가 backtest/*.json만 커밋하면 사이트(Pages)에는 다음 갱신 때까지 안 보였다.
+# 이 워크플로는 데이터를 다시 계산하지 않고 main의 파일 그대로 Pages에 올린다(원장·signals.json을 쓰지 않음).
+# 같은 concurrency 그룹(pages)이라 자동 갱신과 동시에 배포하지 않는다.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backtest/**'
+      - 'terms.html'
+  workflow_run:
+    # GITHUB_TOKEN으로 커밋한 연구 결과는 push 이벤트를 만들지 않으므로, 연구 워크플로가 끝나면 여기서 받는다.
+    workflows:
+      - "고점판독기 4차·5차 연구 (고정밀 교집합 · 수동)"
+      - "고점판독기 5차 통과 후보 진단 (§14 · 수동)"
+      - "고점판독기 연구 (실험실 데이터 생성)"
+      - "테마·4그룹 52주 신고가 흐름 (자료 + 탐색 연구)"
+      - "일부익절 1·3·5일 적중률 생성"
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Pages 설정
+        uses: actions/configure-pages@v5
+      - name: 사이트 파일 업로드
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+      - name: Pages 배포
+        id: deploy
+        uses: actions/deploy-pages@v4

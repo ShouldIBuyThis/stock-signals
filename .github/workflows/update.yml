@@ -10,6 +10,7 @@ on:
     paths:
       - 'index.html'
       - 'main.py'
+      - 'pattern_flags.py'          # main.py가 쓰는 계산 정의(고점판독기 블록 등) — 바뀌면 다시 계산해야 화면과 맞는다
       - '.github/workflows/update.yml'
   schedule:
     # 미국장 1차: 뉴욕 현지 16:40 — 장 마감 40분 후
@@ -297,6 +298,10 @@ jobs:
 
           echo "::error::최신 원장 재계산 후에도 푸시가 3회 충돌했습니다."
           exit 1
+
+      - name: 표시 전용 자료 점검(고점판독기 블록 · 검증 조합 파일) — 원장과 무관 · 경고만
+        continue-on-error: true
+        run: python tools/check-display-data.py
 
       - name: Pages 설정
         uses: actions/configure-pages@v5

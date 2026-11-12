@@ -1678,9 +1678,14 @@ def analyze(ticker, name, category):
             # 2026-11-12 위험 캔들 참고(52주 위치·%B 포함) — 표시 전용 · docs/2026-11-12-peak-reader.md 2차 연구
             if row["peak_reader"] is not None:
                 row["peak_reader"].update(pattern_flags.risk_candle_now(op.values, high.values, low.values, close.values, vol.values, fl, _dates, ticker=ticker))
-                # 2026-11-12 5차 교집합 연구 블록(최근 5거래일 · 표시 전용 · 원장 아님) — 조합 판정은 화면이 backtest/peak-highlights.json(검증 통과 조합)으로만 한다
-                row["peak_reader"]["blk"] = pattern_flags.combo_blocks_now(op.values, high.values, low.values, close.values, vol.values, _dates,
-                                                                           lev=LEV_X.get(ticker, 3) if ticker in LEVERAGED else 1, ticker=ticker)
+                # 2026-11-12 5차 교집합 연구 블록(최근 5거래일 · 표시 전용 · 원장 아님) — 조합 판정은 화면이 backtest/peak-highlights.json(검증 통과 조합)으로만 한다.
+                # 실패해도 다른 표시를 지우지 않도록 따로 잡고, 실패 사실은 blk_err로 남긴다(tools/check-display-data.py가 갱신마다 감지).
+                try:
+                    row["peak_reader"]["blk"] = pattern_flags.combo_blocks_now(op.values, high.values, low.values, close.values, vol.values, _dates,
+                                                                               lev=LEV_X.get(ticker, 3) if ticker in LEVERAGED else 1, ticker=ticker)
+                except Exception as e:
+                    row["peak_reader"]["blk"] = None; row["peak_reader"]["blk_err"] = f"{type(e).__name__}: {e}"[:200]
+                    print(f"  ⚠ {ticker} 교집합 블록 계산 실패: {e}")
     except Exception as e:
         print(f"  ⚠ {ticker} 고점판독기 계산 실패: {e}")
     return row
