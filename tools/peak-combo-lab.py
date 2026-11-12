@@ -67,12 +67,39 @@ def outcomes(o, h, l, c, lev):
         for N in HB: out[f"B{N}"] = (gd <= N) & (gd < gu)
         out["B_gd"], out["B_gu"] = gd, gu
         for N in FH: out[f"f{N}"] = nxt(c, N) / c - 1
-        for N in (3, 5, 7): out[f"D{N}"] = out[f"f{N}"] < -0.01; out[f"dec{N}"] = np.abs(out[f"f{N}"]) > 0.01      # §10 방향 기준(±1% 보합 제외)
+        for N in (3, 5, 7, 10, 20): out[f"D{N}"] = out[f"f{N}"] < -0.01; out[f"dec{N}"] = np.abs(out[f"f{N}"]) > 0.01      # §10 방향 기준(±1% 보합 제외) · 10·20일은 보고 전용(§11)
         sold = P * (1 - COST) / c - 1
         for N in (3, 5, 7): out[f"tr{N}"] = sold / 3 + 2 * out[f"f{N}"] / 3
         hh10 = pd.Series(h).rolling(10).max().to_numpy(); lag = np.full(n, 9)
         for k in range(9, -1, -1): lag = np.where(sh(h, k) == hh10 if k else h == hh10, k, lag)
         drop = c / hh10 - 1
+    # §13 🟡 일부익절 새 정의: P = 다음 날 시가 · 1·3·5일 안 저가가 P×(1−조정폭)에 닿으면 적중(급등이 먼저여도) · F 3% · T 1.5×ATR · M max(3%, 1.5×ATR)
+    with np.errstate(invalid="ignore"):
+        for key, thr in (("F", np.full(n, 0.03)), ("T", 1.5 * atr), ("M", np.fmax(0.03, 1.5 * atr))):
+            dday = np.full(n, 99); hw = np.full(n, -np.inf); rise = np.full(n, np.nan)
+            for j in range(1, 6):
+                hj = nxt(h, j); hw = np.fmax(hw, hj); hit = (nxt(l, j) <= P * (1 - thr)) & (dday == 99)
+                rise = np.where(hit, hw / P - 1, rise); dday = np.where(hit, j, dday)
+            for N in (1, 3, 5): out[f"{key}{N}"] = dday <= N
+            out[f"y{key}_day"], out[f"y{key}_rise"] = dday, rise
+    # §12 고점 붕괴: R = 신호일 종가 기준 · Q = 신호일 고가부터의 최고 고가 기준(고점 먼저, 하락 나중) · −10%(주)·−15%(보고) · 10·20일 · 레버리지는 × 배수
+    with np.errstate(invalid="ignore"):
+        for X, tag in ((0.10, ""), (0.15, "_15")):
+            thr = X * lev; rday = np.full(n, 99); qday = np.full(n, 99); runpk = h.copy(); rise_r = np.full(n, np.nan); rise_q = np.full(n, np.nan); rmax_ = np.full(n, -np.inf)
+            for j in range(1, 21):
+                lj, hj = nxt(l, j), nxt(h, j)
+                hitR = (lj <= c * (1 - thr)) & (rday == 99); hitQ = (lj <= runpk * (1 - thr)) & (qday == 99)
+                rmax_ = np.fmax(rmax_, hj)
+                if not tag:
+                    rise_r = np.where(hitR, rmax_ / c - 1, rise_r); rise_q = np.where(hitQ, runpk / c - 1, rise_q)
+                rday = np.where(hitR, j, rday); qday = np.where(hitQ, j, qday); runpk = np.fmax(runpk, hj)
+            for N in (10, 20): out[f"R{N}{tag}"] = rday <= N; out[f"Q{N}{tag}"] = qday <= N
+            if not tag:
+                out["xr_day"], out["xq_day"], out["xr_rise"], out["xq_rise"] = rday, qday, rise_r, rise_q
+        hw = np.full(n, -np.inf); pkd = np.zeros(n)
+        for j in range(1, 21):
+            hj = nxt(h, j); pkd = np.where(hj > hw, j, pkd); hw = np.fmax(hw, hj)
+        out["x_rise20"] = hw / c - 1; out["x_pkday"] = pkd
     i = np.arange(n)
     out["vA"] = (i + 7 < n) & np.isfinite(atr) & np.isfinite(P); out["vB"] = (i + 20 < n) & np.isfinite(atr)
     out["lag"] = lag; out["drop"] = drop; out["early"] = (lag <= 5) & (drop >= -0.08 * lev)
@@ -151,7 +178,7 @@ def main():
         push(meta, "bull", bull.reindex(d.index).fillna(False).to_numpy(bool), False); push(meta, "lev", np.full(n, lev), 1)
     M = {b: np.concatenate(cols[b]) for b in ALLB}; O_ = {k: np.concatenate(v_) for k, v_ in OUT.items()}; MT = {k: np.concatenate(v_) for k, v_ in meta.items()}
     for k in list(O_):
-        if (k[0] in "ABD" and k[1:].isdigit()) or k.startswith("dec") or k in ("vA", "vB", "early"): O_[k] = O_[k].astype(bool)
+        if (k[0] in "ABDRQFTM" and k[1:].replace("_", "").isdigit()) or k.startswith("dec") or k in ("vA", "vB", "early"): O_[k] = O_[k].astype(bool)
     NT = len(MT["tk"]); print(f"종목 {len(tick)} (탐색 E·T·X {sum(t not in ZA and t not in ZB for t in tick)} · ZA {len(ZA)} · ZB {len(ZB)}) · 이어 붙인 봉 {NT:,}")
     part = MT["part"]; di = MT["di"]
     def events(mask):
@@ -165,14 +192,23 @@ def main():
         return len(idx), len(u), float((hv / cnt[inv]).sum() / len(u)), float(hv.mean()), int(hv.sum())
     RD = {"A": {"roles": ["O", "C", "I", "X"], "H": HA, "prim": PA, "des": DA, "valid": O_["vA"], "name": "🟡 일부익절"},
           "B": {"roles": ["C", "I", "K", "X"], "H": HB, "prim": PB_, "des": DB, "valid": O_["vB"], "name": "🔴 고점판독"},
-          "D": {"roles": ["O", "C", "I", "K", "X"], "H": (3, 5, 7), "prim": 5, "des": 5, "valid": O_["vA"], "name": "방향 기준(보조 · §10)", "dec": True}}
+          "D": {"roles": ["O", "C", "I", "K", "X"], "H": (3, 5, 7), "prim": 5, "des": 5, "valid": O_["vA"], "name": "방향 기준(보조 · §10)", "dec": True, "Hrep": (3, 5, 7, 10, 20)},
+          "F": {"roles": ["O", "C", "I", "X"], "H": (1, 3, 5), "prim": 5, "des": 5, "valid": O_["vA"], "name": "🟡 일부익절 F(고정 −3%)", "trim": "F"},
+          "T": {"roles": ["O", "C", "I", "X"], "H": (1, 3, 5), "prim": 5, "des": 5, "valid": O_["vA"], "name": "🟡 일부익절 T(−1.5×ATR)", "trim": "T"},
+          "M": {"roles": ["O", "C", "I", "X"], "H": (1, 3, 5), "prim": 5, "des": 5, "valid": O_["vA"], "name": "🟡 일부익절 M(−max(3%, 1.5×ATR) · 권장 기본안)", "trim": "M"},
+          "R": {"roles": ["O", "C", "I", "K", "X"], "H": (10, 20), "prim": 20, "des": 20, "valid": O_["vB"], "name": "🔴 고점 붕괴 포착 R(신호일 가격 −10%)", "crash": "r"},
+          "Q": {"roles": ["O", "C", "I", "K", "X"], "H": (10, 20), "prim": 20, "des": 20, "valid": O_["vB"], "name": "🔴 고점 붕괴 포착 Q(신호 뒤 고점 −10%)", "crash": "q"}}
     if a.only: RD = {k: v for k, v in RD.items() if k in a.only.split(",")}
     SPEC = {"U1 고점권∩볼밴상단∩RSI다이버전스∩윗꼬리": lambda m: m["P_NEAR"] & m["O_BB"] & m["I_RSID"] & m["C_W"],
             "U2 고점터치∩MACD약화∩거래량감소∩이탈": lambda m: m["P_RT5"] & m["I_MACD"] & m["I_VDN"] & m["K_5"],
             "U3 RSI과열∩볼밴이탈∩유성형∩테마약화": lambda m: m["O_RSI"] & m["O_BBX"] & m["C_SHOOT"] & m["X_T"],
             "U4 돌파실패∩스토캐스틱데드∩시장참여감소": lambda m: m["C_FB"] & m["I_STO"] & m["X_BR"],
-            "U5 고점터치∩장대음봉∩RSI다이버전스∩테마약화∩시장약화": lambda m: m["P_RT5"] & m["C_BEAR"] & m["I_RSID"] & m["X_T"] & (m["X_MK"] | m["X_BR"])}
-    SPEC_P = {"U1": "P_NEAR", "U2": "P_RT5", "U3": None, "U4": "P_RT5", "U5": "P_RT5"}
+            "U5 고점터치∩장대음봉∩RSI다이버전스∩테마약화∩시장약화": lambda m: m["P_RT5"] & m["C_BEAR"] & m["I_RSID"] & m["X_T"] & (m["X_MK"] | m["X_BR"]),
+            # §11 대조(선별 대상 아님): 지금까지 화면·연구에서 쓴 기존 조합
+            "R1 기존 교집합(52주 고점 5%∩%B 80↑)": lambda m: m["P_NEAR"] & m["O_BB"],
+            "R2 기존 교집합∩위험 캔들": lambda m: m["P_NEAR"] & m["O_BB"] & (m["C_W"] | m["C_SHOOT"] | m["C_ESTAR"] | m["C_BEAR"]),
+            "R3 기존 교집합∩위험 캔들∩모멘텀 약화": lambda m: m["P_NEAR"] & m["O_BB"] & (m["C_W"] | m["C_SHOOT"] | m["C_ESTAR"] | m["C_BEAR"]) & (m["I_RSID"] | m["I_MACD"] | m["I_STO"])}
+    SPEC_P = {"U1": "P_NEAR", "U2": "P_RT5", "U3": None, "U4": "P_RT5", "U5": "P_RT5", "R1": "P_NEAR", "R2": "P_NEAR", "R3": "P_NEAR"}
     RES = {}
     for rd, R in RD.items():
         valid = R["valid"]; prim = O_[f"{rd}{R['prim']}"]; DEC = (lambda N: O_[f"dec{N}"]) if R.get("dec") else (lambda N: None); pdec = DEC(R["prim"]); ex = (part == 1) & valid; zb = (part == 2) & valid; lv_ = (part == 3) & valid
@@ -186,13 +222,17 @@ def main():
                 for pk in ROLES["P"]:
                     for pick in itertools.product(*[ROLES[r] for r in rs]): combos.append((pk,) + pick)
         combos = [(c_, None) for c_ in combos] + [((nm,), fn) for nm, fn in SPEC.items()]
-        print(f"\n■ {R['name']} — 조합 {len(combos):,}개(사용자 지정 5개 포함) · 주 평가 {R['prim']}일")
-        rows = []; rare = []; bysize = {}
+        print(f"\n■ {R['name']} — 조합 {len(combos) - len(SPEC):,}개 + 사용자 지정 5 · 기존 조합 대조 3 · 주 평가 {R['prim']}일")
+        rows = []; rare = []; bysize = {}; hzc = {}
         for cid, (cb, fn) in enumerate(combos):
             mask = fn(M) if fn else np.logical_and.reduce([M[b] for b in cb])
             ev = events(mask); ev = ev[valid[ev]]
             e1, e2 = ev[part[ev] == 1], ev[part[ev] == 2]
             n1, i1, w1, r1, k1 = rate(e1, prim, pdec); n2, i2, w2, r2, k2 = rate(e2, prim, pdec)
+            if (R.get("dec") or R.get("crash") or R.get("trim")) and not fn:   # §11 보고 전용: 3·7·10·20일 각각(같은 기간끼리 ZB 비교)
+                hz = {N: (rate(e1, O_[f"{rd}{N}"], DEC(N))[1:3], rate(e2, O_[f"{rd}{N}"], DEC(N))[1:3]) for N in R.get("Hrep", R["H"]) if N != R["prim"]}
+                for N, ((ia, wa), (ib, wb)) in hz.items():
+                    if ia >= 6 and wa is not None and wa > 0.65: hzc.setdefault(N, []).append((cid, ia, wa, ib, wb))
             pk = SPEC_P.get(cb[0][:2]) if fn else cb[0]; p0 = base[pk or "ALL"]["ex"][R["prim"]]
             rows.append((cid, len(cb) if not fn else 0, i1, w1, i2, w2, p0, n1, k1, n2, k2))
             if not fn and i1 >= 6: bysize.setdefault(len(cb), []).append((w1, i1))
@@ -209,7 +249,7 @@ def main():
             dz = {"combo": list(cb), "name": (cb[0] if fn else " ∩ ".join(BN[b] for b in cb)), "k": (None if fn else len(cb)), "parts": {}}
             for pn, pm in (("ex", 1), ("zb", 2), ("lev", 3)):
                 e = ev[part[ev] == pm]; z = {}
-                for N in R["H"]:
+                for N in R.get("Hrep", R["H"]):
                     n_, i_, w_, r_, k_ = rate(e, O_[f"{rd}{N}"], DEC(N)); z[str(N)] = {"w": w_, "r": r_, "hit": k_, "miss": n_ - k_, "ind": i_}
                     fr = O_[f"f{N}"][e]; fr = fr[np.isfinite(fr)]; dn, up_ = int((fr < -0.01).sum()), int((fr > 0.01).sum())
                     z[str(N)]["dn"] = dn / (dn + up_) if dn + up_ else None; z[str(N)]["avg"] = float(fr.mean()) if len(fr) else None
@@ -223,19 +263,38 @@ def main():
                     tc = pd.Series(MT["tk"][e]).value_counts(); yc = pd.Series([cald[x][:4] for x in di[e]]).value_counts()
                     z["max_ticker"] = [tick[int(tc.index[0])], round(float(tc.iloc[0] / len(e)), 3)]; z["max_year"] = [yc.index[0], round(float(yc.iloc[0] / len(e)), 3)]
                     z["early"] = float(O_["early"][e].mean()); z["lag_med"] = float(np.median(O_["lag"][e])); z["drop_med"] = float(np.nanmedian(O_["drop"][e]))
+                    if R.get("trim"):
+                        y_ = R["trim"]; hit = O_[f"{rd}5"][e]; dday = O_[f"y{y_}_day"][e]; rise = O_[f"y{y_}_rise"][e]
+                        z["timing"] = {"rise_before_med": float(np.nanmedian(rise[hit])) if hit.any() else None, "rise_before_mean": float(np.nanmean(rise[hit])) if hit.any() else None,
+                                       "days_med": float(np.median(dday[hit])) if hit.any() else None}
+                        z["trim5"] = float(np.nanmean(O_["tr5"][e])); z["hold5"] = float(np.nanmean(O_["f5"][e])); z["trim_win5"] = float(np.nanmean(O_["tr5"][e] > O_["f5"][e]))
+                        z["mdd_hold5"] = float(np.nanmean(np.fmin(0, O_["f5"][e]))); dd = O_["dec5"][e]; z["dir5"] = None if not dd.any() else float(O_["D5"][e][dd].mean())
+                    if R.get("crash"):
+                        x_ = R["crash"]; hit = O_[f"{rd}20"][e]; lv_e = MT["lev"][e].astype(float)
+                        z["thr15"] = {str(N): float(O_[f"{rd}{N}_15"][e].mean()) for N in (10, 20)}
+                        rise = O_[f"x{x_}_rise"][e]; dday = O_[f"x{x_}_day"][e]; r20 = O_["x_rise20"][e]
+                        z["timing"] = {"rise_before_med": float(np.nanmedian(rise[hit])) if hit.any() else None, "crash_day_med": float(np.median(dday[hit])) if hit.any() else None,
+                                       "peak_day_med": float(np.median(O_["x_pkday"][e])), "rise20_med": float(np.nanmedian(r20))}
+                        early_w = hit & (np.nan_to_num(rise, nan=0) >= 0.15 * lv_e); late = np.nan_to_num(O_["drop"][e], nan=0) <= -0.15 * lv_e
+                        fa = ~hit & (np.nan_to_num(r20, nan=0) >= 0.10 * lv_e)
+                        z["class"] = {"성공(제때)": int((hit & ~early_w & ~late).sum()), "성공·너무 이른 경고": int((early_w & ~late).sum()), "늦은 경고(성공)": int((hit & late).sum()),
+                                      "늦은 경고(실패)": int((~hit & late).sum()), "오경보(크게 오름)": int((fa & ~late).sum()), "실패(급락 없음)": int((~hit & ~fa & ~late).sum())}
+                        z["late"] = float(late.mean())
+                        dd = O_["dec5"][e]; z["dir5"] = None if not dd.any() else float(O_["D5"][e][dd].mean())
+                        z["trim5"] = float(np.nanmean(O_["tr5"][e])); z["hold5"] = float(np.nanmean(O_["f5"][e]))
                     if rd == "D":
                         z["trim5"] = float(np.nanmean(O_["tr5"][e])); z["hold5"] = float(np.nanmean(O_["f5"][e])); z["avg5"] = z["hold5"]
                     elif rd == "A":
                         fd, fu = O_["A_fd"][e], O_["A_fu"][e]; N = R["prim"]
                         z["split"] = {"corr": float(((fd <= N) & (fd < fu)).mean()), "run": float(((fu <= N) & (fu < fd)).mean()), "both": float(((fd <= N) & (fd == fu)).mean()), "none": float(((fd > N) & (fu > N)).mean())}
                         z["trim5"] = float(np.nanmean(O_["tr5"][e])); z["hold5"] = float(np.nanmean(O_["f5"][e])); z["trim_win5"] = float(np.nanmean(O_["tr5"][e] > O_["f5"][e]))
-                    else:
+                    elif rd == "B":
                         z["avg10"] = float(np.nanmean(O_["f10"][e]))
                     if pn == "zb" and z["ind"] >= 6:   # 날짜 군집 부트스트랩: 조합 − 같은 위치의 모든 날
                         u, inv = np.unique(di[e], return_inverse=True); dw = np.array([hp[inv == j].mean() for j in range(len(u))]); r_ = np.random.default_rng(7)
                         bs = [dw[r_.integers(0, len(dw), len(dw))].mean() for _ in range(2000)]; z["ci"] = [float(np.percentile(bs, 5)) - (b0 or 0), float(np.percentile(bs, 95)) - (b0 or 0)]
                     if z["ind"] <= 29 or pn == "zb":
-                        z["events"] = [[tick[int(MT["tk"][x])], cald[di[x]], MT["sub"][x], int(O_[f"{rd}{R['prim']}"][x]), int(O_[f"{rd}{R['des']}"][x])] + [None if not np.isfinite(O_[f"f{N}"][x]) else round(float(O_[f"f{N}"][x]) * 100, 1) for N in (3, 5, 7)] for x in e[np.argsort(di[e])][:60]]
+                        z["events"] = [[tick[int(MT["tk"][x])], cald[di[x]], MT["sub"][x], int(O_[f"{rd}{R['prim']}"][x]), int(O_[f"{rd}{R['des']}"][x])] + [None if not np.isfinite(O_[f"f{N}"][x]) else round(float(O_[f"f{N}"][x]) * 100, 1) for N in (3, 5, 7, 10, 20)] for x in e[np.argsort(di[e])][:60]]
                 dz["parts"][pn] = z
             exz, zbz = dz["parts"]["ex"], dz["parts"]["zb"]; P = str(R["prim"]); Dk = str(R["des"])
             dz["tier"] = "극소표본(6~9)" if exz["ind"] < 10 else "소표본(10~29)" if exz["ind"] < 30 else "검증 검토(30↑)"
@@ -243,7 +302,7 @@ def main():
             dz["replicate"] = "재현 확인 불가(ZB 6건 미만)" if zbz["ind"] < 6 else ("재현" if zbz[P]["w"] > 0.65 else "재현 실패")
             dz["purple_ex"] = bool(exz["ind"] >= 6 and exz[Dk]["w"] is not None and exz[Dk]["w"] >= 0.85); dz["purple_zb"] = bool(zbz["ind"] >= 6 and zbz[Dk]["w"] is not None and zbz[Dk]["w"] >= 0.85)
             ok = (zbz["ind"] >= 30 and zbz[P]["w"] >= 0.65 and zbz[P]["r"] >= 0.65 and (zbz.get("wl") or 0) >= 0.55 and (zbz.get("imp") or 0) >= 0.15 and zbz.get("ci", [None])[0] is not None and zbz["ci"][0] > 0
-                  and zbz["max_ticker"][1] <= 0.20 and zbz["max_year"][1] <= 0.40 and ((zbz["trim5"] > zbz["hold5"]) if rd == "A" else (zbz["avg5"] < 0) if rd == "D" else (zbz["early"] >= 0.5 and zbz["avg10"] < 0)))
+                  and zbz["max_ticker"][1] <= 0.20 and zbz["max_year"][1] <= 0.40 and ((zbz["trim5"] > zbz["hold5"]) if (rd == "A" or R.get("trim")) else (zbz["avg5"] < 0) if rd == "D" else (zbz["late"] <= 0.30) if R.get("crash") else (zbz["early"] >= 0.5 and zbz["avg10"] < 0)))
             dz["verdict"] = "검증 통과" if ok else ("미통과" if not dz["rare"] and not (zbz["ind"] >= 5 and zbz[P]["w"] is not None and zbz[P]["w"] >= 0.65) else
                              ("소표본 참고" if dz["replicate"] == "재현" else "미통과"))
             if not fn and (dz["replicate"] == "재현" or dz["purple_ex"]):   # 이웃 문턱
@@ -255,15 +314,26 @@ def main():
                 dz["neighbors"] = nbz
             return dz
         rowmap = {r[0]: r for r in rows}
+        top = sorted([r for r in rows if r[1] > 0 and r[2] >= 6 and r[3] is not None], key=lambda r: (-r[3], -r[2]))[:10]   # §11 65% 후보가 없어도 상위 10
+        topids = {r[0] for r in top}; have = {x[0] for x in rare}
+        for cid in topids:
+            if cid in have: continue
+            cb = combos[cid][0]; ev = events(np.logical_and.reduce([M[b] for b in cb])); ev = ev[valid[ev]]
+            rare.append((cid, cb, None, ev, ev[part[ev] == 1], ev[part[ev] == 2], cb[0]))
         def qk(x):   # 상세를 만들 우선순위: ZB에서도 6건↑·65% 초과 → 탐색 적중률
-            r = rowmap[x[0]]; return (x[2] is None, -(r[4] >= 6 and (r[5] or 0) > 0.65), -(r[3] or 0), -r[2])
+            r = rowmap[x[0]]; return (x[2] is None, -(x[0] in topids), -(r[4] >= 6 and (r[5] or 0) > 0.65), -(r[3] or 0), -r[2])
         rare.sort(key=qk)
         allrows = [[(cb[0] if fn else " ∩ ".join(BN[b] for b in cb)), (0 if fn else len(cb))] + [rowmap[cid][j] for j in (2, 7, 8)] + [None if rowmap[cid][3] is None else round(rowmap[cid][3], 3)] + [rowmap[cid][j] for j in (4, 9, 10)] + [None if rowmap[cid][5] is None else round(rowmap[cid][5], 3)]
                    for cid, cb, fn, ev, e1, e2, pk in rare]
-        det = [detail(cb, fn, ev, pk) for cid, cb, fn, ev, e1, e2, pk in rare[:405]]
-        full = {"cand": sum(1 for x in rare if x[2] is None), "rep": sum(1 for x in rare if x[2] is None and rowmap[x[0]][4] >= 6 and (rowmap[x[0]][5] or 0) > 0.65),
-                "nochk": sum(1 for x in rare if x[2] is None and rowmap[x[0]][4] < 6), "tiers": {"극소표본": sum(1 for x in rare if x[2] is None and rowmap[x[0]][2] < 10), "소표본": sum(1 for x in rare if x[2] is None and 10 <= rowmap[x[0]][2] < 30), "검증 검토": sum(1 for x in rare if x[2] is None and rowmap[x[0]][2] >= 30)}}
-        exp_rep = sum(binom_tail_gt(rowmap[x[0]][4], base[x[6] or "ALL"]["zb"][R["prim"]] or 0, 0.65) for x in rare if x[2] is None and rowmap[x[0]][4] >= 6)
+        det = []
+        for cid, cb, fn, ev, e1, e2, pk in rare[:420]:
+            d_ = detail(cb, fn, ev, pk); d_["top10"] = cid in topids; d_["top_rank"] = next((q + 1 for q, r in enumerate(top) if r[0] == cid), None); det.append(d_)
+        rare65 = [x for x in rare if x[2] is not None or (rowmap[x[0]][2] >= 6 and (rowmap[x[0]][3] or 0) > 0.65)]
+        full = {"cand": sum(1 for x in rare65 if x[2] is None), "rep": sum(1 for x in rare65 if x[2] is None and rowmap[x[0]][4] >= 6 and (rowmap[x[0]][5] or 0) > 0.65),
+                "nochk": sum(1 for x in rare65 if x[2] is None and rowmap[x[0]][4] < 6), "tiers": {"극소표본": sum(1 for x in rare65 if x[2] is None and rowmap[x[0]][2] < 10), "소표본": sum(1 for x in rare65 if x[2] is None and 10 <= rowmap[x[0]][2] < 30), "검증 검토": sum(1 for x in rare65 if x[2] is None and rowmap[x[0]][2] >= 30)}}
+        exp_rep = sum(binom_tail_gt(rowmap[x[0]][4], base[x[6] or "ALL"]["zb"][R["prim"]] or 0, 0.65) for x in rare65 if x[2] is None and rowmap[x[0]][4] >= 6)
+        for N, v_ in sorted(hzc.items()):
+            print(f"  (보고 전용 §11) {N}일 기준 탐색 6건↑ ∧ 65% 초과 {len(v_)}개 · ZB 6건↑ {sum(1 for x in v_ if x[3] >= 6)} · 그중 ZB도 65% 초과 {sum(1 for x in v_ if x[3] >= 6 and (x[4] or 0) > 0.65)}")
         cand = [d_ for d_ in det if d_["rare"]]; rep_ = [d_ for d_ in cand if d_["replicate"] == "재현"]; nochk = [d_ for d_ in cand if d_["replicate"].startswith("재현 확인 불가")]
         shr = [d_["parts"]["ex"][str(R["prim"])]["w"] - d_["parts"]["zb"][str(R["prim"])]["w"] for d_ in cand if d_["parts"]["zb"]["ind"] >= 6]
         summ = {"combos": len(combos), "tested6": len(tested6), "gt65": len(hi), "chance": round(exp_chance, 1), "tiers": full["tiers"],
@@ -279,6 +349,9 @@ def main():
         det.sort(key=lambda d_: (-(d_["parts"]["zb"]["ind"] >= 6 and (d_["parts"]["zb"][str(R["prim"])]["w"] or 0) > 0.65), -(d_["parts"]["ex"][str(R["prim"])]["w"] or 0)))
         RES[rd] = {"name": R["name"], "prim": R["prim"], "des": R["des"], "horizons": list(R["H"]), "base": {k: {q: {str(n_): v_ for n_, v_ in w.items()} for q, w in b.items()} for k, b in base.items()}, "summary": summ,
                    "user5": [d_ for d_ in det if d_["k"] is None], "cands": [d_ for d_ in det if d_["k"] is not None][:400], "cands_total": full["cand"],
+                   "top10": sorted([d_ for d_ in det if d_.get("top10")], key=lambda d_: d_["top_rank"]),
+                   "by_horizon": {str(N): {"gt65": len(v_), "zb6": sum(1 for x in v_ if x[3] >= 6), "zb_rep": sum(1 for x in v_ if x[3] >= 6 and (x[4] or 0) > 0.65),
+                                           "list": [[" ∩ ".join(BN[b] for b in combos[x[0]][0]), x[1], round(x[2], 3), x[3], None if x[4] is None else round(x[4], 3)] for x in sorted(v_, key=lambda x: -x[2])[:200]]} for N, v_ in hzc.items()},
                    "all_rows_cols": ["조합", "조건 수", "탐색 독립 사건", "탐색 사건", "탐색 적중", "탐색 적중률(날짜 가중)", "ZB 독립 사건", "ZB 사건", "ZB 적중", "ZB 적중률"], "all_rows": allrows}
 
     # ── 자료 누수 점검 ──

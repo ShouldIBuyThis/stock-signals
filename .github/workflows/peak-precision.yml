@@ -15,7 +15,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -25,8 +25,9 @@ jobs:
         run: pip install -q yfinance pandas numpy requests lxml
       - name: 4차 — 고정밀 소수 신호 13개(판정 = 미사용 Z)
         run: python tools/peak-precision-lab.py --emit "$RUNNER_TEMP/peak-precision.json" --cache "$RUNNER_TEMP/pp.pkl"
-      - name: 5차 — 교집합 통합 탐색(🟡 일부익절 · 🔴 고점판독 · 방향 기준 보조 §10 · 봉인 검증 ZB · NVDA 진단)
-        run: python tools/peak-combo-lab.py --cache "$RUNNER_TEMP/pp.pkl" --emit "$RUNNER_TEMP/peak-combo.json"
+      - name: 5차 2회 — 방향 기준 D(§10·§11) · 🔴 고점 붕괴 R·Q(§12) · 🟡 일부익절 F·T·M(§13) · 봉인 검증 ZB
+        # 1회(ATR 기준 🟡A·🔴B) 결과 backtest/peak-combo.json · 4차 결과 peak-precision.json은 보존(덮어쓰지 않음)
+        run: python tools/peak-combo-lab.py --cache "$RUNNER_TEMP/pp.pkl" --emit "$RUNNER_TEMP/peak-combo2.json" --only D,R,Q,F,T,M
       - name: 결과만 main에 커밋
         shell: bash
         run: |
@@ -36,11 +37,10 @@ jobs:
           for i in 1 2 3; do
             git fetch origin main
             git switch -C pp-out origin/main
-            cp "$RUNNER_TEMP/peak-precision.json" backtest/peak-precision.json
-            cp "$RUNNER_TEMP/peak-combo.json" backtest/peak-combo.json
-            git add backtest/peak-precision.json backtest/peak-combo.json
+            cp "$RUNNER_TEMP/peak-combo2.json" backtest/peak-combo2.json
+            git add backtest/peak-combo2.json
             if git diff --cached --quiet; then echo "변경 없음"; exit 0; fi
-            git commit -m "auto: 고점판독기 4차·5차 연구 결과(backtest/peak-precision.json · peak-combo.json)"
+            git commit -m "auto: 5차 2회 연구 결과(backtest/peak-combo2.json · D·R·Q·F·T·M)"
             if git push origin HEAD:main; then exit 0; fi
             sleep $((i * 5))
           done
