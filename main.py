@@ -1342,7 +1342,8 @@ def restore_52w_blocks(ticker, blk, lev=1, fetch=None):
     받은 2년치의 마지막 5거래일 날짜·종가가 1년치와 같을 때만 쓴다(출처 일치). 실패하면 판정 보류 그대로."""
     if not isinstance(blk, dict) or not blk.get("na"): return blk
     days = blk.get("days") or {}
-    if not any("O_EXT" in v for v in days.values()): return blk
+    # 후보 = 이격 25%↑(검증 조합 22개 공통) 또는 스토캐스틱 데드 ∩ 20일선 이탈(20일 하락 소표본 후보의 52주 아닌 조건)이 최근 5거래일에 켜진 종목
+    if not any("O_EXT" in v or ("I_STO" in v and "K_20" in v) for v in days.values()): return blk
     try:
         long = (fetch or (lambda tk: yf.Ticker(tk).history(period="2y", interval="1d", auto_adjust=False)))(ticker)
         long = drop_invalid_price_rows(drop_unclosed(long, ticker), ticker)

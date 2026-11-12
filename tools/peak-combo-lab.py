@@ -68,6 +68,7 @@ def outcomes(o, h, l, c, lev):
         out["B_gd"], out["B_gu"] = gd, gu
         for N in FH: out[f"f{N}"] = nxt(c, N) / c - 1
         out["P20"] = out["f20"] < 0      # 2026-11-12 고점판독 유일 기준: D+20 종가 < D 종가(신호일 종가 기준)
+        out["N10"] = out["f10"] < 0      # 같은 정의의 10거래일판(사용자 요청 '10일 후 · 20일 후 각각')
         for N in (3, 5, 7, 10, 20): out[f"D{N}"] = out[f"f{N}"] < -0.01; out[f"dec{N}"] = np.abs(out[f"f{N}"]) > 0.01      # §10 방향 기준(±1% 보합 제외) · 10·20일은 보고 전용(§11)
         sold = P * (1 - COST) / c - 1
         for N in (3, 5, 7): out[f"tr{N}"] = sold / 3 + 2 * out[f"f{N}"] / 3
@@ -241,7 +242,7 @@ def main():
         push(meta, "bull", bull.reindex(d.index).fillna(False).to_numpy(bool), False); push(meta, "lev", np.full(n, lev), 1)
     M = {b: np.concatenate(cols[b]) for b in ALLB}; O_ = {k: np.concatenate(v_) for k, v_ in OUT.items()}; MT = {k: np.concatenate(v_) for k, v_ in meta.items()}
     for k in list(O_):
-        if (k[0] in "ABDRQFTMWP" and k[1:].replace("_", "").isdigit()) or k.startswith("dec") or k in ("vA", "vB", "early"): O_[k] = O_[k].astype(bool)
+        if (k[0] in "ABDRQFTMWPN" and k[1:].replace("_", "").isdigit()) or k.startswith("dec") or k in ("vA", "vB", "early"): O_[k] = O_[k].astype(bool)
     NT = len(MT["tk"]); print(f"종목 {len(tick)} (탐색 E·T·X {sum(t not in ZA and t not in ZB for t in tick)} · ZA {len(ZA)} · ZB {len(ZB)}) · 이어 붙인 봉 {NT:,}")
     part = MT["part"]; di = MT["di"]
     if a.diag:
@@ -262,6 +263,7 @@ def main():
           "T": {"roles": ["O", "C", "I", "X"], "H": (1, 3, 5), "prim": 5, "des": 5, "valid": O_["vA"], "name": "🟡 일부익절 T(−1.5×ATR)", "trim": "T"},
           "M": {"roles": ["O", "C", "I", "X"], "H": (1, 3, 5), "prim": 5, "des": 5, "valid": O_["vA"], "name": "🟡 일부익절 M(−max(3%, 1.5×ATR) · 권장 기본안)", "trim": "M"},
           "P": {"roles": ["O", "C", "I", "K", "X"], "H": (20,), "prim": 20, "des": 20, "valid": O_["vB"], "name": "🔴 고점판독 — 20거래일 뒤 종가 하락(신호일 종가 기준)", "p20": True},
+          "N": {"roles": ["O", "C", "I", "K", "X"], "H": (10,), "prim": 10, "des": 10, "valid": O_["vB"], "name": "🔴 고점판독 — 10거래일 뒤 종가 하락(신호일 종가 기준)", "p20": True},
           "R": {"roles": ["O", "C", "I", "K", "X"], "H": (10, 20), "prim": 20, "des": 20, "valid": O_["vB"], "name": "🔴 고점 붕괴 포착 R(신호일 가격 −10%)", "crash": "r"},
           "Q": {"roles": ["O", "C", "I", "K", "X"], "H": (10, 20), "prim": 20, "des": 20, "valid": O_["vB"], "name": "🔴 고점 붕괴 포착 Q(신호 뒤 고점 −10%)", "crash": "q"}}
     if a.only: RD = {k: v for k, v in RD.items() if k in a.only.split(",")}
@@ -330,7 +332,7 @@ def main():
                     z["max_ticker"] = [tick[int(tc.index[0])], round(float(tc.iloc[0] / len(e)), 3)]; z["max_year"] = [yc.index[0], round(float(yc.iloc[0] / len(e)), 3)]
                     z["early"] = float(O_["early"][e].mean()); z["lag_med"] = float(np.median(O_["lag"][e])); z["drop_med"] = float(np.nanmedian(O_["drop"][e]))
                     if R.get("p20"):
-                        z["avg20"] = float(np.nanmean(O_["f20"][e])); hp20 = O_["P20"][e]
+                        z["avg20"] = float(np.nanmean(O_["f20"][e])); z["avg10"] = float(np.nanmean(O_["f10"][e])); hp20 = O_[f"{rd}{R['prim']}"][e]
                         z["regime"] = {"상승": [int(hp20[MT["bull"][e]].sum()), int(MT["bull"][e].sum())], "그 밖": [int(hp20[~MT["bull"][e]].sum()), int((~MT["bull"][e]).sum())]}
                     if R.get("trim"):
                         y_ = R["trim"]; hit = O_[f"{rd}5"][e]; dday = O_[f"y{y_}_day"][e]; rise = O_[f"y{y_}_rise"][e]
