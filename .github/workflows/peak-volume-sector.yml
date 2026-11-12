@@ -1,0 +1,38 @@
+name: 고점 거래량 이상징후 분야 확장 (수동)
+
+# 2026-11-12 사전등록 docs/2026-11-12-peak-volume.md §2 — 11-06 정의 그대로 반도체·금·은·우주·양자로 넓혀 재검증. 결과 JSON만 main에 커밋.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: 의존성 설치
+        run: pip install -q yfinance pandas numpy requests lxml
+      - name: 분야 확장 연구
+        run: python tools/peak-volume-sector.py --out "$RUNNER_TEMP/peak-volume-sector.json"
+      - name: 결과만 main에 커밋
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for i in 1 2 3; do
+            git fetch origin main
+            git switch -C vs-out origin/main
+            cp "$RUNNER_TEMP/peak-volume-sector.json" backtest/peak-volume-sector.json
+            git add backtest/peak-volume-sector.json
+            if git diff --cached --quiet; then echo "변경 없음"; exit 0; fi
+            git commit -m "auto: 고점 거래량 이상징후 분야 확장(backtest/peak-volume-sector.json)"
+            if git push origin HEAD:main; then exit 0; fi
+            sleep $((i * 5))
+          done
