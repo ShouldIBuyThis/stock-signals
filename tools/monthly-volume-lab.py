@@ -63,6 +63,7 @@ def features(df):
             base = wv[wj - wk - 25:wj - wk + 1].mean() if ok else np.nan
             f[f"W{wk}"] = bool(ok and base > 0 and wv[wj - wk + 1:wj + 1].sum() / (wk * base) >= 2.0)
         r3p = c[m] / c[m - 3] - 1; r3pp = c[m - 3] / c[m - 6] - 1
+        f["_r3"] = float(r3p)
         f["SLOW"] = r3p > r3pp
         f["HOLD"] = l[m - 1:m + 1].min() >= l[m - 5:m - 1].min()
         f["REC20W"] = wj is not None and not np.isnan(wma20[wj]) and wc[wj] > wma20[wj]
@@ -109,6 +110,28 @@ def stat(E):
     a = g("rebreak"); z["rebreak"] = float(np.mean(a)) if a else None
     cl = [e["o"].get("cls") for e in E if e["o"].get("cls")]; z["cls"] = {k: cl.count(k) for k in ("반등", "횡보", "계속 폭락")}
     return z
+
+
+def extra(DEC, thin, stat, pc, SET, MID):
+    """추가 검증(사용자 2026-11-13 · 사전 등록 외 · 별도 표시). 거래량 급증을 '매집'으로 단정하지 않고 급증 동안의 가격 움직임으로 경우를 나눈다.
+    확정 시점: 월봉·주봉은 그 달·그 주 마지막 거래일 장 마감 뒤에야 확정 — 신호는 그 날 종가로만 계산되고, 실제 행동 가능 시점은 그 날 종가(또는 다음 거래일)."""
+    def typ(e):
+        r = e["f"]["_r3"]
+        return "투매형(3개월 −25%↓)" if r <= -0.25 else "하락 지속형(−25~−10%)" if r <= -0.10 else "손바뀜·횡보형(±10%)" if r < 0.10 else "반등 동반형(+10%↑)"
+    for vb in ("M3_20", "D3_20", "M6_15"):
+        E = thin([e for e in DEC if e["f"][vb]])
+        print(f"\n■ 추가 — {vb} 급증 달을 급증 3개월 동안의 가격으로 분류 ({len(E)}건)")
+        for t in ("투매형(3개월 −25%↓)", "하락 지속형(−25~−10%)", "손바뀜·횡보형(±10%)", "반등 동반형(+10%↑)"):
+            s = stat([e for e in E if typ(e) == t])
+            if s["n"]: print(f"  {t:22} {s['n']}건 · 60일 {pc(s['r60'])} 상승 {s['up60']:.0%} · 10/20일 {pc(s['r10'])}/{pc(s['r20'])} · 낙폭20/60 {pc(s['dd20'])}/{pc(s['dd60'])} · 재이탈 {s['rebreak']:.0%} · {s['cls']}")
+    print("\n■ 추가 — 거래량 급증 단독 vs + 저점 유지 + 추세 회복(20주선) vs 대조(하락 국면 · 거래량 조건 없음)")
+    for vb in ("M3_15", "M3_20", "D3_20", "M6_15", "W8"):
+        for nm_, px in (("단독", []), ("+저점 유지", ["HOLD"]), ("+저점 유지+20주선 회복", ["HOLD", "REC20W"]), ("+하락 둔화+20주선 회복", ["SLOW", "REC20W"])):
+            E = thin([e for e in DEC if e["f"][vb] and all(e["f"][p] for p in px)]); C = thin([e for e in DEC if all(e["f"][p] for p in px)])
+            s, c = stat(E), stat(C)
+            if not s["n"]: print(f"  {vb:6} {nm_:22} 0건"); continue
+            sA, sB = stat([e for e in E if SET[e["t"]] == "A"]), stat([e for e in E if SET[e["t"]] == "B"])
+            print(f"  {vb:6} {nm_:22} {s['n']}건 {s['tickers']}종목 | 60일 {pc(s['r60'])} (대조 {pc(c['r60'])} · {c['n']}건) 상승 {s['up60']:.0%}/{c['up60']:.0%} | 낙폭60 {pc(s['dd60'])}/{pc(c['dd60'])} | 재이탈 {s['rebreak']:.0%}/{c['rebreak']:.0%} | A {pc(sA.get('r60'))}({sA['n']}) B {pc(sB.get('r60'))}({sB['n']})")
 
 
 def main():
@@ -164,6 +187,8 @@ def main():
         on = [NM[k] for k in VOL + PX if r["f"][k]]
         print(f"  {r['m']} 종가일 {r['d']} · 3개월 배율 주식수 {r['r3']} / 거래대금 {r['dr3']} · 6개월 {r['r6']} | {', '.join(on) or '—'} | 60일 {pc(r['o'].get('r60'))} {r['o'].get('cls', '')}")
     print(f"\n분할 이력: " + " · ".join(f"{t} {v}" for t, v in splits.items() if v))
+    if "--extra" in sys.argv:
+        extra(DEC, thin, stat, pc, SET, MID)
     if out_path:
         json.dump(res, open(out_path, "w", encoding="utf-8"), ensure_ascii=False, default=str); print(f"→ {out_path}")
 
