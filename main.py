@@ -1565,6 +1565,13 @@ def analyze(ticker, name, category):
         range10 = rng.iloc[end-13:end-3].mean() if end >= 13 else None     # 그 직전 10일 평균 변동폭
         v3 = vol.iloc[end-3:end].mean() if end >= 3 else None
         vol3_ratio = (v3 / va) if (v3 is not None and va and va > 0) else None
+        # 2026-11-13 표시 전용(사용자 지시): 5일 누적 거래량비 = 최근 5일 합 ÷ (평가 5일을 뺀 앞 20·60일 일평균 × 5).
+        # 연구 docs/2026-11-13-peak-volume-precise.md와 같은 정의. 판정·원장(HIST_FIELDS)에는 쓰지 않는다.
+        def _v5(nb):
+            if end < 5 + nb: return None
+            base = vol.iloc[end-5-nb:end-5].mean(); s5 = vol.iloc[end-5:end].sum()
+            return (s5 / (5 * base)) if (base and base > 0) else None
+        vol5_ratio20, vol5_ratio60 = _v5(20), _v5(60)
 
         # ── 지지·저항 (표시용 + 자리 보정용) ────────────────────────
         # 52주 고가 하나만 저항으로 쓰면 현재가와 지나치게 먼 값이 나올 수 있다.
@@ -1630,6 +1637,7 @@ def analyze(ticker, name, category):
             "ma120": safe(ma120.iloc[i], nd), "ma200": safe(ma200.iloc[i], nd),
             "ma200_slope": safe(ma200_slope),
             "range3": safe(range3), "range10": safe(range10), "vol3_ratio": safe(vol3_ratio),
+            "vol5_ratio20": safe(vol5_ratio20), "vol5_ratio60": safe(vol5_ratio60),
             "gap_pct": safe(gap_pct), "gap20_pct": safe(g20_pct), "gap20_ago": g20_ago,
             "gap20_vol": safe(g20_vol), "gap20_fill": safe(g20_fill),
             "w_rsi": safe(w_rsi, 1), "w_ma20_pos": safe(w_ma20_pos, 1),

@@ -1703,6 +1703,7 @@ function normalize(raw){
       ohlc60: Array.isArray(it.ohlc60) ? it.ohlc60 : null,   /* 2026-11-06 실제 일봉 차트용(원장 아님) */
       peak_risk: (it.peak_risk && typeof it.peak_risk === "object") ? it.peak_risk : null,
       mkt_regime: (it.mkt_regime && typeof it.mkt_regime === "object") ? it.mkt_regime : null,   /* 2026-11-12 국면(표시 전용) */
+      vol5_ratio20: num(it.vol5_ratio20), vol5_ratio60: num(it.vol5_ratio60),   /* 2026-11-13 5일 누적 거래량비 — 표시 전용(판정에 안 씀) */
       peak_reader: (it.peak_reader && typeof it.peak_reader === "object") ? it.peak_reader : null,   /* 2026-11-12 🔬 고점판독기(실험실) — 표시 전용(pattern_flags.peak_reader_flags) */   /* 2026-11-10 고점 위험 3단계 경고 — 표시 전용(pattern_flags.peak_risk_series) */
       /* 진입 위치(Positioning) 파생값 — 빠뜨리면 오늘 카드에서만 관련 로직이 통째로 죽는다 */
       ma20_slope: num(it.ma20_slope), run5_max: num(it.run5_max), run3_sum: num(it.run3_sum),
@@ -6899,7 +6900,9 @@ function stockCard(s, i, rankless=false){
       ${gauge("볼린저", s.bb_pos??0, r1(s.bb_pos), {color: has(s.bb_pos)&&s.bb_pos>=90?"#e5484d":has(s.bb_pos)&&s.bb_pos<=10?"#0f9d58":"#9aa4b2", ticks:[10,90]})}
       ${gauge("스토캐스틱", s.stoch_k??0, `${r1(s.stoch_k)}/${r1(s.stoch_d)}`, {ticks:[20,80], dot:s.stoch_d})}
       ${gauge("거래량비", has(s.vol_ratio)?clamp(s.vol_ratio/3*100,0,100):0, has(s.vol_ratio)?r1(s.vol_ratio)+"배":"—", {color: has(s.vol_ratio)&&s.vol_ratio>=1.5?"#f0872b":"#9aa4b2", ticks:[33]})}
+      ${gauge("5일 누적 거래량비", has(s.vol5_ratio20)?clamp(s.vol5_ratio20/3*100,0,100):0, has(s.vol5_ratio20)?(Math.round(s.vol5_ratio20*100)/100).toFixed(2)+"배"+(has(s.vol5_ratio60)?` <small>(60일 기준 ${(Math.round(s.vol5_ratio60*100)/100).toFixed(2)}배)</small>`:""):"—", {color: has(s.vol5_ratio20)&&s.vol5_ratio20>=1.5?"#f0872b":"#9aa4b2", ticks:[33]})}
     </div>
+    <div class="minor">5일 누적 거래량비 = 최근 5거래일 거래량 합 ÷ (그 5일을 뺀 앞 20일 일평균 × 5) · 표시 전용(판정에 안 씀) · 고점 연구 진행 중</div>
     <div class="minor num">MA5 ${r1(s.ma5)} · MA20 ${r1(s.ma20)} · MA60 ${r1(s.ma60)}${has(s.atr_pct)?` · 변동성 ${r1(s.atr_pct)}%`:""}${s.last_date?" · "+esc(s.last_date):""}</div>
     </details>
     <button class="expand" data-act="collapse">▴ 접기</button>`
