@@ -627,6 +627,10 @@ html[data-theme="dark"] .lev{background:#33191b;color:#ff8080;border-bottom-colo
 .pr-hl{border:1.5px solid #f3b4b4;background:#fff7f7;border-radius:12px;padding:10px 11px;margin:6px 0 10px} .pr-hl b.t{color:#b42318}
 html[data-theme="dark"] .pr-hl{background:#2a1a1c;border-color:#6b2a2e} html[data-theme="dark"] .pr-hlb{background:#3a1c1f;color:#ffb4b4}
 .pr-hl ul{margin:6px 0 0;padding-left:16px} .pr-hl li{margin:3px 0;font-size:12px;line-height:1.55}
+.tb-hl{border-color:#f6c58f;background:#fff8ef} .tb-hl b.t{color:#b45309} details.tb-hl>summary{cursor:pointer;list-style:none;font-size:12.5px}
+.cx-hl{border-color:#b9c7f0;background:#f5f8ff} .cx-hl b.t{color:#3346a8} details.cx-hl>summary{cursor:pointer;list-style:none;font-size:12.5px}
+html[data-theme="dark"] .cx-hl{background:#18203a;border-color:#34477a} html[data-theme="dark"] .cx-hl b.t{color:#a9b8ff}
+html[data-theme="dark"] .tb-hl{background:#2a2114;border-color:#7a4f1d} html[data-theme="dark"] .tb-hl b.t{color:#f6b56b}
 .pr-hlscan{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 2px} .pr-hlscan button{border:1px solid #f3b4b4;background:transparent;color:inherit;border-radius:999px;padding:3px 9px;font-size:12px;cursor:pointer}
 .pr-trim{font-size:10.5px;font-weight:700;border-radius:999px;padding:2px 7px;background:#fdf6e3;color:#946200;white-space:nowrap}
 .pr-ct{margin-top:8px;font-size:11.5px} .pr-ct summary{cursor:pointer;color:var(--muted)}
@@ -6930,6 +6934,8 @@ function stockCard(s, i, rankless=false){
     <div class="s-reason">${esc(s.earnings_hold ? (s.earnings_hold_reason||"실적 이벤트 영향권 — 기술등급 보류") : s.sig.line)}</div>
     <div class="tags">${tags}${flowTagsHtml(s)}</div>
     ${sbStockBlock(s)}
+    ${trimBoostHtml(trimBoostMatch(s), true)}
+    ${cautionAuxHtml(cautionAuxMatch(s))}
     ${rankLine}
     ${timelineCta}${detail}${expandBtn}
   </div>`;
@@ -9110,8 +9116,8 @@ function prItemHtml(s){
   const chips = groups.map(g => `<div class="pr-g"><span>${g}</span>${Object.keys(G).filter(c => G[c] === g).map(c => `<i class="${pr.on && pr.on[c] ? "on" : ""}${valid.includes(c) ? " v" : ""}" title="단독 조건 — 조합 성적이 아니에요">${pr.on && pr.on[c] ? "●" : "○"} ${esc(prName(c))}</i>`).join("")}</div>`).join("");
   const HM = prHlMatch(s), P20 = prP20Match(s), VS3 = prVs3Match(s);
   const onRows = J.on.map(c => c === "EXT" && PR2 && PR2.A ? `<li><b>🌪 변동성 과열(이격 25%↑)</b> <small>${esc(idMDsafe(pr.on[c]))}</small><br><small class="pr-dim">참고 — 아래 🌪 블록에 상승·하락 경험 비율이 있어요</small></li>` : `<li><b>${esc(prName(c))}</b> <small>${esc(idMDsafe(pr.on[c]))}</small><br><small class="pr-dim">${valid.includes(c) ? "검증 통과" : "단독 조건 · 참고(검증 미통과)"} — 승률은 단독이 아니라 아래 '조합(교집합)' 성적으로 봐요</small></li>`).join("");
-  return `<details class="pr-item"><summary><span class="pr-tk">${esc(s.ticker)}</span><span class="pr-nm">${esc(s.name || "")}</span><span class="pr-badges"><span class="pr-badge ${J.cls}">${esc(J.label)}</span>${HM.length ? `<span class="pr-badge" title="과거 연구 · 다른 성공 기준(신호 뒤 고점 대비 −10% 조정)">📁 과거 연구(Q) 조합</span>` : ""}${P20 && !P20.held ? `<span class="pr-hlb" title="20거래일 뒤 종가 하락 연구 후보 · 소표본">🔴 고점 경계 · 20일 하락 66~68%(소표본)</span>` : ""}${VS3 && !VS3.held ? `<span class="pr-hlb" title="대형 안정주 · 거래량 조합 연구 후보 · 소표본">📘 거래량 조합(OR 75%·소표본)</span>` : ""}${prTrim(s).length ? `<span class="pr-trim" title="사이트 기존 익절 신호(참고)">🟡 일부익절</span>` : ""}</span><span class="pr-why">${esc(J.why)}</span></summary>
-    <div class="pr-body">${prHlCard(HM)}${prP20Html(P20)}${prVs3Html(VS3)}
+  return `<details class="pr-item"><summary><span class="pr-tk">${esc(s.ticker)}</span><span class="pr-nm">${esc(s.name || "")}</span><span class="pr-badges"><span class="pr-badge ${J.cls}">${esc(J.label)}</span>${HM.length ? `<span class="pr-badge" title="과거 연구 · 다른 성공 기준(신호 뒤 고점 대비 −10% 조정)">📁 과거 연구(Q) 조합</span>` : ""}${P20 && !P20.held ? `<span class="pr-hlb" title="20거래일 뒤 종가 하락 연구 후보 · 소표본">🔴 고점 경계 · 20일 하락 66~68%(소표본)</span>` : ""}${VS3 && !VS3.held ? `<span class="pr-hlb" title="대형 안정주 · 거래량 조합 연구 후보 · 소표본">📘 거래량 조합(OR 75%·소표본)</span>` : ""}${trimBoostMatch(s) ? `<span class="pr-trim" title="일부익절 강화 신호 · 연구 후보(표시 전용)">🔶 일부익절 강화</span>` : ""}${prTrim(s).length ? `<span class="pr-trim" title="사이트 기존 익절 신호(참고)">🟡 일부익절</span>` : ""}</span><span class="pr-why">${esc(J.why)}</span></summary>
+    <div class="pr-body">${prHlCard(HM)}${prP20Html(P20)}${prVs3Html(VS3)}${trimBoostHtml(trimBoostMatch(s))}
       <div class="pr-kv"><div><small>120일 저점 대비</small><b>${pct(pr.up120)}</b></div><div><small>52주 고점 대비</small><b>${pct(hi52)}</b></div><div><small>RSI</small><b>${pr.rsi ?? "—"}</b></div></div>
       ${J.on.length ? `<div class="pr-sub">최근 5거래일에 켜진 조건</div><ul class="pr-on">${onRows}</ul>` : `<div class="pr-sub">최근 5거래일에 켜진 조건이 없어요</div>`}
       ${(() => { const T = prTrimSrc(s); return T.length ? `<div class="pr-ref"><div class="pr-ref-h">🟡 일부익절 가능성 <small>참고 · 고점 위험과 별개</small></div><ul class="pr-on">${T.map(x => `<li>${esc(x.t)}<br><small class="pr-dim">${esc(prTrimLine(x.k))}</small></li>`).join("")}</ul>${PR_TRIM ? `<small class="pr-dim">3년 백테스트(${esc((PR_TRIM.period || []).join("~"))}) · 같은 종목 3거래일 안 재발생 제외 · 생존 편향 있음. </small>` : ""}<small class="pr-dim">사이트가 이미 띄우는 과열·익절 신호(오늘의 신호·캔들 신호등·과열 뱃지)를 그대로 모은 거예요. 새 판정이 아니고, 매도 지시가 아니에요.</small></div>` : ""; })()}
@@ -9201,6 +9207,96 @@ function prVs3Html(m){
       <li><b>20일 뒤 종가 하락</b>: 탐색 ${f(P.d20.ex)} · 미사용 ${f(P.d20.zb)} — 평소 ${Math.round(P.d20.base[0] * 100)}%·${Math.round(P.d20.base[1] * 100)}% (미사용 자료에선 평소와 같음)</li>
       <li>평균 수익 10일·20일: 탐색 ${(P.avg.ex[0] * 100).toFixed(1)}%·${(P.avg.ex[1] * 100).toFixed(1)}% · 미사용 ${(P.avg.zb[0] * 100).toFixed(1)}%·${(P.avg.zb[1] * 100).toFixed(1)}%</li>
       <li><small class="pr-dim">사건 12~13건의 소표본 · 미사용 자료 90% 구간 하한이 0 아래(우연 배제 못 함) · 정식 검증 미통과 · 대형 안정주(경기방어·헬스케어·금융·산업재·리츠·방산·빅테크·MSFT)에만 표시 · 매도 지시 아님</small></li></ul></div>`;
+}
+/* 2026-11-13 사용자 승인 "일부익절 4번 조합 반영" — 일부익절 강화 신호(표시 전용 · 기존 일부익절·고점판독기·매수 산식 불변).
+   조건(그날 확정 봉만 · 미래 자료 없음): 고점판독기 🟠 R_MA200(종가 ≥ 200일선 × 1.8) ∩ 거래량비 < 0.7(오늘 거래량 / 직전 20일 평균 · 오늘 제외)
+   ∩ run3_sum ≥ 8(종가 / 3거래일 전 종가 − 1). main.py가 장중 미완성 봉을 잘라 확정 종가만 쓴다.
+   숫자 = docs/2026-11-13-trim-or-combo.md 표 D #4 (tools/trim-combo-lab.js --verify · lab-quick 43414459105) 그대로.
+   성공 기준(OR) = 3·5·10거래일 뒤 종가 중 하나라도 신호일 종가보다 1% 넘게 낮음 — 매도 수익률 검증이 아니다. */
+const TRIM_BOOST = { name: "200일선 대비 +80% 이상 과열 ∩ 거래량 평소 0.7배 미만 ∩ 최근 3일 +8% 이상",
+  A: { r: 0.78, n: 60 }, B: { r: 0.78, n: 59 }, anch: [0.61, 0.66], base: [0.59, 0.58], wilson: [0.70, 0.85],
+  dn: [0.52, 0.57, 0.53], avg: [-0.6, -0.9, -0.7], med10: -2.4, up10: { n: 54, avg: 13.7 }, n: 119, freq: 3.5, period: "3년 백테스트" };
+function trimBoostMatch(s){
+  if (!s || s.earnings_hold || !s.sig) return null;   /* 연구는 실적 영향권 날을 뺐다 */
+  const pat = String(s.pat || "").split(",");
+  if (!pat.includes("R_MA200") || !has(s.vol_ratio) || !(s.vol_ratio < 0.7) || !has(s.run3_sum) || !(s.run3_sum >= 8)) return null;
+  let others = []; try { others = prTrimSrc(s).filter(x => x.k !== "OR_R_MA200"); } catch(e){}
+  return { d: s.last_date, vr: s.vol_ratio, run3: s.run3_sum, others };
+}
+function trimBoostHtml(m, inCard){
+  if (!m) return "";
+  const P = TRIM_BOOST, pc = v => Math.round(v * 100) + "%", sg = v => (v > 0 ? "+" : "") + v.toFixed(1) + "%";
+  const rel = m.others.length
+    ? `기존 일부익절 신호와 <b>중복</b>: 🟠 200일선 이격 +80%(이 조합의 바탕 · 항상 겹침) + ${m.others.map(x => esc(x.t)).join(" · ")}`
+    : `기존 일부익절 신호 중 🟠 200일선 이격 +80%(고점판독기 · 이 조합의 바탕)와만 겹쳐요. 🔥 과열 분할익절·⚠ 과열 익절 주의·🟡 캔들 일부익절은 오늘 없어요.`;
+  const body = `<div style="font-size:12.5px;margin-top:4px">${esc(P.name)}</div>
+    <ul><li>오늘 값: 거래량 평소의 <b>${m.vr.toFixed(2)}배</b> · 최근 3일 <b>${sg(m.run3)}</b> · ${esc(idMDsafe(m.d))} 확정 종가 기준</li>
+      <li>${rel}</li>
+      <li><b>연구 성과(OR)</b>: 3·5·10거래일 뒤 종가 중 <b>한 번이라도</b> 1% 넘게 내린 비율 — 탐색 ${pc(P.A.r)}(${P.A.n}건) · 미사용 ${pc(P.B.r)}(${P.B.n}건). 200일선 이격 단독은 ${pc(P.anch[0])}·${pc(P.anch[1])}, 평소(아무 날) ${pc(P.base[0])}·${pc(P.base[1])}</li>
+      <li>시점별로 따로 보면 3·5·10일 뒤 하락 ${P.dn.map(pc).join("·")} · 평균 ${P.avg.map(sg).join("·")} · 10일 뒤 중앙값 ${sg(P.med10)}</li>
+      <li>10일 뒤 오히려 오른 ${P.up10.n}건(약 ${Math.round(P.up10.n / P.n * 100)}%)은 평균 <b>+${P.up10.avg}%</b> 더 올랐어요</li>
+      <li><small class="pr-dim">${P.period}(관심종목 소급 · 생존 편향) 연구 후보예요. 78%는 '세 시점 중 한 번이라도 내렸다'는 연구 성과일 뿐 <b>팔았을 때 수익이 났다는 검증이 아니에요</b>. 매도 지시가 아니고, 기존 일부익절·고점판독기 판정은 그대로예요. 빈도 월 ${P.freq}회 정도.</small></li></ul>`;
+  return inCard
+    ? `<details class="pr-hl tb-hl"><summary><b class="t">🔶 일부익절 강화 신호</b> <small class="pr-dim">연구 후보 · 3·5·10일 OR ${pc(P.B.r)}(미사용 ${P.B.n}건) · ${m.others.length ? "기존 신호와 중복" : "200일선 이격과만 겹침"}</small></summary>${body}</details>`
+    : `<div class="pr-hl tb-hl"><div><b class="t">🔶 일부익절 강화 신호</b> <small class="pr-dim">${esc(idMDsafe(m.d))} 켜짐 · 연구 후보</small></div>${body}</div>`;
+}
+/* 2026-11-13 사용자 지시 "주의장 강한매수 후보 유지 · 실험용 보조 신호로 설계" — 표시 전용(강한매수 등급·evaluate() 불변).
+   대상: 주의장(미국) 최종 강한매수(grade 5) · 실적 영향권 제외. 후보 1~10 = docs/2026-11-13-caution-strongbuy.md §2 결과(lab-quick 43414464337) 그대로.
+   구간 정의는 tools/caution-lab.js --explore와 같다: 나스닥20일 = market_ret20 · 주의장 지속 = 그날까지 연속 주의장 거래일(미국 원장 행)
+   · 경로 = 추세 강한매수(pullGrade 5) 포함 여부 · 주봉 RSI = w_rsi · 20주선 대비 = w_ma20_pos · 월봉 6개월선 = m_ma6_pos ≥ 0 · 월봉 연속 상승 = m_streak > 0.
+   성공 기준 = 신호일 종가 → n거래일 뒤 종가 > +1% 승 · < −1% 패 · ±1% 보합 제외. 표본이 적어도 지우지 않고 신뢰도를 따로 붙인다. 추적: tools/caution-aux-track.js */
+const CAUTION_AUX_BASE = { any: [0.53, 0.56, 0.54], sb: [0.46, 0.51, 0.54], half: [0.55, 0.56], ab: [0.55, 0.56], sbN: 234, period: "3년 백필(2023-12~2026-11)" };
+const CAUTION_AUX = [   /* r = +3/+5/+10일 승률 · n = +5일 표본 · h = 앞/뒤 반 +5 · ab = 종목 A/B +5 · q = QQQ 대비 초과 +5/+10(%p) · c = 같은 분야 대비 · sd = 같은 날 주의장 아무 종목 +5 */
+  { id: 1, nm: "나스닥20일 −2~0% ∩ 월봉 6개월선 아래", f: x => x.nq === 3 && x.m6 === 0, r: [0.61, 0.71, 0.68], n: 30, dates: 15, tk: 24, h: [0.70, 0.71], ab: [0.80, 0.56], q: [2.02, 2.41], c: [-2.95, 1.12], sd: 0.54 },
+  { id: 2, nm: "나스닥20일 −2~0% ∩ 월봉 연속 상승 아님", f: x => x.nq === 3 && x.mst === 0, r: [0.71, 0.70, 0.70], n: 29, dates: 15, tk: 25, h: [0.78, 0.64], ab: [0.73, 0.63], q: [3.11, 3.51], c: [-1.56, 1.42], sd: 0.55 },
+  { id: 3, nm: "반등 경로만 ∩ 주봉 RSI 50~60", f: x => x.path === 0 && x.wrsi === 2, r: [0.64, 0.68, 0.59], n: 33, dates: 20, tk: 21, h: [0.73, 0.64], ab: [0.64, 0.73], q: [-1.41, -0.17], c: [-0.01, 1.08], sd: 0.57 },
+  { id: 4, nm: "나스닥20일 0~2% ∩ 추세 경로 포함", f: x => x.nq === 4 && x.path === 1, r: [0.53, 0.67, 0.64], n: 42, dates: 25, tk: 28, h: [0.75, 0.56], ab: [0.82, 0.53], q: [3.17, 0.40], c: [0.54, 0.97], sd: 0.60 },
+  { id: 5, nm: "주의장 1~3일째 ∩ 주봉 RSI 50~60", f: x => x.age === 0 && x.wrsi === 2, r: [0.57, 0.67, 0.58], n: 39, dates: 25, tk: 26, h: [0.80, 0.59], ab: [0.62, 0.71], q: [-1.12, 0.26], c: [-0.09, 0.86], sd: 0.55 },
+  { id: 6, nm: "나스닥20일 −2~0% ∩ 반등 경로만", f: x => x.nq === 3 && x.path === 0, r: [0.57, 0.67, 0.68], n: 38, dates: 19, tk: 31, h: [0.57, 0.75], ab: [0.78, 0.50], q: [2.12, 3.10], c: [-1.16, 2.15], sd: 0.50 },
+  { id: 7, nm: "주봉 RSI 50~60 ∩ 20주선 대비 −5~0%", f: x => x.wrsi === 2 && x.w20 === 1, r: [1.00, 1.00, 0.86], n: 15, dates: 9, tk: 9, h: [1.00, 1.00], ab: [1.00, 1.00], q: [0.42, 0.31], c: [2.50, 3.18], sd: 0.56 },
+  { id: 8, nm: "주의장 4~10일째 ∩ 월봉 연속 상승 아님", f: x => x.age === 1 && x.mst === 0, r: [0.91, 0.80, 0.55], n: 14, dates: 6, tk: 10, h: [0.71, 1.00], ab: [0.75, 1.00], q: [4.42, -1.57], c: [-2.09, -1.34], sd: 0.51 },
+  { id: 9, nm: "나스닥20일 −2~0% ∩ 주봉 RSI 40~50", f: x => x.nq === 3 && x.wrsi === 1, r: [0.55, 0.77, 0.56], n: 14, dates: 11, tk: 13, h: [0.75, 0.78], ab: [0.88, 0.60], q: [3.70, 1.31], c: [-3.45, 0.41], sd: 0.52 },
+  { id: 10, nm: "나스닥20일 −2~0% ∩ 주의장 4~10일째", f: x => x.nq === 3 && x.age === 1, r: [0.83, 0.73, 0.75], n: 14, dates: 3, tk: 13, h: [0.63, 1.00], ab: [0.71, 0.75], q: [1.60, 0.74], c: [0.66, 2.04], sd: 0.49 },
+];
+function cautionAgeOf(d){   /* 그날까지 연속 주의장 거래일 — caution-lab.js와 같은 방식(미국 원장 행의 market_level · 날짜별) */
+  const D = state.data; if (!D || !d) return null;
+  if (!D._cauAge){ const ph = {};
+    allStocks().filter(x => !isKR(x.ticker)).forEach(x => (histStocks(x) || []).forEach(h => { if (h.last_date && has(h.price)) ph[h.last_date] = h.market_level || "none"; }));
+    const age = {}; let run = 0; Object.keys(ph).sort().forEach(k => { run = ph[k] === "caution" ? run + 1 : 0; age[k] = run; }); D._cauAge = age; }
+  return D._cauAge[d] != null ? D._cauAge[d] : null;
+}
+function cautionAuxFeat(s){
+  const bin = (v, e) => { if (!has(v)) return null; for (let k = 0; k < e.length; k++) if (v < e[k]) return k; return e.length; };
+  const a = cautionAgeOf(s.last_date);
+  return { ret20: s.market_ret20, nq: bin(s.market_ret20, [-6, -4, -2, 0, 2]), age: a == null ? null : a <= 3 ? 0 : a <= 10 ? 1 : 2, ageN: a,
+    path: s.sig && s.sig.pullGrade === 5 ? 1 : 0, wrsi: bin(s.w_rsi, [40, 50, 60]), w20: bin(s.w_ma20_pos, [-5, 0, 5]),
+    m6: has(s.m_ma6_pos) ? (s.m_ma6_pos >= 0 ? 1 : 0) : null, mst: has(s.m_streak) ? (s.m_streak > 0 ? 1 : 0) : null };
+}
+function cautionAuxMatch(s){
+  if (!s || !s.sig || s.sig.grade !== 5 || s.earnings_hold || isKR(s.ticker) || s.market_level !== "caution") return null;
+  const x = cautionAuxFeat(s); return { x, hits: CAUTION_AUX.filter(c => { try { return c.f(x) === true; } catch(e){ return false; } }) };
+}
+function cautionAuxRel(c){   /* 신뢰도(방법론 §5-1) · 재현성 위험 표시 — 후보를 지우지 않는다 */
+  const g = c.n >= 50 ? "사용 가능" : c.n >= 30 ? "방향만(30~50)" : c.n >= 15 ? "참고(15~30)" : "신뢰 불가(15 미만)";
+  const w = [];
+  if (Math.abs(c.h[0] - c.h[1]) >= 0.15) w.push(`앞/뒤 차 ${Math.round(Math.abs(c.h[0] - c.h[1]) * 100)}%p`);
+  if (Math.abs(c.ab[0] - c.ab[1]) >= 0.15) w.push(`종목 A/B 차 ${Math.round(Math.abs(c.ab[0] - c.ab[1]) * 100)}%p`);
+  if (c.dates < 6) w.push(`${c.dates}개 날짜에 몰림`);
+  if (c.q[0] < 0) w.push("QQQ 대비 초과수익 음수(시장 반등 몫)");
+  if (c.n < 30) w.push("과최적화 의심(145개 조합 중 선택)");
+  return { g, w };
+}
+function cautionAuxHtml(m){
+  if (!m || !m.hits.length) return "";
+  const B = CAUTION_AUX_BASE, pc = v => Math.round(v * 100) + "%", sg = v => (v >= 0 ? "+" : "") + v.toFixed(2) + "%p";
+  const rows = m.hits.map(c => { const R = cautionAuxRel(c);
+    return `<li><b>#${c.id} ${esc(c.nm)}</b> <span class="pr-badge">${esc(R.g)}</span><br>
+      +3·+5·+10일 승률 <b>${c.r.map(pc).join("·")}</b> (+5일 ${c.n}건 · ${c.dates}일 · ${c.tk}종목) — 주의장 강한매수 전체 ${B.sb.map(pc).join("·")} · 주의장 아무 종목 ${B.any.map(pc).join("·")} · 같은 날 주의장 아무 종목 +5 ${pc(c.sd)}<br>
+      앞/뒤 반 ${pc(c.h[0])}/${pc(c.h[1])} · 종목 A/B ${pc(c.ab[0])}/${pc(c.ab[1])} (주의장 기준선 ${pc(B.half[0])}/${pc(B.half[1])}) · 초과수익 QQQ +5/+10 ${sg(c.q[0])}/${sg(c.q[1])} · 같은 분야 ${sg(c.c[0])}/${sg(c.c[1])}
+      ${R.w.length ? `<br><small style="color:#b45309">⚠ 재현성 위험: ${esc(R.w.join(" · "))}</small>` : ""}</li>`; }).join("");
+  return `<details class="pr-hl cx-hl"><summary><b class="t">🧪 주의장 보조 후보 ${m.hits.map(c => "#" + c.id).join("·")}</b> <small class="pr-dim">실험용 · 강한매수 등급은 그대로</small></summary>
+    <ul><li>오늘 조건: 나스닥 20일 ${has(m.x.ret20) ? (m.x.ret20 >= 0 ? "+" : "") + m.x.ret20.toFixed(1) + "%" : "—"} · 주의장 ${m.x.ageN != null ? m.x.ageN + "일째" : "지속일 —"} · ${m.x.path ? "추세 경로 포함" : "반등 경로만"}</li>${rows}
+      <li><small class="pr-dim">${B.period} 주의장(미국) 강한매수 ${B.sbN}건 안에서 고른 연구 후보예요(145개 조합 탐색 · 우연 기대 12.8개 대비 65%↑ 26개). 승률 = n거래일 뒤 종가가 +1% 넘게 오르면 승, −1% 넘게 내리면 패(±1% 제외). 최근 원장(2026-08~11)의 주의장 강한매수는 +5일 14%(41건 · 35건이 10/14·10/15 이틀)였어요. 매수 지시가 아니고 추적 중인 실험 신호예요.</small></li></ul></details>`;
 }
 function prP20Html(m){
   if (!m || m.held) return "";
