@@ -84,11 +84,20 @@ def build(days: int) -> dict:
     M.HIST_DAYS = days
     print(f"HIST_DAYS = {M.HIST_DAYS} (야후 1년 ≈ 252봉 · 워밍업 66봉 필요)")
 
+    # 2026-11-13 수정: market_state()는 66+HIST_DAYS봉이 있어야 국면 이력을 만든다. --years 3 --days 690이면
+    # 3년치(약 753봉)가 756봉에 모자라 국면 이력이 통째로 비었고, 그러면 화면 histRow()가 과거 모든 날에
+    # '실행한 날의 국면'(mk.level)을 넣었다. 시장 국면만 1년 더 길게 받아 모든 행이 그날의 국면을 갖게 한다.
+    _period = M.PERIOD
+    try:
+        _y = int(str(_period).rstrip("y")); M.PERIOD = f"{_y + 1}y"
+    except ValueError:
+        pass
     mkt = M.market_state(M.MARKET_TICKER)
+    M.PERIOD = _period
     mhist = (mkt or {}).get("hist") or []
-    print(f"시장({M.MARKET_TICKER}) 이력 {len(mhist)}일")
-    if len(mhist) < days * 0.5:
-        print("⚠ 시장 이력이 요청 일수의 절반도 안 된다 — 종목 쪽도 짧을 것이다.")
+    print(f"시장({M.MARKET_TICKER}) 국면 이력 {len(mhist)}일 (기간 {M.PERIOD} + 1년)")
+    if len(mhist) < days:
+        sys.exit(f"시장 국면 이력 {len(mhist)}일 < 요청 {days}일 — 과거 행에 그날 국면이 빠진다(화면이 오늘 국면으로 채움). 중단.")
 
     rows, failed, earn_days = [], [], 0
     todo = [(tk, nm, cat) for cat, grp in M.WATCHLIST.items() for tk, nm in grp.items()]
@@ -113,6 +122,9 @@ def build(days: int) -> dict:
         time.sleep(0.15)     # 야후 쪽 부담을 줄인다
 
     M.attach_historical_market(rows, mkt)
+    _il = M.HIST_FIELDS.index("market_level")
+    _miss = sum(1 for r in rows if not M.is_kr_ticker(r.get("ticker") or "") for h in (r.get("hist") or []) if h[_il] is None)
+    print(f"그날 시장 국면이 빠진 미국 행: {_miss}")
     M.attach_historical_rs20(rows, mkt)          # 시장 대비 상대강도(rs20) — 실험에서 rs20 후보를 재려면 필요
 
     # 항복 바닥(K2) 해제는 qqq_card.hist의 그날 RSI를 읽는다. 이게 없으면 화면 산식이
