@@ -1,0 +1,207 @@
+{
+ "NANC": {
+  "label": "민주당 의원 거래",
+  "top": [
+   {
+    "ticker": "NVDA",
+    "name": "NVIDIA Corp",
+    "weight": 8.16
+   },
+   {
+    "ticker": "MSFT",
+    "name": "Microsoft Corp",
+    "weight": 7.11
+   },
+   {
+    "ticker": "GOOG",
+    "name": "Alphabet Inc Class C",
+    "weight": 4.99
+   },
+   {
+    "ticker": "AAPL",
+    "name": "Apple Inc",
+    "weight": 4.82
+   },
+   {
+    "ticker": "AMZN",
+    "name": "Amazon.com Inc",
+    "weight": 4.76
+   },
+   {
+    "ticker": "CRWD",
+    "name": "CrowdStrike Holdings Inc Class A",
+    "weight": 4.54
+   },
+   {
+    "ticker": "AMAT",
+    "name": "Applied Materials Inc",
+    "weight": 3.5
+   },
+   {
+    "ticker": "PM",
+    "name": "Philip Morris International Inc",
+    "weight": 3.42
+   },
+   {
+    "ticker": "LLY",
+    "name": "Eli Lilly and Co",
+    "weight": 3.17
+   },
+   {
+    "ticker": "AXP",
+    "name": "American Express Co",
+    "weight": 2.62
+   }
+  ],
+  "sectors": {
+   "realestate": 0.0,
+   "consumer_cyclical": 6.8,
+   "basic_materials": 1.9,
+   "consumer_defensive": 7.4,
+   "technology": 46.6,
+   "communication_services": 10.7,
+   "financial_services": 7.6,
+   "utilities": 0.5,
+   "industrials": 7.3,
+   "energy": 0.0,
+   "healthcare": 11.1
+  }
+ },
+ "GOP": {
+  "label": "공화당 의원 거래",
+  "top": [
+   {
+    "ticker": "FIX",
+    "name": "Comfort Systems USA Inc",
+    "weight": 5.84
+   },
+   {
+    "ticker": "JPM",
+    "name": "JPMorgan Chase & Co",
+    "weight": 4.43
+   },
+   {
+    "ticker": "INTC",
+    "name": "Intel Corp",
+    "weight": 3.72
+   },
+   {
+    "ticker": "IBIT",
+    "name": "iShares Bitcoin Trust ETF",
+    "weight": 3.65
+   },
+   {
+    "ticker": "NVDA",
+    "name": "NVIDIA Corp",
+    "weight": 3.24
+   },
+   {
+    "ticker": "ANET",
+    "name": "Arista Networks Inc",
+    "weight": 3.17
+   },
+   {
+    "ticker": "AMD",
+    "name": "Advanced Micro Devices Inc",
+    "weight": 2.84
+   },
+   {
+    "ticker": "UTHR",
+    "name": "United Therapeutics Corp",
+    "weight": 2.41
+   },
+   {
+    "ticker": "ALL",
+    "name": "Allstate Corp",
+    "weight": 2.22
+   },
+   {
+    "ticker": "CVX",
+    "name": "Chevron Corp",
+    "weight": 2.11
+   }
+  ],
+  "sectors": {
+   "realestate": 1.5,
+   "consumer_cyclical": 4.7,
+   "basic_materials": 2.3,
+   "consumer_defensive": 3.8,
+   "technology": 28.8,
+   "communication_services": 2.7,
+   "financial_services": 17.1,
+   "utilities": 1.4,
+   "industrials": 19.6,
+   "energy": 11.5,
+   "healthcare": 6.7
+  }
+ },
+ "MAGA": {
+  "label": "공화당 후원기업",
+  "top": [
+   {
+    "ticker": "MPC",
+    "name": "Marathon Petroleum Corp",
+    "weight": 0.92
+   },
+   {
+    "ticker": "PSX",
+    "name": "Phillips 66",
+    "weight": 0.88
+   },
+   {
+    "ticker": "TSLA",
+    "name": "Tesla Inc",
+    "weight": 0.84
+   },
+   {
+    "ticker": "COP",
+    "name": "ConocoPhillips",
+    "weight": 0.84
+   },
+   {
+    "ticker": "VLO",
+    "name": "Valero Energy Corp",
+    "weight": 0.84
+   },
+   {
+    "ticker": "LNG",
+    "name": "Cheniere Energy Inc",
+    "weight": 0.82
+   },
+   {
+    "ticker": "SPCX",
+    "name": "Space Exploration Technologies Corp Clas",
+    "weight": 0.82
+   },
+   {
+    "ticker": "LLY",
+    "name": "Eli Lilly and Co",
+    "weight": 0.81
+   },
+   {
+    "ticker": "AMGN",
+    "name": "Amgen Inc",
+    "weight": 0.79
+   },
+   {
+    "ticker": "XOM",
+    "name": "ExxonMobil Holdings Corp",
+    "weight": 0.79
+   }
+  ],
+  "sectors": {
+   "realestate": 6.2,
+   "consumer_cyclical": 10.7,
+   "basic_materials": 7.0,
+   "consumer_defensive": 7.6,
+   "technology": 2.7,
+   "communication_services": 0.0,
+   "financial_services": 14.4,
+   "utilities": 10.6,
+   "industrials": 21.7,
+   "energy": 13.0,
+   "healthcare": 5.9
+  }
+ },
+ "date": "2026-11-13"
+}
