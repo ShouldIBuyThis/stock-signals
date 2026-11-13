@@ -171,8 +171,14 @@ def wilson(k, n, z=1.96):
 
 def ptail(n, p, thr):
     if n == 0 or not np.isfinite(p): return 0.0
-    k0 = int(math.floor(n * thr)) + 1; s = 0.0
-    for k in range(k0, n + 1): s += math.comb(n, k) * p ** k * (1 - p) ** (n - k)
+    k0 = int(math.floor(n * thr)) + 1
+    if k0 > n: return 0.0
+    if p <= 0: return 0.0
+    if p >= 1: return 1.0
+    if n > 3000:   # 정규 근사(큰 표본)
+        z = (k0 - 0.5 - n * p) / math.sqrt(n * p * (1 - p)); return 0.5 * math.erfc(z / math.sqrt(2))
+    lp, lq, lg = math.log(p), math.log(1 - p), math.lgamma(n + 1); s = 0.0
+    for k in range(k0, n + 1): s += math.exp(lg - math.lgamma(k + 1) - math.lgamma(n - k + 1) + k * lp + (n - k) * lq)
     return s
 
 
