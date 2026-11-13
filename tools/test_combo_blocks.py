@@ -24,6 +24,24 @@ for t in ["A", "B", "C", "D", "E", "F", "G", "H"]:
 print(f"블록 대조: 켜진 봉 {n_on} · 불일치 {bad}")
 if bad: sys.exit(1)
 
+# 대형 안정주 거래량 조합(pattern_flags.vol_stage3) = 연구 블록 P_NEAR ∩ L_STAGE3 ∩ VR20_160 (2026-11-13)
+bad2 = on2 = 0
+for t in ["A", "B", "C", "D", "E", "F", "G"]:
+    rng = np.random.default_rng(zlib.crc32(("v" + t).encode())); n = 700
+    r = rng.normal(0.001, 0.02, n); c = np.cumprod(1 + r) * 50; o = c * (1 + rng.normal(0, .01, n))
+    h = np.maximum(o, c) * (1 + abs(rng.normal(0, .012, n))); l = np.minimum(o, c) * (1 - abs(rng.normal(0, .012, n)))
+    v = rng.lognormal(13, 0.7, n); z = np.zeros(n, bool)
+    B1, _, _ = cb.blocks(t, o, h, l, c, v, 1, None, None, z, z)
+    for k in (1.1, pf.VS3_K):    # 낮은 문턱으로도 대조해 켜진 봉이 있게 한다
+        lab = B1["P_NEAR"] & B1["L_STAGE3"] & B1[f"VR20_{int(round(k * 100))}"]; site, _ = pf.vol_stage3(o, h, l, c, v, 1, t, k=k)
+        bad2 += int((lab != site).sum()); on2 += int(site.sum())
+    for k in (1.1, 1.4, pf.VS3_K, 2.0):   # 세 부분을 따로 봉 단위로 대조(조합 자체는 드물다)
+        P = pf.vol_stage3(o, h, l, c, v, 1, t, k=k, parts=True)
+        for lk, sk in (("P_NEAR", "P_NEAR"), ("L_STAGE3", "STAGE3"), (f"VR20_{int(round(k * 100))}", "VR")):
+            bad2 += int((B1[lk] != P[sk]).sum()); on2 += int(P[sk].sum())
+print(f"거래량 조합 대조: 켜진 봉 {on2} · 불일치 {bad2}")
+if bad2: sys.exit(1)
+
 # 52주 블록 복구(main.restore_52w_blocks) — 가짜 2년치로: 연구 정의(이전 251봉)와 같고, 나머지 블록·매수 입력은 그대로
 import pandas as pd
 import main as M

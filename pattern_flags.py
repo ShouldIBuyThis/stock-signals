@@ -720,6 +720,32 @@ def combo_blocks(o, h, l, c, v, lev=1.0, ticker="", min52=251):
     return {k: np.asarray(a, bool) for k, a in B.items()}
 
 
+VS3_K = 1.6   # 2026-11-13 거래량 정밀 연구 고원(1.4~1.8배)의 가운데 · docs/2026-11-13-peak-volume-precise.md
+
+
+def vol_stage3(o, h, l, c, v, lev=1.0, ticker="", min52=251, k=VS3_K, parts=False):
+    """연구 조합 '52주 고가 5% 안 ∩ 단기 지지 붕괴(현행 3단계) ∩ 5일 누적 거래량 k배↑(앞 20일 기준)' — 봉마다 bool.
+    P_NEAR는 combo_blocks와 같은 정의, STAGE3는 peak_reader_flags, 5일 누적은 tools/peak-combo-lab.py vol2_blocks와 같은 정의
+    (평가 5일을 뺀 D−24~D−5 일평균). 52주 칸은 이전 min52봉이 있어야 한다(없으면 False)."""
+    o, h, l, c, v = (np.asarray(x, dtype=float) for x in (o, h, l, c, v))
+    fl = peak_reader_flags(o, h, l, c, v, lev=lev, ticker=ticker)
+    h52p = pd.Series(h).shift(1).rolling(251, min_periods=min52).max().to_numpy(); ok = np.isfinite(h52p)
+    V = pd.Series(v)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        r20 = np.nan_to_num(V.rolling(5).sum().to_numpy() / (5 * V.shift(5).rolling(20, min_periods=20).mean().to_numpy()), nan=-1)
+        pn = ok & (c >= np.fmax(h52p, h) * 0.95)
+    st3 = np.asarray(fl["STAGE3"]) == True
+    if parts: return {"P_NEAR": pn, "STAGE3": st3, "VR": r20 >= k}
+    return pn & st3 & (r20 >= k), ok
+
+
+def vol_stage3_now(o, h, l, c, v, dates, lev=1.0, ticker="", win=3):
+    """화면용: 최근 win 거래일 중 켜진 날 목록 + 52주 판정 가능 여부. 표시 전용(판정·원장 무관)."""
+    m, ok = vol_stage3(o, h, l, c, v, lev=lev, ticker=ticker)
+    n = len(c); idx = range(max(0, n - win), n)
+    return {"days": [str(dates[j]) for j in idx if m[j]], "na": not all(ok[j] for j in idx), "k": VS3_K}
+
+
 def combo_blocks_now(o, h, l, c, v, dates, lev=1.0, ticker="", win=5):
     """화면용: 최근 win 거래일 각각의 켜진 블록 {날짜: [블록…]}(꺼진 날은 빈 목록) + 판정 보류 블록.
     52주 블록(P_NEAR·P_RT5·C_FB)은 연구와 같은 '이전 251봉'이 있어야 계산한다 — 야후 1년치(약 250봉)면 판정 보류(na)로 둔다.
