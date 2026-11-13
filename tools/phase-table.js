@@ -6,11 +6,11 @@
  * 같은 국면 기준선(그 국면일에 전 종목 매수)·초과 %p를 찍는다.
  * 산식은 index.html에서 추출한 배포 원본 그대로 (§0).
  *
- * 사용: 저장소 루트에서 `node tools/phase-table.js`
+ * 사용: 저장소 루트에서 `node tools/phase-table.js [backtest/raw.json]` (기본 signals.json)
  */
 const fs = require('fs'), path = require('path'), vm = require('vm');
 const src = fs.readFileSync(path.join(process.cwd(), 'index.html'), 'utf8');
-const base = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'signals.json'), 'utf8'));
+const base = JSON.parse(fs.readFileSync(path.join(process.cwd(), process.argv[2] || 'signals.json'), 'utf8'));   /* 2026-11-13: 3년 백필(backtest/raw.json)로도 돌린다 */
 
 function die(m){ console.error('[ERROR]', m); process.exit(1); }
 function extractFunction(name){
