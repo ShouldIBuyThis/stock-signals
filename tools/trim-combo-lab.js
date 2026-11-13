@@ -168,4 +168,10 @@ function verify(){
     `\n     10일 뒤 오른 ${x.nUp}건 평균 ${x.upAvg == null ? '—' : '+' + x.upAvg.toFixed(1) + '%'} · 앵커에서 걸러진 ${x.nFilt}건의 OR ${P(x.filtOr)}`));
   console.log('\n  판정 규칙: 강력 추천 = B가 B 기준선·B 앵커 단독을 모두 넘고 ∧ B 독립 30일↑ ∧ 앵커 대비 B +10%p↑ ∧ 집중 없음 ∧ 월 0.5회↑ / 추가 검증 = 앞 둘만 충족 / 보류 = B 기준선 초과 또는 B 65%↑ 하나 / 탈락 = 그 밖.');
   console.log('  ※ OR 성공은 세 시점 중 한 번이라도 1% 초과 하락 — 매도 수익 개선·최적 매도 시점의 증거가 아니다. B를 본 뒤 조합을 바꾸지 않았다.');
+  console.log('\n■ 끝 요약(로그 꼬리에서도 보이게) — 기준선');
+  console.log(`  전체 OR ${P(orOf(allE))}(${allE.length}) A ${P(orOf(allE.filter(r => SET[r.t] === 'A')))} B ${P(orOf(allE.filter(r => SET[r.t] === 'B')))} · 일부익절 아무거나 ${P(orOf(anyE))}(${anyE.length}) A ${P(orOf(anyE.filter(r => SET[r.t] === 'A')))} B ${P(orOf(anyE.filter(r => SET[r.t] === 'B')))}`);
+  console.log('  출처별: ' + ANCH.map(a => { const E = events(r => has(r, a)); return `${NM[a] || a} ${P(orOf(E))}(${E.length})`; }).join(' · '));
+  console.log('  국면별(전체/일부익절): ' + ['상승', '횡보', '하락'].map(g => `${g} ${P(orOf(allE.filter(r => regime(r) === g)))}(${allE.filter(r => regime(r) === g).length})/${P(orOf(anyE.filter(r => regime(r) === g)))}(${anyE.filter(r => regime(r) === g).length})`).join(' · '));
+  console.log(`  개별 3·5·10일 하락(전체) ${P(allE.filter(r => r.f3 < -1).length / allE.length)}·${P(allE.filter(r => r.f5 < -1).length / allE.length)}·${P(allE.filter(r => r.f10 < -1).length / allE.length)} · 조합 ${combos} · 사전등록 후보 ${res.summary.gt65}(우연 ${res.summary.chance}) · B 재현(>65%) ${res.summary.replicated}(우연 ${res.summary.rep_chance}) · 정식 통과 ${res.summary.passed} · ≥65% 고유 ${L.length} · 표 C ${C.length}`);
+  const sens2 = L.map(x => x.or10 - x.orAll).sort((a, b) => a - b); if (sens2.length) console.log(`  10일 간격 민감도: 중앙 ${PP(sens2[Math.floor(sens2.length / 2)])} · 하위10% ${PP(sens2[Math.floor(sens2.length * 0.1)])}`);
 }
