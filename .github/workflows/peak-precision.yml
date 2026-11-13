@@ -13,6 +13,10 @@ on:
         description: '5차 결과 파일 이름(backtest/ 아래)'
         required: false
         default: 'peak-combo2.json'
+      sector_extra:
+        description: '분야 추가 종목(금·은·우주·양자 · 2026-11-13 사전등록)을 탐색에 더함 — 1이면 켬'
+        required: false
+        default: '0'
 
 permissions:
   contents: write
@@ -34,6 +38,8 @@ jobs:
         run: pip install -q yfinance pandas numpy requests lxml
       - name: 4차 — 고정밀 소수 신호 13개(판정 = 미사용 Z)
         run: python tools/peak-precision-lab.py --emit "$RUNNER_TEMP/peak-precision.json" --cache "$RUNNER_TEMP/pp.pkl"
+        env:
+          PP_SECTOR: ${{ inputs.sector_extra || '0' }}
       - name: 5차 2회 — 방향 기준 D(§10·§11) · 🔴 고점 붕괴 R·Q(§12) · 🟡 일부익절 F·T·M(§13) · 봉인 검증 ZB
         # 1회(ATR 기준 🟡A·🔴B) 결과 backtest/peak-combo.json · 4차 결과 peak-precision.json은 보존(덮어쓰지 않음)
         run: python tools/peak-combo-lab.py --cache "$RUNNER_TEMP/pp.pkl" --emit "$RUNNER_TEMP/combo-out.json" --only "${{ inputs.only || 'D,R,Q,F,T,M' }}"

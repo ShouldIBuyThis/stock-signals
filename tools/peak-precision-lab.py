@@ -2,7 +2,7 @@
 후보 13개(S0~S3 · A · B · C · D · K · B∩D · C∩D · B∩MK4 · C∩MK4) · 묶음 E/T/X(재사용)·Z(미사용)·L(레버리지 따로) · 판정은 Z.
 사용: python tools/peak-precision-lab.py --emit backtest/peak-precision.json
 """
-import argparse, hashlib, importlib.util, json, math, pickle, sys, time
+import argparse, os, hashlib, importlib.util, json, math, pickle, sys, time
 from datetime import datetime, timezone
 import numpy as np, pandas as pd, yfinance as yf
 ROOT = __file__.rsplit("/", 2)[0]; sys.path.insert(0, ROOT)
@@ -17,7 +17,9 @@ bb = _load("bb", "bb-walk-lab.py"); gb = _load("gb", "group-breadth-lab.py")
 EXTRA = ["QUBT", "SMCI", "MSTR", "COIN", "ARM", "CVNA", "UPST", "AFRM", "SOUN", "HOOD", "RIVN", "PLUG", "ENPH", "ZM", "PTON", "MRNA"]          # 2차 연구 EXTRA 중 미국
 NEW = ("NFLX SHOP ROKU TTD TWLO OKTA CRSP SE MELI SNAP PINS SPOT TDOC W CHWY RBLX DOCU DKNG U SOFI PATH ENVX RUN FSLR SEDG CELH NVAX BNTX "
        "NIO XPEV LI GME AMC OPEN BYND FUBO LCID TQQQ TECL").split()                                                                       # 2차 연구 NEW 중 미국
-LEV = {"SOXL": 3, "GDXU": 3, "NAIL": 3, "UYG": 2, "DUSL": 3, "FNGU": 3, "BULZ": 3, "TQQQ": 3, "TECL": 3}
+LEV = {"SOXL": 3, "GDXU": 3, "NAIL": 3, "UYG": 2, "DUSL": 3, "FNGU": 3, "BULZ": 3, "TQQQ": 3, "TECL": 3, "NUGT": 2, "AGQ": 2}
+# 2026-11-13 사전등록 docs/2026-11-13-peak-volume-precise.md §4 — 환경변수 PP_SECTOR=1일 때만 탐색(X)에 더한다(이전 실행 재현성 유지)
+SECTOR_X = "GLD IAU GDX GDXJ NUGT SLV SIVR SIL SILJ AGQ ASTS LUNR SPCE QUBT COHR INTC".split()
 DUP = {"GOOG", "FOX", "NWS"}
 START, T_END, EXP_START = "2007-01-01", "2016-01-01", "2016-02-01"
 H = (1, 3, 5, 7); COOL = 5; COST = 0.0015; CORR = 0.05; MIN_N = 4
@@ -125,6 +127,7 @@ def main():
     Wl = bb.wl_names(); is_kr = lambda t: t.endswith(".KS") or t.endswith(".KQ")
     orig = [t for t in list(Wl) + [x for x in EXTRA if x not in Wl] if not is_kr(t)]
     newx = [t for t in NEW if t not in orig]
+    if os.environ.get("PP_SECTOR") == "1": newx += [t for t in SECTOR_X if t not in orig and t not in newx]
     sp = next(t for t in gb.wiki_tables("List of S&P 500 companies") if {"Symbol", "GICS Sector"} <= set(map(str, t.columns)))
     sector = {gb.ysym(s): str(sec) for s, sec in zip(sp["Symbol"], sp["GICS Sector"])}
     G, _ = gb.constituents()
