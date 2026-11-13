@@ -108,18 +108,38 @@ if (process.argv.includes('--explore')) {
   console.log(`\n■ §2 성공 조건 탐색 — 주의장 강한매수 ${C.length}건 · 조합 ${cells.length}`);
   console.log(`  기준: 주의장 아무 종목 +3/+5/+10일 ${pc(bS[3].rate)}/${pc(bS[5].rate)}/${pc(bS[10].rate)} · 주의장 강한매수 ${pc(cS[3].rate)}/${pc(cS[5].rate)}/${pc(cS[10].rate)} · 강한매수 전체 ${pc(aS[3].rate)}/${pc(aS[5].rate)}/${pc(aS[10].rate)}`);
   console.log(`  주의장 기준선 +5일 앞 ${pc(bH[0].rate)} · 뒤 ${pc(bH[1].rate)} · 종목 A ${pc(bAB.A.rate)} · B ${pc(bAB.B.rate)}`);
+  // 추가 검증(사용자 2026-11-13): 성공 기준 = n거래일 뒤 종가 수익 > +1% 승 · < −1% 패 · ±1% 보합 제외(승/(승+패)).
+  // 시장 동반 상승 분리: ① 같은 날짜 주의장 아무 종목 승률(날짜 맞춘 기준선) ② QQQ 같은 기간 초과수익 ③ 같은 분야(카테고리) 같은 날 평균 대비 초과수익.
+  const HF = raw.hist_fields || [], qi = HF.indexOf('date'), qp = HF.indexOf('price'), qh = ((raw.qqq_card || {}).hist || []).filter(Array.isArray);
+  const qd = qh.map(x => String(x[qi])), qpx = qh.map(x => x[qp]);
+  const qret = (d, h) => { const k = qd.indexOf(d); return k >= 0 && k + h < qpx.length && qpx[k] ? (qpx[k + h] / qpx[k] - 1) * 100 : null; };
+  const catDay = {}; rows.forEach(r => { const key = r.cat + '|' + r.d; (catDay[key] = catDay[key] || []).push(r); });
+  const dayRows = {}; cBase.forEach(r => (dayRows[r.d] = dayRows[r.d] || []).push(r));
+  const exc = (L, h) => { const a = [], b = []; L.forEach(r => { const x = r.rets[h]; if (x == null) return; const q = qret(r.d, h); if (q != null) a.push(x - q);
+      const peers = (catDay[r.cat + '|' + r.d] || []).filter(z => z.tk !== r.tk && z.rets[h] != null); if (peers.length) b.push(x - peers.reduce((s, z) => s + z.rets[h], 0) / peers.length); });
+    const m = v => v.length ? v.reduce((s, x) => s + x, 0) / v.length : null; return { qqq: m(a), cat: m(b), nq: a.length, nc: b.length }; };
+  const sameDay = (L, h) => st([...new Set(L.map(r => r.d))].flatMap(d => dayRows[d] || []), h);
+  console.log('  성공 기준: +n거래일 종가 수익 > +1% = 승, < −1% = 패, ±1% 보합은 분모에서 제외. 개선폭은 같은 표본 조건(주의장 · 미국)끼리.');
   const out2 = [];
   for (const cs of cells) {
     const L = C.filter(r => cs.every(([k, v]) => DIM[k].f(r) === v)); const s5 = st(L, 5); if (s5.n < 6 || s5.rate == null) continue;
     const h = [st(L.filter(r => r.d < mid), 5), st(L.filter(r => r.d >= mid), 5)], ab = { A: st(L.filter(r => SET[r.tk] === 'A'), 5), B: st(L.filter(r => SET[r.tk] === 'B'), 5) };
     const ok = [h[0].rate > bH[0].rate, h[1].rate > bH[1].rate, ab.A.rate > bAB.A.rate, ab.B.rate > bAB.B.rate].every(x => x === true);
-    out2.push({ name: nm(cs), n: s5.n, dates: new Set(L.map(r => r.d)).size, tickers: new Set(L.map(r => r.tk)).size, s3: st(L, 3), s5, s10: st(L, 10), h, ab, ok });
+    out2.push({ name: nm(cs), n: s5.n, dates: new Set(L.map(r => r.d)).size, tickers: new Set(L.map(r => r.tk)).size, s3: st(L, 3), s5, s10: st(L, 10), h, ab, ok,
+                sd5: sameDay(L, 5), ex5: exc(L, 5), ex10: exc(L, 10) });
   }
   out2.sort((a, b) => b.s5.rate - a.s5.rate || b.n - a.n);
   const hi = out2.filter(x => x.s5.rate >= 0.65);
   console.log(`  표본 6↑ 조합 ${out2.length} · +5일 65%↑ ${hi.length} · 그중 앞·뒤·A·B 모두 기준선 위 ${hi.filter(x => x.ok).length} · 30건↑ ${hi.filter(x => x.n >= 30).length}`);
   const f = s => `${pc(s.rate)}(${s.n}) ${s.avg == null ? '' : (s.avg >= 0 ? '+' : '') + s.avg.toFixed(2)}`;
-  for (const x of hi.slice(0, 60)) console.log(`  ${x.ok ? '✓' : ' '}${x.n >= 30 ? '★' : ' '} ${x.name.padEnd(40)} | +3 ${f(x.s3)} | +5 ${f(x.s5)} | +10 ${f(x.s10)} | ${x.dates}일 ${x.tickers}종목 | 앞/뒤 ${pc(x.h[0].rate)}(${x.h[0].n})/${pc(x.h[1].rate)}(${x.h[1].n}) | A/B ${pc(x.ab.A.rate)}(${x.ab.A.n})/${pc(x.ab.B.rate)}(${x.ab.B.n})`);
+  const pp = x => x == null ? '—' : (x >= 0 ? '+' : '') + x.toFixed(2) + '%';
+  for (const x of hi.slice(0, 60)) console.log(`  ${x.ok ? '✓' : ' '}${x.n >= 30 ? '★' : ' '} ${x.name.padEnd(40)} | +3 ${f(x.s3)} | +5 ${f(x.s5)} | +10 ${f(x.s10)} | ${x.dates}일 ${x.tickers}종목 | 앞/뒤 ${pc(x.h[0].rate)}(${x.h[0].n})/${pc(x.h[1].rate)}(${x.h[1].n}) | A/B ${pc(x.ab.A.rate)}(${x.ab.A.n})/${pc(x.ab.B.rate)}(${x.ab.B.n})` +
+    ` | 주의장 강매 전체 대비 +5 ${((x.s5.rate - cS[5].rate) * 100).toFixed(0)}%p · 같은 날 아무 종목 +5 ${pc(x.sd5.rate)} · 초과수익 QQQ +5/+10 ${pp(x.ex5.qqq)}/${pp(x.ex10.qqq)} · 같은 분야 ${pp(x.ex5.cat)}/${pp(x.ex10.cat)}`);
+  // 과최적화: 조합 수 대비 65% 이상 우연 기대(주의장 강한매수 전체 +5일 승률을 참값으로 가정한 이항 꼬리)
+  const lg = x => { const c = [76.18009172947146, -86.50532032941677, 24.01409824083091, -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5]; let y = x, t = x + 5.5; t -= (x + .5) * Math.log(t); let ss = 1.000000000190015; for (const q of c) ss += q / ++y; return -t + Math.log(2.5066282746310005 * ss / x); };
+  const tail = (n, p) => { let ss = 0; for (let k = Math.ceil(n * 0.65); k <= n; k++) ss += Math.exp(lg(n + 1) - lg(k + 1) - lg(n - k + 1) + k * Math.log(p) + (n - k) * Math.log(1 - p)); return ss; };
+  const ch = out2.reduce((s, x) => s + tail(x.s5.n, cS[5].rate), 0);
+  console.log(`  과최적화: 표본 6↑ 조합 ${out2.length}개를 시험 — 주의장 강한매수 전체 +5일 ${pc(cS[5].rate)}가 참이라면 우연히 65%↑가 나올 기대 개수 ${ch.toFixed(1)} (실제 ${hi.length})`);
   console.log('\n  단일 차원 전체(65% 미만 포함):');
   for (const x of out2.filter(x => !x.name.includes('∩'))) console.log(`    ${x.name.padEnd(24)} +3 ${f(x.s3)} | +5 ${f(x.s5)} | +10 ${f(x.s10)} | 앞/뒤 ${pc(x.h[0].rate)}/${pc(x.h[1].rate)}`);
 }
