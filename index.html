@@ -9108,10 +9108,10 @@ function prItemHtml(s){
   const hi52 = has(s.high_52w) && has(s.price) && s.high_52w > 0 ? s.price / s.high_52w - 1 : null;
   const groups = ["과열", "약화", "캔들", "거래량", "이탈"], G = (PR_DATA && PR_DATA.groups) || {};
   const chips = groups.map(g => `<div class="pr-g"><span>${g}</span>${Object.keys(G).filter(c => G[c] === g).map(c => `<i class="${pr.on && pr.on[c] ? "on" : ""}${valid.includes(c) ? " v" : ""}" title="단독 조건 — 조합 성적이 아니에요">${pr.on && pr.on[c] ? "●" : "○"} ${esc(prName(c))}</i>`).join("")}</div>`).join("");
-  const HM = prHlMatch(s), P20 = prP20Match(s);
+  const HM = prHlMatch(s), P20 = prP20Match(s), VS3 = prVs3Match(s);
   const onRows = J.on.map(c => c === "EXT" && PR2 && PR2.A ? `<li><b>🌪 변동성 과열(이격 25%↑)</b> <small>${esc(idMDsafe(pr.on[c]))}</small><br><small class="pr-dim">참고 — 아래 🌪 블록에 상승·하락 경험 비율이 있어요</small></li>` : `<li><b>${esc(prName(c))}</b> <small>${esc(idMDsafe(pr.on[c]))}</small><br><small class="pr-dim">${valid.includes(c) ? "검증 통과" : "단독 조건 · 참고(검증 미통과)"} — 승률은 단독이 아니라 아래 '조합(교집합)' 성적으로 봐요</small></li>`).join("");
-  return `<details class="pr-item"><summary><span class="pr-tk">${esc(s.ticker)}</span><span class="pr-nm">${esc(s.name || "")}</span><span class="pr-badges"><span class="pr-badge ${J.cls}">${esc(J.label)}</span>${HM.length ? `<span class="pr-badge" title="과거 연구 · 다른 성공 기준(신호 뒤 고점 대비 −10% 조정)">📁 과거 연구(Q) 조합</span>` : ""}${P20 && !P20.held ? `<span class="pr-hlb" title="20거래일 뒤 종가 하락 연구 후보 · 소표본">🔴 고점 경계 · 20일 하락 66~68%(소표본)</span>` : ""}${prTrim(s).length ? `<span class="pr-trim" title="사이트 기존 익절 신호(참고)">🟡 일부익절</span>` : ""}</span><span class="pr-why">${esc(J.why)}</span></summary>
-    <div class="pr-body">${prHlCard(HM)}${prP20Html(P20)}
+  return `<details class="pr-item"><summary><span class="pr-tk">${esc(s.ticker)}</span><span class="pr-nm">${esc(s.name || "")}</span><span class="pr-badges"><span class="pr-badge ${J.cls}">${esc(J.label)}</span>${HM.length ? `<span class="pr-badge" title="과거 연구 · 다른 성공 기준(신호 뒤 고점 대비 −10% 조정)">📁 과거 연구(Q) 조합</span>` : ""}${P20 && !P20.held ? `<span class="pr-hlb" title="20거래일 뒤 종가 하락 연구 후보 · 소표본">🔴 고점 경계 · 20일 하락 66~68%(소표본)</span>` : ""}${VS3 && !VS3.held ? `<span class="pr-hlb" title="대형 안정주 · 거래량 조합 연구 후보 · 소표본">📘 거래량 조합(OR 75%·소표본)</span>` : ""}${prTrim(s).length ? `<span class="pr-trim" title="사이트 기존 익절 신호(참고)">🟡 일부익절</span>` : ""}</span><span class="pr-why">${esc(J.why)}</span></summary>
+    <div class="pr-body">${prHlCard(HM)}${prP20Html(P20)}${prVs3Html(VS3)}
       <div class="pr-kv"><div><small>120일 저점 대비</small><b>${pct(pr.up120)}</b></div><div><small>52주 고점 대비</small><b>${pct(hi52)}</b></div><div><small>RSI</small><b>${pr.rsi ?? "—"}</b></div></div>
       ${J.on.length ? `<div class="pr-sub">최근 5거래일에 켜진 조건</div><ul class="pr-on">${onRows}</ul>` : `<div class="pr-sub">최근 5거래일에 켜진 조건이 없어요</div>`}
       ${(() => { const T = prTrimSrc(s); return T.length ? `<div class="pr-ref"><div class="pr-ref-h">🟡 일부익절 가능성 <small>참고 · 고점 위험과 별개</small></div><ul class="pr-on">${T.map(x => `<li>${esc(x.t)}<br><small class="pr-dim">${esc(prTrimLine(x.k))}</small></li>`).join("")}</ul>${PR_TRIM ? `<small class="pr-dim">3년 백테스트(${esc((PR_TRIM.period || []).join("~"))}) · 같은 종목 3거래일 안 재발생 제외 · 생존 편향 있음. </small>` : ""}<small class="pr-dim">사이트가 이미 띄우는 과열·익절 신호(오늘의 신호·캔들 신호등·과열 뱃지)를 그대로 모은 거예요. 새 판정이 아니고, 매도 지시가 아니에요.</small></div>` : ""; })()}
@@ -9177,6 +9177,30 @@ function prP20Match(s){
     if ((b.includes("P_RT5") || b.includes("P_H60")) && b.includes("C_FB") && b.includes("I_STO") && b.includes("K_20") && prThemeWeak(s, d) === true) return { d };
   }
   return need52 && days.some(d => { const b = B.days[d] || []; return b.includes("I_STO") && b.includes("K_20"); }) ? { held: true } : null;
+}
+/* 2026-11-13 대형 안정주 · 거래량 조합 연구 후보(사용자 지시 "대형 안정주에 적용") — 표시 전용 · 판정·원장 무관.
+   연구 docs/2026-11-13-peak-volume-precise.md: 52주 고가 5% 안 ∩ 단기 지지 붕괴(현행 3단계) ∩ 5일 누적 거래량 1.6배↑(앞 20일 기준).
+   연구 사건은 FDS·ORCL·LLY·GWW·BRO 같은 대형 안정주에서만 나왔고 반도체·금·은·우주·양자에서는 0건 → 아래 분야에만 켠다(레버리지·국장 제외).
+   판정은 main.py가 pattern_flags.vol_stage3_now로 계산한 peak_reader.vs3(최근 3거래일 · 52주 칸이 모자라면 2년치로 다시 잼). */
+const VS3_CATS = ["경기방어", "헬스케어", "금융", "산업재", "리츠", "방산·드론", "빅테크"], VS3_TICKERS = ["MSFT"];
+const PR_VS3 = { name: "52주 고가 5% 안 ∩ 단기 지지 붕괴(현행 3단계) ∩ 5일 누적 거래량 1.6배↑",
+  or_: { ex: [11, 13], zb: [9, 12], base: [0.55, 0.57], ctl: [0.57, 0.58] }, d20: { ex: [9, 13], zb: [5, 12], base: [0.41, 0.43] },
+  avg: { ex: [-0.009, -0.022], zb: [-0.001, 0.004] } };   /* backtest/peak-volume2.json 그대로(J·H 판독기) */
+function vs3Eligible(s){ return !!s && !isKR(s.ticker) && !LEVERAGED[s.ticker] && (VS3_CATS.includes(s.category) || VS3_TICKERS.includes(s.ticker)); }
+function prVs3Match(s){
+  const v = s && s.peak_reader && s.peak_reader.vs3; if (!v || !vs3Eligible(s)) return null;
+  if (v.days && v.days.length) return { d: v.days[v.days.length - 1], src: v.src52 || "" };
+  return v.na ? { held: true } : null;
+}
+function prVs3Html(m){
+  if (!m || m.held) return "";
+  const P = PR_VS3, f = a => `${a[0]}/${a[1]}(${Math.round(a[0] / a[1] * 100)}%)`;
+  return `<div class="pr-hl"><div><b class="t">📘 대형 안정주 · 거래량 조합 연구 후보</b> <small class="pr-dim">${esc(idMDsafe(m.d))} 켜짐 · 소표본</small></div>
+    <div style="font-size:12.5px;margin-top:4px">${esc(P.name)}</div>
+    <ul><li><b>10일 또는 20일 뒤 종가 하락(OR)</b>: 탐색 ${f(P.or_.ex)} · 미사용 ${f(P.or_.zb)} — 거래량 조건 없이는 ${Math.round(P.or_.ctl[0] * 100)}%·${Math.round(P.or_.ctl[1] * 100)}% · 평소 ${Math.round(P.or_.base[0] * 100)}%·${Math.round(P.or_.base[1] * 100)}%</li>
+      <li><b>20일 뒤 종가 하락</b>: 탐색 ${f(P.d20.ex)} · 미사용 ${f(P.d20.zb)} — 평소 ${Math.round(P.d20.base[0] * 100)}%·${Math.round(P.d20.base[1] * 100)}% (미사용 자료에선 평소와 같음)</li>
+      <li>평균 수익 10일·20일: 탐색 ${(P.avg.ex[0] * 100).toFixed(1)}%·${(P.avg.ex[1] * 100).toFixed(1)}% · 미사용 ${(P.avg.zb[0] * 100).toFixed(1)}%·${(P.avg.zb[1] * 100).toFixed(1)}%</li>
+      <li><small class="pr-dim">사건 12~13건의 소표본 · 미사용 자료 90% 구간 하한이 0 아래(우연 배제 못 함) · 정식 검증 미통과 · 대형 안정주(경기방어·헬스케어·금융·산업재·리츠·방산·빅테크·MSFT)에만 표시 · 매도 지시 아님</small></li></ul></div>`;
 }
 function prP20Html(m){
   if (!m || m.held) return "";
@@ -9295,8 +9319,11 @@ function prPanelHtml(mine){
     ${(() => { if (!PR_HL) return PR_HL_STATE === "fail" ? `<div class="pr-empty">검증 조합 자료(peak-highlights.json)를 불러오지 못했어요. <button class="pr-btn" data-prhlretry="1">다시 불러오기</button></div>` : "";
       const held = []; const hit = allStocks().map(s => ({ s, m: prHlMatch(s, { held }) })).filter(x => x.m.length);
       const p20 = allStocks().map(s => ({ s, m: prP20Match(s) })).filter(x => x.m && !x.m.held);
+      const vs3 = allStocks().map(s => ({ s, m: prVs3Match(s) })).filter(x => x.m && !x.m.held);
       const nHeld = new Set(held.map(h => h.name)).size, H = PR_HL.highlights || [], nVol = H.filter(h => h.diag && (h.diag.beyond_vol || []).includes("Q20")).length;
-      return `<div class="pr-h">🔴 고점 경계 · 20일 종가 하락 연구 후보 <small>미사용 자료 13/19건 하락 · 소표본</small></div>
+      return `<div class="pr-h">📘 대형 안정주 · 거래량 조합 연구 후보 <small>OR 미사용 9/12 · 소표본 · 대형 안정주만</small></div>
+      ${vs3.length ? `<div class="pr-hlscan">${vs3.map(x => `<button data-goto="${esc(x.s.ticker)}">${esc(x.s.ticker)} <small>${esc(idMDsafe(x.m.d))}</small></button>`).join("")}</div>` : `<div class="pr-empty">지금 켜진 대형 안정주가 없어요.</div>`}
+      <div class="pr-h">🔴 고점 경계 · 20일 종가 하락 연구 후보 <small>미사용 자료 13/19건 하락 · 소표본</small></div>
       ${p20.length ? `<div class="pr-hlscan">${p20.map(x => `<button data-goto="${esc(x.s.ticker)}">${esc(x.s.ticker)} <small>${esc(idMDsafe(x.m.d))}</small></button>`).join("")}</div>` : `<div class="pr-empty">지금 켜진 종목이 없어요.</div>`}
       <div class="pr-h">📁 과거 연구 결과 · 고점 대비 조정(Q) 조합 <small>다른 성공 기준(신호 뒤 고점 대비 −10%) · 사전등록 검증 통과 ${H.length}개(변동성 추가 검증 ${PR_HL.diag_comparable ? `통과 ${nVol}개` : "비교 불가 — 재실행 필요"}) · 관심종목 전체 · 각 종목의 최근 3거래일</small></div>
       ${nHeld ? `<small class="pr-dim">52주 고가가 들어간 ${nHeld}개 조합은 화면 자료(야후 1년치)로는 연구와 같은 값을 낼 수 없어 판정 보류예요.</small>` : ""}

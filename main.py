@@ -1732,6 +1732,24 @@ def analyze(ticker, name, category):
                 except Exception as e:
                     row["peak_reader"]["blk"] = None; row["peak_reader"]["blk_err"] = f"{type(e).__name__}: {e}"[:200]
                     print(f"  ⚠ {ticker} 교집합 블록 계산 실패: {e}")
+                # 2026-11-13 대형 안정주 거래량 조합(표시 전용 · 원장 아님): 52주 고가 5% 안 ∩ 단기 지지 붕괴(현행 3단계) ∩ 5일 누적 1.6배↑.
+                # 52주 칸은 이전 251봉이 필요 — 1년치로 모자라면 나머지 두 조건이 최근 3일에 켜진 종목만 2년치를 받아 다시 잰다.
+                if ticker not in LEVERAGED and not is_kr_ticker(ticker):
+                    try:
+                        vs = pattern_flags.vol_stage3_now(op.values, high.values, low.values, close.values, vol.values, _dates, ticker=ticker)
+                        if vs["na"]:
+                            pt = pattern_flags.vol_stage3(op.values, high.values, low.values, close.values, vol.values, ticker=ticker, parts=True)
+                            if any(pt["STAGE3"][j] and pt["VR"][j] for j in range(max(0, len(close) - 3), len(close))):
+                                lg = drop_invalid_price_rows(drop_unclosed(yf.Ticker(ticker).history(period="2y", interval="1d", auto_adjust=False), ticker), ticker)
+                                ld = [d.strftime("%Y-%m-%d") for d in lg.index] if lg is not None else []
+                                if lg is not None and len(lg) >= 260 and ld[-3:] == list(_dates[-3:]):
+                                    vs = pattern_flags.vol_stage3_now(lg["Open"].values, lg["High"].values, lg["Low"].values, lg["Close"].values, lg["Volume"].values, ld, ticker=ticker)
+                                    vs["src52"] = "2y"
+                            else:
+                                vs = {"days": [], "na": False, "k": vs["k"], "note": "나머지 두 조건 꺼짐"}
+                        row["peak_reader"]["vs3"] = vs
+                    except Exception as e:
+                        print(f"  ⚠ {ticker} 거래량 조합 계산 실패: {e}")
     except Exception as e:
         print(f"  ⚠ {ticker} 고점판독기 계산 실패: {e}")
     return row
