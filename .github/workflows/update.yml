@@ -89,7 +89,9 @@ jobs:
             const krDispatch = ev === 'workflow_dispatch' && inp.scope === 'kr' && String(inp.force_resnap) !== 'true';
             if (!krSched && !krDispatch) { core.setOutput('skip', 'false'); return; }
             const day = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
-            const start = new Date(`${day}T00:00:00+09:00`).toISOString();
+            // 2026-11-13: 전날 KR 예약 실행이 9시간 늦게(한국 00:55~01:18) 돌아 '오늘 성공'으로 잘못 세어 오늘 갱신을 건너뛰었다.
+            // 오늘 장 마감(15:30) 뒤에 만들어진 실행만 오늘 종가를 반영했을 수 있으므로 그 뒤 실행만 센다.
+            const start = new Date(`${day}T15:30:00+09:00`).toISOString();
             const runs = await github.paginate(github.rest.actions.listWorkflowRuns, {
               ...context.repo, workflow_id: 'update.yml', branch: 'main',
               event: 'schedule', created: `>=${start}`, per_page: 100
