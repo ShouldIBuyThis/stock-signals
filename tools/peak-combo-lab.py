@@ -37,7 +37,20 @@ VCONF = ["I_RSID", "O_BBRE", "C_FB", "L_FAIL_HIGH"]
 BN.update({"V_S2": "5일 안 거래량 2배 폭증", "V_S3": "5일 안 거래량 3배 폭증", "V_R15": "5일 거래량 평소의 1.5배↑", "V_R20": "5일 거래량 평소의 2배↑",
            "V_SLOW": "거래량 증가 ∧ 상승 둔화", "V_FAIL": "거래량 증가 ∧ 돌파 실패", "V_SQ5D": "폭증→감소→5일선 첫 이탈", "V_SQ5N": "폭증→감소 없이 5일선 첫 이탈",
            "V_SQ20D": "폭증→감소→20일선 첫 이탈", "V_SQ20N": "폭증→감소 없이 20일선 첫 이탈", "O_BBRE": "볼밴 상단 재진입(3일 안)"})
-ALLB = [b for r in ROLES.values() for b in r] + [x for v in NB.values() for x in v] + LROLE + ["P_RUN"] + VROLE + ["O_BBRE"]
+# 2026-11-13 사전등록(docs/2026-11-13-peak-volume-precise.md): 5일 누적 배율 26 · 과정 13 · 구간(보고 전용) 28
+VK = [1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0, 2.25, 2.5, 3.0]
+VRATIO = [f"VR{bs}_{int(round(k * 100))}" for bs in (20, 60) for k in VK]
+VPROC = ["VP_ONE", "VP_MULTI", "VP_BACK", "VP_FRONT", "VP_RISEFALL", "VP_SLOW", "VP_EFF", "VS_BEAR", "VS_WICK", "VS_BBRE", "VS_MA5", "VO_OBV", "VO_CMF"]
+V2ROLE = VRATIO + VPROC
+VEDGES = [0] + VK + [99]
+VBINS = [f"VB{bs}_{i}" for bs in (20, 60) for i in range(len(VEDGES) - 1)]
+PCONF2 = LROLE + ["C_FB", "O_BBRE"]          # 고점 신호 0~1개(사례실 17 + 52주 돌파 실패 + 볼밴 재진입)
+BN.update({f"VR{bs}_{int(round(k * 100))}": f"5일 누적 {k}배↑(기준 {bs}일)" for bs in (20, 60) for k in VK})
+BN.update({f"VB{bs}_{i}": f"5일 누적 {VEDGES[i]}~{VEDGES[i + 1]}배(기준 {bs}일)" for bs in (20, 60) for i in range(len(VEDGES) - 1)})
+BN.update({"VP_ONE": "하루만 폭증", "VP_MULTI": "여러 날 거래량 증가", "VP_BACK": "뒤 3일 거래량 증가", "VP_FRONT": "앞에 몰리고 감소", "VP_RISEFALL": "증가하다 마지막 감소",
+           "VP_SLOW": "누적 거래량↑ ∧ 상승 둔화", "VP_EFF": "거래량 대비 상승 효율 감소", "VS_BEAR": "폭증 뒤 음봉", "VS_WICK": "폭증 뒤 윗꼬리", "VS_BBRE": "폭증 뒤 볼밴 재진입",
+           "VS_MA5": "폭증 뒤 5일선 이탈", "VO_OBV": "OBV 다이버전스", "VO_CMF": "고점권 CMF<0"})
+ALLB = [b for r in ROLES.values() for b in r] + [x for v in NB.values() for x in v] + LROLE + ["P_RUN"] + VROLE + ["O_BBRE"] + V2ROLE + VBINS
 HA, HB, PA, PB_, DA, DB = (1, 3, 5, 7), (3, 5, 7, 10, 20), 5, 10, 5, 7      # 평가 기간 · 주 평가 · 🟣 지정 기간
 FH = (1, 3, 5, 7, 10, 20); GAP = 25
 
@@ -64,6 +77,7 @@ def blocks(t, o, h, l, c, v, lev, TW, MK, BR, RSW):
         B["P_RUN"] = np.asarray(fl["RUN"], bool)
         for k in LEG: B["L_" + k] = np.asarray(fl[k], bool) if k in LEG_SAME else rmax(np.asarray(fl[k], bool), 3)
         B.update(vol_blocks(o, h, l, c, v, up, ma5, ma20, B["C_FB"], B["L_FAIL_HIGH"]))
+        B.update(vol2_blocks(o, h, l, c, v, up, ma5))
     return {k: np.asarray(a, bool) for k, a in B.items()}, fl, rc
 
 
@@ -95,6 +109,45 @@ def vol_blocks(o, h, l, c, v, up, ma5, ma20, cfb, lfail):
     return {k: np.asarray(x, bool) for k, x in out.items()}
 
 
+def vol2_blocks(o, h, l, c, v, up, ma5):
+    """사전등록 docs/2026-11-13-peak-volume-precise.md 그대로 — 평가 5일(D−4~D)은 기준 평균에 넣지 않는다 · 그날까지 자료만."""
+    n = len(c); V = pd.Series(v, dtype=float); out = {}
+    with np.errstate(invalid="ignore", divide="ignore"):
+        S5 = V.rolling(5).sum().to_numpy()
+        b20 = V.shift(5).rolling(20, min_periods=20).mean().to_numpy(); b60 = V.shift(5).rolling(60, min_periods=60).mean().to_numpy()
+        R = {20: S5 / (5 * b20), 60: S5 / (5 * b60)}
+        for bs in (20, 60):
+            r = np.nan_to_num(R[bs], nan=-1)
+            for k in VK: out[f"VR{bs}_{int(round(k * 100))}"] = r >= k
+            for i in range(len(VEDGES) - 1): out[f"VB{bs}_{i}"] = (r >= VEDGES[i]) & (r < VEDGES[i + 1])
+        R20 = np.nan_to_num(R[20], nan=0)
+        rel = np.full((5, n), np.nan)                       # 최근 5일 각 날 거래량 ÷ 기준20(같은 기준)
+        for j in range(5): rel[j, :] = np.r_[np.full(4 - j, np.nan), v[:n - (4 - j)]] / b20 if 4 - j > 0 else v / b20
+        relz = np.nan_to_num(rel, nan=0)
+        n2, n15, n13 = (relz >= 2).sum(0), (relz >= 1.5).sum(0), (relz >= 1.3).sum(0)
+        out["VP_ONE"] = (n2 == 1) & (n15 == 1); out["VP_MULTI"] = n13 >= 3
+        first2, last3 = rel[0:2].mean(0), rel[2:5].mean(0)
+        out["VP_BACK"] = np.nan_to_num(last3 >= first2 * 1.3, nan=0).astype(bool) & np.isfinite(first2)
+        out["VP_FRONT"] = np.nan_to_num(last3 <= first2 * 0.77, nan=0).astype(bool) & np.isfinite(first2)
+        am = np.argmax(np.nan_to_num(rel, nan=-1), axis=0); mx = np.nanmax(np.where(np.isfinite(rel), rel, -1), axis=0)
+        out["VP_RISEFALL"] = np.isin(am, [2, 3]) & (relz[0] < mx) & (relz[4] <= 0.7 * mx) & (R20 >= 1.2)
+        r5 = c / sh(c, 5) - 1; r5p = sh(r5, 5); R20p = sh(R20, 5)
+        out["VP_SLOW"] = (R20 >= 1.5) & np.nan_to_num((r5 < r5p) & (r5p > 0), nan=0).astype(bool)
+        out["VP_EFF"] = np.nan_to_num((R20 >= R20p) & (r5 < 0.5 * r5p) & (r5p > 0), nan=0).astype(bool)
+        a20p = V.shift(1).rolling(20, min_periods=20).mean().to_numpy(); sp = np.nan_to_num(v / a20p, nan=0) >= 2
+        spk = np.zeros(n, bool)
+        for j in range(1, 5): spk |= np.r_[np.zeros(j, bool), sp[:n - j]]   # D−4~D−1 사이 폭증
+        rng = np.where(h - l > 0, h - l, np.nan); upw = np.nan_to_num((h - np.maximum(o, c)) / rng, nan=0)
+        reb = np.zeros(n, bool); reb[1:] = np.nan_to_num((c[:-1] > up[:-1]) & (c[1:] <= up[1:]), nan=0).astype(bool)
+        out["VS_BEAR"] = spk & (c < o); out["VS_WICK"] = spk & (upw >= 0.5); out["VS_BBRE"] = spk & reb; out["VS_MA5"] = spk & np.nan_to_num(c < ma5, nan=0).astype(bool)
+        dirn = np.sign(np.r_[0, np.diff(c)]); obv = np.cumsum(dirn * v); C = pd.Series(c)
+        hi20c = C.rolling(20).max().to_numpy(); obvmx = pd.Series(obv).shift(1).rolling(19).max().to_numpy()
+        out["VO_OBV"] = np.nan_to_num((c >= hi20c) & (obv < obvmx), nan=0).astype(bool)
+        mfm = np.nan_to_num(((c - l) - (h - c)) / rng, nan=0); cmf = (pd.Series(mfm * v).rolling(20).sum() / V.rolling(20).sum()).to_numpy()
+        out["VO_CMF"] = np.nan_to_num((cmf < 0) & (c >= 0.95 * hi20c), nan=0).astype(bool)
+    return {k: np.asarray(x, bool) for k, x in out.items()}
+
+
 def outcomes(o, h, l, c, lev):
     n = len(c); pc = sh(c)
     tr = np.fmax(h - l, np.fmax(np.abs(h - pc), np.abs(l - pc))); atr = pd.Series(tr).rolling(14).mean().to_numpy() / c
@@ -119,6 +172,9 @@ def outcomes(o, h, l, c, lev):
         out["U10"] = out["f10"] < 0; out["U20"] = out["f20"] < 0                       # 거래량 연구(peak-volume) 10일 판독기
         out["V10"] = out["f10"] < 0; out["V20"] = out["f20"] < 0                       # 20일 판독기
         out["Y10"] = out["f10"] < 0; out["Y20"] = out["E20"]                            # OR 판독기
+        out["G10"] = out["f10"] < 0; out["G20"] = out["f20"] < 0                       # 정밀 재연구(peak-volume2) 10일
+        out["H10"] = out["f10"] < 0; out["H20"] = out["f20"] < 0                       # 20일
+        out["J10"] = out["f10"] < 0; out["J20"] = out["E20"]                            # OR
         for N in (3, 5, 7, 10, 20): out[f"D{N}"] = out[f"f{N}"] < -0.01; out[f"dec{N}"] = np.abs(out[f"f{N}"]) > 0.01      # §10 방향 기준(±1% 보합 제외) · 10·20일은 보고 전용(§11)
         sold = P * (1 - COST) / c - 1
         for N in (3, 5, 7): out[f"tr{N}"] = sold / 3 + 2 * out[f"f{N}"] / 3
@@ -323,6 +379,62 @@ def vcases(per, RES, Wl):
     return {"cases": out, "block_counts": vb, "n": nn, "notable": [[rd, nm] for rd, nm, _ in notable]}
 
 
+VBIN_OUT = {}
+SECTOR_FIELD = {**{t: "반도체" for t in ["INTC", "COHR", "NVDA", "AMD", "MU", "AVGO", "AMAT", "ALAB", "MRVL", "TSM", "ASML", "ARM", "SMCI", "GLW", "SNDK", "STX", "DELL", "SKHY", "CBRS"]},
+                "SOXL": "반도체 레버리지", "GLD": "금 현물", "IAU": "금 현물", "GDX": "금 광산", "GDXJ": "금 광산", "GDXU": "금 레버리지", "NUGT": "금 레버리지",
+                "SLV": "은 현물", "SIVR": "은 현물", "SIL": "은 광산", "SILJ": "은 광산", "AGQ": "은 레버리지",
+                **{t: "우주" for t in ["RKLB", "ASTS", "LUNR", "RDW", "JOBY", "PL", "SPCE", "SPCX"]}, **{t: "양자" for t in ["IONQ", "QBTS", "RGTI", "QUBT", "INFQ"]}}
+
+
+def vsector(per, RES, Wl):
+    """사후 분석(사전등록 §4): 후보 조합마다 분야별 10·20·OR · 11-06 정의 폭락 고점 포착 vs 가짜 고점 점등 · 사례실 9건.
+    실제 고점은 미래 가격으로 찾은 것 — 포착률·오경보 분석에만 쓴다(신호 계산에는 쓰지 않는다)."""
+    spec = importlib.util.spec_from_file_location("pt", f"{ROOT}/tools/peak-trough-lab.py"); pt = importlib.util.module_from_spec(spec); spec.loader.exec_module(pt)
+    pr = json.load(open(f"{ROOT}/backtest/peak-reader.json", encoding="utf-8")); labc = [(c_["ticker"], c_["peak"], c_["kind"]) for c_ in pr.get("cases", [])]
+    cand = {}
+    for rd, R in RES.items():
+        for d_ in R.get("cands", []):
+            ex_, zb_ = d_["parts"]["ex"], d_["parts"]["zb"]; P = str(R["prim"])
+            if (ex_["ind"] >= 6 and (ex_[P]["w"] or 0) > 0.65) or d_.get("replicate") == "재현":
+                cand[tuple(d_["combo"])] = d_["name"]
+            if "control" in d_: cand.setdefault(tuple(d_["control"]["combo"]), d_["control"]["name"])
+    tops, fakes = {}, {}
+    for t, P_ in per.items():
+        if t not in SECTOR_FIELD and t not in {x[0] for x in labc}: continue
+        idx, o, h, l, c = P_[0], P_[1], P_[2], P_[3], P_[4]
+        tp, _, ct, _ = pt.events(o, h, l, c); tops[t], fakes[t] = tp, ct
+    out = {"tops": {t: len(v) for t, v in tops.items()}, "fakes": {t: len(v) for t, v in fakes.items()}, "combos": {}}
+    fields = list(dict.fromkeys(SECTOR_FIELD.values()))
+    for cb, nm in cand.items():
+        rowf = {}; cap = {}
+        for f in ["전체"] + fields:
+            ts = [t for t in per if (SECTOR_FIELD.get(t) == f if f != "전체" else t in SECTOR_FIELD)]
+            r10 = r20 = ror = 0; n = 0; dates = set(); a10 = []; a20 = []; ct_ = cf_ = nt = nf = 0
+            for t in ts:
+                idx, B, oc = per[t][0], per[t][11], per[t][14]
+                if not all(b in B for b in cb): continue
+                m = np.logical_and.reduce([B[b] for b in cb]); f10, f20 = oc["f10"], oc["f20"]; last = -99
+                for i in np.nonzero(m)[0]:
+                    if i - last < 5: continue
+                    last = i
+                    if not (np.isfinite(f10[i]) and np.isfinite(f20[i])): continue
+                    n += 1; dates.add(str(idx[i].date())); r10 += f10[i] < 0; r20 += f20[i] < 0; ror += (f10[i] < 0) or (f20[i] < 0); a10.append(f10[i]); a20.append(f20[i])
+                for tt in tops.get(t, []): nt += 1; ct_ += bool(m[max(0, tt - 5): tt + 1].any())
+                for tt in fakes.get(t, []): nf += 1; cf_ += bool(m[max(0, tt - 5): tt + 1].any())
+            rowf[f] = {"n": n, "dates": len(dates), "dn10": r10 / n if n else None, "dn20": r20 / n if n else None, "dnor": ror / n if n else None,
+                       "avg10": float(np.mean(a10)) if a10 else None, "avg20": float(np.mean(a20)) if a20 else None,
+                       "cap": [int(ct_), nt], "fake": [int(cf_), nf]}
+        lab = []
+        for t, d, k in labc:
+            if t not in per: lab.append([t, d, k, "시세 없음"]); continue
+            idx, B = per[t][0], per[t][11]; ds = [str(x.date()) for x in idx]
+            if d not in ds or not all(b in B for b in cb): lab.append([t, d, k, "판정 불가"]); continue
+            pk = ds.index(d); m = np.logical_and.reduce([B[b] for b in cb]); lab.append([t, d, k, [j - pk for j in range(max(0, pk - 5), pk + 1) if m[j]]])
+        out["combos"][" | ".join(cb)] = {"name": nm, "fields": rowf, "lab": lab}
+    print(f"\n■ 분야·포착(사후) — 후보·대조군 조합 {len(cand)}개 · 폭락 고점 {sum(out['tops'].values())} · 가짜 고점 {sum(out['fakes'].values())}")
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("--emit", default=""); ap.add_argument("--cache", required=True); ap.add_argument("--only", default=""); ap.add_argument("--diag", default=""); ap.add_argument("--crash", default=""); a = ap.parse_args()
     Z = pickle.load(open(a.cache, "rb")); a._hash, a._last = Z.get("data_hash"), Z.get("data_last"); data, orig, newx, zset, sector, SP, Wl = (Z[k] for k in ("data", "orig", "newx", "zset", "sector", "SP", "Wl"))
@@ -380,7 +492,7 @@ def main():
         push(meta, "bull", bull.reindex(d.index).fillna(False).to_numpy(bool), False); push(meta, "lev", np.full(n, lev), 1)
     M = {b: np.concatenate(cols[b]) for b in ALLB}; O_ = {k: np.concatenate(v_) for k, v_ in OUT.items()}; MT = {k: np.concatenate(v_) for k, v_ in meta.items()}
     for k in list(O_):
-        if (k[0] in "ABDRQFTMWPNEUVY" and k[1:].replace("_", "").isdigit()) or k.startswith("dec") or k in ("vA", "vB", "early"): O_[k] = O_[k].astype(bool)
+        if (k[0] in "ABDRQFTMWPNEUVYGHJ" and k[1:].replace("_", "").isdigit()) or k.startswith("dec") or k in ("vA", "vB", "early"): O_[k] = O_[k].astype(bool)
     NT = len(MT["tk"]); print(f"종목 {len(tick)} (탐색 E·T·X {sum(t not in ZA and t not in ZB for t in tick)} · ZA {len(ZA)} · ZB {len(ZB)}) · 이어 붙인 봉 {NT:,}")
     part = MT["part"]; di = MT["di"]
     if a.crash:
@@ -410,6 +522,9 @@ def main():
                 "name": "🔴 사례실 신호 — 10거래일 또는 20거래일 뒤 종가 하락(신호일 종가 기준)", "p20": True},
           "U": {"vol": True, "pslots": ROLES["P"] + ["P_RUN"], "H": (10,), "Hrep": (10, 20), "prim": 10, "des": 10, "valid": O_["vB"], "name": "📊 거래량 이상징후 — 10거래일 뒤 종가 하락", "p20": True},
           "V": {"vol": True, "pslots": ROLES["P"] + ["P_RUN"], "H": (20,), "Hrep": (10, 20), "prim": 20, "des": 20, "valid": O_["vB"], "name": "📊 거래량 이상징후 — 20거래일 뒤 종가 하락", "p20": True},
+          "G": {"vol2": True, "pslots": ROLES["P"] + ["P_RUN"], "H": (10,), "Hrep": (10, 20), "prim": 10, "des": 10, "valid": O_["vB"], "name": "📊 거래량 정밀 — 10거래일 뒤 종가 하락", "p20": True},
+          "H": {"vol2": True, "pslots": ROLES["P"] + ["P_RUN"], "H": (20,), "Hrep": (10, 20), "prim": 20, "des": 20, "valid": O_["vB"], "name": "📊 거래량 정밀 — 20거래일 뒤 종가 하락", "p20": True},
+          "J": {"vol2": True, "pslots": ROLES["P"] + ["P_RUN"], "H": (20,), "Hrep": (10, 20), "prim": 20, "des": 20, "valid": O_["vB"], "name": "📊 거래량 정밀 — 10일 또는 20일 뒤 종가 하락(OR)", "p20": True},
           "Y": {"vol": True, "pslots": ROLES["P"] + ["P_RUN"], "H": (20,), "Hrep": (10, 20), "prim": 20, "des": 20, "valid": O_["vB"], "name": "📊 거래량 이상징후 — 10일 또는 20일 뒤 종가 하락(OR)", "p20": True}}
     if a.only: RD = {k: v for k, v in RD.items() if k in a.only.split(",")}
     SPEC = {"U1 고점권∩볼밴상단∩RSI다이버전스∩윗꼬리": lambda m: m["P_NEAR"] & m["O_BB"] & m["I_RSID"] & m["C_W"],
@@ -430,7 +545,11 @@ def main():
             m = M[pb_] if pb_ else np.ones(NT, bool)
             base[pb_ or "ALL"] = {"ex": {N: rate(np.nonzero(m & ex)[0], O_[f"{rd}{N}"], DEC(N))[2] for N in R["H"]}, "zb": {N: rate(np.nonzero(m & zb)[0], O_[f"{rd}{N}"], DEC(N))[2] for N in R["H"]}}
         combos = []
-        if R.get("vol"):      # 고점 칸 1개 × 거래량 블록 1개 × 확인 블록 0~2개(사전등록 · 440개)
+        if R.get("vol2"):     # 고점 칸 × 고점 신호 0~1 × 거래량 0~1 = 4 × 20 × 40 = 3,200(사전등록 · 거래량 없는 조합 = 대조군)
+            for pk in R["pslots"]:
+                for cf in [None] + PCONF2:
+                    for vb in [None] + V2ROLE: combos.append(tuple(x for x in (pk, cf, vb) if x))
+        elif R.get("vol"):      # 고점 칸 1개 × 거래량 블록 1개 × 확인 블록 0~2개(사전등록 · 440개)
             for pk in R["pslots"]:
                 for vb in VROLE:
                     for k in range(0, 3):
@@ -538,6 +657,15 @@ def main():
                         m2 = np.logical_and.reduce([M[alt if x == b else x] for x in cb]); e2_ = events(m2); e2_ = e2_[valid[e2_]]
                         nbz[alt] = {"ex": rate(e2_[part[e2_] == 1], prim, pdec)[1:3], "zb": rate(e2_[part[e2_] == 2], prim, pdec)[1:3]}
                 dz["neighbors"] = nbz
+            if R.get("vol2") and not fn and cb[-1] in V2ROLE:   # 대조군 = 거래량 블록만 뺀 같은 조합(사전등록 §3)
+                m0 = np.logical_and.reduce([M[b] for b in cb[:-1]]); e0 = events(m0); e0 = e0[valid[e0]]; ctl = {}
+                for pn, pm in (("ex", 1), ("zb", 2)):
+                    e_ = e0[part[e0] == pm]; z = {"n": len(e_), "ind": len(np.unique(di[e_]))}
+                    for N in R.get("Hrep", R["H"]): z[str(N)] = rate(e_, O_[f"{rd}{N}"], None)[2]
+                    z["prim"] = rate(e_, prim, None)[2]
+                    fr = O_["f10"][e_]; z["avg10"] = float(np.nanmean(fr)) if len(e_) else None; fr = O_["f20"][e_]; z["avg20"] = float(np.nanmean(fr)) if len(e_) else None
+                    ctl[pn] = z
+                dz["control"] = {"combo": list(cb[:-1]), "name": " ∩ ".join(BN[b] for b in cb[:-1]), **ctl}
             return dz
         rowmap = {r[0]: r for r in rows}
         top = sorted([r for r in rows if r[1] > 0 and r[2] >= 6 and r[3] is not None], key=lambda r: (-r[3], -r[2]))[:10]   # §11 65% 후보가 없어도 상위 10
@@ -580,6 +708,24 @@ def main():
                                            "list": [[" ∩ ".join(BN[b] for b in combos[x[0]][0]), x[1], round(x[2], 3), x[3], None if x[4] is None else round(x[4], 3)] for x in sorted(v_, key=lambda x: -x[2])[:200]]} for N, v_ in hzc.items()},
                    "all_rows_cols": ["조합", "조건 수", "탐색 독립 사건", "탐색 사건", "탐색 적중", "탐색 적중률(날짜 가중)", "ZB 독립 사건", "ZB 사건", "ZB 적중", "ZB 적중률"], "all_rows": allrows}
 
+    # ── 5일 누적 배율 연속 구간(보고 전용 · 사전등록 §1) ──
+    global VBIN_OUT; VBIN_OUT = {}
+    for rd, R in RD.items():
+        if not R.get("vol2"): continue
+        valid = R["valid"]; ex = (part == 1) & valid; zb = (part == 2) & valid; VBIN_OUT[rd] = {}
+        print(f"\n■ {R['name']} — 5일 누적 배율 구간별(고점 칸별 · 탐색 / ZB · 날짜 가중 · 독립 날짜)")
+        for pk in R["pslots"]:
+            for bs in (20, 60):
+                rowsb = []
+                for i in range(len(VEDGES) - 1):
+                    m = M[pk] & M[f"VB{bs}_{i}"]; ev = events(m)
+                    z = {}
+                    for pn, mm in (("ex", ex), ("zb", zb)):
+                        e_ = ev[mm[ev]]; n_, i_, w_, r_, k_ = rate(e_, O_[f"{rd}{R['prim']}"]); z[pn] = {"n": n_, "ind": i_, "w": w_, "avg10": float(np.nanmean(O_["f10"][e_])) if len(e_) else None, "avg20": float(np.nanmean(O_["f20"][e_])) if len(e_) else None}
+                    rowsb.append({"bin": [VEDGES[i], VEDGES[i + 1]], **z})
+                VBIN_OUT[rd][f"{pk}|{bs}"] = rowsb
+                print(f"  {BN[pk]:<16} 기준{bs}일: " + " · ".join(f"{r_['bin'][0]}~{r_['bin'][1] if r_['bin'][1] < 99 else ''} {('%.0f' % (r_['ex']['w'] * 100)) if r_['ex']['w'] is not None else '—'}/{('%.0f' % (r_['zb']['w'] * 100)) if r_['zb']['w'] is not None else '—'}({r_['zb']['ind']})" for r_ in rowsb))
+
     # ── 자료 누수 점검 ──
     rs = np.random.default_rng(20261112); mism = chk = 0
     for _ in range(200):
@@ -618,6 +764,7 @@ def main():
                "universe": {"explore_etx": sum(t not in ZA and t not in ZB and t not in LEV for t in tick), "za": len(ZA), "zb": len(ZB), "lev": sum(t in LEV for t in tick)},
                "period": [cald[0], cald[-1]], "leak_check": {"pairs": chk, "mismatch": int(mism)}, "readers": RES, "nvda": nv}
         if any(RD[k].get("vol") for k in RD): out["vcases"] = vcases(per, RES, Wl); out["doc"] = "docs/2026-11-12-peak-volume.md"
+        if any(RD[k].get("vol2") for k in RD): out["vbins"] = VBIN_OUT; out["vsector"] = vsector(per, RES, Wl); out["doc"] = "docs/2026-11-13-peak-volume-precise.md"
         json.dump(out, open(a.emit, "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"), default=lambda x: x.item() if hasattr(x, "item") else str(x))
         print(f"\n→ {a.emit} 저장")
 
