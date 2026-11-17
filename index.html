@@ -6936,6 +6936,7 @@ function stockCard(s, i, rankless=false){
     ${sbStockBlock(s)}
     ${trimBoostHtml(trimBoostMatch(s), true)}
     ${cautionAuxHtml(cautionAuxMatch(s))}
+    ${sbRsi35Html(s)}
     ${rankLine}
     ${timelineCta}${detail}${expandBtn}
   </div>`;
@@ -9258,6 +9259,19 @@ const CAUTION_AUX = [   /* r = +3/+5/+10일 승률 · n = +5일 표본 · h = �
   { id: 9, nm: "나스닥20일 −2~0% ∩ 주봉 RSI 40~50", f: x => x.nq === 3 && x.wrsi === 1, r: [0.55, 0.77, 0.56], n: 14, dates: 11, tk: 13, h: [0.75, 0.78], ab: [0.88, 0.60], q: [3.70, 1.31], c: [-3.45, 0.41], sd: 0.52 },
   { id: 10, nm: "나스닥20일 −2~0% ∩ 주의장 4~10일째", f: x => x.nq === 3 && x.age === 1, r: [0.83, 0.73, 0.75], n: 14, dates: 3, tk: 13, h: [0.63, 1.00], ab: [0.71, 0.75], q: [1.60, 0.74], c: [0.66, 2.04], sd: 0.49 },
 ];
+/* 2026-11-17 R3 보조 표시(사전 등록 docs/2026-11-17-preregistered.md §3 통과 · 등급·evaluate() 불변 · 표시 전용).
+   강한매수(등급 5) 중 종목 RSI ≤ 35. 3년 백필(v22 · lab-quick 44075728256 · 실적 영향권 제외 · ±1% 보합 제외):
+   +3/+5일 71/70%(609/595건) vs 나머지 강한매수 60/62% · 앞 반 73/74% vs 61/63% · 뒤 반 68/66% vs 58/60% · 이웃 RSI≤30 73/73% · ≤40 68/69%.
+   ⚠ R3는 2026-10-06 1년 탐색에서 나온 후보라 이 3년 자료와 기간이 겹친다(완전한 독립 검증 아님). */
+const SB_RSI35 = { r: [0.71, 0.70], n: [609, 595], rest: [0.60, 0.62], half: [[0.73, 0.74], [0.68, 0.66]], restHalf: [[0.61, 0.63], [0.58, 0.60]] };
+function sbRsi35Html(s){
+  if (!s || !s.sig || s.sig.grade !== 5 || s.earnings_hold || !has(s.rsi) || s.rsi > 35) return "";
+  const B = SB_RSI35, pc = v => Math.round(v * 100) + "%";
+  return `<details class="pr-hl"><summary><b class="t">📉 RSI ${Math.round(s.rsi)} · 과매도 강한매수</b> <small class="pr-dim">보조 표시 · 등급은 그대로</small></summary>
+    <ul><li>최근 3년 강한매수 중 종목 RSI 35 이하였던 날: +3·+5일 승률 <b>${B.r.map(pc).join("·")}</b> (${B.n.join("·")}건) — 나머지 강한매수 ${B.rest.map(pc).join("·")}</li>
+      <li>앞 반 ${B.half[0].map(pc).join("·")} vs ${B.restHalf[0].map(pc).join("·")} · 뒤 반 ${B.half[1].map(pc).join("·")} vs ${B.restHalf[1].map(pc).join("·")} — 두 기간 모두 나머지보다 높았어요.</li>
+      <li><small class="pr-dim">승률 = n거래일 뒤 종가가 +1% 넘게 오르면 승, −1% 넘게 내리면 패(±1% 제외) · 실적 영향권 제외. 이 조건을 처음 찾은 기간과 겹치는 자료라 완전한 독립 검증은 아니에요. 과거 성적이지 확정된 확률이 아니에요.</small></li></ul></details>`;
+}
 function cautionAgeOf(d){   /* 그날까지 연속 주의장 거래일 — caution-lab.js와 같은 방식(미국 원장 행의 market_level · 날짜별) */
   const D = state.data; if (!D || !d) return null;
   if (!D._cauAge){ const ph = {};
