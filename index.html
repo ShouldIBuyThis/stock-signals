@@ -8987,7 +8987,7 @@ btnHoldTop.onclick = () => {
    조건 정의는 pattern_flags.peak_reader_flags 한 곳(main.py → s.peak_reader: 오늘 급등 국면 여부 · 최근 5거래일에 켜진 조건).
    단계(🟡 고점 경계 · 🟠 상승세 약화 · 🔴 하락 전환 위험)는 backtest/peak-reader.json에서 사전 기준을 통과한 '유효' 조건으로만 낸다.
    유효 조건이 없으면 단계를 만들지 않고 '판정 보류' — 확률·점수를 지어내지 않는다. 매수 신호·등급·원장과 무관(표시 전용). */
-let PR_OPEN = false, PR_DATA = null, PR2 = null, PR_TRIM = null, PR_TF = null, PR_HL = null, PR_HL_STATE = "", PR_LOADING = false, PR_CASE = 0, PR_EX = null;   /* PR_EX = backtest/peak-examples.json(승률 산식별 실제 사례 · 연구 JSON 그대로) */   /* PR2 = backtest/peak-reader2.json(2차 연구: EXT 변동성 · 52주∧%B 위험 캔들) */
+let PR_OPEN = false, PR_DATA = null, PR2 = null, PR_TRIM = null, PR_TF = null, PR_HL = null, PR_HL_STATE = "", PR_LOADING = false, PR_CASE = null, PR_EX = null;   /* PR_EX = backtest/peak-examples.json(승률 산식별 실제 사례 · 연구 JSON 그대로) */   /* PR2 = backtest/peak-reader2.json(2차 연구: EXT 변동성 · 52주∧%B 위험 캔들) */
 const PR_STAGE_OF = { "과열": 1, "약화": 2, "캔들": 2, "거래량": 2, "이탈": 3 };
 const PR_BADGE = { 0: ["⚪", "특이 신호 없음", "pr-s0"], 1: ["🟡", "고점 경계", "pr-s1"], 2: ["🟠", "상승세 약화", "pr-s2"], 3: ["🔴", "하락 전환 위험", "pr-s3"] };
 /* 추천기능 안내에서 바로 열기 — 보유 패널을 열고 실험실을 펼친 뒤 그 자리로 스크롤 */
@@ -9126,7 +9126,7 @@ function prItemHtml(s){
       <div class="pr-sub">조건 충족 현황 <small class="pr-dim">● 켜짐 · ○ 꺼짐</small></div><div class="pr-chips">${chips}</div>
     </div></details>`;
 }
-function prCaseChart(cs){
+function prCaseChart(cs, sig){
   const B = cs.bars || []; if (!B.length) return "";
   const W = 600, Hh = 170, L = 6, R = 46, T = 20, hi = Math.max(...B.map(r => r[2])), lo = Math.min(...B.map(r => r[3]));
   const cw = (W - L - R) / B.length, x = i => L + cw * (i + 0.5), y = v => T + (1 - (v - lo) / Math.max(1e-9, hi - lo)) * (Hh - T - 6);
@@ -9134,7 +9134,11 @@ function prCaseChart(cs){
   const cmName = d => (CM && CM[d] ? CM[d].map(k => k === "M" ? "모멘텀 약화" : (RCN[k] || k)).join(", ") : "");
   const pi = B.findIndex(r => r[0] === cs.peak), di = cs.drop_day ? B.findIndex(r => r[0] === cs.drop_day) : -1, fi = fA ? B.findIndex(r => r[0] === fA) : -1;
   let g = "";
-  if (fi >= 0) g += `<line x1="${x(fi)}" x2="${x(fi)}" y1="${T - 4}" y2="${Hh}" stroke="var(--sell)" stroke-dasharray="3 3"/><text x="${x(fi) + 3}" y="${Hh - 2}" font-size="10" fill="var(--muted)">${CM ? "조합 첫 발생" : "첫 참고 신호"}</text>`;
+  /* 2026-11-17: sig(검증 통과 조건 EXT의 첫 경고일)를 주면 그 날과 +3·+5·+10거래일을 표시한다. 없으면 예전처럼 조합 첫 발생. */
+  const si = sig ? B.findIndex(r => r[0] === sig) : -1;
+  if (si >= 0){ g += `<rect x="${x(si) - cw / 2}" width="${cw * Math.min(10, B.length - 1 - si) + cw}" y="${T - 4}" height="${Hh - T + 4}" fill="var(--sell)" opacity=".06"/><line x1="${x(si)}" x2="${x(si)}" y1="${T - 4}" y2="${Hh}" stroke="var(--sell)" stroke-width="1.5"/><text x="${x(si) + 3}" y="${Hh - 2}" font-size="10" fill="var(--sell)">경고(신호일)</text>`;
+    [3, 5, 10].forEach(n => { if (si + n < B.length) g += `<line x1="${x(si + n)}" x2="${x(si + n)}" y1="${Hh - 10}" y2="${Hh}" stroke="var(--muted)"/><text x="${x(si + n)}" y="${T - 8}" text-anchor="middle" font-size="9" fill="var(--muted)">+${n}</text>`; }); }
+  else if (fi >= 0) g += `<line x1="${x(fi)}" x2="${x(fi)}" y1="${T - 4}" y2="${Hh}" stroke="var(--sell)" stroke-dasharray="3 3"/><text x="${x(fi) + 3}" y="${Hh - 2}" font-size="10" fill="var(--muted)">${CM ? "조합 첫 발생" : "첫 참고 신호"}</text>`;
   if (di >= 0) g += `<line x1="${x(di)}" x2="${x(di)}" y1="${T - 4}" y2="${Hh}" stroke="var(--down)" stroke-dasharray="3 3" opacity=".6"/><text x="${x(di) + 3}" y="${Hh - 14}" font-size="10" fill="var(--down)">−10% 도달</text>`;
   B.forEach((r, i) => { const col = r[4] >= r[1] ? "var(--up)" : "var(--down)";
     g += `<line x1="${x(i)}" x2="${x(i)}" y1="${y(r[2])}" y2="${y(r[3])}" stroke="${col}" stroke-width="1"/><rect x="${(x(i) - cw * .33).toFixed(1)}" width="${(cw * .66).toFixed(1)}" y="${y(Math.max(r[1], r[4])).toFixed(1)}" height="${Math.max(1, Math.abs(y(r[1]) - y(r[4]))).toFixed(1)}" fill="${col}"><title>${esc(r[0])} 시 ${r[1]} 고 ${r[2]} 저 ${r[3]} 종 ${r[4]}${CM ? (CM[r[0]] ? " · 조합: 52주 고점 ∩ 볼밴 상단 ∩ " + cmName(r[0]) : "") : (cs.marks && cs.marks[r[0]] ? " · " + cs.marks[r[0]].map(prName).join(", ") : "")}</title></rect>`;
@@ -9381,22 +9385,60 @@ function prComboTables(){
       4차 후보 13개(고점 터치 뒤 약화·이탈 확인 등)는 미사용 자료에서 하락 비율 42~46%로 모두 실패했어요.</div></details>`); }
   return out.length ? out.join("<br>") : "조합 자료 준비 중";
 }
+/* 2026-11-17 사용자 지적 "실제 차트 예시에서 놓친 조합이 적중보다 많이 보인다" — 원인: 차트 9개의 판정 문구·빨간 선이 검증 탈락한
+   1차 조합 A(52주 고점 ∩ 볼밴 상단 ∩ 위험 캔들) 기준이었고, 탭이 날짜 역순이라 첫 두 탭(COHR·QBTS)이 A 기준 '놓친 사례'였다.
+   또 차트는 prValid()(빈 목록)만 읽어 사례 단위 검증을 통과한 EXT(20일선 이격 25%↑ · valid_case)를 한 번도 표시하지 않았다.
+   바꾼 것(화면만 · 판정 산식·원장·연구 자료 불변): 사례를 '검증 통과 조건'(valid_case) 기준으로 적중 → 놓침 → 오경보 → 경보 없음으로 나누고
+   적중을 먼저 · 실패는 접기 영역에 그대로 · 맨 위에 전체 포착률·오경보율과 표본 수(차트 수는 승률이 아님).
+   적중 판정 = 연구와 같은 창: [고점−10봉, min(고점+10, −10% 도달 전날)] 안에 경고 ∧ 붕괴(60봉 안 최저 종가 ≤ 고점 종가 × 0.65). */
+const prValidCase = () => PR_DATA ? [...new Set([...(PR_DATA.valid || []), ...(PR_DATA.valid_case || [])])] : [];
+function prCaseSig(cs){
+  const B = cs.bars || [], V = prValidCase(), pi = B.findIndex(r => r[0] === cs.peak); if (pi < 0 || !V.length) return null;
+  const di = cs.drop_day ? B.findIndex(r => r[0] === cs.drop_day) : -1, wEnd = Math.min(pi + 10, di >= 0 ? di - 1 : pi + 10);
+  const k = B.findIndex((r, j) => j >= pi - 10 && j <= wEnd && cs.marks && (cs.marks[r[0]] || []).some(c => V.includes(c)));
+  return k >= 0 ? { d: B[k][0], k, pi, di } : null;
+}
+function prCaseGroup(cs){ const s = prCaseSig(cs), bust = cs.kind === "bust"; return bust ? (s ? "hit" : "miss") : (s ? "false" : "quiet"); }
+function prCaseBody(cs){
+  const B = cs.bars || [], S = prCaseSig(cs), pi = B.findIndex(r => r[0] === cs.peak), V = prValidCase(), bust = cs.kind === "bust";
+  const pct = v => `${v > 0 ? "+" : ""}${v.toFixed(1)}%`;
+  let sigTxt = "", retTxt = "", condTxt = "";
+  if (S){
+    const c0 = B[S.k][4], n = pi - S.k;
+    const rets = [3, 5, 10].map(h => S.k + h < B.length ? `+${h}일 <b class="${B[S.k + h][4] < c0 ? "down" : "up"}">${pct((B[S.k + h][4] / c0 - 1) * 100)}</b>` : `+${h}일 —`).join(" · ");
+    const marks = (cs.marks && cs.marks[S.d]) || [], cm = (cs.combo_marks && cs.combo_marks[S.d]) || [], RCN = (PR2 && PR2.B && PR2.B.names) || {};
+    sigTxt = `<b>경고(신호일) ${esc(idMDsafe(S.d))}</b> — ${V.filter(c => marks.includes(c)).map(prName).map(esc).join(" · ")} · 고점 ${n > 0 ? n + "거래일 전" : n < 0 ? -n + "거래일 뒤" : "당일"}`;
+    retTxt = `신호일 종가 ${Number(c0).toLocaleString()} 기준 ${rets} <small class="pr-dim">(체결 보장 아님)</small>`;
+    condTxt = `그날 함께 켜진 조건: ${marks.filter(c => !V.includes(c)).map(prName).map(esc).join(" · ") || "없음"}`
+      + (cm.length ? ` · 52주 고점 ∩ 볼밴 상단 ∩ ${cm.filter(k => k !== "M").map(k => esc(RCN[k] || k)).join(", ")}${cm.includes("M") ? " ∩ 모멘텀 약화" : ""}` : "")
+      + `<br><small class="pr-dim">RSI·볼밴·캔들은 연구 자료에 '조건이 켜졌는지'만 저장돼 있어 수치는 표시하지 않아요. 주봉 값은 이 사례 자료에 없어 표시하지 않아요(지어내지 않음).</small>`;
+  }
+  const basis = bust
+    ? `붕괴 기준: 고점 뒤 60거래일 안 최저 종가 ≤ 고점 종가 × 0.65 → 이 사례 <b class="down">${cs.dd60}%</b>${cs.drop_day ? ` · −10% 도달 ${esc(idMDsafe(cs.drop_day))}` : ""}`
+    : `지속(대조군) 기준: 60거래일 안 최저 종가 ≥ 고점 종가 × 0.85 ∧ 고점 돌파 → 이 사례 최저 ${cs.dd60}%`;
+  const verdict = { hit: "✅ 적중 — 경고 창 안에서 경고가 났고 실제로 붕괴했어요", miss: "❌ 놓침 — 붕괴했지만 경고 창 안에 경고가 없었어요", false: "⚠ 오경보 — 경고가 났지만 붕괴하지 않고 상승이 이어졌어요", quiet: "⭕ 경고 없음 — 상승이 이어졌고 경고도 나지 않았어요(정상)" }[prCaseGroup(cs)];
+  return `<div class="pr-case"><div class="pr-ch">${prCaseChart(cs, S && S.d)}</div>
+    <p class="pr-cap"><b>${esc(cs.ticker)}</b> ${esc(idMDsafe(cs.peak))} 고점 · <b>${verdict}</b><br>
+      ${sigTxt ? sigTxt + "<br>" + retTxt + "<br>" + condTxt + "<br>" : ""}판정 근거: ${basis} · 경고 창 = 고점 10거래일 전 ~ min(고점 10거래일 뒤, −10% 도달 전날)
+      <br><span class="pr-dim">참고(검증 탈락 1차 조합): ${prCaseCombo(cs, B, pi)}</span></p></div>`;
+}
 function prLabHtml(){
   const C = (PR_DATA && PR_DATA.cases) || []; if (!C.length) return `<div class="pr-lab"></div>`;
-  const i = Math.min(PR_CASE, C.length - 1), cs = C[i], B = cs.bars || [];
-  const pi = B.findIndex(r => r[0] === cs.peak), fi = cs.first_any ? B.findIndex(r => r[0] === cs.first_any) : -1;
-  const lead = pi >= 0 && fi >= 0 ? pi - fi : null;
-  /* 검증 통과 조건(사례 단위 통과 EXT 포함)의 첫 경고 — 연구와 같은 창: 고점 −10봉 ~ min(고점+10, −10% 도달 전날) */
-  const V = prValid(), di = cs.drop_day ? B.findIndex(r => r[0] === cs.drop_day) : -1, wEnd = Math.min(pi + 10, di >= 0 ? di - 1 : pi + 10);
-  const fvi = pi < 0 ? -1 : B.findIndex((r, k) => k >= pi - 10 && k <= wEnd && cs.marks && (cs.marks[r[0]] || []).some(c => V.includes(c)));
-  const fv = cs.first_valid || (fvi >= 0 ? B[fvi][0] : null), vlead = fvi >= 0 ? pi - fvi : null;
-  const firstCodes = cs.first_any && cs.marks && cs.marks[cs.first_any] ? cs.marks[cs.first_any].map(prName).join(", ") : "";
-  const tabs = C.map((c, k) => `<button class="pr-tab${k === i ? " on" : ""}" data-prcase="${k}">${esc(c.ticker)} <small>${esc(String(c.peak).slice(2, 7).replace("-", "/"))}</small><em class="${c.kind === "bust" ? "b" : "c"}">${c.kind === "bust" ? "붕괴" : "지속"}</em></button>`).join("");
-  return `<div class="pr-lab"><div class="pr-tabs">${tabs}</div>
-    <div class="pr-case"><div class="pr-ch">${prCaseChart(cs)}</div>
-      <p class="pr-cap"><b>${esc(cs.ticker)}</b> ${esc(idMDsafe(cs.peak))} 고점 → 60일 안 최저 <b class="${cs.dd60 < 0 ? "down" : ""}">${cs.dd60}%</b> · ${cs.kind === "bust" ? "급락(붕괴)" : "조정 뒤 상승 지속(대조군)"}<br>
-      ${prCaseCombo(cs, B, pi)}</p>
-      <p class="pr-cap" style="margin:0">${cs.drop_day ? `−10% 도달 ${esc(idMDsafe(cs.drop_day))}` : ""}</p></div></div>`;
+  const V = prValidCase();
+  if (!V.length) return `<div class="pr-lab"><div class="pr-empty">사례 단위 검증을 통과한 조건이 없어 적중·놓침을 나눌 수 없어요.</div></div>`;
+  const G = { hit: [], miss: [], false: [], quiet: [] }; C.forEach((c, k) => G[prCaseGroup(c)].push(k));
+  const sel = PR_CASE != null && C[PR_CASE] ? PR_CASE : (G.hit[0] ?? 0), selG = prCaseGroup(C[sel]);
+  const tabs = ks => `<div class="pr-tabs">${ks.map(k => `<button class="pr-tab${k === sel ? " on" : ""}" data-prcase="${k}">${esc(C[k].ticker)} <small>${esc(idMDsafe(C[k].peak))}</small></button>`).join("")}</div>`;
+  const grp = (g, title, open) => !G[g].length ? "" : `<details class="pr-ct"${open || selG === g ? " open" : ""}><summary>${title} ${G[g].length}건</summary>${tabs(G[g])}${selG === g ? prCaseBody(C[sel]) : ""}</details>`;
+  const ht = PR_DATA.ext_test && PR_DATA.ext_test.table ? PR_DATA.ext_test.table["25|A|hold"] : null, al = (PR_DATA.cases_stats || {})[V[0]];
+  const pc = (a, b) => b ? Math.round(a / b * 100) + "%" : "—";
+  const stat = `<div class="pr-note"><b>${V.map(prName).map(esc).join(" · ")}</b> — 사례 단위 검증 통과 조건(이것만으로 적중·놓침을 나눠요)<br>
+    ${ht ? `검증 기간(2023년 이후): 붕괴 <b>${ht.bust}건 중 ${ht.caught}건 포착(${pc(ht.caught, ht.bust)})</b> · 놓침 ${ht.bust - ht.caught}건 · 상승 지속 ${ht.cont}건 중 <b>${ht.false}건 오경보(${pc(ht.false, ht.cont)})</b><br>` : ""}
+    ${al ? `전 기간: 붕괴 ${al.bust}건 중 ${al.caught}건 포착(${pc(al.caught, al.bust)}) · 지속 ${al.cont}건 중 ${al.false}건 오경보(${pc(al.false, al.cont)})<br>` : ""}
+    <small class="pr-dim">아래 차트는 연구 자료에 일봉이 저장된 최근 관심종목 고점 ${C.length}건 전부예요(골라 넣지 않음): 적중 ${G.hit.length} · 놓침 ${G.miss.length} · 오경보 ${G.false.length} · 경보 없음 ${G.quiet.length}.
+    적중을 먼저 보여 줄 뿐이고, 실제 성적은 위 숫자예요 — 붕괴의 절반 가까이는 경고 없이 왔어요.</small></div>`;
+  const short = G.hit.length < 3 ? `<div class="pr-empty">저장된 차트 중 실제 적중 사례가 ${G.hit.length}건뿐이에요. 가상 차트나 조건이 다른 사례로 채우지 않았어요.</div>` : "";
+  return `<div class="pr-lab">${stat}${short}${grp("hit", "✅ 적중 사례", true)}${grp("miss", "❌ 놓친 사례", false)}${grp("false", "⚠ 오경보 사례", false)}${grp("quiet", "⭕ 경고 없음(대조군 정상)", false)}</div>`;
 }
 /* 2026-11-12 사용자 지적: 연구실에 '승률 산식'의 실제 사례가 하나도 없었다 — 9개 차트는 예전 A 조합(검증 탈락)에만 연결돼 있었다.
    backtest/peak-examples.json = 연구 결과 JSON의 사건을 그대로 옮긴 것(tools/peak-examples.py · 새 계산 없음). */
@@ -9443,7 +9485,7 @@ function prPanelHtml(mine){
     ${mine.length ? `<div class="pr-list">${mine.map(prItemHtml).join("")}</div>` : `<div class="pr-empty">보유 표시한 종목이 없어요.</div>`}
     <div class="pr-h">② 과거 고점 사례 연구실 <small>승률 산식별 실제 사례 · 최근 고점 차트</small></div>
     ${prExHtml()}
-    <div class="pr-ref-h" style="margin-top:10px">최근 관심종목 고점 차트 9개 <small>예전 1차 조합(52주 고점 ∩ 볼밴 상단 ∩ 위험 캔들 · 검증 탈락) 기준 표시 — 위 승률 산식과 다른 조합</small></div>
+    <div class="pr-ref-h" style="margin-top:10px">최근 관심종목 고점 실제 차트 <small>사례 단위 검증 통과 조건 기준 · 적중 먼저 · 놓침·오경보는 접어 둠</small></div>
     ${prLabHtml()}
     <details class="pr-fine"><summary>연구 방법 · 조합별 결과</summary><div>
       <b>승률은 단일 지표가 아니라 조합(교집합)으로만 보여 줘요.</b><br>
