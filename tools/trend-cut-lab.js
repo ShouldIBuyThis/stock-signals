@@ -99,5 +99,7 @@ const r3 = SB.filter(r => has(r.rsi) && r.rsi <= 35), r3n = SB.filter(r => !(has
 console.log('\n■ R3 보조 표시(등급 불변) — 강한매수 중 종목 RSI ≤ 35');
 console.log(line('  RSI ≤ 35', r3) + `   vs 같은 날 아무 종목 +3/+5 ${pc(sameDay(r3, 3).rate)}/${pc(sameDay(r3, 5).rate)}`);
 console.log(line('  RSI > 35(나머지)', r3n));
-[r => r.d < mid, r => r.d >= mid].forEach((sel, j) => console.log(line(`  ${j ? '뒤' : '앞'} 반 RSI ≤ 35`, r3.filter(sel)) + ' | 나머지 +5 ' + f(st(r3n.filter(sel), 5))));
+[r => r.d < mid, r => r.d >= mid].forEach((sel, j) => { console.log(line(`  ${j ? '뒤' : '앞'} 반 RSI ≤ 35`, r3.filter(sel))); console.log(line(`  ${j ? '뒤' : '앞'} 반 나머지`, r3n.filter(sel))); });
+{ const ok = [r => r.d < mid, r => r.d >= mid].every(sel => [3, 5].every(h => st(r3.filter(sel), h).rate > st(r3n.filter(sel), h).rate)) && st(r3, 5).n >= 30;
+  console.log(`  판정(사전 등록 §3): ${ok ? '표시 가능' : '표시 불가'} — +3·+5일이 앞/뒤 반 둘 다 나머지보다 높음 ∧ +5 표본 30↑`); }
 for (const t of [30, 40]) console.log(line(`  (이웃) RSI ≤ ${t}`, SB.filter(r => has(r.rsi) && r.rsi <= t)));
