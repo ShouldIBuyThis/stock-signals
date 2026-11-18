@@ -627,6 +627,7 @@ html[data-theme="dark"] .lev{background:#33191b;color:#ff8080;border-bottom-colo
 .pr-hl{border:1.5px solid #f3b4b4;background:#fff7f7;border-radius:12px;padding:10px 11px;margin:6px 0 10px} .pr-hl b.t{color:#b42318}
 html[data-theme="dark"] .pr-hl{background:#2a1a1c;border-color:#6b2a2e} html[data-theme="dark"] .pr-hlb{background:#3a1c1f;color:#ffb4b4}
 .pr-hl ul{margin:6px 0 0;padding-left:16px} .pr-hl li{margin:3px 0;font-size:12px;line-height:1.55}
+.mtf-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}.mtf-grid figure{margin:0}.mtf-grid figcaption{font-size:11px;color:var(--muted);line-height:1.4}
 .tb-hl{border-color:#f6c58f;background:#fff8ef} .tb-hl b.t{color:#b45309} details.tb-hl>summary{cursor:pointer;list-style:none;font-size:12.5px}
 .cx-hl{border-color:#b9c7f0;background:#f5f8ff} .cx-hl b.t{color:#3346a8} details.cx-hl>summary{cursor:pointer;list-style:none;font-size:12.5px}
 html[data-theme="dark"] .cx-hl{background:#18203a;border-color:#34477a} html[data-theme="dark"] .cx-hl b.t{color:#a9b8ff}
@@ -4945,6 +4946,8 @@ async function loadBoardData(){
   Promise.all([loadJsonFromRepo("theme-breadth.json"), loadJsonFromRepo("group-breadth.json")]).then(([t, g]) => {
     if (t && t.markets) THEME_BR = t; if (g && g.groups) GROUP_BR = g;
     if ((THEME_BR || GROUP_BR) && state.data && typeof render === "function") { try { render(); } catch(e){} } }).catch(() => {});
+  /* 2026-11-18 주봉·월봉 연구 후보(일부익절 #1·#4 · 고점판독기 #2) — 매일 커밋되는 플래그라 GitHub 원본을 먼저 읽는다(사이트 사본은 배포 때만 바뀜) */
+  mtfLoad().then(ok => { if (ok && state.data && typeof render === "function") { try { render(); } catch(e){} } }).catch(() => {});
   /* 황금 × 국면별 고적중 조합(표시 전용 · 미장·국장) */
   loadJsonFromRepo("gold-theme-apply.json").then(g => { if (g && Array.isArray(g.apply)) { GOLD_TH = g; try { sbGoldPaint(); } catch(e){} } }).catch(() => {});
   /* 고점판독기 검증 통과 조합(장바구니 모의점검의 같은 테마 알림에도 쓴다) — 작은 파일이라 미리 받아 둔다 */
@@ -6935,6 +6938,7 @@ function stockCard(s, i, rankless=false){
     <div class="tags">${tags}${flowTagsHtml(s)}</div>
     ${sbStockBlock(s)}
     ${trimBoostHtml(trimBoostMatch(s), true)}
+    ${mtfHtml(mtfMatch(s), true)}
     ${cautionAuxHtml(cautionAuxMatch(s))}
     ${sbRsi35Html(s)}
     ${rankLine}
@@ -9118,7 +9122,7 @@ function prItemHtml(s){
   const HM = prHlMatch(s), P20 = prP20Match(s), VS3 = prVs3Match(s);
   const onRows = J.on.map(c => c === "EXT" && PR2 && PR2.A ? `<li><b>🌪 변동성 과열(이격 25%↑)</b> <small>${esc(idMDsafe(pr.on[c]))}</small><br><small class="pr-dim">참고 — 아래 🌪 블록에 상승·하락 경험 비율이 있어요</small></li>` : `<li><b>${esc(prName(c))}</b> <small>${esc(idMDsafe(pr.on[c]))}</small><br><small class="pr-dim">${valid.includes(c) ? "검증 통과" : "단독 조건 · 참고(검증 미통과)"} — 승률은 단독이 아니라 아래 '조합(교집합)' 성적으로 봐요</small></li>`).join("");
   return `<details class="pr-item"><summary><span class="pr-tk">${esc(s.ticker)}</span><span class="pr-nm">${esc(s.name || "")}</span><span class="pr-badges"><span class="pr-badge ${J.cls}">${esc(J.label)}</span>${HM.length ? `<span class="pr-badge" title="과거 연구 · 다른 성공 기준(신호 뒤 고점 대비 −10% 조정)">📁 과거 연구(Q) 조합</span>` : ""}${P20 && !P20.held ? `<span class="pr-hlb" title="20거래일 뒤 종가 하락 연구 후보 · 소표본">🔴 고점 경계 · 20일 하락 66~68%(소표본)</span>` : ""}${VS3 && !VS3.held ? `<span class="pr-hlb" title="대형 안정주 · 거래량 조합 연구 후보 · 소표본">📘 거래량 조합(OR 75%·소표본)</span>` : ""}${trimBoostMatch(s) ? `<span class="pr-trim" title="일부익절 강화 신호 · 연구 후보(표시 전용)">🔶 일부익절 강화</span>` : ""}${prTrim(s).length ? `<span class="pr-trim" title="사이트 기존 익절 신호(참고)">🟡 일부익절</span>` : ""}</span><span class="pr-why">${esc(J.why)}</span></summary>
-    <div class="pr-body">${prHlCard(HM)}${prP20Html(P20)}${prVs3Html(VS3)}${trimBoostHtml(trimBoostMatch(s))}
+    <div class="pr-body">${prHlCard(HM)}${prP20Html(P20)}${prVs3Html(VS3)}${trimBoostHtml(trimBoostMatch(s))}${mtfHtml(mtfMatch(s))}
       <div class="pr-kv"><div><small>120일 저점 대비</small><b>${pct(pr.up120)}</b></div><div><small>52주 고점 대비</small><b>${pct(hi52)}</b></div><div><small>RSI</small><b>${pr.rsi ?? "—"}</b></div></div>
       ${J.on.length ? `<div class="pr-sub">최근 5거래일에 켜진 조건</div><ul class="pr-on">${onRows}</ul>` : `<div class="pr-sub">최근 5거래일에 켜진 조건이 없어요</div>`}
       ${(() => { const T = prTrimSrc(s); return T.length ? `<div class="pr-ref"><div class="pr-ref-h">🟡 일부익절 가능성 <small>참고 · 고점 위험과 별개</small></div><ul class="pr-on">${T.map(x => `<li>${esc(x.t)}<br><small class="pr-dim">${esc(prTrimLine(x.k))}</small></li>`).join("")}</ul>${PR_TRIM ? `<small class="pr-dim">3년 백테스트(${esc((PR_TRIM.period || []).join("~"))}) · 같은 종목 3거래일 안 재발생 제외 · 생존 편향 있음. </small>` : ""}<small class="pr-dim">사이트가 이미 띄우는 과열·익절 신호(오늘의 신호·캔들 신호등·과열 뱃지)를 그대로 모은 거예요. 새 판정이 아니고, 매도 지시가 아니에요.</small></div>` : ""; })()}
@@ -9315,6 +9319,80 @@ function cautionAuxHtml(m){
   return `<details class="pr-hl cx-hl"><summary><b class="t">🧪 주의장 보조 후보 ${m.hits.map(c => "#" + c.id).join("·")}</b> <small class="pr-dim">실험용 · 강한매수 등급은 그대로</small></summary>
     <ul><li>오늘 조건: 나스닥 20일 ${has(m.x.ret20) ? (m.x.ret20 >= 0 ? "+" : "") + m.x.ret20.toFixed(1) + "%" : "—"} · 주의장 ${m.x.ageN != null ? m.x.ageN + "일째" : "지속일 —"} · ${m.x.path ? "추세 경로 포함" : "반등 경로만"}</li>${rows}
       <li><small class="pr-dim">${B.period} 주의장(미국) 강한매수 ${B.sbN}건 안에서 고른 연구 후보예요(145개 조합 탐색 · 우연 기대 12.8개 대비 65%↑ 26개). 승률 = n거래일 뒤 종가가 +1% 넘게 오르면 승, −1% 넘게 내리면 패(±1% 제외). 최근 원장(2026-08~11)의 주의장 강한매수는 +5일 14%(41건 · 35건이 10/14·10/15 이틀)였어요. 매수 지시가 아니고 추적 중인 실험 신호예요.</small></li></ul></details>`;
+}
+/* 2026-11-18 사용자 승인("일부익절 #1·#4와 고점판독기 #2 표시 전용 · 적중 차트와 실패 차트 함께") — docs/2026-11-13-mtf-cross.md.
+   525개 매도 조합 탐색에서 나온 후보라 독립 검증 전 — '연구 후보'로만 보인다. 기존 일부익절·고점판독기 판정·등급·매수 산식 불변.
+   주봉·월봉 조건 = backtest/mtf-flags.json(tools/mtf-flags.py · 연구와 같은 tools/mtf_feats.py · 마지막 '완성' 봉만).
+   신호일에 맞는 완성 봉이 아니면(파일이 늦음) 판정 보류. 통계·사례 = backtest/mtf-examples.json(연구 재실행 결과 그대로 · 사례는 가장 최근 적중 3 · 실패 3). */
+let MTF = null, MTF_EX = null;
+async function mtfLoad(){
+  const get = async n => { for (const u of ["https://raw.githubusercontent.com/ShouldIBuyThis/stock-signals/main/backtest/" + n, null]){
+      try { if (u){ const r = await fetch(u, { cache: "no-store" }); if (r.ok) return await r.json(); } else return await loadJsonFromRepo(n); } catch(e){} } return null; };
+  const [f, e] = await Promise.all([get("mtf-flags.json"), get("mtf-examples.json")]);
+  if (f && f.tickers) MTF = f; if (e && e.cands) MTF_EX = e; return !!(MTF || MTF_EX);
+}
+const MTF_C = {
+  T1: { icon: "🔶", kind: "trim", nm: "일부익절 ∩ 월봉 거래대금 급증(2배) ∩ 월봉 RSI 하락 다이버전스", need: ["M_VSPK", "M_RSIBEAR"],
+    fb: { n: 49, or: 0.82, dn: [0.59, 0.63, 0.67], avg: [-1.6, -2.7, -4.3], A: [0.68, 28], B: [1.00, 21], anchorAB: [0.59, 0.57] } },
+  T4: { icon: "🔶", kind: "trim", nm: "일부익절 ∩ 월봉 거래대금 급증(2배) ∩ 월봉 OBV·CMF 약화", need: ["M_VSPK", "M_FLOWWK"],
+    fb: { n: 122, or: 0.71, dn: [0.55, 0.56, 0.59], avg: [-0.3, -1.0, -2.4], A: [0.65, 62], B: [0.78, 60], anchorAB: [0.59, 0.57] } },
+  P2: { icon: "🔴", kind: "pr", nm: "고점판독기 거래량 신호 ∩ 주봉 RSI 하락 다이버전스 ∩ 월봉 OBV·CMF 약화", need: ["W_RSIBEAR", "M_FLOWWK"],
+    fb: { n: 31, or: 0.77, dn: [0.61, 0.55, 0.55], avg: [-1.9, -2.6, -2.3], A: [0.80, 20], B: [0.73, 11], anchorAB: [0.58, 0.56] } },
+};
+function mtfExpect(d){   /* 신호일 d에 '완성'돼 있어야 할 마지막 주봉 금요일 · 월봉 달 */
+  const x = new Date(String(d) + "T12:00:00Z"); if (isNaN(x)) return null;
+  const fri = new Date(x); fri.setUTCDate(x.getUTCDate() - ((x.getUTCDay() + 2) % 7));
+  const nx = new Date(x); do { nx.setUTCDate(nx.getUTCDate() + 1); } while (nx.getUTCDay() === 0 || nx.getUTCDay() === 6);
+  const mEnd = nx.getUTCMonth() !== x.getUTCMonth(), pm = new Date(Date.UTC(x.getUTCFullYear(), x.getUTCMonth() - (mEnd ? 0 : 1), 15));
+  return { fri: fri.toISOString().slice(0, 10), month: pm.toISOString().slice(0, 7) };
+}
+function mtfFresh(f, d){
+  const e = mtfExpect(d); if (!f || !e) return false;
+  const lag = (new Date(e.fri) - new Date(f.w_last)) / 864e5;
+  return lag >= 0 && lag <= 1 && String(f.m_last).slice(0, 7) === e.month;
+}
+function mtfPrv(s){   /* 연구 앵커 PRV = 최근 5거래일 급등 국면 ∩ 고점판독 조건 1개↑ ∩ (대량 음봉 ∨ 거래량 폭증 뒤 정체 · 5일 안 ∨ 5일 누적 거래량 1.6배↑) */
+  const pr = s && s.peak_reader; if (!pr || String(pr.date) !== String(s.last_date) || !(pr.run || pr.run_recent)) return false;
+  const on = pr.on || {}; if (!Object.keys(on).length) return false;
+  return !!(on.VOL_BEAR || on.VOL_STALL || (has(s.vol5_ratio20) && s.vol5_ratio20 >= 1.6));
+}
+function mtfMatch(s){
+  if (!s || !s.sig || s.earnings_hold || !MTF) return [];
+  const f = MTF.tickers && MTF.tickers[s.ticker]; if (!f) return [];
+  let trim = false; try { trim = prTrimSrc(s).length > 0; } catch(e){}
+  const prv = mtfPrv(s), out = [];
+  Object.entries(MTF_C).forEach(([k, c]) => { const anc = c.kind === "trim" ? trim : prv; if (!anc) return;
+    const fresh = mtfFresh(f, s.last_date);
+    if (!fresh){ if (c.need.some(x => f[x])) out.push({ k, c, held: true, f }); return; }
+    if (c.need.every(x => f[x] === true)) out.push({ k, c, f }); });
+  return out;
+}
+function mtfCaseSvg(e){
+  const B = e.bars || []; if (B.length < 5) return "";
+  const W = 300, Hh = 110, L = 3, R = 3, T = 10, hi = Math.max(...B.map(r => r[2])), lo = Math.min(...B.map(r => r[3]));
+  const cw = (W - L - R) / B.length, x = i => L + cw * (i + 0.5), y = v => T + (1 - (v - lo) / Math.max(1e-9, hi - lo)) * (Hh - T - 4);
+  const si = B.findIndex(r => r[0] === e.d); let g = "";
+  if (si >= 0) g += `<rect x="${(x(si) - cw / 2).toFixed(1)}" y="0" width="${(cw * Math.min(11, B.length - si)).toFixed(1)}" height="${Hh}" fill="var(--surface2,#f3f4f6)"/><line x1="${x(si)}" x2="${x(si)}" y1="0" y2="${Hh}" stroke="var(--sell,#e5484d)" stroke-dasharray="3 3"/>`;
+  B.forEach((r, i) => { const col = r[4] >= r[1] ? "var(--up,#e5484d)" : "var(--down,#3b82f6)";
+    g += `<line x1="${x(i)}" x2="${x(i)}" y1="${y(r[2])}" y2="${y(r[3])}" stroke="${col}"/><rect x="${(x(i) - cw * .33).toFixed(1)}" width="${(cw * .66).toFixed(1)}" y="${y(Math.max(r[1], r[4])).toFixed(1)}" height="${Math.max(1, Math.abs(y(r[1]) - y(r[4]))).toFixed(1)}" fill="${col}"><title>${esc(r[0])} 종 ${r[4]}</title></rect>`; });
+  return `<svg viewBox="0 0 ${W} ${Hh}" width="100%" role="img" aria-label="${esc(e.t)} ${esc(e.d)} 사례">${g}</svg>`;
+}
+function mtfHtml(ms, inCard){
+  if (!ms.length) return "";
+  const pc = v => v == null ? "—" : Math.round(v * 100) + "%", sg = v => v == null ? "—" : (v > 0 ? "+" : "") + Number(v).toFixed(1) + "%";
+  return ms.map(m => { const c = m.c, X = (MTF_EX && MTF_EX.cands && MTF_EX.cands[m.k]) || null, S = X || c.fb;
+    if (m.held) return inCard ? "" : `<div class="pr-ref"><b>${c.icon} 연구 후보 · 판정 보류</b> <small class="pr-dim">${esc(c.nm)} — 주봉·월봉 자료가 이 거래일 기준으로 아직 갱신되지 않았어요</small></div>`;
+    const ex = X && X.examples ? X.examples.filter(e => e.bars) : [], hit = ex.filter(e => e.hit), miss = ex.filter(e => !e.hit);
+    const exRow = (L, lab) => L.length ? `<div class="mtf-ex"><div class="pr-sub">${lab}</div><div class="mtf-grid">${L.map(e => `<figure>${mtfCaseSvg(e)}<figcaption><b>${esc(e.t)}</b> ${esc(e.d)} · 3·5·10일 ${sg(e.f3)}·${sg(e.f5)}·${sg(e.f10)}</figcaption></figure>`).join("")}</div></div>` : "";
+    const body = `<div style="font-size:12.5px;margin-top:4px">${esc(c.nm)}</div>
+      <ul><li>이번 주봉·월봉: 완성 주봉 ${esc(m.f.w_last)} · 완성 월봉 ${esc(String(m.f.m_last).slice(0, 7))} 기준</li>
+        <li><b>연구 성과(OR)</b>: 3·5·10거래일 뒤 종가 중 한 번이라도 1% 넘게 내린 비율 ${pc(S.or)}(${S.n}건) — 탐색 ${pc(S.A[0])}(${S.A[1]}) · 미사용 ${pc(S.B[0])}(${S.B[1]}) · 기존 신호 단독 ${pc(S.anchorAB[0])}·${pc(S.anchorAB[1])}</li>
+        <li>시점별로 따로: 3·5·10일 뒤 하락 ${(S.dn || []).map(pc).join("·")} · 평균 수익 ${(S.avg || []).map(sg).join("·")}</li>
+        <li><small class="pr-dim">3년 백테스트(관심종목 소급 · 생존 편향)에서 매도 쪽 525개 조합을 탐색해 고른 후보예요 — 독립 검증 전이라 확정 신호가 아니에요. 매도 수익을 검증한 숫자도 아니에요. 기존 일부익절·고점판독기 판정은 그대로예요.</small></li></ul>
+      ${exRow(hit, "✅ 적중 사례(가장 최근 3건)")}${exRow(miss, "❌ 실패 사례(가장 최근 3건)")}${ex.length ? `<small class="pr-dim">사례는 고르지 않고 가장 최근 것으로 정했어요. 회색 칸 = 신호일부터 10거래일 · 점선 = 신호일.</small>` : ""}`;
+    return inCard
+      ? `<details class="pr-hl tb-hl"><summary><b class="t">${c.icon} 주봉·월봉 연구 후보 ${m.k}</b> <small class="pr-dim">OR ${pc(S.or)}(${S.n}건) · 10일 평균 ${sg((S.avg || [])[2])} · 독립 검증 전</small></summary>${body}</details>`
+      : `<div class="pr-hl tb-hl"><div><b class="t">${c.icon} 주봉·월봉 연구 후보 ${m.k}</b> <small class="pr-dim">독립 검증 전</small></div>${body}</div>`; }).join("");
 }
 function prP20Html(m){
   if (!m || m.held) return "";

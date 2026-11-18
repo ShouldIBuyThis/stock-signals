@@ -25,65 +25,10 @@ DATES = sorted(R["d"].unique()); MID = DATES[len(DATES) // 2]
 R["half"] = np.where(R["d"] < MID, 0, 1)
 
 
-def rsi(x, n=14):
-    d = np.diff(x, prepend=np.nan); up = pd.Series(np.where(d > 0, d, 0.0)).ewm(alpha=1 / n, adjust=False).mean()
-    dn = pd.Series(np.where(d < 0, -d, 0.0)).ewm(alpha=1 / n, adjust=False).mean()
-    return (100 - 100 / (1 + up / dn.replace(0, np.nan))).to_numpy()
+sys.path.insert(0, "tools")
+from mtf_feats import rsi, A_KEYS, B_KEYS, KNM, TFN, bars, tf_feats   # 2026-11-18 공용 모듈로 옮김(식 그대로)
 
-
-A_KEYS = ["VSPK", "VDRY", "VFADE", "SLOW", "HOLD", "DBOT", "RSIDIV", "FLOW", "REC"]
-B_KEYS = ["VSPK", "VDRY", "RUNDRY", "UPSLOW", "WICK", "RSIHOT", "RSIBEAR", "FLOWWK", "BRK"]
-KNM = {"VSPK": "거래대금 급증(2배)", "VDRY": "거래대금 고갈(0.6배)", "VFADE": "거래대금 3봉 연속 감소", "SLOW": "하락 둔화", "HOLD": "저점 유지",
-       "DBOT": "쌍바닥", "RSIDIV": "RSI 상승 다이버전스", "FLOW": "OBV·CMF 개선", "REC": "추세 회복", "RUNDRY": "급등 뒤 거래대금 고갈",
-       "UPSLOW": "상승 둔화", "WICK": "고점 윗꼬리", "RSIHOT": "RSI 70↑", "RSIBEAR": "RSI 하락 다이버전스", "FLOWWK": "OBV·CMF 약화", "BRK": "추세 이탈"}
-TFN = {"W": "주봉", "M": "월봉"}
-
-
-def bars(d, rule):
-    B = d.resample(rule).agg({"Open": "first", "High": "max", "Low": "min", "Close": "last", "Volume": "sum", "DV": "sum"})
-    B["last"] = d["Close"].resample(rule).apply(lambda s: s.index[-1] if len(s) else pd.NaT)
-    return B.dropna(subset=["Close", "last"])
-
-
-def tf_feats(B, tf):
-    o, h, l, c, v, vol = (B[k].to_numpy(float) for k in ("Open", "High", "Low", "Close", "DV", "Volume"))
-    n = len(c); k = 8 if tf == "W" else 6; R14 = rsi(c)
-    ma = pd.Series(c).rolling(20 if tf == "W" else 6).mean().to_numpy()
-    obv = np.cumsum(np.sign(np.r_[0, np.diff(c)]) * vol); rng = np.where(h - l > 0, h - l, np.nan)
-    mfv = np.nan_to_num(((c - l) - (h - c)) / rng, nan=0) * vol
-    hiwin = 52 if tf == "W" else 12; jmin = max(hiwin, 26 if tf == "W" else 14)
-    out = {f"{tf}_{x}": np.zeros(n, bool) for x in set(A_KEYS + B_KEYS)}
-    for j in range(jmin, n):
-        ap = v[j - k:j].mean(); f = {}
-        f["VSPK"] = ap > 0 and v[j] >= 2 * ap; f["VDRY"] = ap > 0 and v[j] <= 0.6 * ap
-        f["VFADE"] = v[j] < v[j - 1] < v[j - 2]
-        rl, rp = c[j] / c[j - 3] - 1, c[j - 3] / c[j - 6] - 1
-        f["SLOW"] = rp < 0 and rl > rp
-        f["HOLD"] = l[j - 1:j + 1].min() >= l[j - 5:j - 1].min()
-        a0, a1, b0 = (j - 12, j - 3, j - 3) if tf == "W" else (j - 8, j - 2, j - 2)
-        i1 = a0 + int(np.argmin(l[a0:a1])); L1 = l[i1]; i2 = b0 + int(np.argmin(l[b0:j + 1])); L2 = l[i2]
-        mid = h[i1 + 1:i2].max() if i2 > i1 + 1 else 0
-        f["DBOT"] = L1 > 0 and abs(L2 / L1 - 1) <= 0.03 and mid >= L1 * 1.10 and c[j] >= L2 * 1.03
-        low6 = c[j] <= c[j - 5:j + 1].min() * 1.02
-        f["RSIDIV"] = bool(low6 and np.isfinite(R14[j]) and R14[j] > np.nanmin(R14[j - 5:j]))
-        cmf = mfv[j - 2:j + 1].sum() / max(vol[j - 2:j + 1].sum(), 1)
-        f["FLOW"] = bool((low6 and obv[j] > obv[j - 5:j + 1].min()) or cmf > 0)
-        w = 4 if tf == "W" else 3
-        f["REC"] = bool(np.isfinite(ma[j]) and c[j] > ma[j] and np.any(c[j - w:j] <= ma[j - w:j]))
-        f["RUNDRY"] = (c[j - 1] / c[j - 4] - 1) >= (0.20 if tf == "W" else 0.30) and ap > 0 and v[j] <= 0.7 * ap
-        f["UPSLOW"] = rp >= 0.10 and rl < rp / 2
-        hp = h[j - hiwin:j].max(); uw = (h[j] - max(o[j], c[j])) / rng[j] if np.isfinite(rng[j]) else 0
-        f["WICK"] = bool(h[j] >= hp * 0.97 and uw >= 0.5)
-        f["RSIHOT"] = bool(np.isfinite(R14[j]) and R14[j] >= 70)
-        h12 = h[j - 12:j].max()
-        f["RSIBEAR"] = bool(h[j] >= h12 and np.isfinite(R14[j]) and R14[j] < np.nanmax(R14[j - 12:j]) - 5)
-        f["FLOWWK"] = bool((h[j] >= h12 * 0.97 and obv[j] < obv[j - 12:j].max()) or cmf < 0)
-        f["BRK"] = bool(np.isfinite(ma[j]) and np.isfinite(ma[j - 1]) and c[j] < ma[j] and c[j - 1] >= ma[j - 1])
-        for x, val in f.items(): out[f"{tf}_{x}"][j] = bool(val)
-    F = pd.DataFrame(out); F["last"] = pd.to_datetime(B["last"].to_numpy()).astype("datetime64[ns]"); return F.dropna(subset=["last"])
-
-
-FEAT_COLS = None; KIND = {}; SPLITS = {}
+FEAT_COLS = None; KIND = {}; SPLITS = {}; DFS = {}
 pieces = []
 for t in TICK:
     sub = R[R["t"] == t]
@@ -99,6 +44,7 @@ for t in TICK:
     df = df[["Open", "High", "Low", "Close", "Volume"]].dropna(); df.index = pd.DatetimeIndex(pd.to_datetime([x.date() for x in df.index])).astype("datetime64[ns]")
     df = df[df.index >= sub["d"].min() - pd.Timedelta(days=365 * 8)]
     df["DV"] = df["Close"] * df["Volume"]
+    DFS[t] = df[["Open", "High", "Low", "Close"]]
     lev = float(sub["lev"].iloc[0] or 1)
     fl = PF.peak_reader_flags(df["Open"].values, df["High"].values, df["Low"].values, df["Close"].values, df["Volume"].values, lev=lev, ticker=t)
     rmx = lambda a, k=5: pd.Series(np.asarray(a, float)).rolling(k, min_periods=1).max().to_numpy() > 0.5
@@ -278,3 +224,44 @@ for lab, m in [("고점판독기 단독", cols["PR"]), ("∩ 대량 음봉(일�
     ix = dedupe(m); o = orr(ix)
     print(f"  {lab:<34} OR {pc(o[0])}({o[1]}) 개선 {pp(o[0] - sb_)} · A {pc(score(ix[SETA[ix]], 'B'))} B {pc(score(ix[~SETA[ix]], 'B'))} · 앞/뒤 {pc(score(ix[HALF[ix] == 0], 'B'))}/{pc(score(ix[HALF[ix] == 1], 'B'))} · 시점별 {'·'.join(pc(x) for x in o[3])} · 평균 {'·'.join(sg(x) for x in o[4])}")
 print("\n※ OR 성공은 세 시점 중 한 번이라도 1% 초과 하락 — 매도 수익 증거가 아니다. B(미사용)를 본 뒤 조합을 바꾸지 않았다. 산식·화면 변경 없음.")
+
+
+# ── 2026-11-18 사용자 승인: 연구 후보 3개 화면 표시용 사례·통계(--examples out.json) — 조합 정의는 위 사전 등록 그대로 ──
+if "--examples" in sys.argv:
+    outp = sys.argv[sys.argv.index("--examples") + 1]
+    CAND = {"T1": ("TRIM", ["M_VSPK", "M_RSIBEAR"]), "T4": ("TRIM", ["M_VSPK", "M_FLOWWK"]), "P2": ("PRV", ["W_RSIBEAR", "M_FLOWWK"])}
+    EXO = {"generated": str(pd.Timestamp.now(tz="UTC").date()), "doc": "docs/2026-11-13-mtf-cross.md", "period": [str(DATES[0].date()), str(DATES[-1].date())], "split": str(pd.Timestamp(MID).date()),
+           "rule": "사례 = 가장 최근 적중 3건 · 가장 최근 실패 3건(고르지 않음) · 적중 = 3·5·10거래일 뒤 종가 중 하나라도 −1% 초과 하락", "cands": {}}
+    for k, (an, fs) in CAND.items():
+        m = cols[an].copy()
+        for f in fs: m &= cols[f]
+        ix = dedupe(m); base = dedupe(cols[an]); o = orr(ix); lo, hi = wilson(o[2], o[1])
+        ev = []
+        for j in ix:
+            if not (np.isfinite(fr[3][j]) and np.isfinite(fr[5][j]) and np.isfinite(fr[10][j])): continue
+            ev.append({"t": str(ti[j]), "d": str(pd.Timestamp(DD[j]).date()), "hit": bool(fr[3][j] < -1 or fr[5][j] < -1 or fr[10][j] < -1),
+                       "f3": round(float(fr[3][j]), 2), "f5": round(float(fr[5][j]), 2), "f10": round(float(fr[10][j]), 2), "grp": str(GRP[j])})
+        ev.sort(key=lambda e: e["d"])
+        pick = [e for e in reversed(ev) if e["hit"]][:3] + [e for e in reversed(ev) if not e["hit"]][:3]
+        for e in pick:
+            D = DFS.get(e["t"])
+            if D is None: continue
+            k0 = D.index.get_indexer([pd.Timestamp(e["d"])])[0]
+            if k0 < 0: continue
+            W_ = D.iloc[max(0, k0 - 30):k0 + 13]
+            e["bars"] = [[str(x.date()), *[round(float(v), 4) for v in r]] for x, r in zip(W_.index, W_.to_numpy())]
+        EXO["cands"][k] = {"anchor": an, "feats": fs, "n": o[1], "hit": o[2], "or": o[0], "dn": o[3], "avg": o[4], "wilson": [lo, hi],
+                           "A": [score(ix[SETA[ix]], "B"), nn(ix[SETA[ix]], "B")], "B": [score(ix[~SETA[ix]], "B"), nn(ix[~SETA[ix]], "B")],
+                           "anchorAB": [score(base[SETA[base]], "B"), score(base[~SETA[base]], "B")], "half": [score(ix[HALF[ix] == 0], "B"), score(ix[HALF[ix] == 1], "B")],
+                           "anchorHalf": [score(base[HALF[base] == 0], "B"), score(base[HALF[base] == 1], "B")],
+                           "events": [{k2: v for k2, v in e.items() if k2 != "bars"} for e in ev], "examples": pick}
+        print(f"  사례 {k}: 사건 {o[1]} · OR {pc(o[0])} · 차트 {sum(1 for e in pick if 'bars' in e)}개")
+    def _clean(x):
+        if isinstance(x, dict): return {k: _clean(v) for k, v in x.items()}
+        if isinstance(x, (list, tuple)): return [_clean(v) for v in x]
+        if isinstance(x, (bool, np.bool_)): return bool(x)
+        if isinstance(x, (int, np.integer)): return int(x)
+        if isinstance(x, (float, np.floating)): return None if not np.isfinite(x) else round(float(x), 4)
+        return x
+    json.dump(_clean(EXO), open(outp, "w"), ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+    print(f"→ {outp}")
