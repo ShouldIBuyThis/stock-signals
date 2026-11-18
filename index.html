@@ -9271,7 +9271,7 @@ const SB_RSI35 = { r: [0.71, 0.70], n: [609, 595], rest: [0.60, 0.62], half: [[0
 function sbRsi35Html(s){
   if (!s || !s.sig || s.sig.grade !== 5 || s.earnings_hold || !has(s.rsi) || s.rsi > 35) return "";
   const B = SB_RSI35, pc = v => Math.round(v * 100) + "%";
-  return `<details class="pr-hl"><summary><b class="t">📉 RSI ${Math.round(s.rsi)} · 과매도 강한매수</b> <small class="pr-dim">보조 표시 · 등급은 그대로</small></summary>
+  return `<details class="pr-hl"><summary><b class="t">📉 RSI ${Math.round(s.rsi)} · 과매도 강한매수</b></summary>
     <ul><li>최근 3년 강한매수 중 종목 RSI 35 이하였던 날: +3·+5일 승률 <b>${B.r.map(pc).join("·")}</b> (${B.n.join("·")}건) — 나머지 강한매수 ${B.rest.map(pc).join("·")}</li>
       <li>앞 반 ${B.half[0].map(pc).join("·")} vs ${B.restHalf[0].map(pc).join("·")} · 뒤 반 ${B.half[1].map(pc).join("·")} vs ${B.restHalf[1].map(pc).join("·")} — 두 기간 모두 나머지보다 높았어요.</li>
       <li><small class="pr-dim">승률 = n거래일 뒤 종가가 +1% 넘게 오르면 승, −1% 넘게 내리면 패(±1% 제외) · 실적 영향권 제외. 이 조건을 처음 찾은 기간과 겹치는 자료라 완전한 독립 검증은 아니에요. 과거 성적이지 확정된 확률이 아니에요.</small></li></ul></details>`;
