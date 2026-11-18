@@ -36,6 +36,17 @@ const KEEP = [
   ['GLD',       '2026-07-21', '금 — 약세장 방어섹터 사례'],
 ];
 
+/* ── 익절 보존 목록(2026-11-18 사용자 지시 "NAIL 익절 보존사례 등록") — 사용자가 지목한 것만 · 임의 추가 금지 ──
+   [티커, 날짜, 반드시 떠야 하는 익절 신호 키(prTrimSrc k), 한 줄 설명]
+   TAG_SPLIT = 🔥 과열 분할익절(evaluate 과열 태그) · OR_R_MA20 = 🟠 20일선 이격 +25%(오늘의 신호 · 고점판독기 일부익절) */
+const KEEP_TRIM = [
+  ['NAIL', '2026-11-02', 'TAG_SPLIT', '🔥 과열 분할익절 · 37.41 → 10일 −13.2%'],
+  ['NAIL', '2026-11-04', 'TAG_SPLIT', '🔥 과열 분할익절 · 40.68 → 5일 −14.8%'],
+  ['NAIL', '2026-11-05', 'TAG_SPLIT', '🔥 과열 분할익절 · 38.64 → 5일 −14.9%'],
+  ['NAIL', '2026-11-05', 'OR_R_MA20', '🟠 20일선 이격 +25% · 38.64 → 5일 −14.9%'],
+  ['NAIL', '2026-11-09', 'OR_R_MA20', '🟠 20일선 이격 +25% · 39.38 → 3일 −16.5%'],
+];
+
 function die(m){ console.error('[ERROR]', m); process.exit(1); }
 function extractFunction(name){
   const start = src.indexOf(`function ${name}(`);
@@ -157,4 +168,25 @@ if(ALL){
     }).join('');
     console.log(`  ${tk.padEnd(10)}${line}`);
   }
+}
+
+
+/* ── 익절 보존 검사 — 화면 함수 그대로(tools/_harness · prTrimSrc). 그날 원장 행을 지금 산식으로 다시 판정해 그 신호가 뜨는지 본다. ── */
+{
+  const H = require('./_harness'), page = H.loadPage();
+  page.runInPage(`this.__trimKeep = (j, list) => { state.data = normalize(JSON.parse(j)); return list.map(([tk, d, key]) => {
+    const s = allStocks().find(x => x.ticker === tk); const hs = s ? (histStocks(s) || []) : []; const i = hs.findIndex(h => String(h.last_date) === d);
+    if (i < 0) return { gone: true };
+    const row = Object.assign({}, s, hs[i]); if (i > 0) withPrev(row, hs[i-1]); row._prevOverallGrade = i > 0 ? evaluate(hs[i-1]).grade : null;
+    row.sig = evaluate(row); row.ext_pair = null; let src = []; try { src = prTrimSrc(row); } catch(e){}
+    return { on: src.some(x => x.k === key), all: src.map(x => x.t) }; }); };`);
+  const res = page.__trimKeep(fs.readFileSync('signals.json', 'utf8'), KEEP_TRIM);
+  let ko = 0, kmiss = 0, kgone = 0;
+  console.log('\n익절 보존 사례 — 지금 산식이 그날 그 익절 신호를 다시 띄우는가 (✅ 뜸 · ❌ 안 뜸 · ❔ 원장 창 밖)');
+  console.log('  ' + '─'.repeat(112));
+  KEEP_TRIM.forEach(([tk, d, key, note], k) => { const r = res[k]; const m = r.gone ? '❔' : r.on ? '✅' : '❌';
+    if (r.gone) kgone++; else if (r.on) ko++; else kmiss++;
+    console.log(`  ${m} ${tk.padEnd(6)}${d}  ${key.padEnd(10)} ${note}${r.all ? '  | 그날 신호: ' + (r.all.join(' / ') || '없음') : ''}`); });
+  console.log('  ' + '─'.repeat(112));
+  console.log(`  익절 보존 ${ko} · 놓침 ${kmiss} · 창 밖 ${kgone}  (총 ${KEEP_TRIM.length}건)`);
 }
