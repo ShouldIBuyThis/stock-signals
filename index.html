@@ -4554,6 +4554,9 @@ function themeMultiRank(rows){
 /* 시장 국면 카드 안의 '앞설 테마 TOP3' 한 줄 — 테마 화면과 같은 themeForecast()를 쓴다(§0). */
 function marketThemeLine(){
   try{
+    if (THEME_PROB && !THEME_PROB.stop){ const F = themeProbFeats(), r = themeProbRank(F, F.dates.length - 1);
+      if (r && !r.short) return `<div class="market-bench-reason" style="margin-top:6px">📊 <b>앞설 테마 TOP5</b> ${r.top.map((t,i)=>`${i+1}. <b data-themefilter="${esc(t.name)}" role="button" tabindex="0" style="cursor:pointer">${esc(t.name)}</b> <span class="num">${Math.round(t.p[5]*100)}%</span>`).join(" · ")}
+        <span class="tkrec-sub">— 5일 안 +1% 오를 확률 순(${esc(THEME_PROB.model)} 모델 · 과거 통계). 이 테마 안에서 강한매수·매수관심이 뜬 종목을 고르는 용도예요.</span></div>`; }
     const tf = themeForecast(); const rows = (tf.today||[]).slice(0,3); if(rows.length < 3) return "";
     return `<div class="market-bench-reason" style="margin-top:6px">📊 <b>앞설 테마</b> ${rows.map((t,i)=>`${["🥇","🥈","🥉"][i]} <b data-themefilter="${esc(t.name)}" role="button" tabindex="0" style="cursor:pointer">${esc(t.name)}</b>`).join(" · ")}
       <span class="tkrec-sub">— 네 가지 기준에 동시에 걸린 순서. ${themeRecordText()} 이 테마 안에서 강한매수·매수관심이 뜬 종목을 고르는 용도예요.</span></div>`;
@@ -5775,7 +5778,121 @@ function themeLowDown(name){
     return before > 0 && now < before ? { now, before } : false;
   } catch(e){ return null; }
 }
+/* 2026-11-19 앞설 테마 TOP5 · 3·5·10거래일 안 +1% 도달 확률 (사전 등록 docs/2026-11-19-theme-top5-prob.md · 연구 tools/theme-prob-lab.py).
+   판정 = 신호일 종가 진입 → h거래일 안 테마(미국 상장 · 레버리지 아닌 구성종목 동일가중) 종가가 한 번이라도 +1% 이상(기존 연구와 같음).
+   지표 정의 = 연구와 같음: 52주 신고가권(고가 −1% 안)·신저가권(저가 +1% 안)·200일선 위 비율(2종목↑) · net5 · Δ5 · D · L2 · L3 · 기존 순위 점수(w/238).
+   계수·보정·부트스트랩 표본(THEME_PROB)은 연구 출력(MODEL_JSON)을 손대지 않고 옮긴다. 학습 2017~21 · 보정 2022~23 · 실전 검증 = THEME_PROB_START부터. */
+const THEME_PROB = null;
+const THEME_PROB_START = "2026-11-20";
+function themeProbFeats(){
+  const key = state.data && state.data.generated_at; if (themeProbFeats._k === key) return themeProbFeats._v;
+  const daily = themeDailyRows(themeStocks(), 5), dates = daily.map(x => x.d), N = dates.length, mem = {};
+  themeStocks().forEach(s => { if (s._benchmark || CONGRESS_TICKERS.has(s.ticker) || isKR(s.ticker) || LEVERAGED[s.ticker]) return;
+    const m = new Map(); (histStocks(s) || []).forEach(h => m.set(String(h.last_date), h)); (mem[s.category || "기타"] = mem[s.category || "기타"] || []).push(m); });
+  const W = daily.map(x => { const o = {}; if (x.rows.length >= 5) themeMultiRank(x.rows).forEach(r => o[r.name] = r.w / 238); return o; });
+  const TH = {};
+  Object.entries(mem).forEach(([c, ms]) => {
+    const hr = [], lr = [], ab = [], k = [];
+    dates.forEach(d => { let a = 0, nh = 0, b = 0, nl = 0, e = 0, na = 0;
+      ms.forEach(m => { const h = m.get(d); if (!h) return;
+        if (has(h.pct_from_high)){ a++; if (h.pct_from_high >= -1) nh++; }
+        if (has(h.pct_from_low)){ b++; if (h.pct_from_low <= 1) nl++; }
+        if (has(h.price) && has(h.ma200)){ e++; if (h.price > h.ma200) na++; } });
+      hr.push(a >= 2 ? nh / a : null); lr.push(b >= 2 ? nl / b : null); ab.push(e >= 2 ? na / e : null); k.push(Math.max(a, b)); });
+    const m5 = v => v.map((_, i) => { if (i < 4) return null; let z = 0; for (let j = i - 4; j <= i; j++){ if (v[j] == null) return null; z += v[j]; } return z / 5; });
+    const hr5 = m5(hr), lr5 = m5(lr), net5 = hr5.map((v, i) => v == null || lr5[i] == null ? null : v - lr5[i]);
+    TH[c] = dates.map((d, i) => { const b5 = i >= 5 ? lr5[i - 5] : null, n5 = i >= 5 ? net5[i - 5] : null, ok = lr5[i] != null && b5 != null;
+      return { ab200: ab[i], net5: net5[i], d5: net5[i] != null && n5 != null ? net5[i] - n5 : null, lrd5: ok ? lr5[i] - b5 : null, lr: lr[i], lr5: lr5[i], lr5b: b5,
+        D: ok ? (b5 > 0 && lr5[i] - b5 < 0 ? 1 : 0) : null, L2: ok ? (b5 >= 0.05 && lr5[i] - b5 <= -0.05 ? 1 : 0) : null,
+        L3: b5 != null && lr[i] != null ? (b5 > 0 && lr[i] === 0 ? 1 : 0) : null, nmem: k[i] }; });
+  });
+  const v = { daily, dates, TH, W, mem }; themeProbFeats._k = key; themeProbFeats._v = v; return v;
+}
+function themeProbP(x, h, draw){
+  const M = THEME_PROB, H = M.h[h], fs = M.feats, n = fs.length, b = draw ? draw.slice(0, n + 1) : H.b, pa = draw ? draw.slice(n + 1) : H.platt;
+  let z = b[0]; for (let j = 0; j < n; j++){ const v = x[fs[j]]; if (v == null) return null; z += b[j + 1] * (v - M.mu[j]) / M.sd[j]; }
+  return 1 / (1 + Math.exp(-(pa[0] + pa[1] * z)));
+}
+/* i번째 날짜의 테마별 확률 · 구간 · 5일 확률 순 TOP5(동률이면 기존 순위 순) */
+function themeProbRank(F, i){
+  const C = (F._rank = F._rank || {}); if (i in C) return C[i]; return (C[i] = themeProbRank0(F, i));
+}
+function themeProbRank0(F, i){
+  const day = F.daily[i]; if (!day || day.rows.length < 5) return null;
+  const order = themeMultiRank(day.rows).map(r => r.name); day.rows.forEach(r => { if (!order.includes(r.name)) order.push(r.name); });
+  const out = [];
+  order.forEach((name, pos) => { const f = F.TH[name] && F.TH[name][i]; if (!f) return;
+    const x = Object.assign({ v0w: F.W[i][name] || 0 }, f), o = { name, pos, x, row: day.rows.find(r => r.name === name), p: {}, lo: {}, hi: {}, dr: {} };
+    for (const h of [3, 5, 10]){ const p = themeProbP(x, h); if (p == null) return;
+      const ds = THEME_PROB.h[h].draws.map(dw => themeProbP(x, h, dw)).filter(v => v != null), s = ds.slice().sort((a, b) => a - b);
+      o.p[h] = p; o.dr[h] = ds; o.lo[h] = s[Math.floor(0.05 * (s.length - 1))]; o.hi[h] = s[Math.ceil(0.95 * (s.length - 1))]; }
+    out.push(o); });
+  if (out.length < 5) return { top: [], all: out, short: true };
+  out.sort((a, b) => b.p[5] - a.p[5] || a.pos - b.pos);
+  const top = out.slice(0, 5);
+  top.forEach((o, k) => { if (!k) return; const a = top[k - 1], n = Math.min(a.dr[5].length, o.dr[5].length);
+    let w = 0; for (let j = 0; j < n; j++) if (a.dr[5][j] > o.dr[5][j]) w++;
+    o.tie = (n ? w / n : 0) < 0.9 || a.p[5] - o.p[5] < 0.02; });
+  top.forEach(o => { const wd = o.hi[5] - o.lo[5]; let c = wd <= 0.10 ? 2 : wd <= 0.20 ? 1 : 0; if (o.x.nmem <= 2) c = Math.max(0, c - 1); o.conf = ["낮음", "보통", "높음"][c]; });
+  return { top, all: out, short: false };
+}
+/* 원장 기록: 날짜별 TOP5의 h일 안 +1% 도달(구성종목 가격으로) — start 이후만 */
+function themeProbRecord(F, from, to){
+  const R = { 3: { n: 0, y: 0, p: 0 }, 5: { n: 0, y: 0, p: 0 }, 10: { n: 0, y: 0, p: 0 } }; let days = 0;
+  F.dates.forEach((d, i) => { if (d < from || (to && d >= to)) return; const r = themeProbRank(F, i); if (!r || r.short) return; days++;
+    r.top.forEach(o => { const ms = F.mem[o.name] || [];
+      for (const h of [3, 5, 10]){ if (i + h >= F.dates.length) continue;
+        const use = ms.filter(m => { const a = m.get(d); if (!a || !has(a.price) || a.price <= 0) return false; for (let k = 1; k <= h; k++){ const b = m.get(F.dates[i + k]); if (!b || !has(b.price)) return false; } return true; });
+        if (use.length < 2) continue; let hit = 0;
+        for (let k = 1; k <= h; k++){ const v = use.reduce((s, m) => s + m.get(F.dates[i + k]).price / m.get(d).price, 0) / use.length - 1; if (v >= 0.01 - 1e-12){ hit = 1; break; } }
+        R[h].n++; R[h].y += hit; R[h].p += o.p[h]; } }); });
+  return { R, days };
+}
+function themeProbLowTag(x){
+  if (x.L3) return `<span class="tag t-cool" title="5일 전엔 신저가권 종목이 있었는데 오늘 0개">🟢 신저가 0개</span>`;
+  if (x.L2) return `<span class="tag t-cool" title="신저가권 비율(5일 평균)이 5일 새 5%p 이상 줄었어요">🟢 신저가 5%p↑ 감소</span>`;
+  if (x.D) return `<span class="tag t-cool" title="신저가권 비율(5일 평균)이 5일 새 줄었어요">🟢 신저가 감소</span>`;
+  if (x.lrd5 != null && x.lrd5 > 0) return `<span class="tag t-warn" title="신저가권 비율(5일 평균)이 5일 새 늘었어요">🔻 신저가 늘어남</span>`;
+  return `<span class="tag" title="5일 전·오늘 모두 신저가권 종목 비율 변화 없음">신저가 변화 없음${x.lr5 === 0 ? "(0%)" : ""}</span>`;
+}
+function themeProbHtml(){
+  if (!THEME_PROB || THEME_PROB.stop) return "";
+  const F = themeProbFeats(), i = F.dates.length - 1, r = themeProbRank(F, i); if (!r) return "";
+  const pc = v => v == null ? "—" : `${Math.round(v * 100)}%`, sg = v => v == null ? "—" : `${v >= 0 ? "+" : ""}${Math.round(v * 100)}`;
+  if (r.short) return `<div class="tkrec" style="margin-top:12px"><div class="tkrec-h">🔭 앞설 테마 TOP5</div><p class="tkrec-note">오늘은 확률을 계산할 수 있는 테마가 ${r.all.length}개뿐이라(5개 미만) 추천을 쉬어요. 구성종목 원장 자료가 모자란 날이에요.</p></div>`;
+  const relOf = p => { const b = (THEME_PROB.h[5].rel || []).find(z => p >= z[0] && p < (z[1] >= 1 ? 1.0001 : z[1])); return b ? `과거 이 확률대 ${b[2].toLocaleString()}건 → 실제 ${Math.round(b[4] * 100)}%` : ""; };
+  let rank = 0;
+  const rows = r.top.map((o, k) => { if (!o.tie) rank = k + 1; const x = o.x;
+    return `<div class="tf-row">
+      <span class="tf-medal" style="font-size:15px;font-weight:800;min-width:30px">${o.tie ? "≈" : ""}${rank}위</span>
+      <div class="tf-body">
+        <div class="tf-name"><b data-themefilter="${esc(o.name)}" role="button" tabindex="0">${esc(o.name)}</b> <span class="tkrec-n">${o.row ? o.row.n : "—"}종목 · 계산 ${x.nmem}종목</span>${o.tie ? ` <span class="tkrec-sub">윗 순위와 통계적으로 비슷</span>` : ""}</div>
+        <div class="tf-nums">+1% 오를 확률 · 3일 안 <b class="num">${pc(o.p[3])}</b> · <b>5일 안 <span class="num" style="font-size:15px">${pc(o.p[5])}</span></b> <span class="tkrec-sub">(${pc(o.lo[5])}~${pc(o.hi[5])})</span> · 10일 안 <b class="num">${pc(o.p[10])}</b></div>
+        <div class="tf-nums">200일선 위 <b class="num">${pc(x.ab200)}</b> · 순신고가 강도 <b class="num">${sg(x.net5)}</b>%p (5일 변화 ${sg(x.d5)}%p) · 확률 신뢰도 <b>${o.conf}</b> <span class="tkrec-sub">${relOf(o.p[5])}</span></div>
+        <div class="tf-tags">${themeProbLowTag(x)}</div>
+      </div></div>`; }).join("");
+  const led = themeProbRecord(F, F.dates[0], THEME_PROB_START), live = themeProbRecord(F, THEME_PROB_START);
+  const recTxt = (z, lab) => { const a = z.R[5], b = z.R[10], c = z.R[3]; if (!a.n) return `${lab}: 아직 결과가 나온 날이 없어요.`;
+    return `${lab}: ${z.days}일 · 5일 안 도달 <b>${a.y}/${a.n} (${Math.round(a.y / a.n * 100)}%)</b> · 예측 평균 ${Math.round(a.p / a.n * 100)}%` +
+      (c.n ? ` · 3일 ${Math.round(c.y / c.n * 100)}%(예측 ${Math.round(c.p / c.n * 100)}%)` : "") + (b.n ? ` · 10일 ${Math.round(b.y / b.n * 100)}%(예측 ${Math.round(b.p / b.n * 100)}%)` : "") +
+      (a.n < 50 ? ` <span class="tkrec-sub">— 표본 ${a.n}건 · 아직 판단 이름</span>` : ""); };
+  return `<div class="tkrec" style="margin-top:12px">
+    <div class="tkrec-h">🔭 앞설 테마 TOP5 <span class="tkrec-sub">5일 안 +1% 오를 확률 높은 순 · ${esc(F.dates[i])} 종가 기준</span></div>
+    <div class="tf-list">${rows}</div>
+    <details class="acc" style="margin-top:8px"><summary style="cursor:pointer;font-size:12px;color:var(--muted)">📖 확률 읽는 법 · 얼마나 맞았나 (펼치기)</summary>
+    <p class="tkrec-note"><b>확률</b> — 오늘 종가에 샀다면 3·5·10거래일 안에 그 테마(미국 상장·레버리지 아닌 구성종목 평균) 종가가 한 번이라도 +1% 넘을 확률이에요. 괄호는 90% 구간(모델 불확실성). '≈'는 바로 위 순위와 확률 차이가 작거나 불확실해서 사실상 같은 수준이에요.</p>
+    <p class="tkrec-note"><b>계산</b> — ${esc(THEME_PROB.model)} 로지스틱 모델 · 지표 ${esc(THEME_PROB.feats.join("·"))} · 학습 ${esc(THEME_PROB.trained)} · 보정 ${esc(THEME_PROB.calibrated)}. 테마 분류는 지금 관심종목 기준이라 과거 성적이 부풀 수 있어요.</p>
+    <p class="tkrec-note"><b>얼마나 맞았나</b> — ${recTxt(live, `📒 실전(${THEME_PROB_START}~ · 모델 고를 때 안 본 자료)`)}<br>${recTxt(led, "원장 이전 구간(학습·보정엔 안 썼지만 연구 때 본 기간)")}</p>
+    <p class="tkrec-note" style="color:var(--faint)">과거 통계일 뿐 예언이 아니에요 · 종목 점수·등급에는 쓰지 않아요 · 투자 권유가 아닙니다</p>
+    </details>
+  </div>`;
+}
 function themeForecastHtml(){
+  /* 2026-11-19 TOP5 확률(THEME_PROB)이 있으면 그것을 앞에, 기존 TOP3는 '이전 방식'으로 접어 둔다. 없으면 기존 그대로. */
+  const P = themeProbHtml(), old = themeForecastHtml0(); if (!P) return old;
+  return P + (old ? `<details class="acc" style="margin-top:8px"><summary style="cursor:pointer;font-size:12px;color:var(--muted)">🗂 이전 방식 TOP3 보기 (네 기준 중복 순 · 2026-11-19까지 쓰던 것)</summary>${old}</details>` : "");
+}
+function themeForecastHtml0(){
   const f = themeForecast(); if(f.today.length < 3) return "";
   const pct = v => has(v) ? `${v>=0?"+":""}${v.toFixed(1)}%` : "—";
   const medal = ["🥇","🥈","🥉"];
