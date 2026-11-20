@@ -841,6 +841,7 @@ html[data-theme="dark"] .badge.gOh,html[data-theme="dark"] .c-badge.gOh,html[dat
 .hl-sub{font-size:13px;font-weight:700;margin:6px 0 2px}
 .hl-stock{display:block;width:100%;text-align:left;background:none;border:0;border-top:1px dashed var(--line,#e5e7eb);padding:6px 0;font:inherit;color:inherit;cursor:pointer}
 .hl-s1{font-size:14px}.hl-s1 small{color:var(--muted)}.hl-s2{font-size:12px;color:var(--muted);margin-top:2px}.hl-s3{font-size:12px;margin-top:2px}
+.hl-cw{position:relative;touch-action:pan-y;cursor:crosshair;-webkit-user-select:none;user-select:none}.hl-tip{position:absolute;top:2px;max-width:240px;padding:6px 9px;border-radius:10px;background:var(--surface,#fff);border:1px solid var(--line,#e5e7eb);box-shadow:0 4px 14px rgba(0,0,0,.14);font-size:12px;line-height:1.45;pointer-events:none;z-index:3}.hl-tip small{color:var(--muted)}
 .hl-tbl{border-collapse:collapse;font-size:12px;width:100%}.hl-tbl td,.hl-tbl th{padding:3px 6px;border-bottom:1px solid var(--line,#e5e7eb);text-align:right}.hl-tbl td:first-child{text-align:left}
 .hl-note2{font-size:11px;color:var(--muted);line-height:1.6;margin-top:6px}.hl-warn{font-size:12px;color:#b45309;margin-top:4px}
 .hl-per{display:flex;gap:6px;margin:4px 0}.hl-legend{font-size:11px;display:flex;flex-wrap:wrap;gap:4px 10px;margin:4px 0}
@@ -5546,10 +5547,14 @@ const HL_BUCKET_LABEL = {lowdom:"신저가 종목이 신고가보다 많은 날"
 function hlHistStats(bucket){
   const B = BREADTH_BT; if(!B || !bucket) return null;
   const rows = B.rows;
-  const st = sel => { const a5 = sel.filter(r=>r[6]!=null), a10 = sel.filter(r=>r[7]!=null), m = sel.filter(r=>r[8]!=null);
+  /* 20거래일 뒤 QQQ 종가 수익(%) — r[9](QQQ 종가)로 계산. 행은 QQQ 거래일 연속이라(10일 값 r[7]과 재계산 2,550/2,550 일치) i+20행 = 20거래일 뒤 */
+  if (!B._f20) B._f20 = rows.map((r,i)=>{ const q = rows[i+20]; return q && r[9] && q[9] ? (q[9]/r[9]-1)*100 : null; });
+  const f20 = B._f20, ix = new Map(rows.map((r,i)=>[r,i]));
+  const st = sel => { const a5 = sel.filter(r=>r[6]!=null), a10 = sel.filter(r=>r[7]!=null), m = sel.filter(r=>r[8]!=null), a20 = sel.map(r=>f20[ix.get(r)]).filter(v=>v!=null);
     const avg = (a,k) => a.length ? a.reduce((z,r)=>z+r[k],0)/a.length : null;
     return {days:sel.length, up5:a5.length?a5.filter(r=>r[6]>0).length/a5.length:null, up10:a10.length?a10.filter(r=>r[7]>0).length/a10.length:null,
-            avg5:avg(a5,6), avg10:avg(a10,7), mdd:avg(m,8)}; };
+            up20:a20.length?a20.filter(v=>v>0).length/a20.length:null, n10:a10.length, n20:a20.length,
+            avg5:avg(a5,6), avg10:avg(a10,7), avg20:a20.length?a20.reduce((z,v)=>z+v,0)/a20.length:null, mdd:avg(m,8)}; };
   const same = rows.filter(r=>hlBucket(r[1],r[2],r[3])===bucket);
   let runs = 0, prev = false; rows.forEach(r=>{ const on = hlBucket(r[1],r[2],r[3])===bucket; if(on && !prev) runs++; prev = on; });
   const years = {}; same.forEach(r=>{ const y = r[0].slice(0,4); years[y] = (years[y]||0)+1; });
@@ -5576,14 +5581,34 @@ function hlChartSvg(pts){
   const dl = di.map(i=>`<text x="${x(i)}" y="${Hh-7}" text-anchor="${i===0?"start":i===pts.length-1?"end":"middle"}" font-size="10" fill="var(--muted)">${esc(pts[i].date)}</text>`).join("");
   let marks = "", prev = false;
   pts.forEach((p,i)=>{ const on = p.nl > p.nh; if(on && !prev) marks += `<path d="M${x(i).toFixed(1)},${Hh-B+2} l-4,7 h8 z" fill="#3b82f6"><title>${esc(p.date)} 신저가 우세 시작</title></path>`; prev = on; });
-  const hov = pts.map((p,i)=>`<rect x="${(x(i)-(W-L-R)/pts.length/2).toFixed(1)}" y="${T}" width="${((W-L-R)/pts.length).toFixed(2)}" height="${Hh-T-B}" fill="transparent"><title>${esc(p.date)} · 신고가 ${p.nh}${p.hl&&p.hl.length?" ("+p.hl.slice(0,8).join(", ")+(p.hl.length>8?"…":"")+")":""} · 신저가 ${p.nl}${p.ll&&p.ll.length?" ("+p.ll.slice(0,8).join(", ")+(p.ll.length>8?"…":"")+")":""} · 대상 ${p.n}</title></rect>`).join("");
+  hlChartSvg._g = { pts, W, Hh, L, R, T, B, mx };   /* 말풍선(hlTipAt)이 같은 좌표계를 쓴다 */
   const last = pts[pts.length-1];
-  return `<svg viewBox="0 0 ${W} ${Hh}" width="100%" role="img" aria-label="52주 신고가·신저가 종목 수">${grid}${diff}
+  return `<div class="hl-cw" data-hlchart="1"><svg viewBox="0 0 ${W} ${Hh}" width="100%" role="img" aria-label="52주 신고가·신저가 종목 수 — 터치하거나 커서를 올리면 날짜가 나와요">${grid}${diff}
     <polyline points="${line("nh")}" fill="none" stroke="#e5484d" stroke-width="1.8"/><polyline points="${line("nl")}" fill="none" stroke="#3b82f6" stroke-width="1.8"/>
     <circle cx="${x(pts.length-1)}" cy="${y(last.nh)}" r="3.5" fill="#e5484d"/><text x="${x(pts.length-1)+5}" y="${y(last.nh)-3}" font-size="11" fill="#e5484d" font-weight="700">${last.nh}</text>
     <circle cx="${x(pts.length-1)}" cy="${y(last.nl)}" r="3.5" fill="#3b82f6"/><text x="${x(pts.length-1)+5}" y="${y(last.nl)+12}" font-size="11" fill="#3b82f6" font-weight="700">${last.nl}</text>
-    ${marks}${dl}${hov}</svg>`;
+    ${marks}${dl}<g class="hl-xh" visibility="hidden"><line y1="${T}" y2="${Hh-B}" stroke="var(--muted)" stroke-dasharray="3 3"/><circle r="4" fill="#e5484d" stroke="#fff" stroke-width="1.5"/><circle r="4" fill="#3b82f6" stroke="#fff" stroke-width="1.5"/></g></svg><div class="hl-tip" hidden></div></div>`;
 }
+/* 그래프 말풍선 — 커서(데스크톱)·터치(모바일)한 x 위치의 날짜·신고가·신저가 수·종목(기록된 날만) */
+function hlTipAt(cw, clientX){
+  const G = hlChartSvg._g, svg = cw && cw.querySelector("svg"); if (!G || !svg) return;
+  const bb = svg.getBoundingClientRect(), vx = (clientX - bb.left) / bb.width * G.W, n = G.pts.length;
+  const i = Math.max(0, Math.min(n - 1, Math.round((vx - G.L) / (G.W - G.L - G.R) * (n - 1)))), p = G.pts[i];
+  const X = G.L + i * (G.W - G.L - G.R) / (n - 1), Y = v => G.T + (1 - v / G.mx) * (G.Hh - G.T - G.B);
+  const g = svg.querySelector(".hl-xh"), [ln, c1, c2] = g.children;
+  ln.setAttribute("x1", X); ln.setAttribute("x2", X); c1.setAttribute("cx", X); c1.setAttribute("cy", Y(p.nh)); c2.setAttribute("cx", X); c2.setAttribute("cy", Y(p.nl)); g.setAttribute("visibility", "visible");
+  const lst = a => a && a.length ? ` <small>(${a.slice(0, 8).map(esc).join(", ")}${a.length > 8 ? "…" : ""})</small>` : "";
+  const tip = cw.querySelector(".hl-tip");
+  tip.innerHTML = `<b>${esc(p.date)}</b><br><span style="color:#e5484d">신고가 ${p.nh}개</span>${lst(p.hl)}<br><span style="color:#3b82f6">신저가 ${p.nl}개</span>${lst(p.ll)}<br><small>조사 ${p.n}개</small>`;
+  tip.hidden = false;
+  const cb = cw.getBoundingClientRect(), px = X / G.W * bb.width + (bb.left - cb.left), tw = tip.offsetWidth;
+  tip.style.left = Math.max(0, Math.min(cb.width - tw, px - tw / 2)) + "px";
+}
+function hlTipHide(cw){ if (!cw) return; const t = cw.querySelector(".hl-tip"), g = cw.querySelector(".hl-xh"); if (t) t.hidden = true; if (g) g.setAttribute("visibility", "hidden"); }
+document.addEventListener("pointermove", e => { const cw = e.target.closest && e.target.closest("[data-hlchart]"); if (cw) hlTipAt(cw, e.clientX); });
+document.addEventListener("pointerdown", e => { const cw = e.target.closest && e.target.closest("[data-hlchart]");
+  document.querySelectorAll("[data-hlchart]").forEach(c => { if (c !== cw) hlTipHide(c); }); if (cw) hlTipAt(cw, e.clientX); });
+document.addEventListener("pointerout", e => { if (e.pointerType !== "mouse") return; const cw = e.target.closest && e.target.closest("[data-hlchart]"); if (cw && !cw.contains(e.relatedTarget)) hlTipHide(cw); });
 function hlTrendSentence(pts){
   if (pts.length < 20) return "";
   const a = pts.slice(-10), b = pts.slice(-20,-10), m = (xs,k)=>xs.reduce((z,p)=>z+p[k],0)/xs.length;
@@ -5726,11 +5751,12 @@ function hlPanelHtml(){
       ${hlThemeHtml(cnt)}</details>
     <details class="hl-more"><summary>📅 과거 비슷했던 날 · 숫자 자세히</summary>
       ${H ? `<table class="hl-tbl"><tr><th></th><th>이런 날</th><th>평소</th></tr>
-        <tr><td>나스닥 5일 뒤 상승</td><td>${pctS(H.same.up5)}</td><td>${pctS(H.base.up5)}</td></tr>
-        <tr><td>나스닥 10일 뒤 상승</td><td>${pctS(H.same.up10)}</td><td>${pctS(H.base.up10)}</td></tr>
+        <tr><td>나스닥 10일 뒤 상승확률</td><td>${pctS(H.same.up10)}</td><td>${pctS(H.base.up10)}</td></tr>
+        <tr><td>나스닥 20일 뒤 상승확률</td><td>${pctS(H.same.up20)}</td><td>${pctS(H.base.up20)}</td></tr>
         <tr><td>10일 뒤 평균</td><td>${retS(H.same.avg10)}</td><td>${retS(H.base.avg10)}</td></tr>
+        <tr><td>20일 뒤 평균</td><td>${retS(H.same.avg20)}</td><td>${retS(H.base.avg20)}</td></tr>
         <tr><td>10일 안 최대 하락 평균</td><td>${retS(H.same.mdd)}</td><td>${retS(H.base.mdd)}</td></tr></table>
-        <div class="hl-note2">이런 날 ${H.same.days}일(연속 구간 ${H.runs}번) · ${esc(H.period.join("~"))}</div>` : `<div class="hl-note2">과거 자료를 불러오는 중이에요.</div>`}
+        <div class="hl-note2">이런 날 ${H.same.days}일(연속 구간 ${H.runs}번) · ${esc(H.period.join("~"))} · 상승확률 = 과거 같은 상황에서 QQQ 종가가 실제로 오른 비율(10일 ${H.same.n10}건 · 20일 ${H.same.n20}건)</div>` : `<div class="hl-note2">과거 자료를 불러오는 중이에요.</div>`}
     </details>
   </details>`;
 }
