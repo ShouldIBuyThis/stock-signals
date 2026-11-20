@@ -5963,7 +5963,7 @@ function tf2Past(mode, k){
                                           : `<tr><td>${h}거래일</td><td>${pc(e["y" + h])}</td><td>${sg(e["r" + h])}</td><td>${(e["n" + h] || 0).toLocaleString()}</td></tr>`;
   return `<div class="tf2-sub"><b>과거 실적</b> · 이 방식 ${k}위 자리 · ${esc(S.period.all)} (연구 집계)</div>
     <table class="tf2-tbl">${head}${[3, 5, 10].map(h => row(a, h)).join("")}</table>` +
-    (mode === "lead" ? `<div class="tf2-sub">상대 강도 = 같은 날 전체 테마의 가운데값보다 더 오른 비율(50%가 보통)</div>` : "") +
+    (mode === "lead" ? `<div class="tf2-sub">상대 강도 = 같은 날 전체 테마의 가운데값보다 더 오른 비율 · 무작위로 5개를 골라도 약 45~48%예요(같은 기간 연구 집계 · 50%가 기준이 아님)</div>` : "") +
     (t ? `<div class="tf2-sub">최근 구간 ${esc(S.period.test)}: 5거래일 ${mode === "lead" ? `종가 상승 ${pc(t.up5)} · 상대 강도 ${pc(t.rs5)}` : `+1% 도달 ${pc(t.y5)}`} · 평균 ${sg(t.r5)} · ${(t.n5 || 0).toLocaleString()}건</div>` : "");
 }
 function tf2LeadPane(F, i){
